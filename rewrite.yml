@@ -1,0 +1,146 @@
+type: specs.openrewrite.org/v1beta/recipe
+name: io.fluxzero.Rebrand
+displayName: Rename Flux Capacitor to Fluxzero
+description: One-shot migration for library rebrand (code + docs).
+recipeList:
+
+  - org.openrewrite.xml.ChangeTagValue:
+      elementName: "//groupId"
+      oldValue: "io.flux-capacitor"
+      newValue: "io.fluxzero"
+
+  - org.openrewrite.xml.ChangeTagValue:
+      elementName: "/project/artifactId"
+      oldValue: "flux-capacitor-bom"
+      newValue: "fluxzero-bom"
+
+  - org.openrewrite.xml.ChangeTagValue:
+      elementName: "project/modules/module"
+      oldValue: "flux-capacitor-bom"
+      newValue: "fluxzero-bom"
+
+  - org.openrewrite.xml.ChangeTagValue:
+      elementName: "//artifactId"
+      oldValue: "java-client"
+      newValue: "sdk"
+
+  - org.openrewrite.xml.ChangeTagValue:
+      elementName: "project/modules/module"
+      oldValue: "java-client"
+      newValue: "sdk"
+
+  - org.openrewrite.java.ChangePackage:
+      oldPackageName: io.fluxcapacitor
+      newPackageName: io.fluxzero
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.FluxCapacitor
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.Fluxzero
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.DefaultFluxCapacitor
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.DefaultFluxzero
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.common.logging.FluxCapacitorLogbackAppender
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.common.logging.FluxzeroLogbackAppender
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.common.logging.FluxCapacitorLogbackAppenderTest
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.common.logging.FluxzeroLogbackAppenderTest
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxCapacitorBuilder
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxzeroBuilder
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxCapacitorConfiguration
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxzeroConfiguration
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxCapacitorConfigTest
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.FluxzeroConfigTest
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxCapacitorCustomizer
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxzeroCustomizer
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxCapacitorSpringConfigTest
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxzeroSpringConfigTest
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxCapacitorSpringConfig
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.configuration.spring.FluxzeroSpringConfig
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.test.SpyingFluxCapacitor
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.test.SpyingFluxzero
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.test.spring.FluxCapacitorTestConfig
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.test.spring.FluxzeroTestConfig
+
+  - org.openrewrite.java.ChangeType:
+      oldFullyQualifiedTypeName: io.fluxzero.javaclient.tracking.FluxCapacitorInterceptor
+      newFullyQualifiedTypeName: io.fluxzero.javaclient.tracking.FluxzeroInterceptor
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "flux-capacitor-client"
+      replace: "fluxzero-sdk-java"
+      filePattern: "!(rewrite.yml)"
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "Flux (Capacitor )?[pP]latform"
+      replace: "Fluxzero Runtime"
+      filePattern: "!(rewrite.yml)"
+      regex: true
+      caseSensitive: true
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "flux-platform"
+      replace: "fluxzero-runtime"
+      filePattern: "!(rewrite.yml)"
+      caseSensitive: true
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "Flux Capacitor service"
+      replace: "Fluxzero Runtime"
+      filePattern: "!(rewrite.yml)"
+      regex: true
+      caseSensitive: true
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "io.fluxcapacitor."
+      replace: "io.fluxzero."
+      filePattern: "!(rewrite.yml)"
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "flux-?[cC]apacitor"
+      replace: "fluxzero"
+      filePattern: "!(rewrite.yml|rename.sh)"
+      regex: true
+      caseSensitive: true
+
+  - org.openrewrite.text.FindAndReplace:
+      find: "Flux ?Capacitor"
+      replace: "Fluxzero"
+      filePattern: "!(rewrite.yml)"
+      regex: true
+      caseSensitive: true
+
+  - org.openrewrite.MoveFile:
+      folder: test-server/src/main/java/io/fluxcapacitor
+      moveTo: ../fluxzero
+
+  - org.openrewrite.MoveFile:
+      folder: java-client/src/main/java/io/fluxcapacitor
+      moveTo: ../fluxzero
+
+  - org.openrewrite.MoveFile:
+      folder: common/src/test/resources/io/fluxcapacitor
+      moveTo: ../fluxzero
+
+  - org.openrewrite.MoveFile:
+      folder: java-client/src/test/resources/io/fluxcapacitor
+      moveTo: ../fluxzero
