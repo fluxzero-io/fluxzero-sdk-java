@@ -22,8 +22,8 @@ import java.time.Instant;
 /**
  * Interface for converting domain objects to and from {@link SerializedDocument} instances for indexing and searching.
  * <p>
- * A {@code DocumentSerializer} defines how objects are transformed into a serializable structure suitable for Flux
- * Capacitor's search infrastructure. Documents are associated with:
+ * A {@code DocumentSerializer} defines how objects are transformed into a serializable structure suitable for
+ * Flux Capacitor's search infrastructure. Documents are associated with:
  * <ul>
  *     <li>A unique ID (within a collection)</li>
  *     <li>A collection name that groups similar documents</li>

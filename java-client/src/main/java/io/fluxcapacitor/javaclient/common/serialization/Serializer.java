@@ -32,8 +32,8 @@ import java.util.stream.Stream;
  * </p>
  *
  * <p>
- * It also provides lazy deserialization and registration hooks for custom (de)casters. This makes it central to Flux
- * Capacitor’s persistence, transport, and replay systems.
+ * It also provides lazy deserialization and registration hooks for custom (de)casters. This makes it central to
+ * Flux Capacitor’s persistence, transport, and replay systems.
  * </p>
  *
  * <h2>Responsibilities</h2>

@@ -23,8 +23,8 @@ import java.util.concurrent.TimeoutException;
 /**
  * Interface for in-memory scheduling of tasks in a way that supports deterministic testing and virtualized time.
  * <p>
- * {@code TaskScheduler} enables deferred execution of tasks based on a deadline or delay. It is used by Flux
- * Capacitor internally, but can also be applied directly for scheduling logic within applications.
+ * {@code TaskScheduler} enables deferred execution of tasks based on a deadline or delay. It is used by
+ * Flux Capacitor internally, but can also be applied directly for scheduling logic within applications.
  * <p>
  * Unlike typical thread-based scheduling (e.g. {@code ScheduledExecutorService}), this abstraction allows
  * fine-grained control over when tasks are executed, making it ideal for use in test fixtures and simulations

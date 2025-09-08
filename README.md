@@ -269,9 +269,9 @@ What follows is a summary of the most important features.
 
 ## Message Handling
 
-Flux Capacitor is centered around sending and receiving messages — such as __commands__, __events__, __queries__, and
-__web requests__. These messages can originate from your own application or any other client connected to the same Flux
-Platform.
+Fluxzero is centered around sending and receiving messages — such as __commands__, __events__, __queries__, and
+__web requests__. These messages can originate from your own application or any other client connected to the same
+Flux Platform.
 
 Handlers are simply methods annotated with `@HandleCommand`, `@HandleEvent`, `@HandleQuery`, etc. Here’s a basic example
 of an event handler that dispatches a command to send a welcome email when a user is created:
@@ -1596,8 +1596,8 @@ Before the message is serialized, all applicable `DispatchInterceptor`s are give
 If any handlers (e.g. `@HandleCommand`, `@HandleQuery`) are registered for this message type and topic, they will be
 invoked **locally**.
 
-- If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the Flux
-  Platform.
+- If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the 
+  Flux Platform.
 - If the handler **fully consumes** the message, it won't be forwarded.
 
 #### 3. **Serialization**
