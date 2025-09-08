@@ -52,7 +52,7 @@ public class GetEvents extends Request {
     /**
      * The (exclusive) last known sequence number of events previously read.
      * <p>
-     * The platform will return events with sequence numbers strictly greater than this value. Use {@code null} to
+     * The Runtime will return events with sequence numbers strictly greater than this value. Use {@code null} to
      * retrieve from the beginning.
      */
     Long lastSequenceNumber;

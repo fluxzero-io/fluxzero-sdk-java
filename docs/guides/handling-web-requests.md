@@ -4,7 +4,7 @@ Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annot
 variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
 
 Instead of exposing a public HTTP server per application, Flux uses a central Web Gateway that **proxies all external
-HTTP(S) and WebSocket traffic into the platform as `WebRequest` messages**. These messages are:
+HTTP(S) and WebSocket traffic into the Runtime as `WebRequest` messages**. These messages are:
 
 - **Logged** for traceability and auditing
 - **Routed to client applications** using the same handler system as for commands, events, and queries

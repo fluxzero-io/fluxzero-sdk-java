@@ -54,7 +54,7 @@ import java.util.Map;
  *   <li>Provide serializers for messages, snapshots, and documents.</li>
  *   <li>Define consumer tracking and dispatch configuration per {@link MessageType}.</li>
  *   <li>Register interceptors and decorators for dispatching, batching, and handling messages.</li>
- *   <li>Expose platform services like clock, caching, scheduling, and task execution.</li>
+ *   <li>Expose services like clock, caching, scheduling, and task execution.</li>
  *   <li>Supply user and identity resolution logic for context-aware operations.</li>
  * </ul>
  *

@@ -34,14 +34,14 @@ import java.lang.management.ManagementFactory;
 import java.time.Duration;
 
 /**
- * An in-memory {@link Client} implementation used for local development, testing, or isolated runtime environments
- * where no connection to the Fluxzero Runtime is required.
+ * An in-memory {@link Client} implementation used for local development, testing, or isolated environments where no
+ * connection to the Fluxzero Runtime is required.
  * <p>
  * This client simulates all major subsystems — including event storage, scheduling, key-value access, and document
  * search — using in-memory data structures with optional message expiration. It is ideal for use cases such as:
  * <ul>
  *   <li>Unit testing message handlers</li>
- *   <li>Running local development instances without platform dependencies</li>
+ *   <li>Running local development instances without Fluxzero Runtime dependencies</li>
  *   <li>Offline simulations and demos</li>
  * </ul>
  *

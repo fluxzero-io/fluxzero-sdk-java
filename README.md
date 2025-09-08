@@ -10,8 +10,8 @@
 [![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/master/docs/cheatsheet.pdf)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-This repository contains the official Java client for [flux.host](https://flux.host), the Fluxzero Runtime. For a
-short overview of functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
+This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
+functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 ---
 
@@ -469,7 +469,7 @@ class UserCommandHandler {
 Fluxzero handles message dispatch asynchronously by default. When a message such as a command is published:
 
 1. It is sent to the Fluxzero Runtime.
-2. The platform logs the message and notifies all subscribed consumers.
+2. The Runtime logs the message and notifies all subscribed consumers.
 3. Consumers stream these messages to the relevant handler methods.
 
 ### Default Consumer Behavior
@@ -1616,7 +1616,7 @@ If no local handler consumes the message, it is published to the Fluxzero Runtim
 `WebSocketClient`).
 
 - Topics and routing are determined by message type and metadata
-- Platform-side logic (like deduplication, retries, rate limits) may apply
+- Runtime-side logic (like deduplication, retries, rate limits) may apply
 
 ---
 
@@ -2060,8 +2060,8 @@ This is especially useful for workflows tied to specific deadlines or calendar d
 Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
 variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
 
-Instead of exposing a public HTTP server per application, Flux uses a central Web Gateway that **proxies all external
-HTTP(S) and WebSocket traffic into the platform as `WebRequest` messages**. These messages are:
+Instead of exposing a public HTTP server per application, Fluxzero uses a central Web Gateway that **proxies all external
+HTTP(S) and WebSocket traffic into the Runtime as `WebRequest` messages**. These messages are:
 
 - **Logged** for traceability and auditing
 - **Routed to client applications** using the same handler system as for commands, events, and queries
@@ -5099,7 +5099,7 @@ WebSocketClient client = WebSocketClient.newInstance(
 Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
-This is the most common setup for production and shared environments. It connects to a remote Flux runtime via the
+This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
 service base URL, which must point to the desired deployment.
 
 ---
@@ -5157,7 +5157,7 @@ ClientConfig config = ClientConfig.builder()
 ```
 
 The `cacheSize` determines how many messages are buffered in-memory per topic. This helps reduce round-trips to the
-platform and can significantly boost performance in high-fanout projections or handlers.
+Runtime and can significantly boost performance in high-fanout projections or handlers.
 
 ---
 

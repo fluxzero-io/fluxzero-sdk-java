@@ -31,7 +31,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * with dynamic query parameters like client ID, name, compression settings, and topic filters from the provided
  * {@link WebSocketClient.ClientConfig}.
  *
- * <p>This class is typically used internally by WebSocket-based gateway clients to determine which platform
+ * <p>This class is typically used internally by WebSocket-based gateway clients to determine which Runtime
  * endpoint to connect to.
  *
  * @see WebSocketClient.ClientConfig

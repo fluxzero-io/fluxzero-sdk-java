@@ -26,7 +26,7 @@
     <artifactId>common</artifactId>
 
     <name>${project.groupId}:${project.artifactId}</name>
-    <description>Library with common components for Fluxzero clients and service.</description>
+    <description>Library with common components for Fluxzero.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <dependencies>

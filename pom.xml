@@ -30,7 +30,7 @@
         <module>proxy</module>
     </modules>
 
-    <name>Fluxzero Client</name>
+    <name>Fluxzero Java SDK</name>
     <description>Fluxzero provides messaging-as-a-service for distributed applications.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 

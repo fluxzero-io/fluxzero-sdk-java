@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 /**
  * Command to inform the Fluxzero Runtime about changes in entity-aggregate relationships.
  * <p>
- * These relationships allow the platform to determine which aggregate contains a given entity.
+ * These relationships allow the Runtime to determine which aggregate contains a given entity.
  * This is crucial when targeting nested entities with commands or when appending resulting events
  * to the appropriate aggregate.
  */

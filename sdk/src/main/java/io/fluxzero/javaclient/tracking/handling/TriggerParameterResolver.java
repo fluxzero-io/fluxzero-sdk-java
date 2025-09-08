@@ -55,7 +55,7 @@ import static java.util.Optional.ofNullable;
  *   <li>{@code _trigger}: The fully qualified class name of the triggering message’s payload.</li>
  *   <li>{@code _triggerType}: The {@link MessageType} of the trigger (e.g., COMMAND, EVENT, etc.).</li>
  *   <li>{@code _consumer}: (Optional) Name of the client that originally consumed the trigger.</li>
- *   <li>{@code _correlation}: A message index pointing to the trigger message in the platform.</li>
+ *   <li>{@code _correlation}: A message index pointing to the trigger message in the Runtime.</li>
  * </ul>
  *
  * <p>The trigger message is then looked up and injected into the handler parameter as:
@@ -159,7 +159,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      *
      * <p>The method extracts correlation metadata from the message and attempts to:
      * <ul>
-     *   <li>Read the original trigger message from the platform using its index and type</li>
+     *   <li>Read the original trigger message from the Runtime using its index and type</li>
      *   <li>Match the class and constraints in the {@code @Trigger} annotation</li>
      *   <li>Inject the trigger message as either:
      *       <ul>

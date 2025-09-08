@@ -41,7 +41,7 @@ import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
 
 /**
  * A Logback-compatible appender that automatically publishes warning and error-level log events to the Fluxzero
- * platform.
+ * Runtime.
  * <p>
  * This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}
  * or {@link ConsoleError} messages to the Flux error gateway, along with detailed metadata such as stack traces, logger

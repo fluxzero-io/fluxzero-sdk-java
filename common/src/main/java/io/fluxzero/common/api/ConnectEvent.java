@@ -17,7 +17,7 @@ package io.fluxzero.common.api;
 import lombok.Value;
 
 /**
- * A platform-generated event that indicates a client has successfully connected to the Fluxzero Runtime.
+ * A runtime-generated event that indicates a client has successfully connected to the Fluxzero Runtime.
  * <p>
  * This event includes metadata such as the client's name, instance ID, session ID, and the service endpoint
  * it connected to.

@@ -110,8 +110,8 @@ import static java.util.Arrays.stream;
  * </ul>
  *
  * <p>
- * Most applications will never need to hold or inject a {@code Fluxzero} instance directly.
- * Instead, the platform automatically binds the relevant instance to a thread-local scope, allowing access via static methods.
+ * Most applications will never need to hold or inject a {@code Fluxzero} instance directly. Instead, the Java SDK
+ * automatically binds the relevant instance to a thread-local scope, allowing access via static methods.
  * </p>
  *
  * <p>

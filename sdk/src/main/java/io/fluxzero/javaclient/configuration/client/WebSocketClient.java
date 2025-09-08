@@ -225,7 +225,7 @@ public class WebSocketClient extends AbstractClient {
         boolean disableMetrics;
 
         /**
-         * Optional project identifier. If set, it will be included in all communication with the platform.
+         * Optional project identifier. If set, it will be included in all communication with the Runtime.
          */
         @Default String projectId = DefaultPropertySource.getInstance().get("FLUX_PROJECT_ID");
 

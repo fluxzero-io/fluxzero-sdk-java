@@ -174,8 +174,8 @@ Before the message is serialized, all applicable `DispatchInterceptor`s are give
 If any handlers (e.g. `@HandleCommand`, `@HandleQuery`) are registered for this message type and topic, they will be
 invoked **locally**.
 
-- If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the Flux
-  Platform.
+- If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the Fluxzero
+  Runtime.
 - If the handler **fully consumes** the message, it won't be forwarded.
 
 #### 3. **Serialization**
@@ -194,7 +194,7 @@ If no local handler consumes the message, it is published to the Fluxzero Runtim
 `WebSocketClient`).
 
 - Topics and routing are determined by message type and metadata
-- Platform-side logic (like deduplication, retries, rate limits) may apply
+- Runtime-side logic (like deduplication, retries, rate limits) may apply
 
 ---
 

@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Low-level interface for sending {@link SerializedMessage}s to a gateway (e.g. commands, events, queries).
  * <p>
- * This interface is primarily used internally within the Fluxzero client and its platform transport layers. It
+ * This interface is primarily used internally within the Fluxzero Java SDK and its Runtime transport layers. It
  * defines the mechanics for appending serialized messages to a backing system such as the Fluxzero Runtime or an in-memory
  * store.
  *

@@ -29,7 +29,7 @@ import java.util.List;
  * the {@link Position} of the consumer when this batch was read.
  * <p>
  * The {@code segment} and {@code position} fields are especially relevant when the tracker operates with
- * {@code ignoreSegment=true}, meaning segment filtering is handled on the client side. In such cases, the platform
+ * {@code ignoreSegment=true}, meaning segment filtering is handled on the client side. In such cases, the Runtime
  * returns all potentially matching messages, and the client uses the {@link Position} and {@code segment} range to
  * determine which messages are truly relevant for processing.
  */

@@ -76,7 +76,7 @@ ClientConfig config = ClientConfig.builder()
 ```
 
 The `cacheSize` determines how many messages are buffered in-memory per topic. This helps reduce round-trips to the
-platform and can significantly boost performance in high-fanout projections or handlers.
+Runtime and can significantly boost performance in high-fanout projections or handlers.
 
 ---
 

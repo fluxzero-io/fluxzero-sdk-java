@@ -23,8 +23,8 @@ import static io.fluxzero.javaclient.common.ClientUtils.getLocalHandlerAnnotatio
 /**
  * Base interface for gateways that support registering local message handlers.
  * <p>
- * Gateways that implement this interface can invoke message handlers directly in-memory, without involving the Flux
- * platform. This is useful for scenarios where local responsiveness is critical or when the message is
+ * Gateways that implement this interface can invoke message handlers directly in-memory, without involving the Fluxzero
+ * Runtime. This is useful for scenarios where local responsiveness is critical or when the message is
  * intended only for the current application.
  * <p>
  * Local handler registration is typically used for commands, queries, events, and other messages where in-process

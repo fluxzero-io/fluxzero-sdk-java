@@ -17,7 +17,7 @@ package io.fluxzero.common;
 /**
  * Utility class for constructing internal service endpoint paths used to route messages to the Fluxzero Runtime.
  * <p>
- * This class provides consistent path-building logic for various platform subsystems such as tracking, event sourcing,
+ * This class provides consistent path-building logic for various Runtime subsystems such as tracking, event sourcing,
  * scheduling, and search. These paths are typically used by internal clients and websocket-based routing layers.
  *
  * <h2>Examples</h2>

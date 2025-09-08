@@ -3,7 +3,7 @@
 Fluxzero handles message dispatch asynchronously by default. When a message such as a command is published:
 
 1. It is sent to the Fluxzero Runtime.
-2. The platform logs the message and notifies all subscribed consumers.
+2. The Runtime logs the message and notifies all subscribed consumers.
 3. Consumers stream these messages to the relevant handler methods.
 
 ### Default Consumer Behavior

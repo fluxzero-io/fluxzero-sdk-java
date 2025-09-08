@@ -19,7 +19,7 @@ import io.fluxzero.common.Guarantee;
 /**
  * Base class for commands sent to the Fluxzero Runtime.
  * <p>
- * A {@code Command} represents a request to perform a state-changing operation on the platform, such as
+ * A {@code Command} represents a request to perform a state-changing operation on the Runtime, such as
  * indexing a document, deleting entries, or creating audit trails.
  * <p>
  * All commands inherit from {@link Request} and are assigned a unique {@link #requestId} to support correlation
@@ -30,7 +30,7 @@ import io.fluxzero.common.Guarantee;
  * <p>
  * Optionally, a {@link #routingKey()} may be provided to direct the command to a specific processing node or
  * partition based on a domain-specific identifier (such as a document or collection ID). This helps with consistent
- * hashing or sharding of work in the platform.
+ * hashing or sharding of work in the Runtime.
  *
  * @see Guarantee
  * @see Request

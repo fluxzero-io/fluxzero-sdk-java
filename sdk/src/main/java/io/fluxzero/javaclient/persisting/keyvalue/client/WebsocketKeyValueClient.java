@@ -36,7 +36,7 @@ import java.util.concurrent.CompletableFuture;
  * WebSocket-based implementation of the {@link KeyValueClient} interface for interacting with the Fluxzero Runtime.
  * <p>
  * This client is responsible for storing, retrieving, and deleting binary key-value data over a WebSocket connection.
- * It sends encoded requests to the platform's key-value gateway endpoint, which persists and manages the data on the
+ * It sends encoded requests to the Runtime's key-value gateway endpoint, which persists and manages the data on the
  * server-side.
  *
  * <p>Operations supported:

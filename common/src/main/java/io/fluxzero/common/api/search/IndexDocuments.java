@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * Documents can belong to different collections and contain arbitrary facets, indexes, and metadata, allowing them to
  * be used for filtering, searching, and analytics.
  *
- * <p><strong>Conditional indexing:</strong> If {@code ifNotExists} is {@code true}, the platform will only index a
+ * <p><strong>Conditional indexing:</strong> If {@code ifNotExists} is {@code true}, the Runtime will only index a
  * document if no document with the same ID and collection already exists.
  *
  * <p><strong>Delivery guarantees:</strong> The {@link Guarantee} determines the durability of the indexing operation

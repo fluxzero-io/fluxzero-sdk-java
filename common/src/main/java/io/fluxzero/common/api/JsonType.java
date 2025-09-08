@@ -78,7 +78,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
  *
  * <h2>Serialization</h2>
  * Implementations of this interface are serialized with {@code @JsonTypeInfo} and {@code @JsonSubTypes} annotations,
- * allowing automatic deserialization on both the client and platform side.
+ * allowing automatic deserialization on both the Java SDK and Runtime side.
  *
  * <h2>Metrics Logging</h2>
  * Implementations may override {@link #toMetric()} to emit a smaller, structured representation of the object to the
@@ -178,7 +178,7 @@ public interface JsonType {
     /**
      * Converts this object into a compact metric representation for logging or monitoring.
      * <p>
-     * Used by the Flux client to avoid logging large payloads directly while still tracking platform usage.
+     * Used by the Flux Java SDK to avoid logging large payloads directly while still tracking platform usage.
      *
      * @return a safe and compact object suitable for serialization to the metrics log
      */

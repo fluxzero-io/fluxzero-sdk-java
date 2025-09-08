@@ -17,7 +17,7 @@ package io.fluxzero.common.api;
 import lombok.Value;
 
 /**
- * A platform-generated event that indicates a client has disconnected from the Fluxzero Runtime.
+ * A runtime-generated event that indicates a client has disconnected from the Fluxzero Runtime.
  * <p>
  * Includes metadata about the reason and method of disconnection.
  *

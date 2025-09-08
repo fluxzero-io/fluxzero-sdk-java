@@ -19,7 +19,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Default implementation of the {@link Encryption} interface used in the Fluxzero Runtime.
+ * Default implementation of the {@link Encryption} interface used in Fluxzero.
  * <p>
  * This implementation delegates encryption and decryption to an underlying algorithm-specific
  * {@link Encryption} strategy (e.g. {@link ChaCha20Poly1305Encryption}), while wrapping the result
@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
  * encrypted|<algorithm>|<ciphertext>
  * }</pre>
  *
- * <p>This format allows the platform to:
+ * <p>This format allows Fluxzero to:
  * <ul>
  *   <li>Identify encrypted values consistently</li>
  *   <li>Support multiple algorithms in the future</li>
