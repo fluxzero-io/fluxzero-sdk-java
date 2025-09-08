@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="All tests" type="JUnit" factoryName="JUnit">
-    <option name="PACKAGE_NAME" value="io.fluxcapacitor" />
+    <option name="PACKAGE_NAME" value="io.fluxzero" />
     <option name="MAIN_CLASS_NAME" value="" />
     <option name="METHOD_NAME" value="" />
     <option name="TEST_OBJECT" value="package" />

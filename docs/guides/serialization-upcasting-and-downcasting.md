@@ -1,6 +1,6 @@
 ## Serialization, Upcasting, and Downcasting
 
-Flux Capacitor uses a `Serializer` to convert message payloads, snapshots, key-value entries, and other stored data into
+Fluxzero uses a `Serializer` to convert message payloads, snapshots, key-value entries, and other stored data into
 a binary format (typically `byte[]`). By default, the client uses a Jackson-based implementation that serializes objects
 to JSON.
 
@@ -108,7 +108,7 @@ class CreateUserDowncaster {
 To downcast an object to a desired revision, use:
 
 ```java
-FluxCapacitor.downcast(object, revision);
+Fluxzero.downcast(object, revision);
 ```
 
 > This returns the downcasted version of the object in serialized form (e.g., as an `ObjectNode`), allowing you to
@@ -142,7 +142,7 @@ serializer.registerCasters(new CreateUserUpcaster(), new CreateUserDowncaster())
     - Flux stores the latest type and revision
     - If needed, a `@Downcast` can adapt it for external use
 
-All casting occurs **in your application**, not in the Flux platform. Stored messages remain unchanged.
+All casting occurs **in your application**, not in the Fluxzero Runtime. Stored messages remain unchanged.
 
 ---
 

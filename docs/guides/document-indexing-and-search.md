@@ -1,6 +1,6 @@
 ## Document Indexing and Search
 
-Flux Capacitor provides a powerful and flexible document store that lets you persist and query models using full-text
+Fluxzero provides a powerful and flexible document store that lets you persist and query models using full-text
 search, filters, and time-based constraints.
 
 This system is especially useful for:
@@ -17,10 +17,10 @@ This system is especially useful for:
 You can index any object manually using:
 
 ```java
-FluxCapacitor.index(myObject);
+Fluxzero.index(myObject);
 ```
 
-This stores `myObject` in the document store so it can be queried later via `FluxCapacitor.search(...)`.
+This stores `myObject` in the document store so it can be queried later via `Fluxzero.search(...)`.
 
 - If the object is annotated with `@Searchable`, any declared `collection`, `timestampPath`, or `endPath` will be used.
 - If a field is annotated with `@EntityId`, it becomes the document ID. Otherwise, a random ID is generated.
@@ -29,7 +29,7 @@ This stores `myObject` in the document store so it can be queried later via `Flu
 You can also specify the collection in which the object should be stored directly:
 
 ```java
-FluxCapacitor.index(myObject, "customCollection");
+Fluxzero.index(myObject, "customCollection");
 ```
 
 ---
@@ -42,7 +42,7 @@ Many models in Flux (e.g. aggregates or stateful handlers) are automatically ind
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
-This enables automatic indexing after updates or message handling, without needing to call `FluxCapacitor.index(...)`
+This enables automatic indexing after updates or message handling, without needing to call `Fluxzero.index(...)`
 manually.
 
 ```java
@@ -69,7 +69,7 @@ call:
 Use the fluent `search(...)` API:
 
 ```java
-List<UserAccount> admins = FluxCapacitor
+List<UserAccount> admins = Fluxzero
         .search("users")
         .match("admin", "profile/role")
         .inLast(Duration.ofDays(30))
@@ -80,7 +80,7 @@ List<UserAccount> admins = FluxCapacitor
 You can also query by class:
 
 ```java
-List<UserAccount> users = FluxCapacitor
+List<UserAccount> users = Fluxzero
         .search(UserAccount.class)
         .match("Netherlands", "profile.country")
         .fetchAll();
@@ -109,7 +109,7 @@ Example:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("payments")
+Fluxzero.search("payments")
     .match("FAILED", "status")
     .inLast(Duration.ofDays(1))
     .fetchAll();
@@ -169,7 +169,7 @@ You can retrieve facet stats like this:
 
 [//]: # (@formatter:off)
 ```java
-List<FacetStats> stats = FluxCapacitor.search(Product.class)
+List<FacetStats> stats = Fluxzero.search(Product.class)
         .lookAhead("wireless")
         .facetStats();
 ```
@@ -268,14 +268,14 @@ public record Product(@Sortable BigDecimal price,
 }
 ```
 
-This tells Flux Capacitor to **pre-index** these fields in a lexicographically sortable format. When you issue a search
-with a `between()` constraint or `.sort(...)` clause, the Flux Platform can evaluate it **directly in the data store** —
+This tells Fluxzero to **pre-index** these fields in a lexicographically sortable format. When you issue a search
+with a `between()` constraint or `.sort(...)` clause, the Fluxzero Runtime can evaluate it **directly in the data store** —
 without needing to load and compare documents in memory.
 
 #### 🚀 Optimized Search Example
 
 ```java
-List<Product> results = FluxCapacitor.search(Product.class)
+List<Product> results = Fluxzero.search(Product.class)
         .between("price", 10, 100)
         .sort("releaseDate")
         .fetch(100);
@@ -289,7 +289,7 @@ This performs a fast, index-backed range query across all products priced betwee
 
 #### ⚙️ What Gets Indexed?
 
-Flux Capacitor normalizes and encodes sortable fields depending on their value type:
+Fluxzero normalizes and encodes sortable fields depending on their value type:
 
 | Type           | Behavior                                                                 |
 |----------------|--------------------------------------------------------------------------|
@@ -312,7 +312,7 @@ If the sortable field is:
 
 - **No retroactive indexing**: Adding `@Sortable` to a field does **not** automatically reindex existing documents.
 - To apply sorting retroactively, trigger a reindex (e.g. with `@HandleDocument` and a bumped `@Revision`)
-- Sorting and filtering still happen **within the Flux Platform**, but *without* `@Sortable` the logic falls back
+- Sorting and filtering still happen **within the Fluxzero Runtime**, but *without* `@Sortable` the logic falls back
   to **in-memory evaluation** — which is much slower.
 
 > ✅ Use `@Sortable` together with `@Facet` if you want both sorting and aggregation/filtering on a field.
@@ -352,7 +352,7 @@ You can exclude sensitive fields like so:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("users")
+Fluxzero.search("users")
      .exclude("profile.ssn")
      .fetch(50);
 ```
@@ -383,7 +383,7 @@ Flux supports efficient streaming of large result sets:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("auditTrail")
+Fluxzero.search("auditTrail")
     .inLast(Duration.ofDays(7))
     .stream().forEach(auditEvent -> process(auditEvent));
 ```
@@ -397,7 +397,7 @@ To remove documents from the index:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("expiredTokens")
+Fluxzero.search("expiredTokens")
     .before(Instant.now())
     .delete();
 ```
@@ -407,7 +407,7 @@ FluxCapacitor.search("expiredTokens")
 
 ### Summary
 
-- Use `FluxCapacitor.index(...)` to manually index documents.
+- Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
 - Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
-- Use `FluxCapacitor.search(...)` to query, stream, sort, and aggregate your documents.
+- Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.

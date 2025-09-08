@@ -1,6 +1,6 @@
 ## Protecting Sensitive Data
 
-Flux Capacitor offers built-in support for handling sensitive information with care using the `@ProtectData` and
+Fluxzero offers built-in support for handling sensitive information with care using the `@ProtectData` and
 `@DropProtectedData` annotations.
 
 These tools help prevent sensitive fields (e.g., passwords, SSNs, tokens) from being unnecessarily stored, logged, or

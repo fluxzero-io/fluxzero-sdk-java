@@ -1,6 +1,6 @@
 ## Message Replays
 
-Flux Capacitor allows you to **replay past messages** by tracking from an earlier index in the message log.  
+Fluxzero allows you to **replay past messages** by tracking from an earlier index in the message log.  
 This is useful for:
 
 - Rebuilding projections or read models
@@ -51,7 +51,7 @@ If you want to reset an existing consumer to an earlier point in the log:
 [//]: # (@formatter:off)
 ```java
 long replayIndex = 111677748019200000L;
-FluxCapacitor.client()
+Fluxzero.client()
     .getTrackingClient(MessageType.EVENT)
     .resetPosition("myConsumer", replayIndex, Guarantee.STORED);
 ```
@@ -86,7 +86,7 @@ Now, register a **second consumer** at runtime for the **same handler** using a 
 
 [//]: # (@formatter:off)
 ```java
-fluxCapacitorBuilder.addConsumerConfiguration(
+fluxzeroBuilder.addConsumerConfiguration(
     ConsumerConfiguration.builder()
         .name("replay") // A new consumer
         .handlerFilter(handler -> handler instanceof OrderProcessor) // same class
@@ -109,7 +109,7 @@ sent during the month of January 2024 will be resubmitted.
 
 ### Handling Failures by Replaying from the Error Log
 
-Flux Capacitor automatically logs **all message handling errors** to a dedicated **error log**. This includes failures
+Fluxzero automatically logs **all message handling errors** to a dedicated **error log**. This includes failures
 for:
 
 - Commands
@@ -153,5 +153,5 @@ You can also **filter** error handlers by trigger type, message type, or origina
 @HandleError
 @Trigger(messageType = MessageType.COMMAND, consumer = "my-app")
 void retryFailedCommand(MyCommand failed) {
-    FluxCapacitor.sendCommand(failed);
+    Fluxzero.sendCommand(failed);
 }

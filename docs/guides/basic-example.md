@@ -23,10 +23,10 @@ Publish the event:
 ```java
 public class ExampleMain {
     public static void main(final String[] args) {
-        var fluxCapacitor = DefaultFluxCapacitor.builder()
+        var fluxzero = DefaultFluxzero.builder()
                 .build(LocalClient.newInstance());
-        fluxCapacitor.registerHandlers(new HelloWorldEventHandler());
-        fluxCapacitor.eventGateway().publish(new HelloWorld());
+        fluxzero.registerHandlers(new HelloWorldEventHandler());
+        fluxzero.eventGateway().publish(new HelloWorld());
     }
 }
 ```
@@ -39,7 +39,7 @@ Hello World!
 
 ### With Spring
 
-Flux Capacitor integrates seamlessly with Spring. Here’s how the above example looks with Spring Boot:
+Fluxzero integrates seamlessly with Spring. Here’s how the above example looks with Spring Boot:
 
 ```java
 
@@ -47,7 +47,7 @@ Flux Capacitor integrates seamlessly with Spring. Here’s how the above example
 public class ExampleMain {
     public static void main(String... args) {
         SpringApplication.run(ExampleMain.class, args);
-        FluxCapacitor.publishEvent(new HelloWorld());
+        Fluxzero.publishEvent(new HelloWorld());
     }
 }
 ```
@@ -65,11 +65,11 @@ public class HelloWorldEventHandler {
 }
 ```
 
-> ⚠️ Using Spring non-Boot? Add `@Import(FluxCapacitorSpringConfig.class)` to register FluxCapacitor and related beans.
+> ⚠️ Using Spring non-Boot? Add `@Import(FluxzeroSpringConfig.class)` to register Fluxzero and related beans.
 
 ### Testing your handler
 
-Flux Capacitor includes a powerful TestFixture utility for testing your handlers without needing a full application
+Fluxzero includes a powerful TestFixture utility for testing your handlers without needing a full application
 or infrastructure setup.
 
 Here’s how to test our HelloWorldEventHandler from earlier:
@@ -87,7 +87,7 @@ class HelloWorldEventHandlerTest {
 }
 ```
 
-This will invoke your handler exactly like Flux Capacitor would in production, but entirely in memory and synchronously
+This will invoke your handler exactly like Fluxzero would in production, but entirely in memory and synchronously
 by default.
 
 > ✅ We’ll explore more powerful testing patterns — including assertions on results, published commands, exceptions,

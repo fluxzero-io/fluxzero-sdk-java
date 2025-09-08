@@ -2,7 +2,7 @@ FROM azul/zulu-openjdk-alpine:21-jre-headless
 
 RUN apk upgrade
 
-COPY target/flux-capacitor-test-server.jar /
+COPY target/fluxzero-test-server.jar /
 
 # Add user and group for non-root
 RUN addgroup -S java \

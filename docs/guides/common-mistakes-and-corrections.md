@@ -6,21 +6,21 @@ This document captures common mistakes when implementing FluxZero applications a
 
 ### ❌ Wrong Import
 ```kotlin
-import io.fluxcapacitor.javaclient.modeling.HandleCommand  // WRONG!
-import io.fluxcapacitor.javaclient.modeling.HandleQuery    // WRONG!
+import io.fluxzero.javaclient.modeling.HandleCommand  // WRONG!
+import io.fluxzero.javaclient.modeling.HandleQuery    // WRONG!
 ```
 
 ### ✅ Correct Import
 ```kotlin
-import io.fluxcapacitor.javaclient.tracking.handling.HandleCommand  // CORRECT
-import io.fluxcapacitor.javaclient.tracking.handling.HandleQuery    // CORRECT
+import io.fluxzero.javaclient.tracking.handling.HandleCommand  // CORRECT
+import io.fluxzero.javaclient.tracking.handling.HandleQuery    // CORRECT
 ```
 
 ## Exception Handling
 
 ### ❌ Wrong Exception Classes
 ```kotlin
-import io.fluxcapacitor.javaclient.persisting.search.IllegalCommandException  // WRONG!
+import io.fluxzero.javaclient.persisting.search.IllegalCommandException  // WRONG!
 throw IllegalCommandException("Some error")  // WRONG!
 ```
 
@@ -77,7 +77,7 @@ data class MyEntity(
 ```kotlin
 @HandleQuery
 fun handle(query: ListItems): List<Item> {
-    return FluxCapacitor.search(Item::class.java)  // WRONG! Requires complex setup
+    return Fluxzero.search(Item::class.java)  // WRONG! Requires complex setup
         .fetchAll()
         .map { it.get() }
 }
@@ -107,7 +107,7 @@ interface ObjectTypeCommand {
     
     @HandleCommand
     fun handle(): ObjectType {
-        return FluxCapacitor.loadAggregate(objectTypeId).assertAndApply(this).get()
+        return Fluxzero.loadAggregate(objectTypeId).assertAndApply(this).get()
     }
 }
 ```
@@ -118,7 +118,7 @@ interface ObjectTypeCommand {
 @TrackSelf
 interface ObjectTypeVersionCommand {
     val versionId: ObjectTypeVersionId
-    // FluxCapacitor automatically finds the ObjectType containing this version
+    // Fluxzero automatically finds the ObjectType containing this version
     // and injects it into @Apply and @AssertLegal methods
 }
 ```
@@ -185,7 +185,7 @@ data class UpdateObjectTypeVersion(
 
     @Apply
     fun apply(objectType: ObjectType): ObjectType {
-        // ObjectType parameter is automatically injected by FluxCapacitor
+        // ObjectType parameter is automatically injected by Fluxzero
         // Update specific version within the aggregate
         val updatedVersions = objectType.versions.map { 
             if (it.id == id) it.copy(jsonSchema = jsonSchema ?: it.jsonSchema) else it 
@@ -203,7 +203,7 @@ data class DeleteObjectTypeVersion(
 
     @Apply
     fun apply(objectType: ObjectType): ObjectType {
-        // ObjectType parameter is automatically injected by FluxCapacitor
+        // ObjectType parameter is automatically injected by Fluxzero
         val updatedVersions = objectType.versions.filter { it.id != id }
         return objectType.copy(versions = updatedVersions)
     }
@@ -221,7 +221,7 @@ data class GetUser(
     
     @HandleQuery
     fun handle(): User? {
-        return FluxCapacitor.loadAggregate(id).get()
+        return Fluxzero.loadAggregate(id).get()
     }
 }
 
@@ -267,7 +267,7 @@ class UserQueryHandler {
 - Domain-specific interfaces handle common boilerplate (aggregate loading)
 - No need for separate handler classes that just delegate
 - Command and its logic stay together for better cohesion
-- Proper FluxCapacitor @Apply pattern for event sourcing
+- Proper Fluxzero @Apply pattern for event sourcing
 
 **Queries** are usually simple data retrieval operations that:
 - Have direct access to query parameters
@@ -282,15 +282,15 @@ The `ObjectTypeCommand` interface provides:
 - **@TrackSelf** for asynchronous processing and message tracking
 - **@HandleCommand** built into the interface - no need to repeat
 - **Automatic aggregate loading** using `assertAndApply(this)`
-- **@Apply pattern integration** - FluxCapacitor calls @Apply methods automatically
-- **Zero boilerplate** - no manual `FluxCapacitor.loadAggregate()` calls
+- **@Apply pattern integration** - Fluxzero calls @Apply methods automatically
+- **Zero boilerplate** - no manual `Fluxzero.loadAggregate()` calls
 - **Type safety** specific to ObjectType domain
 - **Consistent pattern** across all ObjectType commands
 
 #### ObjectTypeVersionCommand Interface
 The `ObjectTypeVersionCommand` interface provides all ObjectTypeCommand benefits plus:
 - **Version-specific context** with only `versionId` needed
-- **Automatic ObjectType injection** - FluxCapacitor finds the containing ObjectType automatically
+- **Automatic ObjectType injection** - Fluxzero finds the containing ObjectType automatically
 - **Specialized interface** for operations that target specific versions
 - **Clear separation** between aggregate-level and version-level operations
 - **Enhanced readability** - makes it obvious when a command operates on versions
@@ -365,7 +365,7 @@ data class UpdateObjectTypeVersion(
 ```
 
 ### 📋 Validation Order
-FluxCapacitor processes validation in this order:
+Fluxzero processes validation in this order:
 1. **JSR303 validation** on command fields
 2. **@AssertLegal methods** with aggregate state
 3. **@Apply method** execution
@@ -381,7 +381,7 @@ All commands and queries should implement the `Request<T>` interface to define t
 - **Consistency**: Standardized approach across the application
 
 ```kotlin
-import io.fluxcapacitor.javaclient.tracking.handling.Request
+import io.fluxzero.javaclient.tracking.handling.Request
 
 // Command with return type
 data class CreateUser(
@@ -432,7 +432,7 @@ class UserQueryHandler {
     @HandleQuery
     fun handle(query: GetUser): User? {
         // Return type is explicitly defined by Request<User?>
-        return FluxCapacitor.loadAggregate(query.id).get()
+        return Fluxzero.loadAggregate(query.id).get()
     }
     
     @HandleQuery
@@ -451,21 +451,21 @@ val now = LocalDate.now()  // WRONG! Not testable
 val timestamp = Instant.now()  // WRONG! Not testable
 ```
 
-### ✅ Correct: Using FluxCapacitor Clock
+### ✅ Correct: Using Fluxzero Clock
 ```kotlin
 // For LocalDate
-val now = LocalDate.from(FluxCapacitor.currentClock().instant().atZone(FluxCapacitor.currentClock().zone))
+val now = LocalDate.from(Fluxzero.currentClock().instant().atZone(Fluxzero.currentClock().zone))
 
 // For Instant
-val timestamp = FluxCapacitor.currentClock().instant()
+val timestamp = Fluxzero.currentClock().instant()
 
 // For ZonedDateTime
-val zonedNow = FluxCapacitor.currentClock().instant().atZone(FluxCapacitor.currentClock().zone)
+val zonedNow = Fluxzero.currentClock().instant().atZone(Fluxzero.currentClock().zone)
 ```
 
-### 📋 Why Use FluxCapacitor.currentClock()?
+### 📋 Why Use Fluxzero.currentClock()?
 
-FluxCapacitor provides a controllable clock that:
+Fluxzero provides a controllable clock that:
 - **Enables testing** with fixed or controlled time
 - **Supports time travel** in tests
 - **Maintains consistency** across distributed systems
@@ -556,7 +556,7 @@ JSON structure with @class annotation:
 
 ### ✅ Test Time-Dependent Logic
 
-Use FluxCapacitor's time control for testing time-dependent behavior:
+Use Fluxzero's time control for testing time-dependent behavior:
 
 ```kotlin
 @Test
@@ -580,7 +580,7 @@ fun `should handle time-dependent operations`() {
 5. **Use JSON files**: For complex test data and reusable scenarios
 6. **Test exceptions**: Verify proper error handling with `expectExceptionalResult()`
 7. **Verify state changes**: Check aggregate state after commands
-8. **Test time handling**: Verify `FluxCapacitor.currentClock()` usage
+8. **Test time handling**: Verify `Fluxzero.currentClock()` usage
 
 ## Import Checklist
 
@@ -588,21 +588,21 @@ When implementing FluxZero handlers, always use these imports:
 
 ```kotlin
 // For handler annotations
-import io.fluxcapacitor.javaclient.tracking.handling.HandleCommand
-import io.fluxcapacitor.javaclient.tracking.handling.HandleQuery
+import io.fluxzero.javaclient.tracking.handling.HandleCommand
+import io.fluxzero.javaclient.tracking.handling.HandleQuery
 
 // For Request interface (BEST PRACTICE)
-import io.fluxcapacitor.javaclient.tracking.handling.Request
+import io.fluxzero.javaclient.tracking.handling.Request
 
 // For domain modeling
-import io.fluxcapacitor.javaclient.modeling.Aggregate
-import io.fluxcapacitor.javaclient.modeling.EntityId
-import io.fluxcapacitor.javaclient.modeling.Member
-import io.fluxcapacitor.javaclient.modeling.Entity
+import io.fluxzero.javaclient.modeling.Aggregate
+import io.fluxzero.javaclient.modeling.EntityId
+import io.fluxzero.javaclient.modeling.Member
+import io.fluxzero.javaclient.modeling.Entity
 
-// For FluxCapacitor client operations
-import io.fluxcapacitor.javaclient.FluxCapacitor
+// For Fluxzero client operations
+import io.fluxzero.javaclient.Fluxzero
 
-// Standard exceptions (no special FluxCapacitor exceptions needed)
+// Standard exceptions (no special Fluxzero exceptions needed)
 // Use: IllegalArgumentException, IllegalStateException, UnsupportedOperationException
 ```

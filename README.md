@@ -1,16 +1,16 @@
-<a href="https://flux-capacitor.io">
-    <img src="https://flux-capacitor.io/assets/brand/flux-capacitor-white.svg" alt="Flux Capacitor logo" title="Flux Capacitor" align="right" height="60" />
+<a href="https://fluxzero.io">
+    <img src="https://fluxzero.io/assets/brand/fluxzero-white.svg" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
 </a>
 
-# Flux Capacitor java client
+# Fluxzero java client
 
-[![Build](https://github.com/flux-capacitor-io/flux-capacitor-client/actions/workflows/deploy.yml/badge.svg)](https://github.com/flux-capacitor-io/flux-capacitor-client/actions)
-[![Maven Central](https://img.shields.io/maven-central/v/io.flux-capacitor/flux-capacitor-client)](https://central.sonatype.com/artifact/io.flux-capacitor/flux-capacitor-client?smo=true)
-[![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://flux-capacitor.io/flux-capacitor-client/javadoc/apidocs/)
-[![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/flux-capacitor-io/flux-capacitor-client/refs/heads/master/docs/cheatsheet.pdf)
+[![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
+[![Maven Central](https://img.shields.io/maven-central/v/io.fluxzero/fluxzero-sdk-java)](https://central.sonatype.com/artifact/io.fluxzero/fluxzero-sdk-java?smo=true)
+[![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://fluxzero.io/fluxzero-sdk-java/javadoc/apidocs/)
+[![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/master/docs/cheatsheet.pdf)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-This repository contains the official Java client for [flux.host](https://flux.host), the Flux Capacitor platform. For a
+This repository contains the official Java client for [flux.host](https://flux.host), the Fluxzero Runtime. For a
 short overview of functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 ---
@@ -19,7 +19,7 @@ short overview of functionalities, check out this [cheatsheet](docs/cheatsheet.p
 
 ### Maven Users
 
-Import the [Flux Capacitor BOM](https://mvnrepository.com/artifact/io.flux-capacitor/flux-capacitor-bom) in your
+Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
 `dependencyManagement` section to centralize version management:
 
 ```xml
@@ -27,9 +27,9 @@ Import the [Flux Capacitor BOM](https://mvnrepository.com/artifact/io.flux-capac
 <dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>io.flux-capacitor</groupId>
-            <artifactId>flux-capacitor-bom</artifactId>
-            <version>${flux-capacitor.version}</version> <!-- See version badge above -->
+            <groupId>io.fluxzero</groupId>
+            <artifactId>fluxzero-bom</artifactId>
+            <version>${fluxzero.version}</version> <!-- See version badge above -->
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -43,22 +43,22 @@ Then declare only the dependencies you actually need (no version required):
 
 <dependencies>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>java-client</artifactId>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>java-client</artifactId>
         <classifier>tests</classifier>
         <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>test-server</artifactId>
         <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>proxy</artifactId>
         <scope>test</scope>
     </dependency>
@@ -80,11 +80,11 @@ automatically:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.flux-capacitor:flux-capacitor-bom:${fluxCapacitorVersion}"))
-    implementation("io.flux-capacitor:java-client")
-    testImplementation("io.flux-capacitor:java-client", classifier = "tests")
-    testImplementation("io.flux-capacitor:test-server")
-    testImplementation("io.flux-capacitor:proxy")
+    implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
+    implementation("io.fluxzero:java-client")
+    testImplementation("io.fluxzero:java-client", classifier = "tests")
+    testImplementation("io.fluxzero:test-server")
+    testImplementation("io.fluxzero:proxy")
 }
 ```
 
@@ -95,13 +95,13 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation platform("io.flux-capacitor:flux-capacitor-bom:${fluxCapacitorVersion}")
-    implementation 'io.flux-capacitor:java-client'
-    testImplementation('io.flux-capacitor:java-client') {
+    implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
+    implementation 'io.fluxzero:java-client'
+    testImplementation('io.fluxzero:java-client') {
         classifier = 'tests'
     }
-    testImplementation 'io.flux-capacitor:test-server'
-    testImplementation 'io.flux-capacitor:proxy'
+    testImplementation 'io.fluxzero:test-server'
+    testImplementation 'io.fluxzero:proxy'
 }
 ```
 
@@ -140,10 +140,10 @@ Publish the event:
 ```java
 public class ExampleMain {
     public static void main(final String[] args) {
-        var fluxCapacitor = DefaultFluxCapacitor.builder()
+        var fluxzero = DefaultFluxzero.builder()
                 .build(LocalClient.newInstance());
-        fluxCapacitor.registerHandlers(new HelloWorldEventHandler());
-        fluxCapacitor.eventGateway().publish(new HelloWorld());
+        fluxzero.registerHandlers(new HelloWorldEventHandler());
+        fluxzero.eventGateway().publish(new HelloWorld());
     }
 }
 ```
@@ -156,7 +156,7 @@ Hello World!
 
 ### With Spring
 
-Flux Capacitor integrates seamlessly with Spring. Here’s how the above example looks with Spring Boot:
+Fluxzero integrates seamlessly with Spring. Here’s how the above example looks with Spring Boot:
 
 ```java
 
@@ -164,7 +164,7 @@ Flux Capacitor integrates seamlessly with Spring. Here’s how the above example
 public class ExampleMain {
     public static void main(String... args) {
         SpringApplication.run(ExampleMain.class, args);
-        FluxCapacitor.publishEvent(new HelloWorld());
+        Fluxzero.publishEvent(new HelloWorld());
     }
 }
 ```
@@ -182,11 +182,11 @@ public class HelloWorldEventHandler {
 }
 ```
 
-> ⚠️ Using Spring non-Boot? Add `@Import(FluxCapacitorSpringConfig.class)` to register FluxCapacitor and related beans.
+> ⚠️ Using Spring non-Boot? Add `@Import(FluxzeroSpringConfig.class)` to register Fluxzero and related beans.
 
 ### Testing your handler
 
-Flux Capacitor includes a powerful TestFixture utility for testing your handlers without needing a full application
+Fluxzero includes a powerful TestFixture utility for testing your handlers without needing a full application
 or infrastructure setup.
 
 Here’s how to test our HelloWorldEventHandler from earlier:
@@ -204,7 +204,7 @@ class HelloWorldEventHandlerTest {
 }
 ```
 
-This will invoke your handler exactly like Flux Capacitor would in production, but entirely in memory and synchronously
+This will invoke your handler exactly like Fluxzero would in production, but entirely in memory and synchronously
 by default.
 
 > ✅ We’ll explore more powerful testing patterns — including assertions on results, published commands, exceptions,
@@ -214,7 +214,7 @@ by default.
 
 # Features
 
-The java client supports all features of Flux Capacitor but also offers plenty of additional functionality.
+The java client supports all features of Fluxzero but also offers plenty of additional functionality.
 What follows is a summary of the most important features.
 
 ## Table of Contents
@@ -261,8 +261,8 @@ What follows is a summary of the most important features.
 - [Configuring Application Properties](#configuring-application-properties)
 - [Parameter Injection with Custom Resolvers](#parameter-injection-with-custom-resolvers)
 - [Interceptors: Dispatching, Handling, and Batching](#interceptors-dispatching-handling-and-batching)
-- [Configuring Flux Capacitor](#configuring-flux-capacitor)
-- [WebSocketClient: Connect to the Flux Platform](#websocketclient-connect-to-the-flux-platform)
+- [Configuring Fluxzero](#configuring-fluxzero)
+- [WebSocketClient: Connect to the Fluxzero Runtime](#websocketclient-connect-to-the-fluxzero-runtime)
 - [Compatibility and Dependencies](#compatibility-and-dependencies)
 
 ---
@@ -271,7 +271,7 @@ What follows is a summary of the most important features.
 
 Fluxzero is centered around sending and receiving messages — such as __commands__, __events__, __queries__, and
 __web requests__. These messages can originate from your own application or any other client connected to the same
-Flux Platform.
+Fluxzero Runtime.
 
 Handlers are simply methods annotated with `@HandleCommand`, `@HandleEvent`, `@HandleQuery`, etc. Here’s a basic example
 of an event handler that dispatches a command to send a welcome email when a user is created:
@@ -280,15 +280,15 @@ of an event handler that dispatches a command to send a welcome email when a use
 class UserEventHandler {
     @HandleEvent
     void handle(CreateUser event) {
-        FluxCapacitor.sendCommand(
+        Fluxzero.sendCommand(
                 new SendWelcomeEmail(event.getUserProfile()));
     }
 }
 ```
 
-This handler uses the static `sendCommand` method on FluxCapacitor, which works because the client is automatically
+This handler uses the static `sendCommand` method on Fluxzero, which works because the client is automatically
 injected into the thread-local context before message handling begins. This approach eliminates the need to inject
-`FluxCapacitor` into every handler.
+`Fluxzero` into every handler.
 
 To receive that command, you would define a corresponding command handler:
 
@@ -319,7 +319,7 @@ To perform a query and wait for its result synchronously, you can use:
 class UserEventHandler {
     @HandleEvent
     void handle(ResetPassword event) {
-        UserProfile userProfile = FluxCapacitor
+        UserProfile userProfile = Fluxzero
                 .queryAndWait(new GetUserProfile(event.getUserId()));
         // Perform reset using userProfile
     }
@@ -328,7 +328,7 @@ class UserEventHandler {
 
 ### Returning Futures
 
-Handler methods may also return a `CompletableFuture<T>` instead of a direct value. In that case, Flux Capacitor will
+Handler methods may also return a `CompletableFuture<T>` instead of a direct value. In that case, Fluxzero will
 publish the result to the result log once the future completes:
 
 ```java
@@ -355,7 +355,7 @@ completion.
 
 ### Handler Matching and Passive Handlers
 
-Flux Capacitor dynamically resolves which handler method(s) should respond to a message based on **handler specificity**
+Fluxzero dynamically resolves which handler method(s) should respond to a message based on **handler specificity**
 and **message type**. This resolution behavior is consistent across all message types — including **commands**,
 **queries**, **events**, **errors**, **metrics**, and more.
 
@@ -432,7 +432,7 @@ public class QueryMetricsHandler {
 - The `handle(...)` method produces the result.
 - The `record(...)` method logs the query,
 
-By combining **handler specificity**, **class-level isolation**, and the `passive` flag, Flux Capacitor gives you
+By combining **handler specificity**, **class-level isolation**, and the `passive` flag, Fluxzero gives you
 precise control over how messages are processed — even across mixed concerns like logging, read models, business logic,
 and cross-cutting concerns.
 
@@ -445,7 +445,7 @@ For example, sending a command with metadata:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(
+Fluxzero.sendCommand(
     new CreateUser(...),
     Metadata.of("userAgent", userAgent)
 );
@@ -466,9 +466,9 @@ class UserCommandHandler {
 
 ## Tracking Messages
 
-Flux Capacitor handles message dispatch asynchronously by default. When a message such as a command is published:
+Fluxzero handles message dispatch asynchronously by default. When a message such as a command is published:
 
-1. It is sent to the Flux Platform.
+1. It is sent to the Fluxzero Runtime.
 2. The platform logs the message and notifies all subscribed consumers.
 3. Consumers stream these messages to the relevant handler methods.
 
@@ -543,7 +543,7 @@ These defaults are sufficient for most scenarios. You can always override them f
 
 ## Message Replays
 
-Flux Capacitor allows you to **replay past messages** by tracking from an earlier index in the message log.  
+Fluxzero allows you to **replay past messages** by tracking from an earlier index in the message log.  
 This is useful for:
 
 - Rebuilding projections or read models
@@ -594,7 +594,7 @@ If you want to reset an existing consumer to an earlier point in the log:
 [//]: # (@formatter:off)
 ```java
 long replayIndex = 111677748019200000L;
-FluxCapacitor.client()
+Fluxzero.client()
     .getTrackingClient(MessageType.EVENT)
     .resetPosition("myConsumer", replayIndex, Guarantee.STORED);
 ```
@@ -629,7 +629,7 @@ Now, register a **second consumer** at runtime for the **same handler** using a 
 
 [//]: # (@formatter:off)
 ```java
-fluxCapacitorBuilder.addConsumerConfiguration(
+fluxzeroBuilder.addConsumerConfiguration(
     ConsumerConfiguration.builder()
         .name("replay") // A new consumer
         .handlerFilter(handler -> handler instanceof OrderProcessor) // same class
@@ -652,7 +652,7 @@ sent during the month of January 2024 will be resubmitted.
 
 ### Handling Failures by Replaying from the Error Log
 
-Flux Capacitor automatically logs **all message handling errors** to a dedicated **error log**. This includes failures
+Fluxzero automatically logs **all message handling errors** to a dedicated **error log**. This includes failures
 for:
 
 - Commands
@@ -696,7 +696,7 @@ You can also **filter** error handlers by trigger type, message type, or origina
 @HandleError
 @Trigger(messageType = MessageType.COMMAND, consumer = "my-app")
 void retryFailedCommand(MyCommand failed) {
-    FluxCapacitor.sendCommand(failed);
+    Fluxzero.sendCommand(failed);
 }
 ```
 
@@ -726,7 +726,7 @@ class CommandReplayHandler {
     @HandleError
     @Trigger(messageType = MessageType.COMMAND)
     void retry(MyCommand failed) {
-        FluxCapacitor.sendCommand(failed);
+        Fluxzero.sendCommand(failed);
     }
 }
 ```
@@ -751,7 +751,7 @@ or in the future.
 
 ### Routing with `@RoutingKey`
 
-In Flux Capacitor, routing is used to assign messages to **segments** using consistent hashing. This ensures that
+In Fluxzero, routing is used to assign messages to **segments** using consistent hashing. This ensures that
 messages about the same entity — for example, all events for a given `OrderId` — are always handled by the **same
 consumer**, in **the correct order**.
 
@@ -828,7 +828,7 @@ This will first try to extract `userId` from metadata, and fall back to the payl
 
 ## Local handlers
 
-Flux Capacitor supports both asynchronous and local (synchronous) message handling. **Local handlers** process messages
+Fluxzero supports both asynchronous and local (synchronous) message handling. **Local handlers** process messages
 in the same thread that published them, bypassing the message dispatch infrastructure entirely. This typically results
 in faster response times and is ideal for simple or time-sensitive use cases.
 
@@ -902,7 +902,7 @@ one if unspecified).
 
 ### Response typing with Request<R>
 
-Flux Capacitor allows you to formalize the expected return type of commands and queries by implementing the `Request<R>`
+Fluxzero allows you to formalize the expected return type of commands and queries by implementing the `Request<R>`
 interface. This lets the framework:
 
 - Infer the response type at runtime and during testing.
@@ -927,7 +927,7 @@ public class GetUserProfile implements Request<UserProfile> {
 Now, when calling this query, the return type is automatically known:
 
 ```java
-UserProfile profile = FluxCapacitor.queryAndWait(new GetUserProfile("123"));
+UserProfile profile = Fluxzero.queryAndWait(new GetUserProfile("123"));
 ```
 
 When implementing Request<R>, the expected result type (R) is automatically inferred during testing and execution. This
@@ -952,7 +952,7 @@ If a class implements `Request<R>`, Flux will use its declared generic type (R) 
 
 ## Payload Validation
 
-Flux Capacitor automatically validates incoming request payloads using [JSR 380](https://beanvalidation.org/2.0/)
+Fluxzero automatically validates incoming request payloads using [JSR 380](https://beanvalidation.org/2.0/)
 (Bean Validation 2.0) annotations.
 
 This includes support for:
@@ -975,24 +975,24 @@ You can disable this validation entirely by calling:
 
 [//]: # (@formatter:off)
 ```java
-DefaultFluxCapacitor.builder().disablePayloadValidation();
+DefaultFluxzero.builder().disablePayloadValidation();
 ```
 [//]: # (@formatter:on)
 
 Of course, it is also easy to provide your own validation if desired. For how to do that, please refer to the section
 on `HandlerInterceptors`.
 
-> 💡 **Tip**: Flux Capacitor automatically correlates errors with the triggering message (e.g.: command or event).
+> 💡 **Tip**: Fluxzero automatically correlates errors with the triggering message (e.g.: command or event).
 >
 > This means you don’t need to log extra context like the message payload or user ID — that information is already
-> available in the audit trail in Flux Platform. This also encourages using **clear, user-facing error messages**
+> available in the audit trail in Fluxzero Runtime. This also encourages using **clear, user-facing error messages**
 > without leaking internal details.
 
 ---
 
 ## User and Role-Based Access Control
 
-Flux Capacitor allows you to restrict message handling based on the authenticated user's roles. This access control
+Fluxzero allows you to restrict message handling based on the authenticated user's roles. This access control
 happens **before** the message reaches the handler — similar to how payload validation is enforced.
 
 There are several annotations for declaring user and role requirements:
@@ -1159,7 +1159,7 @@ Flux will interpret the enum-based annotation through the underlying `@RequiresA
 ### Where does user info come from?
 
 User roles are resolved by the configured `UserProvider`, which extracts the current user from message metadata (e.g.,
-authentication tokens, headers, etc.). By default, Flux Capacitor uses a pluggable SPI to register this provider.
+authentication tokens, headers, etc.). By default, Fluxzero uses a pluggable SPI to register this provider.
 
 > 💡 You can override or mock this provider in tests using the TestFixture API.
 
@@ -1215,7 +1215,7 @@ Service Provider mechanism.
 Create the file:
 
 ```
-src/main/resources/META-INF/services/io.fluxcapacitor.javaclient.tracking.handling.authentication.UserProvider
+src/main/resources/META-INF/services/io.fluxzero.javaclient.tracking.handling.authentication.UserProvider
 ```
 
 List your implementation classes (one per line) in order of preference:
@@ -1225,9 +1225,9 @@ com.example.authentication.SenderProvider
 com.example.authentication.SystemUserProvider
 ```
 
-Flux Capacitor will automatically discover and register them at startup.
+Fluxzero will automatically discover and register them at startup.
 
-> 💡 If you're using Spring, your `UserProvider` can also be exposed as a bean — Flux Capacitor will pick it up
+> 💡 If you're using Spring, your `UserProvider` can also be exposed as a bean — Fluxzero will pick it up
 > automatically.
 >
 > ⚠️ However, tests **not using Spring** will not pick up the bean. For test scenarios or CLI usage, the SPI mechanism
@@ -1237,7 +1237,7 @@ Flux Capacitor will automatically discover and register them at startup.
 
 ## Scheduling
 
-Flux Capacitor allows scheduling messages for future delivery using the `MessageScheduler`.
+Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
 
 Here’s an example that schedules a termination event 30 days after an account is closed:
 
@@ -1245,7 +1245,7 @@ Here’s an example that schedules a termination event 30 days after an account 
 class UserLifecycleHandler {
     @HandleEvent
     void handle(AccountClosed event) {
-        FluxCapacitor.schedule(
+        Fluxzero.schedule(
                 new TerminateAccount(
                         event.getUserId()),
                 "AccountClosed-" + event.getUserId(),
@@ -1255,7 +1255,7 @@ class UserLifecycleHandler {
 
     @HandleEvent
     void handle(AccountReopened event) {
-        FluxCapacitor.cancelSchedule(
+        Fluxzero.cancelSchedule(
                 "AccountClosed-" + event.getUserId());
     }
 
@@ -1272,7 +1272,7 @@ Alternatively, you can schedule commands using `scheduleCommand`:
 class UserLifecycleHandler {
     @HandleEvent
     void handle(AccountClosed event) {
-        FluxCapacitor.scheduleCommand(
+        Fluxzero.scheduleCommand(
                 new TerminateAccount(
                         event.getUserId()),
                 "AccountClosed-" + event.getUserId(),
@@ -1281,14 +1281,14 @@ class UserLifecycleHandler {
 
     @HandleEvent
     void handle(AccountReopened event) {
-        FluxCapacitor.cancelSchedule("AccountClosed-" + event.getUserId());
+        Fluxzero.cancelSchedule("AccountClosed-" + event.getUserId());
     }
 }
 ```
 
 ### Periodic scheduling
 
-Flux Capacitor supports recurring message schedules via the `@Periodic` annotation. This makes it easy to run tasks on a
+Fluxzero supports recurring message schedules via the `@Periodic` annotation. This makes it easy to run tasks on a
 fixed interval or cron-based schedule — useful for polling, maintenance, background processing, and more.
 
 You can apply `@Periodic` to either a `Schedule` payload or a `@HandleSchedule` method:
@@ -1356,7 +1356,7 @@ In this case:
 
 ## User-defined message logs
 
-Flux Capacitor supports **custom message logs** in addition to built-in ones like commands, events, and queries.
+Fluxzero supports **custom message logs** in addition to built-in ones like commands, events, and queries.
 
 Most applications won't need custom message logs — but they can be very useful in advanced scenarios:
 
@@ -1364,7 +1364,7 @@ Most applications won't need custom message logs — but they can be very useful
 - To **store batches of updates** for external consumers that poll infrequently.
 - To **segment logic** or apply different retention guarantees per topic.
 
-Flux Capacitor lets you publish and handle custom messages by assigning them to **user-defined topics**. These messages
+Fluxzero lets you publish and handle custom messages by assigning them to **user-defined topics**. These messages
 are written to their own durable logs and can be tracked just like commands or events.
 
 ### Custom Handlers
@@ -1394,7 +1394,7 @@ You can publish messages manually to any custom topic:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .customGateway("third-party-events")
     .sendAndForget(new AuditEntry("User login"));
 ```
@@ -1409,7 +1409,7 @@ should be retained:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .customGateway("third-party-events")
     .setRetentionTime(Duration.ofDays(90));
 ```
@@ -1422,29 +1422,29 @@ for custom topics.
 
 ## Dispatching Messages
 
-Flux Capacitor provides a unified and transparent way to send messages of all types—**commands**, **events**,
+Fluxzero provides a unified and transparent way to send messages of all types—**commands**, **events**,
 **queries**, **schedules**, **web requests**, **metrics**, and more. All message types are routed through a shared
 dispatch
 infrastructure, with built-in support for:
 
 - **Location transparency**: Message destinations are resolved dynamically. Handlers may live within the current
-  process or in a remote application across the globe—as long as it's connected to the same Flux Platform.
+  process or in a remote application across the globe—as long as it's connected to the same Fluxzero Runtime.
 - **Dispatch interceptors** for metadata enrichment, authorization, logging, or suppression.
 - **Local-first handling**: If a handler exists in the local process, it will receive the message immediately.
-- **Automatic forwarding** to the Flux Platform when no local handlers consume the message.
+- **Automatic forwarding** to the Fluxzero Runtime when no local handlers consume the message.
 - **Serialization and correlation**: All messages are serialized, tagged with tracing data, and routed by type and
   topic.
 
 ### Sending a Message
 
-The easiest way to dispatch messages is via static methods on the `FluxCapacitor` class:
+The easiest way to dispatch messages is via static methods on the `Fluxzero` class:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(new CreateUser("Alice"));  // Asynchronously send a command
-FluxCapacitor.queryAndWait(new GetUserById("user-123"));  // Query and block for response
-FluxCapacitor.publishEvent(new UserSignUp(...));  // Fire-and-forget event
-FluxCapacitor.schedule(new RetryPayment(...), Duration.ofMinutes(5));  // Delayed message
+Fluxzero.sendCommand(new CreateUser("Alice"));  // Asynchronously send a command
+Fluxzero.queryAndWait(new GetUserById("user-123"));  // Query and block for response
+Fluxzero.publishEvent(new UserSignUp(...));  // Fire-and-forget event
+Fluxzero.schedule(new RetryPayment(...), Duration.ofMinutes(5));  // Delayed message
 ```
 [//]: # (@formatter:on)
 
@@ -1452,13 +1452,13 @@ Each message can also include optional metadata:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(new CreateUser("Bob"),
+Fluxzero.sendCommand(new CreateUser("Bob"),
                           Metadata.of("source","admin-ui"));
 ```
 [//]: # (@formatter:on)
 
 > ⚠️ Messages are **not routed to a specific destination**. Instead, any number of matching handlers may receive the
-> message, whether they run locally or remotely. Flux Capacitor abstracts the transport so that handler location is
+> message, whether they run locally or remotely. Fluxzero abstracts the transport so that handler location is
 > irrelevant.
 
 For a deeper look at message handling, see the [Message Handling](#message-handling) section.
@@ -1473,7 +1473,7 @@ Commands are used to trigger state changes or domain logic. They may return a re
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendAndForgetCommand(new CreateUser("Alice"));
+Fluxzero.sendAndForgetCommand(new CreateUser("Alice"));
 ```
 [//]: # (@formatter:on)
 
@@ -1482,9 +1482,9 @@ FluxCapacitor.sendAndForgetCommand(new CreateUser("Alice"));
 [//]: # (@formatter:off)
 ```java
 CompletableFuture<UserId> future 
-        = FluxCapacitor.sendCommand(new CreateUser("Bob"));
+        = Fluxzero.sendCommand(new CreateUser("Bob"));
 
-UserId id = FluxCapacitor.sendCommandAndWait(
+UserId id = Fluxzero.sendCommandAndWait(
         new CreateUser("Charlie"));
 ```
 [//]: # (@formatter:on)
@@ -1499,7 +1499,7 @@ Queries retrieve data from read models or projections.
 
 [//]: # (@formatter:off)
 ```java
-CompletableFuture<UserProfile> result = FluxCapacitor.query(new GetUserProfile("user123"));
+CompletableFuture<UserProfile> result = Fluxzero.query(new GetUserProfile("user123"));
 ```
 [//]: # (@formatter:on)
 
@@ -1507,7 +1507,7 @@ CompletableFuture<UserProfile> result = FluxCapacitor.query(new GetUserProfile("
 
 [//]: # (@formatter:off)
 ```java
-UserProfile profile = FluxCapacitor.queryAndWait(new GetUserProfile("user456"));
+UserProfile profile = Fluxzero.queryAndWait(new GetUserProfile("user456"));
 ```
 [//]: # (@formatter:on)
 
@@ -1519,7 +1519,7 @@ Events can be published via:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.publishEvent(new UserLoggedIn("user789"));
+Fluxzero.publishEvent(new UserLoggedIn("user789"));
 ```
 [//]: # (@formatter:on)
 
@@ -1542,10 +1542,10 @@ You can schedule messages or commands for later delivery:
 [//]: # (@formatter:off)
 ```java
 // Schedule a message to be handled in 5 minutes using @HandleSchedule
-FluxCapacitor.schedule(new ReminderFired(), Duration.ofMinutes(5));
+Fluxzero.schedule(new ReminderFired(), Duration.ofMinutes(5));
 
 // Fire a periodic schedule every hour
-FluxCapacitor.schedulePeriodic(new PollExternalApi());
+Fluxzero.schedulePeriodic(new PollExternalApi());
 ```
 [//]: # (@formatter:on)
 
@@ -1553,13 +1553,13 @@ FluxCapacitor.schedulePeriodic(new PollExternalApi());
 
 ### Web Requests
 
-Send an outbound HTTP call via the proxy mechanism in Flux Platform:
+Send an outbound HTTP call via the proxy mechanism in Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
 WebRequest request = WebRequest
         .get("https://api.example.com/data").build();
-WebResponse response = FluxCapacitor.get()
+WebResponse response = Fluxzero.get()
         .webRequestGateway().sendAndWait(request);
 ```
 [//]: # (@formatter:on)
@@ -1568,11 +1568,11 @@ WebResponse response = FluxCapacitor.get()
 
 ### Metrics
 
-You can publish custom metrics to the Flux Platform:
+You can publish custom metrics to the Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.publishMetrics(
+Fluxzero.publishMetrics(
         new SystemLoadMetric(cpu, memory));
 ```
 [//]: # (@formatter:on)
@@ -1597,7 +1597,7 @@ If any handlers (e.g. `@HandleCommand`, `@HandleQuery`) are registered for this 
 invoked **locally**.
 
 - If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the 
-  Flux Platform.
+  Fluxzero Runtime.
 - If the handler **fully consumes** the message, it won't be forwarded.
 
 #### 3. **Serialization**
@@ -1610,9 +1610,9 @@ may apply.
 After serialization, interceptors may again modify the message—for example, to inject correlation headers based on the
 serialized form.
 
-#### 5. **Forwarding to Flux Platform**
+#### 5. **Forwarding to Fluxzero Runtime**
 
-If no local handler consumes the message, it is published to the Flux Platform via the configured `Client` (e.g.
+If no local handler consumes the message, it is published to the Fluxzero Runtime via the configured `Client` (e.g.
 `WebSocketClient`).
 
 - Topics and routing are determined by message type and metadata
@@ -1643,7 +1643,7 @@ When this message is sent using a blocking gateway call, the configured timeout 
 
 [//]: # (@formatter:off)
 ```java
-BigDecimal result = FluxCapacitor
+BigDecimal result = Fluxzero
         .sendAndWait(new CalculatePremium(user));
 ```
 [//]: # (@formatter:on)
@@ -1658,7 +1658,7 @@ If the timeout elapses before a response is received, a `TimeoutException` is th
   [//]: # (@formatter:off)
   ```java
   CompletableFuture<BigDecimal> future 
-        = FluxCapacitor.send(new CalculatePremium(user));
+        = Fluxzero.send(new CalculatePremium(user));
   future.orTimeout(3, TimeUnit.SECONDS);
   ```
   [//]: # (@formatter:on)
@@ -1670,7 +1670,7 @@ If the timeout elapses before a response is received, a `TimeoutException` is th
 
 ## Testing your Handlers
 
-Flux Capacitor comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
+Fluxzero comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
 writing behavioral tests for your handlers without needing to mock the infrastructure.
 
 Here’s a basic example:
@@ -1948,7 +1948,7 @@ This ensures that:
 
 ### Using Test Fixtures in Spring
 
-Flux Capacitor provides seamless integration with Spring Boot for testing. You can inject a `TestFixture` directly:
+Fluxzero provides seamless integration with Spring Boot for testing. You can inject a `TestFixture` directly:
 
 ```java
 
@@ -1970,7 +1970,7 @@ class AsyncAppTest {
 - ⚠️ **Spring Core (non-Boot)**: Manually import the test configuration:
 
   ```java
-  @Import(FluxCapacitorTestConfig.class)
+  @Import(FluxzeroTestConfig.class)
   ```
 
   This ensures the `TestFixture` and related infrastructure are available in the Spring context.
@@ -1984,14 +1984,14 @@ By default, the injected fixture is **asynchronous**. To use a **synchronous** f
 ##### Globally via `application.properties`:
 
 ```properties
-fluxcapacitor.test.sync=true
+fluxzero.test.sync=true
 ```
 
 ##### Or per test class:
 
 ```java
 
-@TestPropertySource(properties = "fluxcapacitor.test.sync=true")
+@TestPropertySource(properties = "fluxzero.test.sync=true")
 @SpringBootTest
 class SyncAppTest {
 
@@ -2004,7 +2004,7 @@ class SyncAppTest {
 
 ### Testing schedules
 
-Flux Capacitor’s scheduling engine makes it easy to test time-based workflows. Scheduled messages are handled just
+Fluxzero’s scheduling engine makes it easy to test time-based workflows. Scheduled messages are handled just
 like any other message, except they are delayed until their due time.
 
 Use the `TestFixture` to simulate the passage of time and trigger scheduled actions. Here’s a typical example:
@@ -2057,7 +2057,7 @@ This is especially useful for workflows tied to specific deadlines or calendar d
 
 ## Handling Web Requests
 
-Flux Capacitor supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
+Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
 variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
 
 Instead of exposing a public HTTP server per application, Flux uses a central Web Gateway that **proxies all external
@@ -2097,8 +2097,8 @@ You can use the general `@HandleWeb` if you want to match multiple paths or meth
 @HandleWeb(value = "/users/{userId}", method = {"GET", "DELETE"})
 public CompletableFuture<?> handleUserRequest(WebRequest request, @PathParam String userId) {
     return switch (request.getMethod()) {
-        case "GET" -> FluxCapacitor.query(new GetUser(userId));
-        case "DELETE" -> FluxCapacitor.sendCommand(new DeleteUser(userId));
+        case "GET" -> Fluxzero.query(new GetUser(userId));
+        case "DELETE" -> Fluxzero.sendCommand(new DeleteUser(userId));
         default -> throw new UnsupportedOperationException();
     };
 }
@@ -2187,7 +2187,7 @@ pattern would have become `/users/{id}`.
 
 ## Serving Static Files
 
-Flux Capacitor supports serving static files directly from a handler class by using the `@ServeStatic` annotation.
+Fluxzero supports serving static files directly from a handler class by using the `@ServeStatic` annotation.
 This allows client applications to expose static resources (HTML, JS, CSS, images, etc.) without needing an external web
 server.
 
@@ -2288,10 +2288,10 @@ combining SPAs or hybrid web apps with API endpoints under a shared route prefix
 
 ## Handling WebSocket Messages
 
-Flux Capacitor provides first-class support for **WebSocket communication**, enabling stateful or stateless message
+Fluxzero provides first-class support for **WebSocket communication**, enabling stateful or stateless message
 handling using the same annotation-based model as other requests.
 
-WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Flux platform, and can
+WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Fluxzero Runtime, and can
 be consumed and responded to like any other request type.
 
 ---
@@ -2371,7 +2371,7 @@ buffer, sequence).
 
 ### Automatic Ping-Pong & Keep-Alive
 
-When using `@SocketEndpoint`, Flux Capacitor automatically manages **keep-alive pings**:
+When using `@SocketEndpoint`, Fluxzero automatically manages **keep-alive pings**:
 
 - Pings are sent at regular intervals (default: every 60s)
 - If a `pong` is not received within a timeout, the session is closed
@@ -2398,14 +2398,14 @@ public class MySession { ...
 | `@SocketEndpoint`          | Declares a per-session WebSocket handler class     |
 | `SocketSession` (injected) | Controls sending messages, pinging, and closing    |
 
-Flux Capacitor makes WebSocket communication secure, observable, and composable—integrated seamlessly into your
+Fluxzero makes WebSocket communication secure, observable, and composable—integrated seamlessly into your
 distributed, event-driven architecture.
 
 ---
 
 ## Testing Web Endpoint Behavior
 
-Flux Capacitor allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
+Fluxzero allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
 can be tested like any other command, query, or event.
 
 Here’s a complete test for a `POST /games` handler that accepts a JSON request and publishes a command:
@@ -2427,7 +2427,7 @@ The corresponding handler is:
 
 @HandlePost("/games")
 CompletableFuture<GameId> addGame(GameDetails details) {
-    return FluxCapacitor.sendCommand(new RegisterGame(details));
+    return Fluxzero.sendCommand(new RegisterGame(details));
 }
 ```
 
@@ -2474,7 +2474,7 @@ This corresponds to the following handler method:
 @HandleGet
 @Path("/games")
 CompletableFuture<List<Game>> getGames(@QueryParam String term) {
-    return FluxCapacitor.query(new FindGames(term));
+    return Fluxzero.query(new FindGames(term));
 }
 ```
 
@@ -2482,7 +2482,7 @@ CompletableFuture<List<Game>> getGames(@QueryParam String term) {
 
 ### Testing Error Responses and Exceptions
 
-Flux Capacitor also allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
+Fluxzero also allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
 the type of exception thrown as well as inspecting the resulting HTTP status code or response body.
 
 Here’s a test that triggers a `403 Forbidden` error by throwing an `IllegalCommandException`:
@@ -2514,11 +2514,11 @@ This enables robust testing of both successful and failure paths for all your we
 
 ### Path Parameter Substitution in Tests
 
-When simulating web requests, Flux Capacitor automatically substitutes `{...}` placeholders in the request path using
+When simulating web requests, Fluxzero automatically substitutes `{...}` placeholders in the request path using
 results from previous steps:
 
 - The result of the **first `when...()` step** is saved when `.andThen()` is called.
-- If a subsequent path (e.g. `/games/{gameId}/buy`) contains placeholders, Flux Capacitor will:
+- If a subsequent path (e.g. `/games/{gameId}/buy`) contains placeholders, Fluxzero will:
 - Attempt to replace each placeholder (like `{gameId}`) with the string value of a previously returned result.
 - Track all resolved placeholders across steps. This allows chaining:
 
@@ -2542,7 +2542,7 @@ This keeps tests expressive and avoids boilerplate, especially for flows that in
 
 ## Outbound Web Requests
 
-Flux Capacitor provides a unified API for sending HTTP requests through the `WebRequestGateway`.
+Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
 Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
 
@@ -2556,13 +2556,13 @@ WebRequest request = WebRequest.get("https://api.example.com/data")
         .header("Authorization", "Bearer token123")
         .build();
 
-WebResponse response = FluxCapacitor.get()
+WebResponse response = Fluxzero.get()
         .webRequestGateway().sendAndWait(request);
 
 String body = response.getBodyString();
 ```
 
-> ✅ All outbound traffic is logged and traceable in the Flux platform.
+> ✅ All outbound traffic is logged and traceable in the Fluxzero Runtime.
 
 ### Asynchronous and Fire-and-Forget
 
@@ -2570,7 +2570,7 @@ You can send requests asynchronously:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get().webRequestGateway()
+Fluxzero.get().webRequestGateway()
         .send(request)
         .thenAccept(response -> log
               .info("Received: {}",response.getBodyString()));
@@ -2581,7 +2581,7 @@ Or fire-and-forget:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get().webRequestGateway()
+Fluxzero.get().webRequestGateway()
         .sendAndForget(Guarantee.STORED, request);
 ```
 [//]: # (@formatter:on)
@@ -2657,7 +2657,7 @@ You can match requests by:
 
 ## Metrics Messages
 
-Flux Capacitor supports a built-in message type for metrics: `MessageType.METRICS`.  
+Fluxzero supports a built-in message type for metrics: `MessageType.METRICS`.  
 These messages provide a powerful way to observe and trace system behavior across clients, handlers, and infrastructure.
 
 Metrics messages are:
@@ -2671,10 +2671,10 @@ Metrics messages are:
 
 ### Publishing Metrics
 
-You can publish metrics manually using the `FluxCapacitor.publishMetrics(...)` method:
+You can publish metrics manually using the `Fluxzero.publishMetrics(...)` method:
 
 ```java
-FluxCapacitor.publishMetrics(new SystemMetrics("slowProjection", "thresholdExceeded"));
+Fluxzero.publishMetrics(new SystemMetrics("slowProjection", "thresholdExceeded"));
 ```
 
 This emits a structured metrics message to the metrics topic.
@@ -2683,7 +2683,7 @@ All metrics are wrapped in a regular `Message`, so you can include metadata or d
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .metricsGateway()
     .publish(new MyMetric("foo"), 
              Metadata.of("critical","true"),
@@ -2770,7 +2770,7 @@ Metrics messages provide lightweight hooks into system behavior — use them for
 
 ## Domain Modeling
 
-Flux Capacitor allows you to model the state of your domain using entities that evolve over time by applying updates.
+Fluxzero allows you to model the state of your domain using entities that evolve over time by applying updates.
 These entities — such as users, orders, etc. — maintain state and enforce invariants through controlled updates,
 typically driven by commands.
 
@@ -2791,7 +2791,7 @@ public record UserAccount(@EntityId UserId userId,
 This `UserAccount` class models an aggregate with state such as `profile` and `accountClosed`. Each entity may contain a
 field
 annotated with `@EntityId` that acts as a unique identifier. For aggregates, this is optional — the aggregate itself is
-typically loaded using `FluxCapacitor.loadAggregate(id)`.
+typically loaded using `Fluxzero.loadAggregate(id)`.
 
 An **aggregate** is a specialized root entity that serves as an entry point into a domain model. It may contain nested
 child entities (modeled via `@Member`), but represents a single unit of consistency.
@@ -2821,7 +2821,7 @@ public record UserAccount(@EntityId UserId userId) {
 Now you can easily load the entity via:
 
 ```java
-Entity<UserAccount> user = FluxCapacitor.loadAggregate(new UserId("1234"));
+Entity<UserAccount> user = Fluxzero.loadAggregate(new UserId("1234"));
 ```
 
 ---
@@ -3037,7 +3037,7 @@ centralization leads to bloat and tight coupling — especially in larger system
 
 ### Mixing strategies
 
-Flux Capacitor allows **mixed approaches**. You can define:
+Fluxzero allows **mixed approaches**. You can define:
 
 - `@AssertLegal` methods on the command payload
 - `@Apply` methods inside the entity
@@ -3049,7 +3049,7 @@ Just keep in mind: logic that lives in updates is **easier to test, extend, and 
 
 ## Applying Updates to Entities
 
-To change the state of an entity, use `FluxCapacitor.loadAggregate(...)` to retrieve the aggregate and apply updates to
+To change the state of an entity, use `Fluxzero.loadAggregate(...)` to retrieve the aggregate and apply updates to
 it.
 
 Here's a basic example of a command handler applying a `CreateUser` update:
@@ -3058,12 +3058,12 @@ Here's a basic example of a command handler applying a `CreateUser` update:
 public class UserCommandHandler {
     @HandleCommand
     void handle(CreateUser command) {
-        FluxCapacitor.loadAggregate(command.getUserId(), UserAccount.class).assertAndApply(command);
+        Fluxzero.loadAggregate(command.getUserId(), UserAccount.class).assertAndApply(command);
     }
 }
 ```
 
-This loads the `UserAccount` entity by ID and applies the `CreateUser` command. Internally, Flux Capacitor will:
+This loads the `UserAccount` entity by ID and applies the `CreateUser` command. Internally, Fluxzero will:
 
 1. **Rehydrate** the entity using stored events or snapshots
 2. **Run all `@AssertLegal` methods** to verify preconditions
@@ -3087,7 +3087,7 @@ This style is recommended if you want to ensure validations happen before the en
 
 ## Nested Entities
 
-Flux Capacitor allows aggregates to contain nested entities — for example, users with authorizations or orders with line
+Fluxzero allows aggregates to contain nested entities — for example, users with authorizations or orders with line
 items. These nested entities can be added, updated, or removed using the same `@Apply` pattern used for root aggregates.
 
 To define a nested structure, annotate the collection or field with `@Member`:
@@ -3156,7 +3156,7 @@ public record RevokeAuthorization(AuthorizationId authorizationId) {
 
 Flux will automatically prune the child entity with the given `authorizationId`.
 
-> ⚠️ **Note:** When a child entity is added, updated, or removed using an `@Apply` method, Flux Capacitor will:
+> ⚠️ **Note:** When a child entity is added, updated, or removed using an `@Apply` method, Fluxzero will:
 >
 > - Automatically **locate the parent aggregate**
 > - Apply the update to the child entity
@@ -3169,8 +3169,8 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 
 ### Loading Entities and Aggregates
 
-Flux Capacitor supports a flexible and powerful approach to loading aggregates and their internal entities using
-`FluxCapacitor.loadAggregateFor(...)` and `FluxCapacitor.loadEntity(...)`.
+Fluxzero supports a flexible and powerful approach to loading aggregates and their internal entities using
+`Fluxzero.loadAggregateFor(...)` and `Fluxzero.loadEntity(...)`.
 
 ---
 
@@ -3184,16 +3184,16 @@ public record CompleteTask(TaskId taskId) {
 }
 ```
 
-With Flux Capacitor, you can handle this using:
+With Fluxzero, you can handle this using:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.loadEntity(taskId).assertAndApply(new CompleteTask(taskId));
+Fluxzero.loadEntity(taskId).assertAndApply(new CompleteTask(taskId));
 ```
 [//]: # (@formatter:on)
 
 Even if the `Task` is deeply nested within a `Project` or other parent aggregate, this method works because of the
-**entity relationship tracking** automatically maintained by Flux Capacitor.
+**entity relationship tracking** automatically maintained by Fluxzero.
 
 Additional behavior:
 
@@ -3214,7 +3214,7 @@ that reference it.
 To retrieve all aggregates that currently include a given entity ID:
 
 ```java
-Map<String, Class<?>> aggregates = FluxCapacitor.get()
+Map<String, Class<?>> aggregates = Fluxzero.get()
         .aggregateRepository()
         .getAggregatesFor(myEntityId);
 ```
@@ -3229,9 +3229,9 @@ When used responsibly, this enables patterns like:
 [//]: # (@formatter:off)
 ```java
 // Rerender or update every Project referencing a shared Tag
-for(Map.Entry<String, Class<?>> entry : FluxCapacitor.get()
+for(Map.Entry<String, Class<?>> entry : Fluxzero.get()
                 .aggregateRepository().getAggregatesFor(tagId).entrySet()) {
-        FluxCapacitor.loadAggregate(entry.getKey(), entry.getValue())
+        Fluxzero.loadAggregate(entry.getKey(), entry.getValue())
         .apply(new RefreshTag(tagId));
 }
 ```
@@ -3246,7 +3246,7 @@ This approach can help keep derived or denormalized data consistent across aggre
 Use this method to retrieve the **aggregate root** that currently contains the specified entity ID.
 
 ```java
-Entity<MyAggregate> aggregate = FluxCapacitor
+Entity<MyAggregate> aggregate = Fluxzero
         .loadAggregateFor("some-entity-id");
 ```
 
@@ -3261,7 +3261,7 @@ Behavior:
 
 ### Alternative Entity Identifiers
 
-Flux Capacitor supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
+Fluxzero supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
 when:
 
 - The entity needs to be looked up using a secondary identifier (e.g. an email address or external ID)
@@ -3271,7 +3271,7 @@ when:
 
 Aliases are used when:
 
-- Loading an aggregate or entity using `FluxCapacitor.loadAggregateFor(alias)` or `FluxCapacitor.loadEntity(alias)`.
+- Loading an aggregate or entity using `Fluxzero.loadAggregateFor(alias)` or `Fluxzero.loadEntity(alias)`.
 - Calling `Entity#getEntity(Object id)` on a parent entity.
 
 > If multiple entities share the same alias, behavior is undefined—avoid alias collisions unless intentional.
@@ -3316,14 +3316,14 @@ public record UserAccount(@EntityId String userId,
 Now the `UserAccount` entity can be looked up using:
 
 ```java
-Entity<UserAccount> entity = FluxCapacitor
+Entity<UserAccount> entity = Fluxzero
         .loadEntity("email:foo@example.com");
 ```
 
 or
 
 ```java
-Entity<UserAccount> entity = FluxCapacitor
+Entity<UserAccount> entity = Fluxzero
         .loadEntity("1234"); // one of the oldIds
 ```
 
@@ -3352,7 +3352,7 @@ Email email;
 This allows you to load the entity by its alias:
 
 ```java
-Entity<UserAccount> account = FluxCapacitor
+Entity<UserAccount> account = Fluxzero
         .loadEntity(new Email("john@example.com"));
 ```
 
@@ -3379,7 +3379,7 @@ This model leads to extremely clean domain logic:
 
 ## Model Persistence
 
-Flux Capacitor supports multiple strategies for storing and reloading aggregates:
+Fluxzero supports multiple strategies for storing and reloading aggregates:
 
 - **Event sourcing**: state is derived by replaying a stream of applied updates (events)
 - **Document storage**: the full aggregate is stored as a document
@@ -3400,7 +3400,7 @@ restore its current state:
 
 ### 1️⃣ Loading an Aggregate
 
-Flux Capacitor will attempt to resolve the **current state** of the aggregate or entity as follows:
+Fluxzero will attempt to resolve the **current state** of the aggregate or entity as follows:
 
 - **From cache**, if caching is enabled (default behavior).
 - If **snapshotting** is enabled and a snapshot is available, Flux uses it as the starting point and then replays any
@@ -3431,7 +3431,7 @@ lifecycle:
 > By default, updates are committed only **after the current message batch completes**, not immediately. This means:
 >
 > - Updates are **locally cached** (per tracker thread) until the batch is confirmed.
-> - This avoids unnecessary round-trips to the Flux Platform during batch processing.
+> - This avoids unnecessary round-trips to the Fluxzero Runtime during batch processing.
 >
 > You can change this behavior by explicitly committing the update earlier—i.e., at the end of the current handler
 > method.
@@ -3462,7 +3462,7 @@ public record UserAccount(@EntityId UserId userId,
 
 ### Document Storage
 
-Flux Capacitor also supports storing aggregates as documents in a searchable document store. This is useful for:
+Fluxzero also supports storing aggregates as documents in a searchable document store. This is useful for:
 
 - Read-heavy aggregates
 - Aggregates with large histories
@@ -3521,7 +3521,7 @@ This hybrid approach is ideal when you need both traceability and query speed.
 
 ### Caching and Checkpoints
 
-Flux Capacitor automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
+Fluxzero automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
 
 - Fast reuse of recently loaded aggregates
 - Automatic rehydration from snapshots or partial checkpoints (when configured)
@@ -3552,7 +3552,7 @@ public class FraudMonitor {
         BankAccount previous = entity.previous().get();
 
         if (hasSuspiciousDelta(previous, current)) {
-            FluxCapacitor.publishEvent(new AdminNotification(
+            Fluxzero.publishEvent(new AdminNotification(
                     "Unusual balance change on account %s"
                             .formatted(current.getAccountId())));
         }
@@ -3594,7 +3594,7 @@ public record PaymentProcess(@EntityId String paymentId,
 
     @HandleEvent
     static PaymentProcess on(PaymentInitiated event) {
-        String pspRef = FluxCapacitor.sendCommandAndWait(new ExecutePayment(...));
+        String pspRef = Fluxzero.sendCommandAndWait(new ExecutePayment(...));
         return new PaymentProcess(event.getPaymentId(), pspRef, PaymentStatus.PENDING);
     }
 
@@ -3689,7 +3689,7 @@ way.
 
 ## Document Indexing and Search
 
-Flux Capacitor provides a powerful and flexible document store that lets you persist and query models using full-text
+Fluxzero provides a powerful and flexible document store that lets you persist and query models using full-text
 search, filters, and time-based constraints.
 
 This system is especially useful for:
@@ -3706,10 +3706,10 @@ This system is especially useful for:
 You can index any object manually using:
 
 ```java
-FluxCapacitor.index(myObject);
+Fluxzero.index(myObject);
 ```
 
-This stores `myObject` in the document store so it can be queried later via `FluxCapacitor.search(...)`.
+This stores `myObject` in the document store so it can be queried later via `Fluxzero.search(...)`.
 
 - If the object is annotated with `@Searchable`, any declared `collection`, `timestampPath`, or `endPath` will be used.
 - If a field is annotated with `@EntityId`, it becomes the document ID. Otherwise, a random ID is generated.
@@ -3718,7 +3718,7 @@ This stores `myObject` in the document store so it can be queried later via `Flu
 You can also specify the collection in which the object should be stored directly:
 
 ```java
-FluxCapacitor.index(myObject, "customCollection");
+Fluxzero.index(myObject, "customCollection");
 ```
 
 ---
@@ -3731,7 +3731,7 @@ Many models in Flux (e.g. aggregates or stateful handlers) are automatically ind
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
-This enables automatic indexing after updates or message handling, without needing to call `FluxCapacitor.index(...)`
+This enables automatic indexing after updates or message handling, without needing to call `Fluxzero.index(...)`
 manually.
 
 ```java
@@ -3758,7 +3758,7 @@ call:
 Use the fluent `search(...)` API:
 
 ```java
-List<UserAccount> admins = FluxCapacitor
+List<UserAccount> admins = Fluxzero
         .search("users")
         .match("admin", "profile/role")
         .inLast(Duration.ofDays(30))
@@ -3769,7 +3769,7 @@ List<UserAccount> admins = FluxCapacitor
 You can also query by class:
 
 ```java
-List<UserAccount> users = FluxCapacitor
+List<UserAccount> users = Fluxzero
         .search(UserAccount.class)
         .match("Netherlands", "profile.country")
         .fetchAll();
@@ -3798,7 +3798,7 @@ Example:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("payments")
+Fluxzero.search("payments")
     .match("FAILED", "status")
     .inLast(Duration.ofDays(1))
     .fetchAll();
@@ -3858,7 +3858,7 @@ You can retrieve facet stats like this:
 
 [//]: # (@formatter:off)
 ```java
-List<FacetStats> stats = FluxCapacitor.search(Product.class)
+List<FacetStats> stats = Fluxzero.search(Product.class)
         .lookAhead("wireless")
         .facetStats();
 ```
@@ -3960,14 +3960,14 @@ public record Product(@Sortable BigDecimal price,
 }
 ```
 
-This tells Flux Capacitor to **pre-index** these fields in a lexicographically sortable format. When you issue a search
-with a `between()` constraint or `.sort(...)` clause, the Flux Platform can evaluate it **directly in the data store** —
+This tells Fluxzero to **pre-index** these fields in a lexicographically sortable format. When you issue a search
+with a `between()` constraint or `.sort(...)` clause, the Fluxzero Runtime can evaluate it **directly in the data store** —
 without needing to load and compare documents in memory.
 
 #### 🚀 Optimized Search Example
 
 ```java
-List<Product> results = FluxCapacitor.search(Product.class)
+List<Product> results = Fluxzero.search(Product.class)
         .between("price", 10, 100)
         .sort("releaseDate")
         .fetch(100);
@@ -3981,7 +3981,7 @@ This performs a fast, index-backed range query across all products priced betwee
 
 #### ⚙️ What Gets Indexed?
 
-Flux Capacitor normalizes and encodes sortable fields depending on their value type:
+Fluxzero normalizes and encodes sortable fields depending on their value type:
 
 | Type           | Behavior                                                                 |
 |----------------|--------------------------------------------------------------------------|
@@ -4004,7 +4004,7 @@ If the sortable field is:
 
 - **No retroactive indexing**: Adding `@Sortable` to a field does **not** automatically reindex existing documents.
 - To apply sorting retroactively, trigger a reindex (e.g. with `@HandleDocument` and a bumped `@Revision`)
-- Sorting and filtering still happen **within the Flux Platform**, but *without* `@Sortable` the logic falls back
+- Sorting and filtering still happen **within the Fluxzero Runtime**, but *without* `@Sortable` the logic falls back
   to **in-memory evaluation** — which is much slower.
 
 > ✅ Use `@Sortable` together with `@Facet` if you want both sorting and aggregation/filtering on a field.
@@ -4044,7 +4044,7 @@ You can exclude sensitive fields like so:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("users")
+Fluxzero.search("users")
      .exclude("profile.ssn")
      .fetch(50);
 ```
@@ -4075,7 +4075,7 @@ Flux supports efficient streaming of large result sets:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("auditTrail")
+Fluxzero.search("auditTrail")
     .inLast(Duration.ofDays(7))
     .stream().forEach(auditEvent -> process(auditEvent));
 ```
@@ -4089,7 +4089,7 @@ To remove documents from the index:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.search("expiredTokens")
+Fluxzero.search("expiredTokens")
     .before(Instant.now())
     .delete();
 ```
@@ -4099,16 +4099,16 @@ FluxCapacitor.search("expiredTokens")
 
 ### Summary
 
-- Use `FluxCapacitor.index(...)` to manually index documents.
+- Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
 - Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
-- Use `FluxCapacitor.search(...)` to query, stream, sort, and aggregate your documents.
+- Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 
 ---
 
 ## Tracking and Updating Documents
 
-Flux Capacitor allows you to **track changes to your document store** using the `@HandleDocument` annotation.  
+Fluxzero allows you to **track changes to your document store** using the `@HandleDocument` annotation.  
 This enables handlers to react to document updates in real time — much like handling events.
 
 ```java
@@ -4214,7 +4214,7 @@ Once the transformation is complete, the handler can be safely removed.
 
 ## Protecting Sensitive Data
 
-Flux Capacitor offers built-in support for handling sensitive information with care using the `@ProtectData` and
+Fluxzero offers built-in support for handling sensitive information with care using the `@ProtectData` and
 `@DropProtectedData` annotations.
 
 These tools help prevent sensitive fields (e.g., passwords, SSNs, tokens) from being unnecessarily stored, logged, or
@@ -4291,7 +4291,7 @@ missing or set to `null`. Design your handlers to tolerate this by making such f
 
 ## Serialization, Upcasting, and Downcasting
 
-Flux Capacitor uses a `Serializer` to convert message payloads, snapshots, key-value entries, and other stored data into
+Fluxzero uses a `Serializer` to convert message payloads, snapshots, key-value entries, and other stored data into
 a binary format (typically `byte[]`). By default, the client uses a Jackson-based implementation that serializes objects
 to JSON.
 
@@ -4399,7 +4399,7 @@ class CreateUserDowncaster {
 To downcast an object to a desired revision, use:
 
 ```java
-FluxCapacitor.downcast(object, revision);
+Fluxzero.downcast(object, revision);
 ```
 
 > This returns the downcasted version of the object in serialized form (e.g., as an `ObjectNode`), allowing you to
@@ -4433,7 +4433,7 @@ serializer.registerCasters(new CreateUserUpcaster(), new CreateUserDowncaster())
     - Flux stores the latest type and revision
     - If needed, a `@Downcast` can adapt it for external use
 
-All casting occurs **in your application**, not in the Flux platform. Stored messages remain unchanged.
+All casting occurs **in your application**, not in the Fluxzero Runtime. Stored messages remain unchanged.
 
 ---
 
@@ -4451,7 +4451,7 @@ All casting occurs **in your application**, not in the Flux platform. Stored mes
 
 ## Filtering Object Content
 
-Flux Capacitor provides a flexible way to **redact or tailor object content per user** using the `@FilterContent`
+Fluxzero provides a flexible way to **redact or tailor object content per user** using the `@FilterContent`
 annotation.
 
 This enables domain models or documents to define exactly what is visible to different users, based on roles, ownership,
@@ -4471,7 +4471,7 @@ To invoke filtering:
 
 [//]: # (@formatter:off)
 ```java
-Order filtered = FluxCapacitor.filterContent(order, currentUser);
+Order filtered = Fluxzero.filterContent(order, currentUser);
 ```
 [//]: # (@formatter:on)
 
@@ -4504,7 +4504,7 @@ LineItem filter(User user, Order root) {
 
 ### Key Behaviors
 
-- `@FilterContent` applies only when called via `FluxCapacitor.filterContent(...)` or `Serializer.filterContent(...)`
+- `@FilterContent` applies only when called via `Fluxzero.filterContent(...)` or `Serializer.filterContent(...)`
 - **It is not automatic** — for performance reasons, content filtering is not applied implicitly (e.g. during search or
   document deserialization)
 - If no method is annotated with `@FilterContent`, the object is returned unmodified
@@ -4513,7 +4513,7 @@ LineItem filter(User user, Order root) {
 
 ## Kotlin Support
 
-Flux Capacitor provides full support for Kotlin, including:
+Fluxzero provides full support for Kotlin, including:
 
 - Use of `record`-like [data classes](https://kotlinlang.org/docs/data-classes.html),
 - Optional types (e.g., `String?`) instead of `@Nullable`,
@@ -4523,11 +4523,11 @@ Flux Capacitor provides full support for Kotlin, including:
 
 ### Automatic Jackson Integration
 
-Flux Capacitor includes [Jackson Kotlin Module](https://github.com/FasterXML/jackson-module-kotlin) integration when
+Fluxzero includes [Jackson Kotlin Module](https://github.com/FasterXML/jackson-module-kotlin) integration when
 available on the classpath. You do **not** need to manually register the module or use a service loader.
 If the `jackson-module-kotlin` dependency is present, it will be loaded dynamically for JSON (de)serialization.
 
-> 💡 If the module is missing, Flux Capacitor will fall back gracefully to standard Jackson behavior — no errors or
+> 💡 If the module is missing, Fluxzero will fall back gracefully to standard Jackson behavior — no errors or
 > warnings.
 
 This enables correct serialization and deserialization of Kotlin constructs like:
@@ -4538,14 +4538,14 @@ This enables correct serialization and deserialization of Kotlin constructs like
 - `data class` equality and hashing,
 - and Kotlin-style constructor parameter mapping.
 
-> **Note:** Flux Capacitor does *not* require a Kotlin dependency itself. Kotlin support is purely optional and works
+> **Note:** Fluxzero does *not* require a Kotlin dependency itself. Kotlin support is purely optional and works
 > automatically when Kotlin and its Jackson module are used in your application.
 
 ---
 
 ## Configuring Application Properties
 
-Flux Capacitor provides a static utility, `ApplicationProperties`, for resolving configuration values across
+Fluxzero provides a static utility, `ApplicationProperties`, for resolving configuration values across
 environments, tests, and production. It supports:
 
 - Layered resolution from environment variables, system properties, and `.properties` files
@@ -4581,7 +4581,7 @@ int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
 
 ### Encrypted Values
 
-Flux Capacitor supports secure storage of secrets using its built-in encryption utility. To use encryption:
+Fluxzero supports secure storage of secrets using its built-in encryption utility. To use encryption:
 
 1. **Generate a new key** with:
 
@@ -4651,7 +4651,7 @@ TestFixture.create(MyHandler.class)
 
 ## Parameter Injection with Custom Resolvers
 
-Flux Capacitor allows fine-grained control over **handler method parameters** using the `ParameterResolver` interface.  
+Fluxzero allows fine-grained control over **handler method parameters** using the `ParameterResolver` interface.  
 This lets you inject **any value** into annotated handler methods — beyond just payload, metadata, etc.
 
 ### How It Works
@@ -4659,7 +4659,7 @@ This lets you inject **any value** into annotated handler methods — beyond jus
 When a message is dispatched to a handler (e.g. via `@HandleEvent`, `@HandleCommand`, etc.), the framework scans the
 method’s parameters and tries to resolve each one using the configured `ParameterResolvers`.
 
-By default, Flux Capacitor supports injection of the following parameters into handler methods:
+By default, Fluxzero supports injection of the following parameters into handler methods:
 
 - The **message payload** (automatically matched by type)
 - The full **`Message`**, **`Schedule`**, or **`WebRequest`**
@@ -4703,7 +4703,7 @@ Then register it via your builder:
 
 [//]: # (@formatter:off)
 ```java
-DefaultFluxCapacitor.builder()
+DefaultFluxzero.builder()
     .addParameterResolver(new TimestampParameterResolver())
     .build();
 ```
@@ -4736,7 +4736,7 @@ boilerplate argument passing.
 
 ## Interceptors: Dispatching, Handling, and Batching
 
-Flux Capacitor offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
+Fluxzero offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
 
 | Interceptor Type          | Target Phase                         | Typical Use Cases                                      |
 |---------------------------|--------------------------------------|--------------------------------------------------------|
@@ -4747,7 +4747,7 @@ Flux Capacitor offers a flexible and extensible **interceptor model** to hook in
 
 All interceptors are **pluggable**, and can be configured via:
 
-- `FluxCapacitorBuilder` for global registration
+- `FluxzeroBuilder` for global registration
 - `@Consumer(handlerInterceptors = ...)`
 - `@Consumer(batchInterceptors = ...)`
 
@@ -4778,7 +4778,7 @@ public class LoggingInterceptor implements DispatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addDispatchInterceptor(new LoggingInterceptor(),MessageType.COMMAND,MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -4817,7 +4817,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 @Consumer(handlerInterceptors = AuthorizationInterceptor.class)
 public class SecureCommandHandler { ... }
 
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addHandlerInterceptor(new AuthorizationInterceptor(), true, MessageType.COMMAND);
 ```
 [//]: # (@formatter:on)
@@ -4850,7 +4850,7 @@ public class LoggingBatchInterceptor implements BatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addBatchInterceptor(new LoggingBatchInterceptor(),MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -4874,7 +4874,7 @@ MappingBatchInterceptor filterTestMessages = (batch, tracker) -> {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addBatchInterceptor(filterTestMessages, MessageType.QUERY);
 ```
 [//]: # (@formatter:on)
@@ -4886,26 +4886,26 @@ handling and batching—empowering modular, observable, and policy-driven system
 
 ---
 
-## Configuring Flux Capacitor
+## Configuring Fluxzero
 
-The `FluxCapacitorBuilder` interface is the primary entry point for configuring a `FluxCapacitor` instance. It allows
+The `FluxzeroBuilder` interface is the primary entry point for configuring a `Fluxzero` instance. It allows
 fine-grained customization of all core behaviors, including message consumers, dispatch logic, interceptors, caching,
 serialization, metrics, and much more.
 
 Most applications use the default builder via:
 
 ```java
-FluxCapacitorBuilder builder = DefaultFluxCapacitor.builder();
+FluxzeroBuilder builder = DefaultFluxzero.builder();
 ```
 
-In Spring environments, it can be customized by implementing the `FluxCapacitorCustomizer` interface:
+In Spring environments, it can be customized by implementing the `FluxzeroCustomizer` interface:
 
 ```java
 
 @Component
-public class MyCustomizer implements FluxCapacitorCustomizer {
+public class MyCustomizer implements FluxzeroCustomizer {
     @Override
-    public FluxCapacitorBuilder customize(FluxCapacitorBuilder builder) {
+    public FluxzeroBuilder customize(FluxzeroBuilder builder) {
         return builder.addParameterResolver(new CustomResolver());
     }
 }
@@ -4988,16 +4988,16 @@ These methods disable internal features as needed:
 
 ### Final Assembly
 
-Once the builder is configured, construct the `FluxCapacitor` instance by passing in a `Client` (usually a
+Once the builder is configured, construct the `Fluxzero` instance by passing in a `Client` (usually a
 `WebSocketClient` or `LocalClient`):
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor flux = builder.build(myClient);
+Fluxzero flux = builder.build(myClient);
 ```
 [//]: # (@formatter:on)
 
-To mark it as the global application-wide instance (i.e., accessible via `FluxCapacitor.get()`):
+To mark it as the global application-wide instance (i.e., accessible via `Fluxzero.get()`):
 
 [//]: # (@formatter:off)
 ```java
@@ -5013,7 +5013,7 @@ If Spring is used, the application instance is automatically set by Spring and u
 
 ### Spring Auto-Configuration
 
-Flux Capacitor integrates well with Spring. If you're using Spring (or Spring Boot), many components are auto-configured
+Fluxzero integrates well with Spring. If you're using Spring (or Spring Boot), many components are auto-configured
 for you:
 
 - If you provide a bean of type `Serializer`, `Cache`, `Client`, `UserProvider`, or `WebResponseMapper`, it will be
@@ -5021,21 +5021,21 @@ for you:
 - `Upcasters` and `Downcasters` are auto-registered if detected on Spring beans.
 - Handlers (`@Handle...`) are automatically registered after the context is refreshed.
 - `@TrackSelf`, `@Stateful`, and `@SocketEndpoint` beans are auto-detected and wired via post-processors.
-- If no `Client` is configured explicitly, Flux Capacitor tries to create a `WebSocketClient` (based on available
+- If no `Client` is configured explicitly, Fluxzero tries to create a `WebSocketClient` (based on available
   properties), or falls back to a `LocalClient`.
 
-> ⚠️ If you're using **Spring without Spring Boot**, be sure to add `@Import(FluxCapacitorSpringConfig.class)` to enable
+> ⚠️ If you're using **Spring without Spring Boot**, be sure to add `@Import(FluxzeroSpringConfig.class)` to enable
 > auto-configuration.
 
-You can always override or customize behavior via a `FluxCapacitorCustomizer`.
+You can always override or customize behavior via a `FluxzeroCustomizer`.
 
 #### Injectable Beans
 
-Flux Capacitor exposes several core components as Spring beans, making them easy to inject into your application:
+Fluxzero exposes several core components as Spring beans, making them easy to inject into your application:
 
 | Bean Type              | Purpose                                                       |
 |------------------------|---------------------------------------------------------------|
-| `FluxCapacitor`        | Access to the full runtime and configuration                  |
+| `Fluxzero`        | Access to the full runtime and configuration                  |
 | `CommandGateway`       | Dispatch commands and receive results                         |
 | `EventGateway`         | Publish events to the global log                              |
 | `QueryGateway`         | Send queries and await answers                                |
@@ -5064,13 +5064,13 @@ public class MyService {
 
 > ⚠️ **Note:** While dependency injection is supported, it is **not the recommended approach** in most cases.
 
-Instead, prefer using the static methods on the `FluxCapacitor` class:
+Instead, prefer using the static methods on the `Fluxzero` class:
 
 [//]: # (@formatter:off)
  ```java
- FluxCapacitor.sendCommand(new MyCommand(...));
- FluxCapacitor.query(new GetUserProfile(userId));
- FluxCapacitor.publishEvent(new UserLoggedIn(...));
+ Fluxzero.sendCommand(new MyCommand(...));
+ Fluxzero.query(new GetUserProfile(userId));
+ Fluxzero.publishEvent(new UserLoggedIn(...));
  ```
 [//]: # (@formatter:on)
 
@@ -5079,9 +5079,9 @@ lightweight setups.
 
 ---
 
-## WebSocketClient: Connect to the Flux Platform
+## WebSocketClient: Connect to the Fluxzero Runtime
 
-The `WebSocketClient` is the default client used to connect to the Flux Platform over WebSocket. It provides full access
+The `WebSocketClient` is the default client used to connect to the Fluxzero Runtime over WebSocket. It provides full access
 to the event store, message gateways, tracking, search, scheduling, and key-value storage subsystems via configurable,
 high-throughput sessions.
 
@@ -5096,7 +5096,7 @@ WebSocketClient client = WebSocketClient.newInstance(
                 .name("my-service")
                 .build());
 
-FluxCapacitor flux = FluxCapacitor.builder().build(client);
+Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Flux runtime via the
@@ -5161,17 +5161,17 @@ platform and can significantly boost performance in high-fanout projections or h
 
 ---
 
-### Integration with FluxCapacitorBuilder
+### Integration with FluxzeroBuilder
 
 Once created, the client is passed into the builder:
 
 ```java
-FluxCapacitor flux = FluxCapacitor.builder()
+Fluxzero flux = Fluxzero.builder()
         .makeApplicationInstance(true)
         .build(webSocketClient);
 ```
 
-> ℹ️ Use `makeApplicationInstance(true)` to install the Flux instance as a global singleton (`FluxCapacitor.get()`).
+> ℹ️ Use `makeApplicationInstance(true)` to install the Flux instance as a global singleton (`Fluxzero.get()`).
 > Default **true** in Spring setups.
 
 ---
@@ -5181,7 +5181,7 @@ FluxCapacitor flux = FluxCapacitor.builder()
 For testing or lightweight local development, use the in-memory `LocalClient` instead:
 
 ```java
-FluxCapacitor flux = FluxCapacitor.builder().build(new LocalClient());
+Fluxzero flux = Fluxzero.builder().build(new LocalClient());
 ```
 
 This simulates the entire platform in-memory without external dependencies.
@@ -5192,7 +5192,7 @@ This simulates the entire platform in-memory without external dependencies.
 
 ### Java Version
 
-Flux Capacitor requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
+Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
 compatible with recent versions.
 
 ---
@@ -5272,7 +5272,7 @@ compatible with recent versions.
 
 ### Versioning Policy
 
-Flux Capacitor aims to stay up-to-date with its core dependencies. We strive to:
+Fluxzero aims to stay up-to-date with its core dependencies. We strive to:
 
 - Use the **latest stable versions** where possible,
 - Avoid breaking backward compatibility for common transitive consumers,

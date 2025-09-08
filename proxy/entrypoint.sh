@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #
-# Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+# Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,5 +20,5 @@ exec java \
       -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 \
       -XX:MaxRAMPercentage=75.0 \
       -Djava.security.egd=file:/dev/./urandom \
-      -jar /flux-capacitor-proxy.jar
+      -jar /fluxzero-proxy.jar
 

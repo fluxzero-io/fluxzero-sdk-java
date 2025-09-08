@@ -1,6 +1,6 @@
 ## Serving Static Files
 
-Flux Capacitor supports serving static files directly from a handler class by using the `@ServeStatic` annotation.
+Fluxzero supports serving static files directly from a handler class by using the `@ServeStatic` annotation.
 This allows client applications to expose static resources (HTML, JS, CSS, images, etc.) without needing an external web
 server.
 

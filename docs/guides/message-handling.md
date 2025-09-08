@@ -1,8 +1,8 @@
 ## Message Handling
 
-Flux Capacitor is centered around sending and receiving messages — such as __commands__, __events__, __queries__, and
-__web requests__. These messages can originate from your own application or any other client connected to the same Flux
-Platform.
+Fluxzero is centered around sending and receiving messages — such as __commands__, __events__, __queries__, and
+__web requests__. These messages can originate from your own application or any other client connected to the same
+Fluxzero Runtime.
 
 Handlers are simply methods annotated with `@HandleCommand`, `@HandleEvent`, `@HandleQuery`, etc. Here’s a basic example
 of an event handler that dispatches a command to send a welcome email when a user is created:
@@ -11,15 +11,15 @@ of an event handler that dispatches a command to send a welcome email when a use
 class UserEventHandler {
     @HandleEvent
     void handle(CreateUser event) {
-        FluxCapacitor.sendCommand(
+        Fluxzero.sendCommand(
                 new SendWelcomeEmail(event.getUserProfile()));
     }
 }
 ```
 
-This handler uses the static `sendCommand` method on FluxCapacitor, which works because the client is automatically
+This handler uses the static `sendCommand` method on Fluxzero, which works because the client is automatically
 injected into the thread-local context before message handling begins. This approach eliminates the need to inject
-`FluxCapacitor` into every handler.
+`Fluxzero` into every handler.
 
 To receive that command, you would define a corresponding command handler:
 
@@ -50,7 +50,7 @@ To perform a query and wait for its result synchronously, you can use:
 class UserEventHandler {
     @HandleEvent
     void handle(ResetPassword event) {
-        UserProfile userProfile = FluxCapacitor
+        UserProfile userProfile = Fluxzero
                 .queryAndWait(new GetUserProfile(event.getUserId()));
         // Perform reset using userProfile
     }
@@ -59,7 +59,7 @@ class UserEventHandler {
 
 ### Returning Futures
 
-Handler methods may also return a `CompletableFuture<T>` instead of a direct value. In that case, Flux Capacitor will
+Handler methods may also return a `CompletableFuture<T>` instead of a direct value. In that case, Fluxzero will
 publish the result to the result log once the future completes:
 
 ```java
@@ -86,7 +86,7 @@ completion.
 
 ### Handler Matching and Passive Handlers
 
-Flux Capacitor dynamically resolves which handler method(s) should respond to a message based on **handler specificity**
+Fluxzero dynamically resolves which handler method(s) should respond to a message based on **handler specificity**
 and **message type**. This resolution behavior is consistent across all message types — including **commands**,
 **queries**, **events**, **errors**, **metrics**, and more.
 
@@ -163,7 +163,7 @@ public class QueryMetricsHandler {
 - The `handle(...)` method produces the result.
 - The `record(...)` method logs the query,
 
-By combining **handler specificity**, **class-level isolation**, and the `passive` flag, Flux Capacitor gives you
+By combining **handler specificity**, **class-level isolation**, and the `passive` flag, Fluxzero gives you
 precise control over how messages are processed — even across mixed concerns like logging, read models, business logic,
 and cross-cutting concerns.
 
@@ -176,7 +176,7 @@ For example, sending a command with metadata:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(
+Fluxzero.sendCommand(
     new CreateUser(...),
     Metadata.of("userAgent", userAgent)
 );

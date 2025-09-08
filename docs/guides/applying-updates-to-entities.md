@@ -207,7 +207,7 @@ centralization leads to bloat and tight coupling — especially in larger system
 
 ### Mixing strategies
 
-Flux Capacitor allows **mixed approaches**. You can define:
+Fluxzero allows **mixed approaches**. You can define:
 
 - `@AssertLegal` methods on the command payload
 - `@Apply` methods inside the entity

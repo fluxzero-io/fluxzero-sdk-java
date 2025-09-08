@@ -1,9 +1,9 @@
 ## Handling WebSocket Messages
 
-Flux Capacitor provides first-class support for **WebSocket communication**, enabling stateful or stateless message
+Fluxzero provides first-class support for **WebSocket communication**, enabling stateful or stateless message
 handing using the same annotation-based model as other requests.
 
-WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Flux platform, and can
+WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Fluxzero Runtime, and can
 be consumed and responded to like any other request type.
 
 ---
@@ -83,7 +83,7 @@ buffer, sequence).
 
 ### Automatic Ping-Pong & Keep-Alive
 
-When using `@SocketEndpoint`, Flux Capacitor automatically manages **keep-alive pings**:
+When using `@SocketEndpoint`, Fluxzero automatically manages **keep-alive pings**:
 
 - Pings are sent at regular intervals (default: every 60s)
 - If a `pong` is not received within a timeout, the session is closed
@@ -110,5 +110,5 @@ public class MySession { ...
 | `@SocketEndpoint`          | Declares a per-session WebSocket handler class     |
 | `SocketSession` (injected) | Controls sending messages, pinging, and closing    |
 
-Flux Capacitor makes WebSocket communication secure, observable, and composable—integrated seamlessly into your
+Fluxzero makes WebSocket communication secure, observable, and composable—integrated seamlessly into your
 distributed, event-driven architecture.

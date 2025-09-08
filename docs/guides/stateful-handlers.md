@@ -14,7 +14,7 @@ public record PaymentProcess(@EntityId String paymentId,
 
     @HandleEvent
     static PaymentProcess on(PaymentInitiated event) {
-        String pspRef = FluxCapacitor.sendCommandAndWait(new ExecutePayment(...));
+        String pspRef = Fluxzero.sendCommandAndWait(new ExecutePayment(...));
         return new PaymentProcess(event.getPaymentId(), pspRef, PaymentStatus.PENDING);
     }
 

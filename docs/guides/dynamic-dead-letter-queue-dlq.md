@@ -22,7 +22,7 @@ class CommandReplayHandler {
     @HandleError
     @Trigger(messageType = MessageType.COMMAND)
     void retry(MyCommand failed) {
-        FluxCapacitor.sendCommand(failed);
+        Fluxzero.sendCommand(failed);
     }
 }
 ```
@@ -47,7 +47,7 @@ or in the future.
 
 ### Routing with `@RoutingKey`
 
-In Flux Capacitor, routing is used to assign messages to **segments** using consistent hashing. This ensures that
+In Fluxzero, routing is used to assign messages to **segments** using consistent hashing. This ensures that
 messages about the same entity — for example, all events for a given `OrderId` — are always handled by the **same
 consumer**, in **the correct order**.
 

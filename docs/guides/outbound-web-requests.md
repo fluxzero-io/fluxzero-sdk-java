@@ -1,6 +1,6 @@
 ## Outbound Web Requests
 
-Flux Capacitor provides a unified API for sending HTTP requests through the `WebRequestGateway`.
+Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
 Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
 
@@ -14,13 +14,13 @@ WebRequest request = WebRequest.get("https://api.example.com/data")
         .header("Authorization", "Bearer token123")
         .build();
 
-WebResponse response = FluxCapacitor.get()
+WebResponse response = Fluxzero.get()
         .webRequestGateway().sendAndWait(request);
 
 String body = response.getBodyString();
 ```
 
-> ✅ All outbound traffic is logged and traceable in the Flux platform.
+> ✅ All outbound traffic is logged and traceable in the Fluxzero Runtime.
 
 ### Asynchronous and Fire-and-Forget
 
@@ -28,7 +28,7 @@ You can send requests asynchronously:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get().webRequestGateway()
+Fluxzero.get().webRequestGateway()
         .send(request)
         .thenAccept(response -> log
               .info("Received: {}",response.getBodyString()));
@@ -39,7 +39,7 @@ Or fire-and-forget:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get().webRequestGateway()
+Fluxzero.get().webRequestGateway()
         .sendAndForget(Guarantee.STORED, request);
 ```
 [//]: # (@formatter:on)

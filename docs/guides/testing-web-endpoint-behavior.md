@@ -1,6 +1,6 @@
 ## Testing Web Endpoint Behavior
 
-Flux Capacitor allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
+Fluxzero allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
 can be tested like any other command, query, or event.
 
 Here’s a complete test for a `POST /games` handler that accepts a JSON request and publishes a command:
@@ -22,7 +22,7 @@ The corresponding handler is:
 
 @HandlePost("/games")
 CompletableFuture<GameId> addGame(GameDetails details) {
-    return FluxCapacitor.sendCommand(new RegisterGame(details));
+    return Fluxzero.sendCommand(new RegisterGame(details));
 }
 ```
 
@@ -69,7 +69,7 @@ This corresponds to the following handler method:
 @HandleGet
 @Path("/games")
 CompletableFuture<List<Game>> getGames(@QueryParam String term) {
-    return FluxCapacitor.query(new FindGames(term));
+    return Fluxzero.query(new FindGames(term));
 }
 ```
 
@@ -77,7 +77,7 @@ CompletableFuture<List<Game>> getGames(@QueryParam String term) {
 
 ### Testing Error Responses and Exceptions
 
-Flux Capacitor also allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
+Fluxzero also allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
 the type of exception thrown as well as inspecting the resulting HTTP status code or response body.
 
 Here’s a test that triggers a `403 Forbidden` error by throwing an `IllegalCommandException`:
@@ -109,11 +109,11 @@ This enables robust testing of both successful and failure paths for all your we
 
 ### Path Parameter Substitution in Tests
 
-When simulating web requests, Flux Capacitor automatically substitutes `{...}` placeholders in the request path using
+When simulating web requests, Fluxzero automatically substitutes `{...}` placeholders in the request path using
 results from previous steps:
 
 - The result of the **first `when...()` step** is saved when `.andThen()` is called.
-- If a subsequent path (e.g. `/games/{gameId}/buy`) contains placeholders, Flux Capacitor will:
+- If a subsequent path (e.g. `/games/{gameId}/buy`) contains placeholders, Fluxzero will:
 - Attempt to replace each placeholder (like `{gameId}`) with the string value of a previously returned result.
 - Track all resolved placeholders across steps. This allows chaining:
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>flux-capacitor-client</artifactId>
-        <groupId>io.flux-capacitor</groupId>
+        <artifactId>fluxzero-sdk-java</artifactId>
+        <groupId>io.fluxzero</groupId>
         <version>0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -27,12 +27,12 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>In memory server that can be used for testing applications in your local environment.</description>
-    <url>https://github.com/flux-capacitor-io/flux-capacitor-client</url>
+    <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <dependencies>
         <dependency>
-            <groupId>io.flux-capacitor</groupId>
-            <artifactId>java-client</artifactId>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -52,8 +52,8 @@
 
         <!-- test dependencies -->
         <dependency>
-            <groupId>io.flux-capacitor</groupId>
-            <artifactId>java-client</artifactId>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>sdk</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
@@ -78,7 +78,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>io.fluxcapacitor.testserver</Automatic-Module-Name>
+                            <Automatic-Module-Name>io.fluxzero.testserver</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>
@@ -103,12 +103,12 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <finalName>flux-capacitor-test-server</finalName>
+                            <finalName>fluxzero-test-server</finalName>
                             <appendAssemblyId>false</appendAssemblyId>
                             <attach>false</attach>
                             <archive>
                                 <manifest>
-                                    <mainClass>io.fluxcapacitor.testserver.TestServer</mainClass>
+                                    <mainClass>io.fluxzero.testserver.TestServer</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>

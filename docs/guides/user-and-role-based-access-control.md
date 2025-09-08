@@ -1,6 +1,6 @@
 ## User and Role-Based Access Control
 
-Flux Capacitor allows you to restrict message handling based on the authenticated user's roles. This access control
+Fluxzero allows you to restrict message handling based on the authenticated user's roles. This access control
 happens **before** the message reaches the handler — similar to how payload validation is enforced.
 
 There are several annotations for declaring user and role requirements:
@@ -167,7 +167,7 @@ Flux will interpret the enum-based annotation through the underlying `@RequiresA
 ### Where does user info come from?
 
 User roles are resolved by the configured `UserProvider`, which extracts the current user from message metadata (e.g.,
-authentication tokens, headers, etc.). By default, Flux Capacitor uses a pluggable SPI to register this provider.
+authentication tokens, headers, etc.). By default, Fluxzero uses a pluggable SPI to register this provider.
 
 > 💡 You can override or mock this provider in tests using the TestFixture API.
 
@@ -223,7 +223,7 @@ Service Provider mechanism.
 Create the file:
 
 ```
-src/main/resources/META-INF/services/io.fluxcapacitor.javaclient.tracking.handling.authentication.UserProvider
+src/main/resources/META-INF/services/io.fluxzero.javaclient.tracking.handling.authentication.UserProvider
 ```
 
 List your implementation classes (one per line) in order of preference:
@@ -233,9 +233,9 @@ com.example.authentication.SenderProvider
 com.example.authentication.SystemUserProvider
 ```
 
-Flux Capacitor will automatically discover and register them at startup.
+Fluxzero will automatically discover and register them at startup.
 
-> 💡 If you're using Spring, your `UserProvider` can also be exposed as a bean — Flux Capacitor will pick it up
+> 💡 If you're using Spring, your `UserProvider` can also be exposed as a bean — Fluxzero will pick it up
 > automatically.
 >
 > ⚠️ However, tests **not using Spring** will not pick up the bean. For test scenarios or CLI usage, the SPI mechanism

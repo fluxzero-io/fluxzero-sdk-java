@@ -71,7 +71,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag_version.outputs.new_version }}
-          name: Flux Capacitor ${{ steps.tag_version.outputs.new_version }}
+          name: Fluxzero ${{ steps.tag_version.outputs.new_version }}
           body: ${{ steps.tag_version.outputs.changelog }}
 
       - name: Log in to Github Container Registry
@@ -83,7 +83,7 @@ jobs:
 
       - name: Generate Flux Host JWT
         id: flux-host-jwt
-        uses: flux-capacitor-io/flux-host-jwt-action@v1
+        uses: fluxzero-io/flux-host-jwt-action@v1
         with:
           api-key: ${{ secrets.FLUX_HOST_API_KEY }}
 
@@ -100,8 +100,8 @@ jobs:
           context: test-server/.
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/flux-capacitor-test:${{ steps.tag_version.outputs.new_version }}
-            ghcr.io/${{ github.repository }}/flux-capacitor-test:latest
+            ghcr.io/${{ github.repository }}/fluxzero-test:${{ steps.tag_version.outputs.new_version }}
+            ghcr.io/${{ github.repository }}/fluxzero-test:latest
 
       - name: Build and push proxy docker
         uses: docker/build-push-action@v5
@@ -109,7 +109,7 @@ jobs:
           context: proxy/.
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/flux-capacitor-proxy:${{ steps.tag_version.outputs.new_version }}
-            ghcr.io/${{ github.repository }}/flux-capacitor-proxy:latest
-            registry.flux.host/flux-capacitor-proxy:${{ steps.tag_version.outputs.new_version }}
-            registry.flux.host/flux-capacitor-proxy:latest
+            ghcr.io/${{ github.repository }}/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
+            ghcr.io/${{ github.repository }}/fluxzero-proxy:latest
+            registry.flux.host/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
+            registry.flux.host/fluxzero-proxy:latest

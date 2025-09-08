@@ -1,6 +1,6 @@
-## WebSocketClient: Connect to the Flux Platform
+## WebSocketClient: Connect to the Fluxzero Runtime
 
-The `WebSocketClient` is the default client used to connect to the Flux Platform over WebSocket. It provides full access
+The `WebSocketClient` is the default client used to connect to the Fluxzero Runtime over WebSocket. It provides full access
 to the event store, message gateways, tracking, search, scheduling, and key-value storage subsystems via configurable,
 high-throughput sessions.
 
@@ -15,10 +15,10 @@ WebSocketClient client = WebSocketClient.newInstance(
                 .name("my-service")
                 .build());
 
-FluxCapacitor flux = FluxCapacitor.builder().build(client);
+Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
-This is the most common setup for production and shared environments. It connects to a remote Flux runtime via the
+This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
 service base URL, which must point to the desired deployment.
 
 ---
@@ -80,17 +80,17 @@ platform and can significantly boost performance in high-fanout projections or h
 
 ---
 
-### Integration with FluxCapacitorBuilder
+### Integration with FluxzeroBuilder
 
 Once created, the client is passed into the builder:
 
 ```java
-FluxCapacitor flux = FluxCapacitor.builder()
+Fluxzero flux = Fluxzero.builder()
         .makeApplicationInstance(true)
         .build(webSocketClient);
 ```
 
-> ℹ️ Use `makeApplicationInstance(true)` to install the Flux instance as a global singleton (`FluxCapacitor.get()`).
+> ℹ️ Use `makeApplicationInstance(true)` to install the Flux instance as a global singleton (`Fluxzero.get()`).
 > Default **true** in Spring setups.
 
 ---
@@ -100,5 +100,5 @@ FluxCapacitor flux = FluxCapacitor.builder()
 For testing or lightweight local development, use the in-memory `LocalClient` instead:
 
 ```java
-FluxCapacitor flux = FluxCapacitor.builder().build(new LocalClient());
+Fluxzero flux = Fluxzero.builder().build(new LocalClient());
 ```

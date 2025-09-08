@@ -1,6 +1,6 @@
 ## Configuring Application Properties
 
-Flux Capacitor provides a static utility, `ApplicationProperties`, for resolving configuration values across
+Fluxzero provides a static utility, `ApplicationProperties`, for resolving configuration values across
 environments, tests, and production. It supports:
 
 - Layered resolution from environment variables, system properties, and `.properties` files
@@ -36,7 +36,7 @@ int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
 
 ### Encrypted Values
 
-Flux Capacitor supports secure storage of secrets using its built-in encryption utility. To use encryption:
+Fluxzero supports secure storage of secrets using its built-in encryption utility. To use encryption:
 
 1. **Generate a new key** with:
 

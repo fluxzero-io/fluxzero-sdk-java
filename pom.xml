@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -18,21 +18,21 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.flux-capacitor</groupId>
-    <artifactId>flux-capacitor-client</artifactId>
+    <groupId>io.fluxzero</groupId>
+    <artifactId>fluxzero-sdk-java</artifactId>
     <packaging>pom</packaging>
     <version>0-SNAPSHOT</version>
     <modules>
-        <module>flux-capacitor-bom</module>
+        <module>fluxzero-bom</module>
         <module>common</module>
-        <module>java-client</module>
+        <module>sdk</module>
         <module>test-server</module>
         <module>proxy</module>
     </modules>
 
-    <name>Flux Capacitor Client</name>
-    <description>Flux Capacitor provides messaging-as-a-service for distributed applications.</description>
-    <url>https://github.com/flux-capacitor-io/flux-capacitor-client</url>
+    <name>Fluxzero Client</name>
+    <description>Fluxzero provides messaging-as-a-service for distributed applications.</description>
+    <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -463,22 +463,22 @@
     </licenses>
 
     <organization>
-        <name>Flux Capacitor</name>
-        <url>https://github.com/flux-capacitor-io/flux-capacitor-client</url>
+        <name>Fluxzero</name>
+        <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
     </organization>
 
     <developers>
         <developer>
             <name>René de Waele</name>
-            <email>rene@flux-capacitor.io</email>
+            <email>rene@fluxzero.io</email>
             <url>https://github.com/renedewaele</url>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/flux-capacitor-io/flux-capacitor-client.git</connection>
-        <developerConnection>scm:git:ssh://github.com:flux-capacitor-io/flux-capacitor-client.git</developerConnection>
-        <url>https://github.com/flux-capacitor-io/flux-capacitor-client</url>
+        <connection>scm:git:git://github.com/fluxzero-io/fluxzero-sdk-java.git</connection>
+        <developerConnection>scm:git:ssh://github.com:fluxzero-io/fluxzero-sdk-java.git</developerConnection>
+        <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
     </scm>
 
 </project>

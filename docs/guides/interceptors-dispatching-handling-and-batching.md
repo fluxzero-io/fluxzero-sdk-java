@@ -1,6 +1,6 @@
 ## Interceptors: Dispatching, Handling, and Batching
 
-Flux Capacitor offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
+Fluxzero offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
 
 | Interceptor Type          | Target Phase                         | Typical Use Cases                                      |
 |---------------------------|--------------------------------------|--------------------------------------------------------|
@@ -11,7 +11,7 @@ Flux Capacitor offers a flexible and extensible **interceptor model** to hook in
 
 All interceptors are **pluggable**, and can be configured via:
 
-- `FluxCapacitorBuilder` for global registration
+- `FluxzeroBuilder` for global registration
 - `@Consumer(handlerInterceptors = ...)`
 - `@Consumer(batchInterceptors = ...)`
 
@@ -42,7 +42,7 @@ public class LoggingInterceptor implements DispatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addDispatchInterceptor(new LoggingInterceptor(),MessageType.COMMAND,MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -81,7 +81,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 @Consumer(handlerInterceptors = AuthorizationInterceptor.class)
 public class SecureCommandHandler { ... }
 
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addHandlerInterceptor(new AuthorizationInterceptor(), true, MessageType.COMMAND);
 ```
 [//]: # (@formatter:on)
@@ -114,7 +114,7 @@ public class LoggingBatchInterceptor implements BatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addBatchInterceptor(new LoggingBatchInterceptor(),MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -138,7 +138,7 @@ MappingBatchInterceptor filterTestMessages = (batch, tracker) -> {
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitorBuilder.builder()
+FluxzeroBuilder.builder()
     .addBatchInterceptor(filterTestMessages, MessageType.QUERY);
 ```
 [//]: # (@formatter:on)

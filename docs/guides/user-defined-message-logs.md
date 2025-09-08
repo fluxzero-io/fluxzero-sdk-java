@@ -1,6 +1,6 @@
 ## User-defined message logs
 
-Flux Capacitor supports **custom message logs** in addition to built-in ones like commands, events, and queries.
+Fluxzero supports **custom message logs** in addition to built-in ones like commands, events, and queries.
 
 Most applications won't need custom message logs — but they can be very useful in advanced scenarios:
 
@@ -8,7 +8,7 @@ Most applications won't need custom message logs — but they can be very useful
 - To **store batches of updates** for external consumers that poll infrequently.
 - To **segment logic** or apply different retention guarantees per topic.
 
-Flux Capacitor lets you publish and handle custom messages by assigning them to **user-defined topics**. These messages
+Fluxzero lets you publish and handle custom messages by assigning them to **user-defined topics**. These messages
 are written to their own durable logs and can be tracked just like commands or events.
 
 ### Custom Handlers
@@ -38,7 +38,7 @@ You can publish messages manually to any custom topic:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .customGateway("third-party-events")
     .sendAndForget(new AuditEntry("User login"));
 ```
@@ -53,7 +53,7 @@ should be retained:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .customGateway("third-party-events")
     .setRetentionTime(Duration.ofDays(90));
 ```

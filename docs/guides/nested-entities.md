@@ -1,6 +1,6 @@
 ## Nested Entities
 
-Flux Capacitor allows aggregates to contain nested entities — for example, users with authorizations or orders with line
+Fluxzero allows aggregates to contain nested entities — for example, users with authorizations or orders with line
 items. These nested entities can be added, updated, or removed using the same `@Apply` pattern used for root aggregates.
 
 To define a nested structure, annotate the collection or field with `@Member`:
@@ -69,7 +69,7 @@ public record RevokeAuthorization(AuthorizationId authorizationId) {
 
 Flux will automatically prune the child entity with the given `authorizationId`.
 
-> ⚠️ **Note:** When a child entity is added, updated, or removed using an `@Apply` method, Flux Capacitor will:
+> ⚠️ **Note:** When a child entity is added, updated, or removed using an `@Apply` method, Fluxzero will:
 >
 > - Automatically **locate the parent aggregate**
 > - Apply the update to the child entity
@@ -82,8 +82,8 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 
 ### Loading Entities and Aggregates
 
-Flux Capacitor supports a flexible and powerful approach to loading aggregates and their internal entities using
-`FluxCapacitor.loadAggregateFor(...)` and `FluxCapacitor.loadEntity(...)`.
+Fluxzero supports a flexible and powerful approach to loading aggregates and their internal entities using
+`Fluxzero.loadAggregateFor(...)` and `Fluxzero.loadEntity(...)`.
 
 ---
 
@@ -97,16 +97,16 @@ public record CompleteTask(TaskId taskId) {
 }
 ```
 
-With Flux Capacitor, you can handle this using:
+With Fluxzero, you can handle this using:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.loadEntity(taskId).assertAndApply(new CompleteTask(taskId));
+Fluxzero.loadEntity(taskId).assertAndApply(new CompleteTask(taskId));
 ```
 [//]: # (@formatter:on)
 
 Even if the `Task` is deeply nested within a `Project` or other parent aggregate, this method works because of the
-**entity relationship tracking** automatically maintained by Flux Capacitor.
+**entity relationship tracking** automatically maintained by Fluxzero.
 
 Additional behavior:
 
@@ -127,7 +127,7 @@ that reference it.
 To retrieve all aggregates that currently include a given entity ID:
 
 ```java
-Map<String, Class<?>> aggregates = FluxCapacitor.get()
+Map<String, Class<?>> aggregates = Fluxzero.get()
         .aggregateRepository()
         .getAggregatesFor(myEntityId);
 ```
@@ -142,9 +142,9 @@ When used responsibly, this enables patterns like:
 [//]: # (@formatter:off)
 ```java
 // Rerender or update every Project referencing a shared Tag
-for(Map.Entry<String, Class<?>> entry : FluxCapacitor.get()
+for(Map.Entry<String, Class<?>> entry : Fluxzero.get()
                 .aggregateRepository().getAggregatesFor(tagId).entrySet()) {
-        FluxCapacitor.loadAggregate(entry.getKey(), entry.getValue())
+        Fluxzero.loadAggregate(entry.getKey(), entry.getValue())
         .apply(new RefreshTag(tagId));
 }
 ```
@@ -159,7 +159,7 @@ This approach can help keep derived or denormalized data consistent across aggre
 Use this method to retrieve the **aggregate root** that currently contains the specified entity ID.
 
 ```java
-Entity<MyAggregate> aggregate = FluxCapacitor
+Entity<MyAggregate> aggregate = Fluxzero
         .loadAggregateFor("some-entity-id");
 ```
 
@@ -174,7 +174,7 @@ Behavior:
 
 ### Alternative Entity Identifiers
 
-Flux Capacitor supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
+Fluxzero supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
 when:
 
 - The entity needs to be looked up using a secondary identifier (e.g. an email address or external ID)
@@ -184,7 +184,7 @@ when:
 
 Aliases are used when:
 
-- Loading an aggregate or entity using `FluxCapacitor.loadAggregateFor(alias)` or `FluxCapacitor.loadEntity(alias)`.
+- Loading an aggregate or entity using `Fluxzero.loadAggregateFor(alias)` or `Fluxzero.loadEntity(alias)`.
 - Calling `Entity#getEntity(Object id)` on a parent entity.
 
 > If multiple entities share the same alias, behavior is undefined—avoid alias collisions unless intentional.
@@ -229,14 +229,14 @@ public record UserAccount(@EntityId String userId,
 Now the `UserAccount` entity can be looked up using:
 
 ```java
-Entity<UserAccount> entity = FluxCapacitor
+Entity<UserAccount> entity = Fluxzero
         .loadEntity("email:foo@example.com");
 ```
 
 or
 
 ```java
-Entity<UserAccount> entity = FluxCapacitor
+Entity<UserAccount> entity = Fluxzero
         .loadEntity("1234"); // one of the oldIds
 ```
 
@@ -263,7 +263,7 @@ Email email;
 This allows you to load the entity by its alias:
 
 ```java
-Entity<UserAccount> account = FluxCapacitor
+Entity<UserAccount> account = Fluxzero
         .loadEntity(new Email("john@example.com"));
 ```
 

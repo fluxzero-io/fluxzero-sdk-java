@@ -1,8 +1,8 @@
 ## Tracking Messages
 
-Flux Capacitor handles message dispatch asynchronously by default. When a message such as a command is published:
+Fluxzero handles message dispatch asynchronously by default. When a message such as a command is published:
 
-1. It is sent to the Flux Platform.
+1. It is sent to the Fluxzero Runtime.
 2. The platform logs the message and notifies all subscribed consumers.
 3. Consumers stream these messages to the relevant handler methods.
 

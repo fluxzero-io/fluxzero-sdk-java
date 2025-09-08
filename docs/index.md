@@ -1,5 +1,5 @@
 ---
-title: Flux Capacitor – Docs Index
+title: Fluxzero – Docs Index
 summary: "Know the task, not the file name? Start here and jump straight to the right guide."
 ---
 
@@ -12,7 +12,7 @@ summary: "Know the task, not the file name? Start here and jump straight to the 
 
 ### Getting started
 
-- **I want to install Flux Capacitor** → [Installation guide](guides/installation.md)
+- **I want to install Fluxzero** → [Installation guide](guides/installation.md)
 - **I need a 60‑second cheat sheet** → [Quick Reference](quick-ref.md)
 - **I need some code samples** → [Code samples](code-samples.md)
 

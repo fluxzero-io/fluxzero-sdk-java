@@ -1,6 +1,6 @@
 ## Scheduling
 
-Flux Capacitor allows scheduling messages for future delivery using the `MessageScheduler`.
+Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
 
 Here’s an example that schedules a termination event 30 days after an account is closed:
 
@@ -8,7 +8,7 @@ Here’s an example that schedules a termination event 30 days after an account 
 class UserLifecycleHandler {
     @HandleEvent
     void handle(AccountClosed event) {
-        FluxCapacitor.schedule(
+        Fluxzero.schedule(
                 new TerminateAccount(
                         event.getUserId()),
                 "AccountClosed-" + event.getUserId(),
@@ -18,7 +18,7 @@ class UserLifecycleHandler {
 
     @HandleEvent
     void handle(AccountReopened event) {
-        FluxCapacitor.cancelSchedule(
+        Fluxzero.cancelSchedule(
                 "AccountClosed-" + event.getUserId());
     }
 
@@ -35,7 +35,7 @@ Alternatively, you can schedule commands using `scheduleCommand`:
 class UserLifecycleHandler {
     @HandleEvent
     void handle(AccountClosed event) {
-        FluxCapacitor.scheduleCommand(
+        Fluxzero.scheduleCommand(
                 new TerminateAccount(
                         event.getUserId()),
                 "AccountClosed-" + event.getUserId(),
@@ -44,14 +44,14 @@ class UserLifecycleHandler {
 
     @HandleEvent
     void handle(AccountReopened event) {
-        FluxCapacitor.cancelSchedule("AccountClosed-" + event.getUserId());
+        Fluxzero.cancelSchedule("AccountClosed-" + event.getUserId());
     }
 }
 ```
 
 ### Periodic scheduling
 
-Flux Capacitor supports recurring message schedules via the `@Periodic` annotation. This makes it easy to run tasks on a
+Fluxzero supports recurring message schedules via the `@Periodic` annotation. This makes it easy to run tasks on a
 fixed interval or cron-based schedule — useful for polling, maintenance, background processing, and more.
 
 You can apply `@Periodic` to either a `Schedule` payload or a `@HandleSchedule` method:

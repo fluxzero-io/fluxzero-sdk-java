@@ -1,28 +1,28 @@
 ## Dispatching Messages
 
-Flux Capacitor provides a unified and transparent way to send messages of all types—**commands**, **events**,
+Fluxzero provides a unified and transparent way to send messages of all types—**commands**, **events**,
 **queries**, **schedules**, **web requests**, **metrics**, and more. All message types are routed through a shared
 dispatch
 infrastructure, with built-in support for:
 
 - **Location transparency**: Message destinations are resolved dynamically. Handlers may live within the current
-  process or in a remote application across the globe—as long as it's connected to the same Flux Platform.
+  process or in a remote application across the globe—as long as it's connected to the same Fluxzero Runtime.
 - **Dispatch interceptors** for metadata enrichment, authorization, logging, or suppression.
 - **Local-first handling**: If a handler exists in the local process, it will receive the message immediately.
-- **Automatic forwarding** to the Flux Platform when no local handlers consume the message.
+- **Automatic forwarding** to the Fluxzero Runtime when no local handlers consume the message.
 - **Serialization and correlation**: All messages are serialized, tagged with tracing data, and routed by type and
   topic.
 
 ### Sending a Message
 
-The easiest way to dispatch messages is via static methods on the `FluxCapacitor` class:
+The easiest way to dispatch messages is via static methods on the `Fluxzero` class:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(new CreateUser("Alice"));  // Asynchronously send a command
-FluxCapacitor.queryAndWait(new GetUserById("user-123"));  // Query and block for response
-FluxCapacitor.publishEvent(new UserSignUp(...));  // Fire-and-forget event
-FluxCapacitor.schedule(new RetryPayment(...), Duration.ofMinutes(5));  // Delayed message
+Fluxzero.sendCommand(new CreateUser("Alice"));  // Asynchronously send a command
+Fluxzero.queryAndWait(new GetUserById("user-123"));  // Query and block for response
+Fluxzero.publishEvent(new UserSignUp(...));  // Fire-and-forget event
+Fluxzero.schedule(new RetryPayment(...), Duration.ofMinutes(5));  // Delayed message
 ```
 [//]: # (@formatter:on)
 
@@ -30,13 +30,13 @@ Each message can also include optional metadata:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendCommand(new CreateUser("Bob"),
+Fluxzero.sendCommand(new CreateUser("Bob"),
                           Metadata.of("source","admin-ui"));
 ```
 [//]: # (@formatter:on)
 
 > ⚠️ Messages are **not routed to a specific destination**. Instead, any number of matching handlers may receive the
-> message, whether they run locally or remotely. Flux Capacitor abstracts the transport so that handler location is
+> message, whether they run locally or remotely. Fluxzero abstracts the transport so that handler location is
 > irrelevant.
 
 For a deeper look at message handling, see the [Message Handling](#message-handling) section.
@@ -51,7 +51,7 @@ Commands are used to trigger state changes or domain logic. They may return a re
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.sendAndForgetCommand(new CreateUser("Alice"));
+Fluxzero.sendAndForgetCommand(new CreateUser("Alice"));
 ```
 [//]: # (@formatter:on)
 
@@ -60,9 +60,9 @@ FluxCapacitor.sendAndForgetCommand(new CreateUser("Alice"));
 [//]: # (@formatter:off)
 ```java
 CompletableFuture<UserId> future
-        = FluxCapacitor.sendCommand(new CreateUser("Bob"));
+        = Fluxzero.sendCommand(new CreateUser("Bob"));
 
-UserId id = FluxCapacitor.sendCommandAndWait(
+UserId id = Fluxzero.sendCommandAndWait(
         new CreateUser("Charlie"));
 ```
 [//]: # (@formatter:on)
@@ -77,7 +77,7 @@ Queries retrieve data from read models or projections.
 
 [//]: # (@formatter:off)
 ```java
-CompletableFuture<UserProfile> result = FluxCapacitor.query(new GetUserProfile("user123"));
+CompletableFuture<UserProfile> result = Fluxzero.query(new GetUserProfile("user123"));
 ```
 [//]: # (@formatter:on)
 
@@ -85,7 +85,7 @@ CompletableFuture<UserProfile> result = FluxCapacitor.query(new GetUserProfile("
 
 [//]: # (@formatter:off)
 ```java
-UserProfile profile = FluxCapacitor.queryAndWait(new GetUserProfile("user456"));
+UserProfile profile = Fluxzero.queryAndWait(new GetUserProfile("user456"));
 ```
 [//]: # (@formatter:on)
 
@@ -97,7 +97,7 @@ Events can be published via:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.publishEvent(new UserLoggedIn("user789"));
+Fluxzero.publishEvent(new UserLoggedIn("user789"));
 ```
 [//]: # (@formatter:on)
 
@@ -120,10 +120,10 @@ You can schedule messages or commands for later delivery:
 [//]: # (@formatter:off)
 ```java
 // Schedule a message to be handled in 5 minutes using @HandleSchedule
-FluxCapacitor.schedule(new ReminderFired(), Duration.ofMinutes(5));
+Fluxzero.schedule(new ReminderFired(), Duration.ofMinutes(5));
 
 // Fire a periodic schedule every hour
-FluxCapacitor.schedulePeriodic(new PollExternalApi());
+Fluxzero.schedulePeriodic(new PollExternalApi());
 ```
 [//]: # (@formatter:on)
 
@@ -131,13 +131,13 @@ FluxCapacitor.schedulePeriodic(new PollExternalApi());
 
 ### Web Requests
 
-Send an outbound HTTP call via the proxy mechanism in Flux Platform:
+Send an outbound HTTP call via the proxy mechanism in Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
 WebRequest request = WebRequest
         .get("https://api.example.com/data").build();
-WebResponse response = FluxCapacitor.get()
+WebResponse response = Fluxzero.get()
         .webRequestGateway().sendAndWait(request);
 ```
 [//]: # (@formatter:on)
@@ -146,11 +146,11 @@ WebResponse response = FluxCapacitor.get()
 
 ### Metrics
 
-You can publish custom metrics to the Flux Platform:
+You can publish custom metrics to the Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.publishMetrics(
+Fluxzero.publishMetrics(
         new SystemLoadMetric(cpu, memory));
 ```
 [//]: # (@formatter:on)
@@ -188,9 +188,9 @@ may apply.
 After serialization, interceptors may again modify the message—for example, to inject correlation headers based on the
 serialized form.
 
-#### 5. **Forwarding to Flux Platform**
+#### 5. **Forwarding to Fluxzero Runtime**
 
-If no local handler consumes the message, it is published to the Flux Platform via the configured `Client` (e.g.
+If no local handler consumes the message, it is published to the Fluxzero Runtime via the configured `Client` (e.g.
 `WebSocketClient`).
 
 - Topics and routing are determined by message type and metadata
@@ -221,7 +221,7 @@ When this message is sent using a blocking gateway call, the configured timeout 
 
 [//]: # (@formatter:off)
 ```java
-BigDecimal result = FluxCapacitor
+BigDecimal result = Fluxzero
         .sendAndWait(new CalculatePremium(user));
 ```
 [//]: # (@formatter:on)
@@ -236,7 +236,7 @@ If the timeout elapses before a response is received, a `TimeoutException` is th
   [//]: # (@formatter:off)
   ```java
   CompletableFuture<BigDecimal> future
-        = FluxCapacitor.send(new CalculatePremium(user));
+        = Fluxzero.send(new CalculatePremium(user));
   future.orTimeout(3, TimeUnit.SECONDS);
   ```
   [//]: # (@formatter:on)

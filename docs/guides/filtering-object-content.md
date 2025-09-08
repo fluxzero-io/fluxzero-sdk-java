@@ -1,6 +1,6 @@
 ## Filtering Object Content
 
-Flux Capacitor provides a flexible way to **redact or tailor object content per user** using the `@FilterContent`
+Fluxzero provides a flexible way to **redact or tailor object content per user** using the `@FilterContent`
 annotation.
 
 This enables domain models or documents to define exactly what is visible to different users, based on roles, ownership,
@@ -20,7 +20,7 @@ To invoke filtering:
 
 [//]: # (@formatter:off)
 ```java
-Order filtered = FluxCapacitor.filterContent(order, currentUser);
+Order filtered = Fluxzero.filterContent(order, currentUser);
 ```
 [//]: # (@formatter:on)
 
@@ -53,7 +53,7 @@ LineItem filter(User user, Order root) {
 
 ### Key Behaviors
 
-- `@FilterContent` applies only when called via `FluxCapacitor.filterContent(...)` or `Serializer.filterContent(...)`
+- `@FilterContent` applies only when called via `Fluxzero.filterContent(...)` or `Serializer.filterContent(...)`
 - **It is not automatic** — for performance reasons, content filtering is not applied implicitly (e.g. during search or
   document deserialization)
 - If no method is annotated with `@FilterContent`, the object is returned unmodified.

@@ -1,6 +1,6 @@
 ## Parameter Injection with Custom Resolvers
 
-Flux Capacitor allows fine-grained control over **handler method parameters** using the `ParameterResolver` interface.  
+Fluxzero allows fine-grained control over **handler method parameters** using the `ParameterResolver` interface.  
 This lets you inject **any value** into annotated handler methods — beyond just payload, metadata, etc.
 
 ### How It Works
@@ -8,7 +8,7 @@ This lets you inject **any value** into annotated handler methods — beyond jus
 When a message is dispatched to a handler (e.g. via `@HandleEvent`, `@HandleCommand`, etc.), the framework scans the
 method’s parameters and tries to resolve each one using the configured `ParameterResolvers`.
 
-By default, Flux Capacitor supports injection of the following parameters into handler methods:
+By default, Fluxzero supports injection of the following parameters into handler methods:
 
 - The **message payload** (automatically matched by type)
 - The full **`Message`**, **`Schedule`**, or **`WebRequest`**
@@ -52,7 +52,7 @@ Then register it via your builder:
 
 [//]: # (@formatter:off)
 ```java
-DefaultFluxCapacitor.builder()
+DefaultFluxzero.builder()
     .addParameterResolver(new TimestampParameterResolver())
     .build();
 ```

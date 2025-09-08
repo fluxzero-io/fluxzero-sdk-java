@@ -1,6 +1,6 @@
 ## Domain Modeling
 
-Flux Capacitor allows you to model the state of your domain using entities that evolve over time by applying updates.
+Fluxzero allows you to model the state of your domain using entities that evolve over time by applying updates.
 These entities — such as users, orders, etc. — maintain state and enforce invariants through controlled updates,
 typically driven by commands.
 
@@ -21,7 +21,7 @@ public record UserAccount(@EntityId UserId userId,
 This `UserAccount` class models an aggregate with state such as `profile` and `accountClosed`. Each entity may contain a
 field
 annotated with `@EntityId` that acts as a unique identifier. For aggregates, this is optional — the aggregate itself is
-typically loaded using `FluxCapacitor.loadAggregate(id)`.
+typically loaded using `Fluxzero.loadAggregate(id)`.
 
 An **aggregate** is a specialized root entity that serves as an entry point into a domain model. It may contain nested
 child entities (modeled via `@Member`), but represents a single unit of consistency.
@@ -51,5 +51,5 @@ public record UserAccount(@EntityId UserId userId) {
 Now you can easily load the entity via:
 
 ```java
-Entity<UserAccount> user = FluxCapacitor.loadAggregate(new UserId("1234"));
+Entity<UserAccount> user = Fluxzero.loadAggregate(new UserId("1234"));
 ```

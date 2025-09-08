@@ -1,0 +1,125 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.testserver.websocket;
+
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.tracking.ClaimSegment;
+import io.fluxzero.common.api.tracking.ClaimSegmentResult;
+import io.fluxzero.common.api.tracking.DisconnectTracker;
+import io.fluxzero.common.api.tracking.GetPosition;
+import io.fluxzero.common.api.tracking.GetPositionResult;
+import io.fluxzero.common.api.tracking.Read;
+import io.fluxzero.common.api.tracking.ReadFromIndex;
+import io.fluxzero.common.api.tracking.ReadFromIndexResult;
+import io.fluxzero.common.api.tracking.ReadResult;
+import io.fluxzero.common.api.tracking.ResetPosition;
+import io.fluxzero.common.api.tracking.StorePosition;
+import io.fluxzero.common.tracking.DefaultTrackingStrategy;
+import io.fluxzero.common.tracking.InMemoryPositionStore;
+import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.common.tracking.PositionStore;
+import io.fluxzero.common.tracking.TrackingStrategy;
+import io.fluxzero.common.tracking.WebSocketTracker;
+import jakarta.websocket.CloseReason;
+import jakarta.websocket.Session;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@AllArgsConstructor
+public class ConsumerEndpoint extends WebsocketEndpoint {
+
+    private final TrackingStrategy trackingStrategy;
+    private final MessageStore messageStore;
+    private final PositionStore positionStore;
+    private final MessageType messageType;
+
+    public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
+        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType);
+    }
+
+    @Handle
+    void handle(Read read, Session session) {
+        trackingStrategy.getBatch(
+                new WebSocketTracker(read, messageType, getClientId(session), session.getId(), batch
+                        -> doSendResult(session, new ReadResult(read.getRequestId(), batch))), positionStore);
+    }
+
+    @Handle
+    void handle(ClaimSegment read, Session session) {
+        trackingStrategy.claimSegment(
+                new WebSocketTracker(read, messageType, getClientId(session), session.getId(), batch ->
+                        doSendResult(session, new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
+                                                                     batch.getSegment()))), positionStore);
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(StorePosition storePosition) {
+        return positionStore.storePosition(storePosition.getConsumer(), storePosition.getSegment(),
+                                           storePosition.getLastIndex());
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(ResetPosition resetPosition) {
+        return positionStore.resetPosition(resetPosition.getConsumer(), resetPosition.getLastIndex());
+    }
+
+    @Handle
+    void handle(DisconnectTracker disconnectTracker) {
+        trackingStrategy.disconnectTrackers(
+                t -> Objects.equals(t.getConsumerName(), disconnectTracker.getConsumer())
+                     && Objects.equals(t.getTrackerId(), disconnectTracker.getTrackerId()),
+                disconnectTracker.isSendFinalEmptyBatch());
+    }
+
+    @Handle
+    ReadFromIndexResult handle(ReadFromIndex read) {
+        return new ReadFromIndexResult(read.getRequestId(),
+                                       messageStore.getBatch(read.getMinIndex(), read.getMaxSize(), true));
+    }
+
+    @Handle
+    GetPositionResult handle(GetPosition read) {
+        return new GetPositionResult(read.getRequestId(), positionStore.position(read.getConsumer()));
+    }
+
+    @Override
+    public void onClose(Session session, CloseReason closeReason) {
+        var trackers = trackingStrategy.disconnectTrackers(t -> t instanceof WebSocketTracker
+                                                                && ((WebSocketTracker) t).getSessionId()
+                                                                        .equals(session.getId()),
+                                                           false);
+        trackers.forEach(t -> metricsLog.registerMetrics(
+                new DisconnectTracker(messageType, t.getConsumerName(), t.getTrackerId(),
+                                      false, Guarantee.STORED)));
+        super.onClose(session, closeReason);
+    }
+
+    @Override
+    protected void shutDown() {
+        trackingStrategy.disconnectTrackers(t -> true, false);
+        trackingStrategy.close();
+        super.shutDown();
+    }
+
+    @Override
+    public String toString() {
+        return "ConsumerEndpoint{logType='" + messageType + "'}";
+    }
+}

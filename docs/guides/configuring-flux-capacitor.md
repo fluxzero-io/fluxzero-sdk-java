@@ -1,23 +1,23 @@
-## Configuring Flux Capacitor
+## Configuring Fluxzero
 
-The `FluxCapacitorBuilder` interface is the primary entry point for configuring a `FluxCapacitor` instance. It allows
+The `FluxzeroBuilder` interface is the primary entry point for configuring a `Fluxzero` instance. It allows
 fine-grained customization of all core behaviors, including message consumers, dispatch logic, interceptors, caching,
 serialization, metrics, and much more.
 
 Most applications use the default builder via:
 
 ```java
-FluxCapacitorBuilder builder = DefaultFluxCapacitor.builder();
+FluxzeroBuilder builder = DefaultFluxzero.builder();
 ```
 
-In Spring environments, it can be customized by implementing the `FluxCapacitorCustomizer` interface:
+In Spring environments, it can be customized by implementing the `FluxzeroCustomizer` interface:
 
 ```java
 
 @Component
-public class MyCustomizer implements FluxCapacitorCustomizer {
+public class MyCustomizer implements FluxzeroCustomizer {
     @Override
-    public FluxCapacitorBuilder customize(FluxCapacitorBuilder builder) {
+    public FluxzeroBuilder customize(FluxzeroBuilder builder) {
         return builder.addParameterResolver(new CustomResolver());
     }
 }
@@ -100,16 +100,16 @@ These methods disable internal features as needed:
 
 ### Final Assembly
 
-Once the builder is configured, construct the `FluxCapacitor` instance by passing in a `Client` (usually a
+Once the builder is configured, construct the `Fluxzero` instance by passing in a `Client` (usually a
 `WebSocketClient` or `LocalClient`):
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor flux = builder.build(myClient);
+Fluxzero flux = builder.build(myClient);
 ```
 [//]: # (@formatter:on)
 
-To mark it as the global application-wide instance (i.e., accessible via `FluxCapacitor.get()`):
+To mark it as the global application-wide instance (i.e., accessible via `Fluxzero.get()`):
 
 [//]: # (@formatter:off)
 ```java
@@ -125,7 +125,7 @@ If Spring is used, the application instance is automatically set by Spring and u
 
 ### Spring Auto-Configuration
 
-Flux Capacitor integrates well with Spring. If you're using Spring (or Spring Boot), many components are auto-configured
+Fluxzero integrates well with Spring. If you're using Spring (or Spring Boot), many components are auto-configured
 for you:
 
 - If you provide a bean of type `Serializer`, `Cache`, `Client`, `UserProvider`, or `WebResponseMapper`, it will be
@@ -133,31 +133,31 @@ for you:
 - `Upcasters` and `Downcasters` are auto-registered if detected on Spring beans.
 - Handlers (`@Handle...`) are automatically registered after the context is refreshed.
 - `@TrackSelf`, `@Stateful`, and `@SocketEndpoint` beans are auto-detected and wired via post-processors.
-- If no `Client` is configured explicitly, Flux Capacitor tries to create a `WebSocketClient` (based on available
+- If no `Client` is configured explicitly, Fluxzero tries to create a `WebSocketClient` (based on available
   properties), or falls back to a `LocalClient`.
 
-> ⚠️ If you're using **Spring without Spring Boot**, be sure to add `@Import(FluxCapacitorSpringConfig.class)` to enable
+> ⚠️ If you're using **Spring without Spring Boot**, be sure to add `@Import(FluxzeroSpringConfig.class)` to enable
 > auto-configuration.
 
-You can always override or customize behavior via a `FluxCapacitorCustomizer`.
+You can always override or customize behavior via a `FluxzeroCustomizer`.
 
 #### Injectable Beans
 
-Flux Capacitor exposes several core components as Spring beans, making them easy to inject into your application:
+Fluxzero exposes several core components as Spring beans, making them easy to inject into your application:
 
-| Bean Type              | Purpose                                                       |
-|------------------------|---------------------------------------------------------------|
-| `FluxCapacitor`        | Access to the full runtime and configuration                  |
-| `CommandGateway`       | Dispatch commands and receive results                         |
-| `EventGateway`         | Publish events to the global log                              |
-| `QueryGateway`         | Send queries and await answers                                |
-| `MetricsGateway`       | Emit custom metrics messages                                  |
-| `ErrorGateway`         | Report errors manually                                        |
-| `ResultGateway`        | Manually publish results from asynchronous flows              |
-| `MessageScheduler`     | Schedule commands or other messages in the future             |
-| `AggregateRepository`  | Load and store aggregates                                     |
-| `DocumentStore`        | Search, filter, and persist document models                   |
-| `KeyValueStore`        | Access key-value persisted state                              |
+| Bean Type             | Purpose                                                       |
+|-----------------------|---------------------------------------------------------------|
+| `Fluxzero`            | Access to the full runtime and configuration                  |
+| `CommandGateway`      | Dispatch commands and receive results                         |
+| `EventGateway`        | Publish events to the global log                              |
+| `QueryGateway`        | Send queries and await answers                                |
+| `MetricsGateway`      | Emit custom metrics messages                                  |
+| `ErrorGateway`        | Report errors manually                                        |
+| `ResultGateway`       | Manually publish results from asynchronous flows              |
+| `MessageScheduler`    | Schedule commands or other messages in the future             |
+| `AggregateRepository` | Load and store aggregates                                     |
+| `DocumentStore`       | Search, filter, and persist document models                   |
+| `KeyValueStore`       | Access key-value persisted state                              |
 
 You can simply inject any of these into your Spring-managed components:
 
@@ -176,13 +176,13 @@ public class MyService {
 
 > ⚠️ **Note:** While dependency injection is supported, it is **not the recommended approach** in most cases.
 
-Instead, prefer using the static methods on the `FluxCapacitor` class:
+Instead, prefer using the static methods on the `Fluxzero` class:
 
 [//]: # (@formatter:off)
  ```java
- FluxCapacitor.sendCommand(new MyCommand(...));
- FluxCapacitor.query(new GetUserProfile(userId));
- FluxCapacitor.publishEvent(new UserLoggedIn(...));
+ Fluxzero.sendCommand(new MyCommand(...));
+ Fluxzero.query(new GetUserProfile(userId));
+ Fluxzero.publishEvent(new UserLoggedIn(...));
  ```
 [//]: # (@formatter:on)
 

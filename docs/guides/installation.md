@@ -2,7 +2,7 @@
 
 ### Maven Users
 
-Import the [Flux Capacitor BOM](https://mvnrepository.com/artifact/io.flux-capacitor/flux-capacitor-bom) in your
+Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
 `dependencyManagement` section to centralize version management:
 
 ```xml
@@ -10,9 +10,9 @@ Import the [Flux Capacitor BOM](https://mvnrepository.com/artifact/io.flux-capac
 <dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>io.flux-capacitor</groupId>
-            <artifactId>flux-capacitor-bom</artifactId>
-            <version>${flux-capacitor.version}</version> <!-- See version badge above -->
+            <groupId>io.fluxzero</groupId>
+            <artifactId>fluxzero-bom</artifactId>
+            <version>${fluxzero.version}</version> <!-- See version badge above -->
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -26,22 +26,22 @@ Then declare only the dependencies you actually need (no version required):
 
 <dependencies>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>java-client</artifactId>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>java-client</artifactId>
         <classifier>tests</classifier>
         <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>test-server</artifactId>
         <scope>test</scope>
     </dependency>
     <dependency>
-        <groupId>io.flux-capacitor</groupId>
+        <groupId>io.fluxzero</groupId>
         <artifactId>proxy</artifactId>
         <scope>test</scope>
     </dependency>
@@ -63,11 +63,11 @@ automatically:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.flux-capacitor:flux-capacitor-bom:${fluxCapacitorVersion}"))
-    implementation("io.flux-capacitor:java-client")
-    testImplementation("io.flux-capacitor:java-client", classifier = "tests")
-    testImplementation("io.flux-capacitor:test-server")
-    testImplementation("io.flux-capacitor:proxy")
+    implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
+    implementation("io.fluxzero:java-client")
+    testImplementation("io.fluxzero:java-client", classifier = "tests")
+    testImplementation("io.fluxzero:test-server")
+    testImplementation("io.fluxzero:proxy")
 }
 ```
 
@@ -78,13 +78,13 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation platform("io.flux-capacitor:flux-capacitor-bom:${fluxCapacitorVersion}")
-    implementation 'io.flux-capacitor:java-client'
-    testImplementation('io.flux-capacitor:java-client') {
+    implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
+    implementation 'io.fluxzero:java-client'
+    testImplementation('io.fluxzero:java-client') {
         classifier = 'tests'
     }
-    testImplementation 'io.flux-capacitor:test-server'
-    testImplementation 'io.flux-capacitor:proxy'
+    testImplementation 'io.fluxzero:test-server'
+    testImplementation 'io.fluxzero:proxy'
 }
 ```
 

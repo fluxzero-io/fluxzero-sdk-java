@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
         </encoder>
     </appender>
 
-    <logger name="io.fluxcapacitor" level="info"/>
+    <logger name="io.fluxzero" level="info"/>
 
     <root level="warn">
         <appender-ref ref="STDOUT"/>

@@ -1,6 +1,6 @@
 ## Tracking and Updating Documents
 
-Flux Capacitor allows you to **track changes to your document store** using the `@HandleDocument` annotation.  
+Fluxzero allows you to **track changes to your document store** using the `@HandleDocument` annotation.  
 This enables handlers to react to document updates in real time — much like handling events.
 
 ```java

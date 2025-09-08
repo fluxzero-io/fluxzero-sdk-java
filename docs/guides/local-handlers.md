@@ -1,6 +1,6 @@
 ## Local handlers
 
-Flux Capacitor supports both asynchronous and local (synchronous) message handling. **Local handlers** process messages
+Fluxzero supports both asynchronous and local (synchronous) message handling. **Local handlers** process messages
 in the same thread that published them, bypassing the message dispatch infrastructure entirely. This typically results
 in faster response times and is ideal for simple or time-sensitive use cases.
 
@@ -74,7 +74,7 @@ one if unspecified).
 
 ### Response typing with Request<R>
 
-Flux Capacitor allows you to formalize the expected return type of commands and queries by implementing the `Request<R>`
+Fluxzero allows you to formalize the expected return type of commands and queries by implementing the `Request<R>`
 interface. This lets the framework:
 
 - Infer the response type at runtime and during testing.
@@ -99,7 +99,7 @@ public class GetUserProfile implements Request<UserProfile> {
 Now, when calling this query, the return type is automatically known:
 
 ```java
-UserProfile profile = FluxCapacitor.queryAndWait(new GetUserProfile("123"));
+UserProfile profile = Fluxzero.queryAndWait(new GetUserProfile("123"));
 ```
 
 When implementing Request<R>, the expected result type (R) is automatically inferred during testing and execution. This

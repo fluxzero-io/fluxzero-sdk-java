@@ -2,7 +2,7 @@
 
 ### Java Version
 
-Flux Capacitor requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
+Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
 compatible with recent versions.
 
 ---
@@ -82,7 +82,7 @@ compatible with recent versions.
 
 ### Versioning Policy
 
-Flux Capacitor aims to stay up-to-date with its core dependencies. We strive to:
+Fluxzero aims to stay up-to-date with its core dependencies. We strive to:
 
 - Use the **latest stable versions** where possible,
 - Avoid breaking backward compatibility for common transitive consumers,

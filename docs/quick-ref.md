@@ -1,4 +1,4 @@
-# Flux Capacitor — Quick Reference
+# Fluxzero — Quick Reference
 
 > Everyday conventions, patterns, and pitfalls in ≤ 60 sec  
 > For deeper topics see `/docs/guides/`. For code samples see `code-samples.md`.
@@ -45,10 +45,10 @@ Use this structure for all **new** Flux applications:
 
 | Message             | Publish                         | Handle with                                 | Notes                                              |
 |---------------------|---------------------------------|---------------------------------------------|----------------------------------------------------|
-| **Command** (write) | `FluxCapacitor.sendCommand(…)`  | `@HandleCommand`                            | may return result                                  |
-| **Query** (read)    | `FluxCapacitor.queryAndWait(…)` | `@HandleQuery`                              | strongly‑typed via `implements Request<R>`         |
-| **Event** (fact)    | `FluxCapacitor.publishEvent(…)` | `@HandleEvent`                              | persisted unless consumed locally                  |
-| **Schedule**        | `FluxCapacitor.schedule(…)`     | `@HandleSchedule` / `@Periodic`             | one‑off or recurring; cancel with `cancelSchedule` |
+| **Command** (write) | `Fluxzero.sendCommand(…)`  | `@HandleCommand`                            | may return result                                  |
+| **Query** (read)    | `Fluxzero.queryAndWait(…)` | `@HandleQuery`                              | strongly‑typed via `implements Request<R>`         |
+| **Event** (fact)    | `Fluxzero.publishEvent(…)` | `@HandleEvent`                              | persisted unless consumed locally                  |
+| **Schedule**        | `Fluxzero.schedule(…)`     | `@HandleSchedule` / `@Periodic`             | one‑off or recurring; cancel with `cancelSchedule` |
 | **WebRequest**      | via gateway                     | `@HandleGet` / `@HandlePost` / `@HandleWeb` | proxied through Flux gateway                       |
 
 > For long‑running workflows (sagas), annotate a handler class with **`@Stateful`**.
@@ -65,7 +65,7 @@ class HelloWorldHandler {
     }
 }
 
-FluxCapacitor.publishEvent(new HelloWorld());
+Fluxzero.publishEvent(new HelloWorld());
 ```
 [//]: # (@formatter:on)
 
@@ -131,7 +131,7 @@ Use `.expectOnlyCommands(…)` or `.expectResult(…)` to tighten assertions.
 
 | ⛔ Don’t                                       | ✅ Do                                                                        |
 |-----------------------------------------------|-----------------------------------------------------------------------------|
-| Generate IDs inside `@Apply`                  | Generate in endpoint / command using `FluxCapacitor.generateId(Type.class)` |
+| Generate IDs inside `@Apply`                  | Generate in endpoint / command using `Fluxzero.generateId(Type.class)` |
 | Call `System.currentTimeMillis()` in `@Apply` | Inject `Clock` / pass time in message                                       |
 | Mismatch command param ↔ entity field names   | Keep them identical for auto‑binding                                        |
 | Block on futures in handler thread            | Return value synchronously or move async work outside handler               |
@@ -140,7 +140,7 @@ Use `.expectOnlyCommands(…)` or `.expectResult(…)` to tighten assertions.
 
 ## Happy‑path checklist
 
-1. Generate IDs **before** dispatch via `FluxCapacitor.generateId(…)`.
+1. Generate IDs **before** dispatch via `Fluxzero.generateId(…)`.
 2. Validate payload (JSR‑380) and user roles.
 3. Add `@AssertLegal` checks before `@Apply`.
 4. Use the routing key annotation on aggregate identifiers and match param names.

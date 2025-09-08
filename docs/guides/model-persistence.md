@@ -1,6 +1,6 @@
 ## Model Persistence
 
-Flux Capacitor supports multiple strategies for storing and reloading aggregates:
+Fluxzero supports multiple strategies for storing and reloading aggregates:
 
 - **Event sourcing**: state is derived by replaying a stream of applied updates (events)
 - **Document storage**: the full aggregate is stored as a document
@@ -21,7 +21,7 @@ restore its current state:
 
 ### 1️⃣ Loading an Aggregate
 
-Flux Capacitor will attempt to resolve the **current state** of the aggregate or entity as follows:
+Fluxzero will attempt to resolve the **current state** of the aggregate or entity as follows:
 
 - **From cache**, if caching is enabled (default behavior).
 - If **snapshotting** is enabled and a snapshot is available, Flux uses it as the starting point and then replays any
@@ -52,7 +52,7 @@ lifecycle:
 > By default, updates are committed only **after the current message batch completes**, not immediately. This means:
 >
 > - Updates are **locally cached** (per tracker thread) until the batch is confirmed.
-> - This avoids unnecessary round-trips to the Flux Platform during batch processing.
+> - This avoids unnecessary round-trips to the Fluxzero Runtime during batch processing.
 >
 > You can change this behavior by explicitly committing the update earlier—i.e., at the end of the current handler
 > method.
@@ -83,7 +83,7 @@ public record UserAccount(@EntityId UserId userId,
 
 ### Document Storage
 
-Flux Capacitor also supports storing aggregates as documents in a searchable document store. This is useful for:
+Fluxzero also supports storing aggregates as documents in a searchable document store. This is useful for:
 
 - Read-heavy aggregates
 - Aggregates with large histories
@@ -142,7 +142,7 @@ This hybrid approach is ideal when you need both traceability and query speed.
 
 ### Caching and Checkpoints
 
-Flux Capacitor automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
+Fluxzero automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
 
 - Fast reuse of recently loaded aggregates
 - Automatic rehydration from snapshots or partial checkpoints (when configured)
@@ -173,7 +173,7 @@ public class FraudMonitor {
         BankAccount previous = entity.previous().get();
 
         if (hasSuspiciousDelta(previous, current)) {
-            FluxCapacitor.publishEvent(new AdminNotification(
+            Fluxzero.publishEvent(new AdminNotification(
                     "Unusual balance change on account %s"
                             .formatted(current.getAccountId())));
         }

@@ -1,6 +1,6 @@
 ## Handling Web Requests
 
-Flux Capacitor supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
+Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
 variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
 
 Instead of exposing a public HTTP server per application, Flux uses a central Web Gateway that **proxies all external
@@ -40,8 +40,8 @@ You can use the general `@HandleWeb` if you want to match multiple paths or meth
 @HandleWeb(value = "/users/{userId}", method = {"GET", "DELETE"})
 public CompletableFuture<?> handleUserRequest(WebRequest request, @PathParam String userId) {
     return switch (request.getMethod()) {
-        case "GET" -> FluxCapacitor.query(new GetUser(userId));
-        case "DELETE" -> FluxCapacitor.sendCommand(new DeleteUser(userId));
+        case "GET" -> Fluxzero.query(new GetUser(userId));
+        case "DELETE" -> Fluxzero.sendCommand(new DeleteUser(userId));
         default -> throw new UnsupportedOperationException();
     };
 }

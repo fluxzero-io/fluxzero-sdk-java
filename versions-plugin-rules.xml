@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) Flux Capacitor IP B.V. or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
         <ignoreVersion type="regex">(?i).*M(?:-?\d+)?</ignoreVersion>
     </ignoreVersions>
     <rules>
-        <rule groupId="io.flux-capacitor" comparisonMethod="maven">
+        <rule groupId="io.fluxzero" comparisonMethod="maven">
             <ignoreVersions>
                 <ignoreVersion type="regex">.*</ignoreVersion>
             </ignoreVersions>

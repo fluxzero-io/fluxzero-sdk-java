@@ -1,6 +1,6 @@
 ## Testing your Handlers
 
-Flux Capacitor comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
+Fluxzero comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
 writing behavioral tests for your handlers without needing to mock the infrastructure.
 
 Here’s a basic example:
@@ -278,7 +278,7 @@ This ensures that:
 
 ### Using Test Fixtures in Spring
 
-Flux Capacitor provides seamless integration with Spring Boot for testing. You can inject a `TestFixture` directly:
+Fluxzero provides seamless integration with Spring Boot for testing. You can inject a `TestFixture` directly:
 
 ```java
 
@@ -300,7 +300,7 @@ class AsyncAppTest {
 - ⚠️ **Spring Core (non-Boot)**: Manually import the test configuration:
 
   ```java
-  @Import(FluxCapacitorTestConfig.class)
+  @Import(FluxzeroTestConfig.class)
   ```
 
   This ensures the `TestFixture` and related infrastructure are available in the Spring context.
@@ -314,14 +314,14 @@ By default, the injected fixture is **asynchronous**. To use a **synchronous** f
 ##### Globally via `application.properties`:
 
 ```properties
-fluxcapacitor.test.sync=true
+fluxzero.test.sync=true
 ```
 
 ##### Or per test class:
 
 ```java
 
-@TestPropertySource(properties = "fluxcapacitor.test.sync=true")
+@TestPropertySource(properties = "fluxzero.test.sync=true")
 @SpringBootTest
 class SyncAppTest {
 
@@ -334,7 +334,7 @@ class SyncAppTest {
 
 ### Testing schedules
 
-Flux Capacitor’s scheduling engine makes it easy to test time-based workflows. Scheduled messages are handled just
+Fluxzero’s scheduling engine makes it easy to test time-based workflows. Scheduled messages are handled just
 like any other message, except they are delayed until their due time.
 
 Use the `TestFixture` to simulate the passage of time and trigger scheduled actions. Here’s a typical example:

@@ -1,6 +1,6 @@
-# Flux Capacitor Code Samples
+# Fluxzero Code Samples
 
-This guide summarizes common patterns in Flux Capacitor applications. Examples illustrate typical commands,
+This guide summarizes common patterns in Fluxzero applications. Examples illustrate typical commands,
 queries, aggregates, web endpoints, authentication, and testing—using projects, tasks, users, and other domains as
 illustrative use cases.
 
@@ -45,18 +45,18 @@ illustrative use cases.
       public TaskId(String id) { super(id); }
   }
   ```
-- Use `FluxCapacitor.generateId(ProjectId.class)` or `...generateId(TaskId.class)` when creating new IDs.
+- Use `Fluxzero.generateId(ProjectId.class)` or `...generateId(TaskId.class)` when creating new IDs.
 
 ## 3. Commands
 
 - **Command interfaces**: Define a common interface per aggregate or module to group related commands and manage
   dispatch. Typically annotate it with `@TrackSelf` and `@Consumer(name="...")` from
-  `io.fluxcapacitor.javaclient.tracking`.
+  `io.fluxzero.javaclient.tracking`.
   ```java
-  import io.fluxcapacitor.javaclient.FluxCapacitor;
-  import io.fluxcapacitor.javaclient.tracking.Consumer;
-  import io.fluxcapacitor.javaclient.tracking.TrackSelf;
-  import io.fluxcapacitor.javaclient.tracking.handling.HandleCommand;
+  import io.fluxzero.javaclient.Fluxzero;
+  import io.fluxzero.javaclient.tracking.Consumer;
+  import io.fluxzero.javaclient.tracking.TrackSelf;
+  import io.fluxzero.javaclient.tracking.handling.HandleCommand;
   import jakarta.validation.constraints.NotNull;
 
   @TrackSelf    // asynchronously track commands after dispatch
@@ -66,7 +66,7 @@ illustrative use cases.
 
       @HandleCommand
       default void handle() {
-          FluxCapacitor.loadAggregate(userId())
+          Fluxzero.loadAggregate(userId())
                        .assertAndApply(this);
       }
   }
@@ -136,7 +136,7 @@ illustrative use cases.
   public record ListProjects() implements Request<List<Project>> {
       @HandleQuery
       List<Project> handleQuery(Sender sender) {
-          return FluxCapacitor.search(Project.class)
+          return Fluxzero.search(Project.class)
                               .match(sender.isAdmin() ? null : sender.userId(), "ownerId")
                               .fetch(100);
       }
@@ -149,7 +149,7 @@ illustrative use cases.
       implements Request<Project> {
       @HandleQuery
       Project handleQuery(Sender sender) {
-          return FluxCapacitor.search(Project.class)
+          return Fluxzero.search(Project.class)
                                .match(projectId, "projectId")
                                .match(sender.isAdmin() ? null : sender.userId(), "ownerId")
                                .fetchFirstOrNull();
@@ -165,25 +165,25 @@ illustrative use cases.
   public class ProjectsEndpoint {
       @HandlePost("/projects")
       ProjectId createProject(ProjectDetails details) {
-          var id = FluxCapacitor.generateId(ProjectId.class);
-          FluxCapacitor.sendCommandAndWait(new CreateProject(id, details));
+          var id = Fluxzero.generateId(ProjectId.class);
+          Fluxzero.sendCommandAndWait(new CreateProject(id, details));
           return id;
       }
 
       @HandleGet("/projects")
       List<Project> listProjects() {
-          return FluxCapacitor.queryAndWait(new ListProjects());
+          return Fluxzero.queryAndWait(new ListProjects());
       }
 
       @HandleGet("/projects/{projectId}")
       Project getProject(@PathParam ProjectId projectId) {
-          return FluxCapacitor.queryAndWait(new GetProject(projectId));
+          return Fluxzero.queryAndWait(new GetProject(projectId));
       }
 
       @HandlePost("/projects/{projectId}/tasks")
       TaskId createTask(@PathParam ProjectId projectId, TaskDetails details) {
-          var taskId = FluxCapacitor.generateId(TaskId.class);
-          FluxCapacitor.sendCommandAndWait(
+          var taskId = Fluxzero.generateId(TaskId.class);
+          Fluxzero.sendCommandAndWait(
               new CreateTask(projectId, taskId, details)
           );
           return taskId;
@@ -192,14 +192,14 @@ illustrative use cases.
       @HandlePost("/projects/{projectId}/tasks/{taskId}/complete")
       void completeTask(@PathParam ProjectId projectId,
                         @PathParam TaskId taskId) {
-          FluxCapacitor.sendCommandAndWait(new CompleteTask(projectId, taskId));
+          Fluxzero.sendCommandAndWait(new CompleteTask(projectId, taskId));
       }
 
       @HandlePost("/projects/{projectId}/tasks/{taskId}/assign")
       void assignTask(@PathParam ProjectId projectId,
                       @PathParam TaskId taskId,
                       UserId assigneeId) {
-          FluxCapacitor.sendCommandAndWait(
+          Fluxzero.sendCommandAndWait(
               new AssignTask(projectId, taskId, assigneeId)
           );
       }

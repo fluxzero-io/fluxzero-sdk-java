@@ -1,6 +1,6 @@
 ## Metrics Messages
 
-Flux Capacitor supports a built-in message type for metrics: `MessageType.METRICS`.  
+Fluxzero supports a built-in message type for metrics: `MessageType.METRICS`.  
 These messages provide a powerful way to observe and trace system behavior across clients, handlers, and infrastructure.
 
 Metrics messages are:
@@ -14,10 +14,10 @@ Metrics messages are:
 
 ### Publishing Metrics
 
-You can publish metrics manually using the `FluxCapacitor.publishMetrics(...)` method:
+You can publish metrics manually using the `Fluxzero.publishMetrics(...)` method:
 
 ```java
-FluxCapacitor.publishMetrics(new SystemMetrics("slowProjection", "thresholdExceeded"));
+Fluxzero.publishMetrics(new SystemMetrics("slowProjection", "thresholdExceeded"));
 ```
 
 This emits a structured metrics message to the metrics topic.
@@ -26,7 +26,7 @@ All metrics are wrapped in a regular `Message`, so you can include metadata or d
 
 [//]: # (@formatter:off)
 ```java
-FluxCapacitor.get()
+Fluxzero.get()
     .metricsGateway()
     .publish(new MyMetric("foo"),
              Metadata.of("critical","true"),
