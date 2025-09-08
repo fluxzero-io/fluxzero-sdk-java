@@ -1,4 +1,4 @@
-io.fluxcapacitor.testserver
-io.fluxcapacitor.testserver.metrics
-io.fluxcapacitor.testserver.scheduling
-io.fluxcapacitor.testserver.websocket
+io.fluxzero.testserver
+io.fluxzero.testserver.metrics
+io.fluxzero.testserver.scheduling
+io.fluxzero.testserver.websocket
