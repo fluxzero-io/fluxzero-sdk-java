@@ -49,7 +49,7 @@ jobs:
       - name: Generate javadoc html
         run: |
           mvn -B site
-          for module in java-client common proxy test-server; do
+          for module in sdk common proxy test-server; do
             mkdir -p target/site/$module
             mv $module/target/site/* target/site/$module/
           done
