@@ -340,29 +340,6 @@
                     <rulesUri>file:///${user.dir}/versions-plugin-rules.xml</rulesUri>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.openrewrite.maven</groupId>
-                <artifactId>rewrite-maven-plugin</artifactId>
-                <version>6.17.0</version>
-                <configuration>
-                    <activeRecipes>
-                        <recipe>io.fluxzero.Rebrand</recipe>
-                    </activeRecipes>
-                    <configLocation>${maven.multiModuleProjectDirectory}/rewrite.yml</configLocation>
-                </configuration>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.openrewrite.recipe</groupId>
-                        <artifactId>rewrite-java-dependencies</artifactId>
-                        <version>1.41.0</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.openrewrite</groupId>
-                        <artifactId>rewrite-xml</artifactId>
-                        <version>8.61.3</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
         </plugins>
     </build>
 
