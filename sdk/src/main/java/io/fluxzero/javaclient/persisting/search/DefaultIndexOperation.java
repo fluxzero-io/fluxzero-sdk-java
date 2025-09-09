@@ -17,6 +17,7 @@ package io.fluxzero.javaclient.persisting.search;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.javaclient.modeling.Entity;
 import io.fluxzero.javaclient.modeling.EntityId;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,6 +25,7 @@ import lombok.NonNull;
 import lombok.experimental.Accessors;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
@@ -60,15 +62,27 @@ public class DefaultIndexOperation implements IndexOperation {
      * @param object        the object to be indexed, which will be analyzed and converted for storage
      */
     public DefaultIndexOperation(DocumentStore documentStore, @NonNull Object object) {
+        Entity<?> entity = object instanceof Entity<?> e ? e : null;
+        if (entity != null) {
+            Objects.requireNonNull(entity.get(), "Entity value cannot be null");
+            object = entity.get();
+        }
         var searchParams = ofNullable(getSearchParameters(object.getClass())).orElse(defaultSearchParameters);
         this.documentStore = documentStore;
-        this.value = object;
         collection = ofNullable(searchParams.getCollection()).orElseGet(object.getClass()::getSimpleName);
+        id = getAnnotatedPropertyValue(object, EntityId.class).map(Object::toString)
+                .orElseGet(() -> currentIdentityProvider().nextTechnicalId());
+        this.value = object;
         start = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);
         end = ReflectionUtils.hasProperty(searchParams.getEndPath(), object)
                 ? ReflectionUtils.<Instant>readProperty(searchParams.getEndPath(), object).orElse(null) : start;
-        id = getAnnotatedPropertyValue(object, EntityId.class).map(Object::toString)
-                .orElseGet(() -> currentIdentityProvider().nextTechnicalId());
+        while (entity != null) {
+            var parent = entity.parent();
+            if (parent != null && parent.isPresent()) {
+                addMetadata(parent.idProperty(), parent.id().toString());
+            }
+            entity = parent;
+        }
     }
 
     @NonNull

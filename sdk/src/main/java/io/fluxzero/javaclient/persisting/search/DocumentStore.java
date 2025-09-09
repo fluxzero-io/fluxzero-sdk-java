@@ -21,6 +21,7 @@ import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.javaclient.Fluxzero;
 import io.fluxzero.javaclient.common.ClientUtils;
+import io.fluxzero.javaclient.modeling.Entity;
 import io.fluxzero.javaclient.modeling.EntityId;
 import io.fluxzero.javaclient.modeling.SearchParameters;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -74,6 +76,14 @@ public interface DocumentStore {
      * from annotations or fallback strategies.
      */
     default CompletableFuture<Void> index(@NonNull Object object) {
+        if (object instanceof Entity<?> entity) {
+            if (entity.isEmpty()) {
+                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
+                Objects.requireNonNull(entity.type(), "Entity Type must not be null");
+                return deleteDocument(entity.id(), entity.type());
+            }
+            return prepareIndex(object).index();
+        }
         if (object.getClass().isArray()) {
             if (!object.getClass().arrayType().isPrimitive()) {
                 object = Arrays.asList((Object[]) object);
@@ -97,6 +107,13 @@ public interface DocumentStore {
      * Indexes one or more objects into the specified collection.
      */
     default CompletableFuture<Void> index(@NonNull Object object, Object collection) {
+        if (object instanceof Entity<?> entity) {
+            if (entity.isEmpty()) {
+                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
+                return deleteDocument(entity.id(), collection);
+            }
+            return prepareIndex(object).collection(collection).index();
+        }
         if (object.getClass().isArray()) {
             if (!object.getClass().arrayType().isPrimitive()) {
                 object = Arrays.asList((Object[]) object);
@@ -120,6 +137,12 @@ public interface DocumentStore {
      * Indexes a single object with an explicitly provided ID and collection.
      */
     default CompletableFuture<Void> index(@NonNull Object object, Object id, Object collection) {
+        if (object instanceof Entity<?> entity) {
+            if (entity.isEmpty()) {
+                return deleteDocument(id, collection);
+            }
+            return prepareIndex(object).collection(collection).id(id).index();
+        }
         var searchParams = ofNullable(getSearchParameters(object.getClass()))
                 .orElse(SearchParameters.defaultSearchParameters);
         Instant begin = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);

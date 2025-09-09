@@ -39,7 +39,10 @@ import io.fluxzero.javaclient.Fluxzero;
 import io.fluxzero.javaclient.common.serialization.casting.Upcast;
 import io.fluxzero.javaclient.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.javaclient.configuration.DefaultFluxzero;
+import io.fluxzero.javaclient.modeling.Entity;
+import io.fluxzero.javaclient.modeling.EntityId;
 import io.fluxzero.javaclient.modeling.Id;
+import io.fluxzero.javaclient.modeling.Member;
 import io.fluxzero.javaclient.persisting.search.SearchHit;
 import io.fluxzero.javaclient.persisting.search.Searchable;
 import io.fluxzero.javaclient.test.Given;
@@ -105,6 +108,23 @@ public class SearchTest {
     }
 
     @Test
+    void storeEntity() {
+        @Value
+        class Parent {
+            @EntityId String parentId = "myParent";
+            @Member SomeSearchable child;
+        }
+
+        TestFixture testFixture = TestFixture.create();
+        Parent value = new Parent(new SomeSearchable("foo", Instant.now()));
+        Entity<Parent> entity = Fluxzero.asEntity(value);
+        testFixture.given(fc -> prepareIndex(entity.getEntity("foo").orElseThrow())
+                        .addMetadata("metafoo", "metabar").indexAndWait())
+                .whenSearching(SomeSearchable.class, s -> s.matchMetadata("parentId", "myParent"))
+                .expectResult(r -> r.size() == 1);
+    }
+
+    @Test
     void storeRandomBytes() {
         TestFixture.create().given(fc -> {
                     var document = new SerializedDocument("test", null, null, "uploads",
@@ -125,6 +145,7 @@ public class SearchTest {
     @Value
     @Searchable(timestampPath = "timestamp")
     static class SomeSearchable {
+        @EntityId
         String id;
         Instant timestamp;
     }

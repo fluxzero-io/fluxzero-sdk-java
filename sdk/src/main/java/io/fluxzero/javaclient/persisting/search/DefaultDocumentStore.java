@@ -34,6 +34,7 @@ import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.common.search.Document;
+import io.fluxzero.javaclient.modeling.Entity;
 import io.fluxzero.javaclient.persisting.search.client.SearchClient;
 import io.fluxzero.javaclient.tracking.handling.HasLocalHandlers;
 import lombok.AllArgsConstructor;
@@ -76,8 +77,9 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     public CompletableFuture<Void> index(@NonNull Object object, Object id, Object collection, Instant begin,
                                          Instant end, Metadata metadata, Guarantee guarantee, boolean ifNotExists) {
         try {
-            return client.index(List.of(serializer.toDocument(
-                                        object, id.toString(), determineCollection(collection), begin, end, metadata)),
+            object = object instanceof Entity<?> e ? e.get() : object;
+            return client.index(List.of(serializer.toDocument(object, id.toString(),
+                                                              determineCollection(collection), begin, end, metadata)),
                                 guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
@@ -90,7 +92,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                          String idPath, String beginPath,
                                          String endPath, Guarantee guarantee, boolean ifNotExists) {
         var documents = objects.stream().map(v -> serializer.toDocument(
-                        v, currentIdentityProvider().nextTechnicalId(), determineCollection(collection), null, null))
+                        v instanceof Entity<?> e ? e.get() : v,
+                        currentIdentityProvider().nextTechnicalId(), determineCollection(collection), null, null))
                 .map(SerializedDocument::deserializeDocument).map(d -> {
                     Document.DocumentBuilder builder = d.toBuilder();
                     if (StringUtils.hasText(idPath)) {
@@ -130,7 +133,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                              Function<? super T, Instant> endFunction, Guarantee guarantee,
                                              boolean ifNotExists) {
         var documents = objects.stream().map(v -> serializer.toDocument(
-                v, idFunction.apply(v).toString(), determineCollection(collection), beginFunction.apply(v),
+                v instanceof Entity<?> e ? e.get() : v, idFunction.apply(v).toString(),
+                determineCollection(collection), beginFunction.apply(v),
                 endFunction.apply(v))).collect(toList());
         try {
             return client.index(documents, guarantee, ifNotExists);
