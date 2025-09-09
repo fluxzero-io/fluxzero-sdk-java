@@ -85,7 +85,7 @@ jobs:
         id: fluxzero-jwt
         uses: fluxzero-io/fluxzero-jwt-action@v1
         with:
-          api-key: ${{ secrets.FLUX_HOST_API_KEY }}
+          api-key: ${{ secrets.FLUXZERO_API_KEY }}
 
       - name: Log in to Fluxzero Container Registry
         uses: docker/login-action@v3
