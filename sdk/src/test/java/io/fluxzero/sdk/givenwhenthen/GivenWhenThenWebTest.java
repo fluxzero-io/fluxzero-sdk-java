@@ -1,0 +1,219 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.givenwhenthen;
+
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.test.Then;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
+import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandlePost;
+import io.fluxzero.sdk.web.HandleWeb;
+import io.fluxzero.sdk.web.PathParam;
+import io.fluxzero.sdk.web.WebRequest;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
+import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
+import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class GivenWhenThenWebTest {
+
+    @Nested
+    class WhenTests {
+        private final TestFixture testFixture = TestFixture.create(new Handler());
+
+        @Test
+        void testGet() {
+            testFixture.whenWebRequest(WebRequest.builder().method(GET).url("/get").build()).expectResult("get");
+        }
+
+        @Test
+        void testPreviousResult_firstWhen() {
+            testFixture.whenApplying(fc -> testFixture.previousResult()).expectNoResult();
+        }
+
+        @Test
+        void testPreviousResult() {
+            testFixture.whenWebRequest(WebRequest.builder().method(GET).url("/get").build()).expectResult("get")
+                    .andThen().whenApplying(fc -> testFixture.previousResult()).expectResult("get");
+        }
+
+        @Test
+        void testPostString_substitutePlaceholders() {
+            testFixture.whenPost("/string", "body")
+                    .expectResult("val1")
+                    .andThen()
+                    .whenPost("/followUp/{var1}", null)
+                    .expectResult("val1val2")
+                    .andThen()
+                    .whenPost("/followUp/{var1}/{val2}", null)
+                    .expectResult("val1val1val2");
+        }
+
+        @Test
+        void testPostString_substituteMultiplePlaceholders() {
+            testFixture.whenPost("/string", "body")
+                    .asWebParameter("var1")
+                    .andThen()
+                    .whenPost("/string2", "body")
+                    .asWebParameter("var2")
+                    .andThen()
+                    .whenPost("/followUp/{var1}/{var2}")
+                    .expectResult("val1val2");
+        }
+
+        @Test
+        void testPostString_getResult() {
+            Then<Object> then = testFixture.whenPost("/string", "body");
+            assertEquals("val1", then.getResult());
+            assertEquals("val1", then.getResult(String.class));
+        }
+
+        @Test
+        void testPostForError() {
+            testFixture.whenPost("/error", "body")
+                    .expectExceptionalResult(IllegalCommandException.class)
+                    .expectWebResponse(r -> r.getStatus() == 403);
+        }
+
+        @Test
+        void testPostString_missingParam() {
+            assertThrows(IllegalStateException.class, () -> testFixture.whenPost("/followUp/{var1}", null));
+        }
+
+        @Test
+        void testPostString_missingParams() {
+            assertThrows(IllegalStateException.class, () -> testFixture.whenPost("/string", "body")
+                    .expectResult("val1")
+                    .andThen()
+                    .whenPost("/followUp/{var1}/{val2}", null)
+                    .expectResult("val1val2val3"));
+        }
+
+        private static class Handler {
+            @HandleWeb(value = "/get", method = GET)
+            String get() {
+                return "get";
+            }
+
+            @HandleWeb(value = "/string", method = POST)
+            String post() {
+                return "val1";
+            }
+
+            @HandleWeb(value = "/string2", method = POST)
+            String post2() {
+                return "val2";
+            }
+
+            @HandlePost("/error")
+            void postForError(String body) {
+                throw new IllegalCommandException("error: " + body);
+            }
+
+            @HandlePost("/followUp/{var1}")
+            String followUp(@PathParam String var1) {
+                return var1 + "val2";
+            }
+
+            @HandlePost("/followUp/{var1}/{var2}")
+            String followUp2(@PathParam String var1, @PathParam String var2) {
+                return var1 + var2;
+            }
+        }
+    }
+
+    @Nested
+    class GivenTests {
+        private final TestFixture testFixture = TestFixture.create(new Handler());
+
+        @Test
+        void testMultiGet() {
+            testFixture.givenPost("/string", "foo")
+                    .whenGet("get").expectResult("foo")
+                    .andThen()
+                    .whenGet("/get2").expectResult("foo")
+                    .andThen()
+                    .whenGet("/get3").expectResult("foo");
+        }
+
+        @Test
+        void testMultiMethod() {
+            testFixture.givenPost("/multi", "foo")
+                    .whenGet("get").expectResult("foo")
+                    .andThen()
+                    .givenPut("/multi", "foo2")
+                    .whenGet("/get2").expectResult("foo2")
+                    .andThen()
+                    .whenGet("/get3").expectResult("foo2");
+        }
+
+        private static class Handler {
+            private String posted;
+
+            @HandleGet("get")
+            String get() {
+                return posted;
+            }
+
+            @HandleGet(value = {"get2", "get3"})
+            String getOther() {
+                return posted;
+            }
+
+            @HandlePost("/string")
+            void post(String body) {
+                this.posted = body;
+            }
+
+            @HandleWeb(value = "/multi", method = {POST, PUT})
+            void multi(String body) {
+                this.posted = body;
+            }
+        }
+    }
+
+    @Nested
+    class AsyncTest {
+        private final TestFixture testFixture = TestFixture.createAsync(new Handler());
+
+        @Test
+        void testGet() {
+            testFixture.whenWebRequest(WebRequest.builder().method(GET).url("/get").build())
+                    .expectResult("get".getBytes());
+        }
+
+        @Test
+        void testPostString() {
+            testFixture.whenWebRequest(WebRequest.builder().method(POST).url("/string").payload("payload").build())
+                    .expectResult("payload".getBytes());
+        }
+
+        private class Handler {
+            @HandleGet("get")
+            String get() {
+                return "get";
+            }
+
+            @HandlePost("/string")
+            String post(String body) {
+                return body;
+            }
+        }
+    }
+}

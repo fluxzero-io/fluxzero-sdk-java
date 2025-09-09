@@ -15,8 +15,8 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.api.search.*;
-import io.fluxzero.javaclient.persisting.search.SearchHit;
-import io.fluxzero.javaclient.persisting.search.client.SearchClient;
+import io.fluxzero.sdk.persisting.search.SearchHit;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

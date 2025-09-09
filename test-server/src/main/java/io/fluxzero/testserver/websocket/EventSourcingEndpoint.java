@@ -23,8 +23,8 @@ import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
-import io.fluxzero.javaclient.persisting.eventsourcing.AggregateEventStream;
-import io.fluxzero.javaclient.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
+import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

@@ -34,7 +34,7 @@ import org.xnio.XnioWorker;
 import java.util.List;
 import java.util.function.Function;
 
-import static io.fluxzero.javaclient.common.ClientUtils.memoize;
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.undertow.servlet.Servlets.deployment;
 import static java.util.Optional.ofNullable;
 

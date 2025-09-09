@@ -21,7 +21,7 @@ import io.fluxzero.common.api.keyvalue.GetValueResult;
 import io.fluxzero.common.api.keyvalue.KeyValuePair;
 import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
-import io.fluxzero.javaclient.persisting.keyvalue.client.KeyValueClient;
+import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
 import lombok.AllArgsConstructor;
 
 import java.util.concurrent.CompletableFuture;

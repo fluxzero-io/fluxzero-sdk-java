@@ -15,8 +15,8 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
-import io.fluxzero.javaclient.configuration.client.Client;
-import io.fluxzero.javaclient.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -27,8 +27,8 @@ import java.net.InetSocketAddress;
 import java.util.Optional;
 
 import static io.fluxzero.common.ObjectUtils.newThreadName;
-import static io.fluxzero.javaclient.configuration.ApplicationProperties.getIntegerProperty;
-import static io.fluxzero.javaclient.configuration.ApplicationProperties.getProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 import static io.undertow.Handlers.path;
 import static io.undertow.util.Headers.CONTENT_TYPE;
 

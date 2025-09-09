@@ -14,11 +14,11 @@
 
 package io.fluxzero.testserver.testclient;
 
-import io.fluxzero.javaclient.Fluxzero;
-import io.fluxzero.javaclient.configuration.client.Client;
-import io.fluxzero.javaclient.configuration.client.WebSocketClient;
-import io.fluxzero.javaclient.configuration.spring.FluxzeroSpringConfig;
-import io.fluxzero.javaclient.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;

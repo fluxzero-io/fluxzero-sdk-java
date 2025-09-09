@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * The first time the supplier is called, the result is stored and reused for all subsequent calls until cleared.
  *
  * <p>Instances of this interface are typically created using:
- * {@code io.fluxzero.javaclient.common.ClientUtils#memoize(Supplier)}
+ * {@code io.fluxzero.sdk.common.ClientUtils#memoize(Supplier)}
  *
  * <pre>{@code
  * MemoizingSupplier<Config> configSupplier = ClientUtils.memoize(this::loadConfig);

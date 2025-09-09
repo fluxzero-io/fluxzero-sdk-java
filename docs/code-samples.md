@@ -51,12 +51,12 @@ illustrative use cases.
 
 - **Command interfaces**: Define a common interface per aggregate or module to group related commands and manage
   dispatch. Typically annotate it with `@TrackSelf` and `@Consumer(name="...")` from
-  `io.fluxzero.javaclient.tracking`.
+  `io.fluxzero.sdk.tracking`.
   ```java
-  import io.fluxzero.javaclient.Fluxzero;
-  import io.fluxzero.javaclient.tracking.Consumer;
-  import io.fluxzero.javaclient.tracking.TrackSelf;
-  import io.fluxzero.javaclient.tracking.handling.HandleCommand;
+  import io.fluxzero.sdk.Fluxzero;
+  import io.fluxzero.sdk.tracking.Consumer;
+  import io.fluxzero.sdk.tracking.TrackSelf;
+  import io.fluxzero.sdk.tracking.handling.HandleCommand;
   import jakarta.validation.constraints.NotNull;
 
   @TrackSelf    // asynchronously track commands after dispatch

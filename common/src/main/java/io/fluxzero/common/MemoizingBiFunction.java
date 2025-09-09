@@ -25,7 +25,7 @@ import java.util.function.Function;
  * A {@link BiFunction} that memoizes (caches) its results based on a pair of input arguments. The result is stored per
  * distinct (T, U) key pair and reused for identical subsequent calls.
  *
- * <p>Use {@code io.fluxzero.javaclient.common.ClientUtils#memoize(BiFunction)} to create an instance.
+ * <p>Use {@code io.fluxzero.sdk.common.ClientUtils#memoize(BiFunction)} to create an instance.
  *
  * <pre>{@code
  * MemoizingBiFunction<String, Integer, String> repeater =

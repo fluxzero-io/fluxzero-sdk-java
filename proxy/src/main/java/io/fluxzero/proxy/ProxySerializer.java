@@ -17,10 +17,10 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedObject;
-import io.fluxzero.javaclient.common.serialization.DeserializingObject;
-import io.fluxzero.javaclient.common.serialization.Serializer;
-import io.fluxzero.javaclient.common.serialization.UnknownTypeStrategy;
-import io.fluxzero.javaclient.tracking.handling.authentication.User;
+import io.fluxzero.sdk.common.serialization.DeserializingObject;
+import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import java.lang.reflect.Type;
 import java.util.stream.Stream;

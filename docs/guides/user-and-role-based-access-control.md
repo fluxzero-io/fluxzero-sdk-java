@@ -223,7 +223,7 @@ Service Provider mechanism.
 Create the file:
 
 ```
-src/main/resources/META-INF/services/io.fluxzero.javaclient.tracking.handling.authentication.UserProvider
+src/main/resources/META-INF/services/io.fluxzero.sdk.tracking.handling.authentication.UserProvider
 ```
 
 List your implementation classes (one per line) in order of preference:

@@ -14,7 +14,7 @@
 
 package io.fluxzero.proxy;
 
-import io.fluxzero.javaclient.web.WebRequest;
+import io.fluxzero.sdk.web.WebRequest;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

@@ -1,0 +1,106 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.persisting.search;
+
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NonNull;
+import lombok.experimental.Accessors;
+
+import java.time.Instant;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
+import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
+import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
+import static io.fluxzero.sdk.modeling.SearchParameters.defaultSearchParameters;
+import static java.util.Optional.ofNullable;
+
+/**
+ * Default implementation of the {@link IndexOperation} interface.
+ * <p>
+ * This class provides a mutable, builder-style implementation for preparing and executing document indexing operations
+ * using a {@link DocumentStore}.
+ *
+ * <p>Instances of this class are typically created by calling {@link DocumentStore#prepareIndex(Object)}. Upon
+ * construction, the document ID, collection name, and timestamps are automatically extracted from the object's class
+ * using reflection.
+ *
+ * @see DocumentStore
+ * @see IndexOperation
+ */
+@Data
+@Accessors(chain = true, fluent = true)
+@AllArgsConstructor
+public class DefaultIndexOperation implements IndexOperation {
+
+    final transient DocumentStore documentStore;
+    final Object value;
+
+    /**
+     * Constructs a new {@code DefaultIndexOperation} instance for managing document indexing.
+     *
+     * @param documentStore the {@link DocumentStore} used to store and manage the index operations
+     * @param object        the object to be indexed, which will be analyzed and converted for storage
+     */
+    public DefaultIndexOperation(DocumentStore documentStore, @NonNull Object object) {
+        Entity<?> entity = object instanceof Entity<?> e ? e : null;
+        if (entity != null) {
+            Objects.requireNonNull(entity.get(), "Entity value cannot be null");
+            object = entity.get();
+        }
+        var searchParams = ofNullable(getSearchParameters(object.getClass())).orElse(defaultSearchParameters);
+        this.documentStore = documentStore;
+        collection = ofNullable(searchParams.getCollection()).orElseGet(object.getClass()::getSimpleName);
+        id = getAnnotatedPropertyValue(object, EntityId.class).map(Object::toString)
+                .orElseGet(() -> currentIdentityProvider().nextTechnicalId());
+        this.value = object;
+        start = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);
+        end = ReflectionUtils.hasProperty(searchParams.getEndPath(), object)
+                ? ReflectionUtils.<Instant>readProperty(searchParams.getEndPath(), object).orElse(null) : start;
+        while (entity != null) {
+            var parent = entity.parent();
+            if (parent != null && parent.isPresent()) {
+                addMetadata(parent.idProperty(), parent.id().toString());
+            }
+            entity = parent;
+        }
+    }
+
+    @NonNull
+    Object collection;
+    @NonNull
+    Object id;
+    @NonNull
+    Metadata metadata = Metadata.empty();
+    Instant start, end;
+    boolean ifNotExists;
+
+    @Override
+    public CompletableFuture<Void> index(Guarantee guarantee) {
+        return documentStore.index(value, id, collection, start, end, metadata, guarantee, ifNotExists);
+    }
+
+    @Override
+    public IndexOperation copy() {
+        return new DefaultIndexOperation(documentStore, value, collection, id, metadata, start, end, ifNotExists);
+    }
+}

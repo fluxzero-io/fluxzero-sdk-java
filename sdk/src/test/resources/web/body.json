@@ -1,4 +1,4 @@
 {
-  "@class": "io.fluxzero.javaclient.web.HandleWebTest$JsonResponse",
+  "@class": "io.fluxzero.sdk.web.HandleWebTest$JsonResponse",
   "userId": "testUser"
 }

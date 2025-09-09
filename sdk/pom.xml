@@ -127,7 +127,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>io.fluxzero.javaclient</Automatic-Module-Name>
+                            <Automatic-Module-Name>io.fluxzero.sdk</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>

@@ -21,10 +21,10 @@ import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.tracking.MessageStore;
-import io.fluxzero.javaclient.Fluxzero;
-import io.fluxzero.javaclient.scheduling.client.InMemoryScheduleStore;
-import io.fluxzero.javaclient.scheduling.client.SchedulingClient;
-import io.fluxzero.javaclient.tracking.IndexUtils;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore;
+import io.fluxzero.sdk.scheduling.client.SchedulingClient;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import lombok.Value;
 import lombok.experimental.Delegate;
 
@@ -33,7 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import static io.fluxzero.javaclient.tracking.IndexUtils.indexForCurrentTime;
+import static io.fluxzero.sdk.tracking.IndexUtils.indexForCurrentTime;
 
 public class TestServerScheduleStore implements MessageStore, SchedulingClient {
     private final TaskScheduler scheduler = new InMemoryTaskScheduler();

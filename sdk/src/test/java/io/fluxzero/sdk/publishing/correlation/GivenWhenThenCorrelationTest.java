@@ -1,0 +1,105 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.publishing.correlation;
+
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import org.junit.jupiter.api.Test;
+
+import java.util.function.Predicate;
+
+import static java.lang.Long.parseLong;
+
+public class GivenWhenThenCorrelationTest {
+    private static final String aggregateId = "test";
+    private final TestFixture testFixture = TestFixture.createAsync(new Handler());
+
+    @Test
+    void testDefaultCorrelationData() {
+        testFixture.whenCommand(new CreateModel())
+                .expectEvents((Predicate<Message>) e -> {
+                    Metadata m = e.getMetadata();
+                    return m.get("$consumer").equals(m.get("$clientName") + "_COMMAND")
+                           && parseLong(m.get("$correlationId")) == parseLong(m.get("$traceId"))
+                           && m.get("$trigger").equals(CreateModel.class.getName());
+                });
+    }
+
+    @Test
+    void testDefaultCorrelationDataAfterTwoSteps() {
+        testFixture.whenCommand(new CreateModelInTwoSteps())
+                .expectEvents((Predicate<Message>) e -> {
+                    Metadata m = e.getMetadata();
+                    return m.get("$consumer").equals(m.get("$clientName") + "_COMMAND")
+                           && parseLong(m.get("$correlationId")) > parseLong(m.get("$traceId"))
+                           && m.get("$trigger").equals(CreateModel.class.getName());
+                });
+    }
+
+    @Test
+    void testCustomTrace() {
+        testFixture.whenCommand(new Message(new CreateModel(), Metadata.empty().withTrace("userName", "myself")))
+                .expectEvents((Predicate<Message>) e -> e.getMetadata().get("$trace.userName").equals("myself"));
+    }
+
+    @Test
+    void testCustomTraceInTwoSteps() {
+        testFixture.whenCommand(new Message(new CreateModelInTwoSteps(), Metadata.empty().withTrace("userName", "myself")))
+                .expectEvents((Predicate<Message>) e -> e.getMetadata().get("$trace.userName").equals("myself"));
+    }
+
+    static class Handler {
+        @HandleCommand
+        void handle(Object command) {
+            Fluxzero.loadAggregate(aggregateId, TestModel.class).assertLegal(command).apply(command);
+        }
+
+        @HandleCommand
+        void handle(CreateModelInTwoSteps command) {
+            Fluxzero.sendAndForgetCommand(new CreateModel());
+        }
+
+        @HandleQuery
+        TestModel handle(GetModel query) {
+            return Fluxzero.loadAggregate(aggregateId, TestModel.class).get();
+        }
+
+    }
+
+    @Aggregate
+    record TestModel() {
+        @Apply
+        static TestModel handle(CreateModel event) {
+            return new TestModel();
+        }
+    }
+
+    record CreateModel() {
+    }
+
+    record CreateModelInTwoSteps() {
+    }
+
+
+    record GetModel() {
+    }
+
+}

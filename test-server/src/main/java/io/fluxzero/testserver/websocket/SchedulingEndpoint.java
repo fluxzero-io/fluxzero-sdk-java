@@ -19,7 +19,7 @@ import io.fluxzero.common.api.scheduling.GetSchedule;
 import io.fluxzero.common.api.scheduling.GetScheduleResult;
 import io.fluxzero.common.api.scheduling.Schedule;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
-import io.fluxzero.javaclient.scheduling.client.SchedulingClient;
+import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import lombok.AllArgsConstructor;
 
 import java.util.concurrent.CompletableFuture;

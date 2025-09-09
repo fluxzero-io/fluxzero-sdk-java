@@ -24,7 +24,7 @@ import java.util.function.Function;
  * it is stored and returned for all subsequent invocations with the same key until it is explicitly cleared or evicted.
  *
  * <p>Instances of this interface are typically created using static utility methods in
- * {@code io.fluxzero.javaclient.common.ClientUtils}, e.g.:
+ * {@code io.fluxzero.sdk.common.ClientUtils}, e.g.:
  *
  * <pre>{@code
  * MemoizingFunction<String, Integer> lengthCache =

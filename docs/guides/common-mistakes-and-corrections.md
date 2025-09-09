@@ -6,21 +6,21 @@ This document captures common mistakes when implementing FluxZero applications a
 
 ### ❌ Wrong Import
 ```kotlin
-import io.fluxzero.javaclient.modeling.HandleCommand  // WRONG!
-import io.fluxzero.javaclient.modeling.HandleQuery    // WRONG!
+import io.fluxzero.sdk.modeling.HandleCommand  // WRONG!
+import io.fluxzero.sdk.modeling.HandleQuery    // WRONG!
 ```
 
 ### ✅ Correct Import
 ```kotlin
-import io.fluxzero.javaclient.tracking.handling.HandleCommand  // CORRECT
-import io.fluxzero.javaclient.tracking.handling.HandleQuery    // CORRECT
+import io.fluxzero.sdk.tracking.handling.HandleCommand  // CORRECT
+import io.fluxzero.sdk.tracking.handling.HandleQuery    // CORRECT
 ```
 
 ## Exception Handling
 
 ### ❌ Wrong Exception Classes
 ```kotlin
-import io.fluxzero.javaclient.persisting.search.IllegalCommandException  // WRONG!
+import io.fluxzero.sdk.persisting.search.IllegalCommandException  // WRONG!
 throw IllegalCommandException("Some error")  // WRONG!
 ```
 
@@ -381,7 +381,7 @@ All commands and queries should implement the `Request<T>` interface to define t
 - **Consistency**: Standardized approach across the application
 
 ```kotlin
-import io.fluxzero.javaclient.tracking.handling.Request
+import io.fluxzero.sdk.tracking.handling.Request
 
 // Command with return type
 data class CreateUser(
@@ -588,20 +588,20 @@ When implementing FluxZero handlers, always use these imports:
 
 ```kotlin
 // For handler annotations
-import io.fluxzero.javaclient.tracking.handling.HandleCommand
-import io.fluxzero.javaclient.tracking.handling.HandleQuery
+import io.fluxzero.sdk.tracking.handling.HandleCommand
+import io.fluxzero.sdk.tracking.handling.HandleQuery
 
 // For Request interface (BEST PRACTICE)
-import io.fluxzero.javaclient.tracking.handling.Request
+import io.fluxzero.sdk.tracking.handling.Request
 
 // For domain modeling
-import io.fluxzero.javaclient.modeling.Aggregate
-import io.fluxzero.javaclient.modeling.EntityId
-import io.fluxzero.javaclient.modeling.Member
-import io.fluxzero.javaclient.modeling.Entity
+import io.fluxzero.sdk.modeling.Aggregate
+import io.fluxzero.sdk.modeling.EntityId
+import io.fluxzero.sdk.modeling.Member
+import io.fluxzero.sdk.modeling.Entity
 
 // For Fluxzero client operations
-import io.fluxzero.javaclient.Fluxzero
+import io.fluxzero.sdk.Fluxzero
 
 // Standard exceptions (no special Fluxzero exceptions needed)
 // Use: IllegalArgumentException, IllegalStateException, UnsupportedOperationException

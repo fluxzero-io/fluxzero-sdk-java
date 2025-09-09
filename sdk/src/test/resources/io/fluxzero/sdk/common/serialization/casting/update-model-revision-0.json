@@ -1,0 +1,10 @@
+{
+  "@class": "io.fluxzero.common.api.Data",
+  "value": {
+    "@class": "com.fasterxml.jackson.databind.JsonNode",
+    "one": "one",
+    "two": "two"
+  },
+  "type": "io.fluxzero.sdk.common.serialization.casting.GivenWhenThenUpcasterChainTest$UpdateModel",
+  "revision": 0
+}

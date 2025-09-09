@@ -13,4 +13,4 @@
 #
 
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-io.fluxzero.javaclient.configuration.spring.FluxzeroSpringConfig
+io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig
