@@ -32,42 +32,17 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 
-      # Auto-bump when no version input (push or manual dispatch without version)
       - name: Bump version and push tag
-        if: ${{ !github.event.inputs.version || github.event.inputs.version == '' }}
         uses: mathieudutour/github-tag-action@v6.2
-        id: tag_auto
+        id: tag_version
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: minor
           tag_prefix: ""
 
-      # Use provided version when input is set
-      - name: Use provided version and push tag
-        if: ${{ github.event.inputs.version && github.event.inputs.version != '' }}
-        uses: mathieudutour/github-tag-action@v6.2
-        id: tag_manual
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release_branches: .*
-          custom_tag: ${{ github.event.inputs.version }}
-          tag_prefix: ""
-
-      - name: Set resolved version
-        id: set_version
-        run: |
-          VERSION="${{ steps.tag_manual.outputs.new_version || steps.tag_auto.outputs.new_version }}"
-          CHANGELOG="${{ steps.tag_manual.outputs.changelog || steps.tag_auto.outputs.changelog }}"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          {
-            echo "CHANGELOG<<EOF"
-            echo "$CHANGELOG"
-            echo "EOF"
-          } >> $GITHUB_ENV
-          echo "Final version is: $VERSION"
-
       - name: Set maven version
-        run: mvn -B versions:set -DnewVersion=${{ env.VERSION }}
+        run: |
+          mvn -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
 
       - name: Deploy to Maven Central
         run: mvn -P deploy -B deploy
@@ -99,9 +74,9 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.VERSION }}
-          name: Fluxzero ${{ env.VERSION }}
-          body: ${{ env.CHANGELOG }}
+          tag_name: ${{ steps.tag_version.outputs.new_version }}
+          name: Fluxzero ${{ steps.tag_version.outputs.new_version }}
+          body: ${{ steps.tag_version.outputs.changelog }}
 
       - name: Log in to Github Container Registry
         uses: docker/login-action@v3
@@ -129,7 +104,7 @@ jobs:
           context: test-server/.
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/fluxzero-test:${{ env.VERSION }}
+            ghcr.io/${{ github.repository }}/fluxzero-test:${{ steps.tag_version.outputs.new_version }}
             ghcr.io/${{ github.repository }}/fluxzero-test:latest
 
       - name: Build and push proxy docker
@@ -138,7 +113,7 @@ jobs:
           context: proxy/.
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/fluxzero-proxy:${{ env.VERSION }}
+            ghcr.io/${{ github.repository }}/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
             ghcr.io/${{ github.repository }}/fluxzero-proxy:latest
-            registry.flux.host/fluxzero-proxy:${{ env.VERSION }}
+            registry.flux.host/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
             registry.flux.host/fluxzero-proxy:latest
