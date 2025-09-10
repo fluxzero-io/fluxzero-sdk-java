@@ -1,5 +1,6 @@
 package io.fluxzero.sdk.scheduling;
 
+import io.fluxzero.sdk.modeling.Id;
 import lombok.Value;
 import lombok.experimental.NonFinal;
 
@@ -16,9 +17,9 @@ import lombok.experimental.NonFinal;
  * <p>
  * ScheduleIds can be used as-is or extended to form strongly typed schedule ids:
  * <pre>{@code
- * public class TaskId extends ScheduleId {
- *     public TaskId(String id) {
- *         super("task", id);
+ * public class TaskExpiryId extends ScheduleId {
+ *     public TaskExpiryId(TaskId taskId) {
+ *         super("task-expiry", taskId);
  *     }
  * }
  * }</pre>
@@ -47,6 +48,21 @@ public class ScheduleId {
      * It is expected to be non-null and non-empty to provide meaningful schedule identification.
      */
     String id;
+
+    /**
+     * Constructs a new ScheduleId object using the specified type and identifier.
+     *
+     * @param type the type or category associated with the schedule. This parameter is used to distinguish schedules
+     *             based on their broader classifications (e.g., "task", "booking"). It must be a non-null string and
+     *             should provide context about the nature of the schedule.
+     * @param id   the unique identifier for the schedule. This parameter is used to uniquely identify a specific schedule
+     *             instance within the specified type. If the provided id is an instance of the {@code Id} class, its
+     *             functional ID is extracted, otherwise the {@code toString()} value of the id is used.
+     */
+    public ScheduleId(String type, Object id) {
+        this.type = type;
+        this.id = id instanceof Id<?> i ? i.getFunctionalId() : id.toString() ;
+    }
 
     @Override
     public String toString() {
