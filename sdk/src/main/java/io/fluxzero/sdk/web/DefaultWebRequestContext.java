@@ -32,10 +32,10 @@ import io.jooby.Router;
 import io.jooby.Sender;
 import io.jooby.ServerSentEmitter;
 import io.jooby.StatusCode;
-import io.jooby.ValueConverter;
-import io.jooby.ValueNode;
+import io.jooby.output.Output;
 import io.jooby.WebSocket;
-import io.jooby.buffer.DataBuffer;
+import io.jooby.value.ConversionHint;
+import io.jooby.value.ValueFactory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -50,6 +50,8 @@ import org.jetbrains.annotations.Nullable;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -171,11 +173,11 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
                     .filter(p -> p >= 0).map(p -> ":" + p).orElse("")).orElse(null);
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    QueryString query = QueryString.create(this, getUri().getQuery());
+    QueryString query = QueryString.create(getValueFactory(), getUri().getQuery());
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    ValueNode header = io.jooby.Value.headers(this, (Map) WebRequest.getHeaders(metadata));
+    io.jooby.value.Value header = io.jooby.value.Value.headers(getValueFactory(), (Map) WebRequest.getHeaders(metadata));
     @Getter(lazy = true)
     @Accessors(fluent = true)
     Map<String, String> cookieMap = WebRequest.getHeaders(metadata).getOrDefault("Cookie", Collections.emptyList())
@@ -205,7 +207,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     Body body = Body.of(this, bodySupplier.get());
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    Formdata form = Formdata.create(this);
+    Formdata form = Formdata.create(getValueFactory());
 
     DefaultWebRequestContext(DeserializingMessage message) {
         if (message.getMessageType() != MessageType.WEBREQUEST) {
@@ -396,7 +398,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
 
     @NotNull
     @Override
-    public PrintWriter responseWriter(@NotNull MediaType contentType, @Nullable Charset charset) {
+    public PrintWriter responseWriter(@NotNull MediaType contentType) {
         throw new UnsupportedOperationException();
     }
 
@@ -438,7 +440,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
 
     @NotNull
     @Override
-    public Context send(@NotNull DataBuffer data) {
+    public Context send(@NotNull Output output) {
         return this;
     }
 
@@ -492,7 +494,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
 
     @NotNull
     @Override
-    public Context setResponseType(@NotNull MediaType contentType, @Nullable Charset charset) {
+    public Context setResponseType(@NotNull MediaType contentType) {
         return this;
     }
 
@@ -517,36 +519,35 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
         private final Router delegate = WebUtilsInternal.router();
 
         public ConvertingRouter() {
-            delegate.converter(new DefaultConverter());
+            delegate.setValueFactory(new DefaultValueFactory());
         }
     }
 
-    protected static class DefaultConverter implements ValueConverter<io.jooby.Value> {
-        @Override
-        public boolean supports(@NotNull Class type) {
-            return true;
-        }
-
+    protected static class DefaultValueFactory extends ValueFactory {
         @SuppressWarnings("unchecked")
         @Override
-        public Object convert(@NotNull io.jooby.Value value, @NotNull Class type) {
+        public Object convert(@NotNull Type type, @NotNull io.jooby.value.Value value, @NotNull ConversionHint ignored) {
             return new Wrapper<>(value.valueOrNull()).get(type);
         }
     }
 
-    @Value
+    @lombok.Value
     protected static class Wrapper<T> {
         T value;
 
-        <V> V get(Class<V> type) {
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        <V> V get(Type type) {
             if (value == null) {
                 return null;
             }
-            if (type.isInstance(value)) {
-                return type.cast(value);
+            if ((type instanceof Class c)) {
+                if (c.isInstance(value)) {
+                    return (V) c.cast(value);
+                }
+                Wrapper<V> result = JsonUtils.convertValue(this, tf -> tf.constructParametricType(Wrapper.class, c));
+                return result.value;
             }
-            Wrapper<V> result = JsonUtils.convertValue(this, tf -> tf.constructParametricType(Wrapper.class, type));
-            return result.value;
+            throw new IllegalArgumentException(String.format("Unexpected type: %s", type));
         }
     }
 }
