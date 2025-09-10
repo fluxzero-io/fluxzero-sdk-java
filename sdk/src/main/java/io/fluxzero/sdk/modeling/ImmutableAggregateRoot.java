@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -74,6 +75,7 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonIgnore
     transient Entity<T> previous;
 
     @ToString.Exclude
@@ -81,6 +83,7 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
     @Getter(lazy = true)
     Set<Relationship> relationships = super.relationships();
 
+    @JsonIgnore
     transient EventStore eventStore;
 
     public static <T> ImmutableAggregateRoot<T> from(Entity<T> a, EntityHelper entityHelper, Serializer serializer,

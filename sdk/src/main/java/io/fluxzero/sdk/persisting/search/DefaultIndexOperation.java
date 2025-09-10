@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -52,6 +53,7 @@ import static java.util.Optional.ofNullable;
 @AllArgsConstructor
 public class DefaultIndexOperation implements IndexOperation {
 
+    @JsonIgnore
     final transient DocumentStore documentStore;
     final Object value;
 

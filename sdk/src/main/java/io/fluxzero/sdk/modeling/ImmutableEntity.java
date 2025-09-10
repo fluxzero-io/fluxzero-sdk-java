@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -112,18 +113,22 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonIgnore
     transient Entity<?> parent;
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonIgnore
     transient AnnotatedEntityHolder holder;
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonIgnore
     transient EntityHelper entityHelper;
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonIgnore
     transient Serializer serializer;
 
     @ToString.Exclude
