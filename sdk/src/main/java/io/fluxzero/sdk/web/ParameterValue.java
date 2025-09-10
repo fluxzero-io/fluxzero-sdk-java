@@ -17,13 +17,13 @@ package io.fluxzero.sdk.web;
 import lombok.Value;
 
 /**
- * Wrapper around a {@link io.jooby.Value} representing a resolved parameter value in a web request.
+ * Wrapper around a {@link io.jooby.value.Value} representing a resolved parameter value in a web request.
  * <p>
  * This class is used internally by Fluxzero to abstract over raw parameter values retrieved
  * from different parts of a {@link WebRequestContext} (such as query strings, form data, path variables,
  * headers, or cookies).
  *
- * <p>The value is backed by Jooby’s {@link io.jooby.Value} type, which provides flexible conversion and
+ * <p>The value is backed by Jooby’s {@link io.jooby.value.Value} type, which provides flexible conversion and
  * null-safe access to typed values.
  *
  * <h2>Usage</h2>
@@ -36,15 +36,15 @@ import lombok.Value;
  * These are used during web handler method resolution to supply method argument values.
  *
  * @see WebRequestContext
- * @see io.jooby.Value
+ * @see io.jooby.value.Value
  */
 @Value
 public class ParameterValue {
 
     /**
-     * The underlying Jooby {@link io.jooby.Value} representing the parameter.
+     * The underlying Jooby {@link io.jooby.value.Value} representing the parameter.
      */
-    io.jooby.Value value;
+    io.jooby.value.Value value;
 
     /**
      * Converts the underlying value to the specified target type.
