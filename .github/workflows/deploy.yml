@@ -124,7 +124,7 @@ jobs:
           password: ${{ steps.fluxzero-jwt.outputs.token }}
 
       - name: Build and push test server docker
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: test-server/.
           push: true
@@ -133,7 +133,7 @@ jobs:
             ghcr.io/${{ github.repository }}/fluxzero-test:latest
 
       - name: Build and push proxy docker
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: proxy/.
           push: true
