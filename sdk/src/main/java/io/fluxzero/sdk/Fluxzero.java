@@ -489,7 +489,7 @@ public interface Fluxzero extends AutoCloseable {
      * an instance of a {@link Message} in which case it will be scheduled as is. Otherwise, the schedule is published
      * using the passed value as payload without additional metadata.
      */
-    static void schedule(Object schedule, String scheduleId, Instant deadline) {
+    static void schedule(Object schedule, Object scheduleId, Instant deadline) {
         get().messageScheduler().schedule(schedule, scheduleId, deadline);
     }
 

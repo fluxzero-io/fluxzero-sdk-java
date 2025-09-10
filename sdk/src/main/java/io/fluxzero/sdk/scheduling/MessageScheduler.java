@@ -18,7 +18,9 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.time.Duration;
@@ -56,7 +58,8 @@ import static io.micrometer.common.util.StringUtils.isBlank;
  * </ul>
  *
  * <h2>Schedule identity</h2>
- * <p>All schedules are identified by a {@code scheduleId}. By default, one is generated unless explicitly passed.
+ * <p>All schedules are identified by a {@code scheduleId}. It is recommended to always pass a scheduleId. However,
+ * if one is not given, it is obtained from the toString() value of the Schedule payload.
  * If a schedule with the same ID already exists:
  * <ul>
  *   <li>It is replaced by default.</li>
@@ -94,10 +97,10 @@ public interface MessageScheduler {
      * {@link Guarantee#SENT} guarantee.
      *
      * @param value      the payload to schedule periodically
-     * @param scheduleId a custom ID or null to generate one
+     * @param scheduleId a custom ID or null to use value#toString
      * @return the effective schedule ID
      */
-    default String schedulePeriodic(Object value, String scheduleId) {
+    default String schedulePeriodic(@NonNull Object value, Object scheduleId) {
         var periodic = ReflectionUtils.<Periodic>getTypeAnnotation(
                 value instanceof Message m ? m.getPayloadClass() : value.getClass(), Periodic.class);
         if (periodic == null) {
@@ -106,34 +109,38 @@ public interface MessageScheduler {
         Instant nextDeadline = Optional.ofNullable(nextDeadline(periodic.cron(), periodic.timeZone())).orElseGet(
                 () -> Fluxzero.currentTime().plusMillis(periodic.timeUnit().toMillis(
                         periodic.initialDelay() < 0 ? periodic.delay() : periodic.initialDelay())));
-        schedule(value,
-                 Optional.ofNullable(scheduleId).or(() -> Optional.of(periodic.scheduleId()).filter(s -> !s.isBlank()))
-                         .orElseGet(Fluxzero::generateId),
-                 nextDeadline);
-        return scheduleId;
+        String effectiveScheduleId = Optional.ofNullable(scheduleId).map(Object::toString)
+                .or(() -> Optional.of(periodic.scheduleId()).filter(s -> !s.isBlank()))
+                .orElseGet(() -> value instanceof HasMessage m ? m.getPayload().toString() : value.toString());
+        schedule(value, effectiveScheduleId, nextDeadline);
+        return effectiveScheduleId;
     }
 
     /**
      * Schedule a message to be triggered at the given deadline, using the {@link Guarantee#SENT} guarantee.
+     * <p>
+     * The schedule ID will be determined by calling schedule#toString.
      *
      * @param schedule the message to schedule
      * @param deadline the absolute time to trigger the message
-     * @return the generated schedule ID
+     * @return the schedule ID
      */
-    default String schedule(Object schedule, Instant deadline) {
-        String scheduleId = Fluxzero.currentIdentityProvider().nextTechnicalId();
+    default String schedule(@NonNull Object schedule, Instant deadline) {
+        String scheduleId = schedule.toString();
         schedule(schedule, scheduleId, deadline);
         return scheduleId;
     }
 
     /**
      * Schedule a message using a delay from the current time, using the {@link Guarantee#SENT} guarantee.
+     * <p>
+     * The schedule ID will be determined by calling schedule#toString.
      *
      * @param schedule the message to schedule
      * @param delay    delay duration until the schedule triggers
-     * @return the generated schedule ID
+     * @return the schedule ID
      */
-    default String schedule(Object schedule, Duration delay) {
+    default String schedule(@NonNull Object schedule, Duration delay) {
         return schedule(schedule, currentTime().plus(delay));
     }
 
@@ -144,7 +151,7 @@ public interface MessageScheduler {
      * @param scheduleId the unique ID of the schedule
      * @param delay      the delay until triggering
      */
-    default void schedule(Object schedule, String scheduleId, Duration delay) {
+    default void schedule(@NonNull Object schedule, Object scheduleId, Duration delay) {
         schedule(schedule, scheduleId, currentTime().plus(delay));
     }
 
@@ -156,7 +163,7 @@ public interface MessageScheduler {
      * @param scheduleId      the unique schedule ID
      * @param deadline        the deadline for triggering the schedule
      */
-    default void schedule(Object schedulePayload, Metadata metadata, String scheduleId, Instant deadline) {
+    default void schedule(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId, Instant deadline) {
         schedule(new Message(schedulePayload, metadata), scheduleId, deadline);
     }
 
@@ -168,7 +175,7 @@ public interface MessageScheduler {
      * @param scheduleId      the schedule ID
      * @param delay           delay from now until triggering
      */
-    default void schedule(Object schedulePayload, Metadata metadata, String scheduleId, Duration delay) {
+    default void schedule(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId, Duration delay) {
         schedule(new Message(schedulePayload, metadata), scheduleId, delay);
     }
 
@@ -179,12 +186,14 @@ public interface MessageScheduler {
      * @param scheduleId unique schedule ID
      * @param deadline   the absolute time at which the schedule should trigger
      */
-    default void schedule(Object schedule, String scheduleId, Instant deadline) {
+    default void schedule(@NonNull Object schedule, Object scheduleId, Instant deadline) {
+        String effectiveScheduleId = Optional.ofNullable(scheduleId).map(Object::toString)
+                .orElseGet(() -> schedule instanceof HasMessage m ? m.getPayload().toString() : schedule.toString());
         if (schedule instanceof Message message) {
             schedule(new Schedule(message.getPayload(), message.getMetadata(), message.getMessageId(),
-                                  message.getTimestamp(), scheduleId, deadline));
+                                  message.getTimestamp(), effectiveScheduleId, deadline));
         } else {
-            schedule(new Schedule(schedule, scheduleId, deadline));
+            schedule(new Schedule(schedule, effectiveScheduleId, deadline));
         }
     }
 
@@ -194,7 +203,7 @@ public interface MessageScheduler {
      *
      * @param message the message to schedule
      */
-    default void schedule(Schedule message) {
+    default void schedule(@NonNull Schedule message) {
         schedule(message, false);
     }
 
@@ -205,7 +214,7 @@ public interface MessageScheduler {
      * @param ifAbsent whether to skip scheduling if an existing schedule is present
      */
     @SneakyThrows
-    default void schedule(Schedule message, boolean ifAbsent) {
+    default void schedule(@NonNull Schedule message, boolean ifAbsent) {
         try {
             schedule(message, ifAbsent, Guarantee.SENT).get();
         } catch (Throwable e) {
@@ -228,13 +237,15 @@ public interface MessageScheduler {
     /**
      * Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is
      * dispatched as a command, using the {@link Guarantee#SENT} guarantee.
+     * <p>
+     * The schedule ID will be determined by calling schedule#toString.
      *
      * @param schedule the command to schedule
      * @param deadline the deadline for execution
-     * @return the generated schedule ID
+     * @return the schedule ID
      */
-    default String scheduleCommand(Object schedule, Instant deadline) {
-        String scheduleId = Fluxzero.currentIdentityProvider().nextTechnicalId();
+    default String scheduleCommand(@NonNull Object schedule, Instant deadline) {
+        String scheduleId = schedule.toString();
         scheduleCommand(schedule, scheduleId, deadline);
         return scheduleId;
     }
@@ -246,7 +257,7 @@ public interface MessageScheduler {
      * @param delay    delay until execution
      * @return the schedule ID
      */
-    default String scheduleCommand(Object schedule, Duration delay) {
+    default String scheduleCommand(@NonNull Object schedule, Duration delay) {
         return scheduleCommand(schedule, currentTime().plus(delay));
     }
 
@@ -257,7 +268,7 @@ public interface MessageScheduler {
      * @param scheduleId schedule ID
      * @param delay      delay until execution
      */
-    default void scheduleCommand(Object schedule, String scheduleId, Duration delay) {
+    default void scheduleCommand(@NonNull Object schedule, Object scheduleId, Duration delay) {
         scheduleCommand(schedule, scheduleId, currentTime().plus(delay));
     }
 
@@ -269,7 +280,8 @@ public interface MessageScheduler {
      * @param scheduleId      schedule ID
      * @param deadline        execution deadline
      */
-    default void scheduleCommand(Object schedulePayload, Metadata metadata, String scheduleId, Instant deadline) {
+    default void scheduleCommand(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId,
+                                 Instant deadline) {
         scheduleCommand(new Message(schedulePayload, metadata), scheduleId, deadline);
     }
 
@@ -281,7 +293,8 @@ public interface MessageScheduler {
      * @param scheduleId      schedule ID
      * @param delay           delay duration
      */
-    default void scheduleCommand(Object schedulePayload, Metadata metadata, String scheduleId, Duration delay) {
+    default void scheduleCommand(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId,
+                                 Duration delay) {
         scheduleCommand(new Message(schedulePayload, metadata), scheduleId, delay);
     }
 
@@ -292,12 +305,14 @@ public interface MessageScheduler {
      * @param scheduleId the schedule ID
      * @param deadline   deadline for triggering the schedule
      */
-    default void scheduleCommand(Object schedule, String scheduleId, Instant deadline) {
+    default void scheduleCommand(@NonNull Object schedule, Object scheduleId, Instant deadline) {
+        String effectiveScheduleId = Optional.ofNullable(scheduleId).map(Object::toString)
+                .orElseGet(() -> schedule instanceof HasMessage m ? m.getPayload().toString() : schedule.toString());
         if (schedule instanceof Message message) {
             scheduleCommand(new Schedule(message.getPayload(), message.getMetadata(), message.getMessageId(),
-                                         message.getTimestamp(), scheduleId, deadline));
+                                         message.getTimestamp(), effectiveScheduleId, deadline));
         } else {
-            scheduleCommand(new Schedule(schedule, scheduleId, deadline));
+            scheduleCommand(new Schedule(schedule, effectiveScheduleId, deadline));
         }
     }
 
@@ -306,7 +321,7 @@ public interface MessageScheduler {
      *
      * @param message the command message
      */
-    default void scheduleCommand(Schedule message) {
+    default void scheduleCommand(@NonNull Schedule message) {
         scheduleCommand(message, false);
     }
 
@@ -317,7 +332,7 @@ public interface MessageScheduler {
      * @param message  the command schedule
      * @param ifAbsent whether to skip if already scheduled
      */
-    default void scheduleCommand(Schedule message, boolean ifAbsent) {
+    default void scheduleCommand(@NonNull Schedule message, boolean ifAbsent) {
         try {
             scheduleCommand(message, ifAbsent, Guarantee.SENT).get();
         } catch (Throwable e) {
@@ -341,7 +356,7 @@ public interface MessageScheduler {
      *
      * @param scheduleId the ID of the schedule to cancel
      */
-    void cancelSchedule(String scheduleId);
+    void cancelSchedule(@NonNull Object scheduleId);
 
     /**
      * Look up an existing schedule.
@@ -349,7 +364,7 @@ public interface MessageScheduler {
      * @param scheduleId the ID of the schedule
      * @return the schedule if found
      */
-    Optional<Schedule> getSchedule(String scheduleId);
+    Optional<Schedule> getSchedule(@NonNull Object scheduleId);
 
     private static Instant nextDeadline(String cronSchedule, String timeZone) {
         if (isBlank(cronSchedule)) {

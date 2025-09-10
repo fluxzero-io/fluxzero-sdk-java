@@ -26,6 +26,7 @@ import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import lombok.AllArgsConstructor;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
 
@@ -97,20 +98,20 @@ public class DefaultMessageScheduler implements MessageScheduler, HasLocalHandle
     }
 
     @Override
-    public void cancelSchedule(String scheduleId) {
+    public void cancelSchedule(@NonNull Object scheduleId) {
         try {
             if (Entity.isLoading()) {
                 return;
             }
-            client.cancelSchedule(scheduleId).get();
+            client.cancelSchedule(scheduleId.toString()).get();
         } catch (Exception e) {
             throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
         }
     }
 
     @Override
-    public Optional<Schedule> getSchedule(String scheduleId) {
-        return Optional.ofNullable(client.getSchedule(scheduleId)).flatMap(
+    public Optional<Schedule> getSchedule(@NonNull Object scheduleId) {
+        return Optional.ofNullable(client.getSchedule(scheduleId.toString())).flatMap(
                 s -> serializer.deserializeMessages(Stream.of(s.getMessage()), SCHEDULE).findFirst()
                         .map(DeserializingMessage::toMessage).map(
                                 m -> new Schedule(m.getPayload(), m.getMetadata(), m.getMessageId(), m.getTimestamp(),
