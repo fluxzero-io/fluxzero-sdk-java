@@ -1,5 +1,5 @@
 <a href="https://fluxzero.io">
-    <img src="https://fluxzero.io/assets/brand/fluxzero-white.svg" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
+    <img src="https://fluxzero.io/assets/fluxzero/fluxzero-logo.png" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
 </a>
 
 # Fluxzero Java SDK
