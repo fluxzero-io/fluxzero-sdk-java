@@ -2,7 +2,7 @@
     <img src="https://fluxzero.io/assets/brand/fluxzero-white.svg" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
 </a>
 
-# Fluxzero java client
+# Fluxzero Java SDK
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
 [![Maven Central](https://img.shields.io/maven-central/v/io.fluxzero/fluxzero-sdk-java)](https://central.sonatype.com/artifact/io.fluxzero/fluxzero-sdk-java?smo=true)
