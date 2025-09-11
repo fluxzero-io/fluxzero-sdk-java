@@ -217,8 +217,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 }
                 applied.add(new AppliedEvent(new DeserializingMessage(serializedEvent, type ->
                         serializer.convert(m.getPayload(), type), EVENT, null, serializer), publicationStrategy));
+                return result;
             }
-            return result;
+            return a;
         });
     }
 
