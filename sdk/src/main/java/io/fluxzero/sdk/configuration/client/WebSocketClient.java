@@ -17,7 +17,6 @@ package io.fluxzero.sdk.configuration.client;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -160,7 +159,7 @@ public class WebSocketClient extends AbstractClient {
          * property {@code FLUXZERO_BASE_URL}.
          */
         @Default @NonNull String runtimeBaseUrl = DefaultPropertySource.getInstance().get("FLUXZERO_BASE_URL",
-                        DefaultPropertySource.getInstance().get("FLUXZERO_BASE_URL"));
+                        DefaultPropertySource.getInstance().get("FLUX_BASE_URL"));
 
         /**
          * The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.
