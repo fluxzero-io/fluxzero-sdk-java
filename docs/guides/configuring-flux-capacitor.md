@@ -105,7 +105,7 @@ Once the builder is configured, construct the `Fluxzero` instance by passing in 
 
 [//]: # (@formatter:off)
 ```java
-Fluxzero flux = builder.build(myClient);
+Fluxzero fluxzero = builder.build(myClient);
 ```
 [//]: # (@formatter:on)
 

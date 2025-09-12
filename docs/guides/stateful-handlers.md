@@ -1,7 +1,7 @@
 ## Stateful Handlers
 
-While aggregates represent domain entities, Flux also supports long-lived **stateful handlers** for modeling workflows,
-external interactions, or background processes that span multiple messages.
+While aggregates represent domain entities, Fluxzero also supports long-lived **stateful handlers** for modeling
+workflows, external interactions, or background processes that span multiple messages.
 
 To declare a stateful handler, annotate a class with `@Stateful`:
 
@@ -28,7 +28,7 @@ public record PaymentProcess(@EntityId String paymentId,
 
 ### Key Properties
 
-- `@Stateful` classes persist their state using Flux’s document store (or a custom `HandlerRepository`)
+- `@Stateful` classes persist their state using Fluxzero’s document store (or a custom `HandlerRepository`)
 - They are automatically invoked when messages match their associations (`@Association` fields or methods)
 - Matching is dynamic and supports multiple handler instances per message
 - Multiple handler methods can exist for different message types
@@ -76,7 +76,7 @@ Duration on(CheckStatus schedule) {
 ### Batch Commit Control
 
 By default, changes to a `@Stateful` handler are persisted immediately. Set `commitInBatch = true` to defer updates
-until the current message batch completes. Flux will ensure that:
+until the current message batch completes. Fluxzero will ensure that:
 
 - Newly created handlers are matched by subsequent messages
 - Deleted handlers won’t receive more messages in the batch
@@ -91,7 +91,8 @@ Stateful handlers are automatically `@Searchable`. You can configure:
 - A custom collection name
 - Time-based indexing fields (e.g. `timestampPath` or `endPath`)
 
-This allows you to query, filter, and monitor stateful handlers using Flux’s search API — covered in the next section.
+This allows you to query, filter, and monitor stateful handlers using Fluxzero’s search API — covered in the next
+section.
 
 ---
 

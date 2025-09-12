@@ -104,7 +104,7 @@ import static org.apache.commons.lang3.reflect.MethodUtils.getMethodsListWithAnn
  * schema validation.
  *
  * <h2>Modular Use</h2>
- * If Flux adopts JPMS (Project Jigsaw) in the future, this utility would likely be placed in an internal module
+ * If Fluxzero adopts JPMS (Project Jigsaw) in the future, this utility would likely be placed in an internal module
  * and <strong>not exported</strong> to consumers, to preserve encapsulation and forward compatibility.
  *
  * @see MemberInvoker

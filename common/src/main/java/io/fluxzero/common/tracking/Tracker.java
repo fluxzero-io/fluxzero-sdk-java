@@ -94,9 +94,9 @@ public interface Tracker extends Comparable<Tracker> {
      * <p>
      * This mechanism ensures that stale trackers are eventually cleaned up, particularly in scenarios where graceful
      * disconnection is not guaranteed. This is especially relevant for <i>external trackers</i> — such as non-Java
-     * applications or clients not using Flux’s built-in client — which may not send an explicit disconnect.
+     * applications or clients not using the Fluxzero Java SDK — which may not send an explicit disconnect.
      * <p>
-     * In normal Flux client usage, purging should rarely occur, as disconnection is managed by the client.
+     * For most Fluxzero applications, purging should rarely occur, as disconnection is managed by the Fluxzero Java SDK
      */
     Long getPurgeDelay();
 

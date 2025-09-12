@@ -29,7 +29,7 @@ import java.util.function.Predicate;
  *     <li>Negotiate segment claims and delegate message retrieval to the tracker itself (client-side tracking).</li>
  * </ul>
  *
- * <p>Tracking strategies are a key part of Flux's support for distributed, fault-tolerant, and parallel message handling.
+ * <p>Tracking strategies are a key part of Fluxzero's support for distributed, fault-tolerant, and parallel message handling.
  *
  * <h2>Responsibilities</h2>
  * A {@code TrackingStrategy} is responsible for:

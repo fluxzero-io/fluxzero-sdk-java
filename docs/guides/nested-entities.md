@@ -67,7 +67,7 @@ public record RevokeAuthorization(AuthorizationId authorizationId) {
 }
 ```
 
-Flux will automatically prune the child entity with the given `authorizationId`.
+Fluxzero will automatically prune the child entity with the given `authorizationId`.
 
 > ⚠️ **Note:** When a child entity is added, updated, or removed using an `@Apply` method, Fluxzero will:
 >
@@ -271,9 +271,9 @@ This makes aliasing more explicit and reusable—particularly useful in larger a
 
 ### Routing Behavior
 
-Flux automatically routes child-targeted updates like `AuthorizeUser` and `RevokeAuthorization` to the correct nested
-entity using the `@EntityId`. You don’t need to write custom matching logic — the routing works transparently as long
-as:
+Fluxzero automatically routes child-targeted updates like `AuthorizeUser` and `RevokeAuthorization` to the correct
+nested entity using the `@EntityId`. You don’t need to write custom matching logic — the routing works transparently as 
+long as:
 
 - The root aggregate is loaded (e.g. using `loadAggregate(userId)`), and
 - The update contains enough identifying information to locate the nested entity

@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * A layered {@link PropertySource} implementation used as the default source for resolving application properties in a
- * Flux application.
+ * Fluxzero application.
  *
  * <p>This source provides a prioritized resolution order by chaining multiple individual sources:
  * <ol>

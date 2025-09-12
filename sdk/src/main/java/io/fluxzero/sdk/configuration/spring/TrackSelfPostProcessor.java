@@ -42,14 +42,14 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
 
 /**
  * Spring {@link BeanDefinitionRegistryPostProcessor} that detects classes annotated with {@link TrackSelf}
- * and registers them as {@link FluxPrototype} beans for use by Fluxzero.
+ * and registers them as {@link FluxzeroPrototype} beans for use by Fluxzero.
  * <p>
  * This processor differs from {@link StatefulPostProcessor} in that it performs full classpath scanning—rather
  * than only inspecting instantiated beans—because it must also detect interfaces and abstract classes annotated
  * with {@code @TrackSelf}. These types represent projection definitions that are later handled dynamically.
  * <p>
- * All detected {@code @TrackSelf} types are wrapped as {@link FluxPrototype} and registered as Spring bean
- * definitions, allowing Flux to discover and register them as self-tracking projections at runtime.
+ * All detected {@code @TrackSelf} types are wrapped as {@link FluxzeroPrototype} and registered as Spring bean
+ * definitions, allowing Fluxzero to discover and register them as self-tracking projections at runtime.
  *
  * <h2>Usage</h2>
  * To enable self-tracking on a class use e.g.:
@@ -75,7 +75,7 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
  *
  * @see TrackSelf
  * @see StatefulPostProcessor
- * @see FluxPrototype
+ * @see FluxzeroPrototype
  * @see FluxzeroSpringConfig
  */
 @Slf4j
@@ -85,7 +85,7 @@ public class TrackSelfPostProcessor implements BeanDefinitionRegistryPostProcess
 
     /**
      * Scans the classpath for components annotated with {@link TrackSelf}, based on {@link ComponentScan} metadata, and
-     * registers each of them as a {@link FluxPrototype}.
+     * registers each of them as a {@link FluxzeroPrototype}.
      * <p>
      * If the {@code beanFactory} is not a {@link BeanDefinitionRegistry}, a warning is logged and processing is
      * skipped.
@@ -121,10 +121,10 @@ public class TrackSelfPostProcessor implements BeanDefinitionRegistryPostProcess
                     return candidateComponents.stream();
                 }).map(this::extractBeanClass).filter(Objects::nonNull).distinct()
                 .forEach(type -> {
-                    var prototype = new FluxPrototype(type);
+                    var prototype = new FluxzeroPrototype(type);
                     registry.registerBeanDefinition(
                             type.getName() + "$$SelfTracked",
-                            genericBeanDefinition(FluxPrototype.class, () -> prototype).getBeanDefinition());
+                            genericBeanDefinition(FluxzeroPrototype.class, () -> prototype).getBeanDefinition());
                 });
     }
 

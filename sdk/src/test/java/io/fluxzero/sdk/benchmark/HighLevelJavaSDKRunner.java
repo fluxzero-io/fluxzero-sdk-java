@@ -30,7 +30,7 @@ public class HighLevelJavaSDKRunner extends AbstractClientBenchmark {
                 1_000, WebSocketClient.ClientConfig.builder()
                 .name("benchmark-" + UUID.randomUUID())
                 .projectId("benchmark")
-                .serviceBaseUrl("https://fluxzero.sloppy.zone")
+                .runtimeBaseUrl("https://fluxzero.sloppy.zone")
                 .build());
         runner.testCommands();
         System.exit(0);

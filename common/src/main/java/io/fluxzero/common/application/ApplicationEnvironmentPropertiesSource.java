@@ -44,8 +44,8 @@ import static java.util.Optional.ofNullable;
  * <h2>Example:</h2>
  * <pre>
  * # application-staging.properties
- * flux.url=https://staging.api.example.com
- * flux.debug=true
+ * fluxzero.url=https://staging.api.example.com
+ * fluxzero.debug=true
  * </pre>
  *
  * <p>This class complements {@link ApplicationPropertiesSource} for layered configuration. Typically,

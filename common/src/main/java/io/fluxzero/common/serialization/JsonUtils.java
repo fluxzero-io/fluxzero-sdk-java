@@ -148,7 +148,7 @@ public class JsonUtils {
      * {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global
      * configuration and ensures compatibility.
      * <p>
-     * <strong>Warning:</strong> This mapper is also used by the default serializer in Flux applications,
+     * <strong>Warning:</strong> This mapper is also used by the default serializer in Fluxzero applications,
      * {@code JacksonSerializer}. Misconfiguration may result in inconsistencies in search indexing or data loss.
      */
     public static JsonMapper.Builder defaultWriterBuilder() {

@@ -19,7 +19,7 @@ All interceptors are **pluggable**, and can be configured via:
 
 ### DispatchInterceptor
 
-A `DispatchInterceptor` hooks into the **message dispatch phase**—just before the message is published to Flux or
+A `DispatchInterceptor` hooks into the **message dispatch phase**—just before the message is published to Fluxzero or
 handled locally.
 
 ```java

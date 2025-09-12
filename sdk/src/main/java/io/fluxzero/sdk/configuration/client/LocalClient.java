@@ -55,14 +55,14 @@ import java.time.Duration;
  * <ul>
  *   <li>Simulates gateway clients for all {@link MessageType}s</li>
  *   <li>Provides in-memory implementations of event store, scheduling, key-value, and search clients</li>
- *   <li>Uses the {@code FLUX_TASK_ID} environment property or the JVM process name as the client ID</li>
- *   <li>Reads {@code FLUX_APPLICATION_NAME} and {@code FLUX_APPLICATION_ID} from environment or system properties</li>
+ *   <li>Uses the {@code FLUXZERO_TASK_ID} environment property or the JVM process name as the client ID</li>
+ *   <li>Reads {@code FLUXZERO_APPLICATION_NAME} and {@code FLUXZERO_APPLICATION_ID} from environment or system properties</li>
  * </ul>
  *
  * <h2>Usage</h2>
  * Typical usage involves passing this client into the {@code FluxzeroBuilder}:
  * <pre>{@code
- * Fluxzero flux = DefaultFluxzero.builder().build(LocalClient.newInstance());
+ * Fluxzero fluxzero = DefaultFluxzero.builder().build(LocalClient.newInstance());
  * }</pre>
  */
 public class LocalClient extends AbstractClient {
@@ -73,8 +73,9 @@ public class LocalClient extends AbstractClient {
 
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    private final String id = DefaultPropertySource.getInstance().get(
-            "FLUX_TASK_ID", ManagementFactory.getRuntimeMXBean().getName());
+    private final String id = DefaultPropertySource.getInstance().get("FLUXZERO_TASK_ID",
+                    DefaultPropertySource.getInstance().get("FLUX_TASK_ID",
+                            ManagementFactory.getRuntimeMXBean().getName()));
 
     public static LocalClient newInstance() {
         return new LocalClient(Duration.ofMinutes(2));
@@ -92,12 +93,14 @@ public class LocalClient extends AbstractClient {
 
     @Override
     public String name() {
-        return DefaultPropertySource.getInstance().get("FLUX_APPLICATION_NAME", "inMemory");
+        return DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_NAME",
+                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_NAME", "inMemory"));
     }
 
     @Override
     public String applicationId() {
-        return DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID");
+        return DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_ID",
+                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID"));
     }
 
     @Override

@@ -26,7 +26,7 @@ import java.util.List;
 import static java.util.Optional.ofNullable;
 
 /**
- * Command to publish messages to a specific log in Flux (e.g., commands, events, metrics, etc.).
+ * Command to publish messages to a specific log in Fluxzero (e.g., commands, events, metrics, etc.).
  * <p>
  * The messages are written to the log associated with the given {@link #messageType}.
  * Each message is represented as a {@link SerializedMessage} and is appended to the log

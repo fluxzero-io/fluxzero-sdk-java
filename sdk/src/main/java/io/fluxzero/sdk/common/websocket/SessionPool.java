@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * If a session is closed or unavailable, it is automatically replaced using the provided {@code sessionFactory}.
  * All sessions are closed when {@link #close()} is called.
  *
- * <p><strong>Note:</strong> This class is used by Flux WebSocket clients such as {@link AbstractWebsocketClient} to
+ * <p><strong>Note:</strong> This class is used by Fluxzero WebSocket clients such as {@link AbstractWebsocketClient} to
  * manage their underlying connections to the Fluxzero Runtime.
  *
  * @see AbstractWebsocketClient

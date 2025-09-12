@@ -14,7 +14,7 @@ each aggregate individually.
 ### Event Sourcing
 
 Event-sourced aggregates are reconstructed from their event history. When you load an aggregate
-(e.g. via `loadAggregate(...)`, `loadEntity(...)`, or `loadAggregateFor(...)`), Flux uses the following strategy to
+(e.g. via `loadAggregate(...)`, `loadEntity(...)`, or `loadAggregateFor(...)`), Fluxzero uses the following strategy to
 restore its current state:
 
 ---
@@ -24,8 +24,8 @@ restore its current state:
 Fluxzero will attempt to resolve the **current state** of the aggregate or entity as follows:
 
 - **From cache**, if caching is enabled (default behavior).
-- If **snapshotting** is enabled and a snapshot is available, Flux uses it as the starting point and then replays any
-  subsequent events.
+- If **snapshotting** is enabled and a snapshot is available, Fluxzero uses it as the starting point and then replays
+  any subsequent events.
 - Otherwise, the entire state is rehydrated from the **event history**, by replaying each past event through its
   matching `@Apply` method.
 
@@ -123,7 +123,7 @@ with **inconsistent state** between application instances.
 
 You can combine both strategies by enabling both `eventSourced = true` and `searchable = true`.
 
-This causes Flux to:
+This causes Fluxzero to:
 
 - Store events for replay and audit purposes
 - Index the latest version as a document for fast retrieval and search
@@ -153,11 +153,10 @@ You can tune cache behavior with:
 - `cachingDepth`: how many versions to retain (enables `.previous()` access)
 - `checkpointPeriod`: how often to insert intermediate event checkpoints
 
-> ✅ When loading an aggregate inside an event handler, Flux ensures that the returned entity is always up-to-date. If
-> the event being handled is part of that aggregate, the aggregate is automatically rehydrated
-> *up to and including* the current event. **Flux will wait** (if needed) until the aggregate cache has caught up to
-> that
-> point, ensuring consistency and preventing stale reads — even during concurrent or out-of-order processing.
+> ✅ When loading an aggregate inside an event handler, Fluxzero ensures that the returned entity is always up-to-date.
+> If the event being handled is part of that aggregate, the aggregate is automatically rehydrated*up to and including* 
+> the current event. **Fluxzero will wait** (if needed) until the aggregate cache has caught up to that point, ensuring 
+> consistency and preventing stale reads — even during concurrent or out-of-order processing.
 
 This makes it possible to write event-sourced, state-aware logic directly within event handlers — often eliminating the
 need for separate projections or read models.

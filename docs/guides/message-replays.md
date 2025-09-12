@@ -68,7 +68,7 @@ Sometimes you want to **re-use the same handler class** for both:
 - **Live processing** (e.g. default consumer)
 - **Replaying past messages** (e.g. rebuilding projections)
 
-To achieve this, annotate the handler with `exclusive = false`. This tells Flux that the handler may participate in
+To achieve this, annotate the handler with `exclusive = false`. This tells Fluxzero that the handler may participate in
 **multiple consumers simultaneously**:
 
 ```java

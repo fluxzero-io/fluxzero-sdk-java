@@ -25,11 +25,11 @@ package io.fluxzero.common.application;
  *
  * <h2>Example usage</h2>
  * <pre>
- * export FLUX_API_TOKEN=secret-token
+ * export fluxzero TOKEN=secret-token
  * </pre>
  * In your application:
  * <pre>
- * flux.api.token = ApplicationProperties.get("FLUX_API_TOKEN")
+ * fluxzero.api.token = ApplicationProperties.get("FLUXZERO_API_TOKEN")
  * </pre>
  *
  * <p>This source is usually combined with others (like {@link ApplicationPropertiesSource}) in a layered

@@ -139,7 +139,7 @@ public interface Client {
     EventStoreClient getEventStoreClient();
 
     /**
-     * Returns the {@link SchedulingClient} used to interact with the Flux scheduling subsystem.
+     * Returns the {@link SchedulingClient} used to interact with the Fluxzero scheduling subsystem.
      */
     SchedulingClient getSchedulingClient();
 

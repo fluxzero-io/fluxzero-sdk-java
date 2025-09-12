@@ -70,7 +70,7 @@ import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
 
 /**
- * Marker interface for all low-level request and response types in the Flux protocol.
+ * Marker interface for all low-level request and response types in the Fluxzero protocol.
  * <p>
  * Each implementation of {@code JsonType} represents a command, query, or result that can be sent to or received from
  * the Fluxzero Runtime. These types are serialized using polymorphic JSON with the {@code type} discriminator, enabling
@@ -178,7 +178,7 @@ public interface JsonType {
     /**
      * Converts this object into a compact metric representation for logging or monitoring.
      * <p>
-     * Used by the Flux Java SDK to avoid logging large payloads directly while still tracking platform usage.
+     * Used by the Fluxzero Java SDK to avoid logging large payloads directly while still tracking platform usage.
      *
      * @return a safe and compact object suitable for serialization to the metrics log
      */

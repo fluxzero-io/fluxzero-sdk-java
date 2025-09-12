@@ -7,7 +7,7 @@
 
 ## Standard project layout
 
-Use this structure for all **new** Flux applications:
+Use this structure for all **new** Fluxzero applications:
 
 - Root package: `com.example.<app>.<domain>`
 
@@ -43,13 +43,13 @@ Use this structure for all **new** Flux applications:
 
 ## Message → Handler map
 
-| Message             | Publish                         | Handle with                                 | Notes                                              |
-|---------------------|---------------------------------|---------------------------------------------|----------------------------------------------------|
-| **Command** (write) | `Fluxzero.sendCommand(…)`  | `@HandleCommand`                            | may return result                                  |
-| **Query** (read)    | `Fluxzero.queryAndWait(…)` | `@HandleQuery`                              | strongly‑typed via `implements Request<R>`         |
-| **Event** (fact)    | `Fluxzero.publishEvent(…)` | `@HandleEvent`                              | persisted unless consumed locally                  |
-| **Schedule**        | `Fluxzero.schedule(…)`     | `@HandleSchedule` / `@Periodic`             | one‑off or recurring; cancel with `cancelSchedule` |
-| **WebRequest**      | via gateway                     | `@HandleGet` / `@HandlePost` / `@HandleWeb` | proxied through Flux gateway                       |
+| Message             | Publish                     | Handle with                                 | Notes                                              |
+|---------------------|-----------------------------|---------------------------------------------|----------------------------------------------------|
+| **Command** (write) | `Fluxzero.sendCommand(…)`   | `@HandleCommand`                            | may return result                                  |
+| **Query** (read)    | `Fluxzero.queryAndWait(…)`  | `@HandleQuery`                              | strongly‑typed via `implements Request<R>`         |
+| **Event** (fact)    | `Fluxzero.publishEvent(…)`  | `@HandleEvent`                              | persisted unless consumed locally                  |
+| **Schedule**        | `Fluxzero.schedule(…)`      | `@HandleSchedule` / `@Periodic`             | one‑off or recurring; cancel with `cancelSchedule` |
+| **WebRequest**      | via gateway                 | `@HandleGet` / `@HandlePost` / `@HandleWeb` | proxied through Fluxzero gateway                   |
 
 > For long‑running workflows (sagas), annotate a handler class with **`@Stateful`**.
 
@@ -88,7 +88,7 @@ by its class name.
 `@LocalHandler(logMessage = true)` when you still want it forwarded/logged.
 
 > **Naming.** Prefer imperative/present-tense payload names (`CreateUser`, `TurnDeviceOn`). Use past tense only if you
-> intentionally model a distinct fact type. Flux behavior is driven by the **log**, not by the name.
+> intentionally model a distinct fact type. Fluxzero behavior is driven by the **log**, not by the name.
 
 ---
 

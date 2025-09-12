@@ -11,11 +11,11 @@ To configure and instantiate a WebSocket-backed client:
 ```java
 WebSocketClient client = WebSocketClient.newInstance(
         WebSocketClient.ClientConfig.builder()
-                .serviceBaseUrl("wss://my.flux.host")
+                .serviceBaseUrl("wss://my.fluxzero.host")
                 .name("my-service")
                 .build());
 
-Fluxzero flux = Fluxzero.builder().build(client);
+Fluxzero fluxzero = Fluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
@@ -30,22 +30,23 @@ and can be created or extended using the `toBuilder()` pattern.
 
 Key options include:
 
-| Setting                     | Description                                                  | Default                          |
-|-----------------------------|--------------------------------------------------------------|----------------------------------|
-| `serviceBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`) | `FLUX_BASE_URL` property         |
-| `name`                      | Name of the application                                      | `FLUX_APPLICATION_NAME` property |
-| `applicationId`             | Optional app ID                                              | `FLUX_APPLICATION_ID` property   |
-| `id`                        | Unique client instance ID                                    | `FLUX_TASK_ID` property or UUID  |
-| `compression`               | Compression algorithm                                        | `LZ4`                            |
-| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
-| `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
-| `typeFilter`                | Optional message type restriction                            | `null`                           |
+| Setting                     | Description                                                      | Default                              |
+|-----------------------------|------------------------------------------------------------------|--------------------------------------|
+| `serviceBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.fluxzero.host`) | `FLUXZERO_BASE_URL` property         |
+| `name`                      | Name of the application                                          | `FLUXZERO_APPLICATION_NAME` property |
+| `applicationId`             | Optional app ID                                                  | `FLUXZERO_APPLICATION_ID` property   |
+| `id`                        | Unique client instance ID                                        | `FLUXZERO_TASK_ID` property or UUID  |
+| `compression`               | Compression algorithm                                            | `LZ4`                                |
+| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                         | 10s / 5s                             |
+| `disableMetrics`            | Whether to suppress all outgoing metrics                         | `false`                              |
+| `typeFilter`                | Optional message type restriction                                | `null`                               |
 
 ---
 
 ### Subsystem Sessions
 
-Flux opens multiple WebSocket sessions to handle parallel workloads. You can tune the number of sessions per subsystem:
+Fluxzero opens multiple WebSocket sessions to handle parallel workloads. You can tune the number of sessions per
+subsystem:
 
 ```java
 ClientConfig config = ClientConfig.builder()
@@ -85,12 +86,12 @@ Runtime and can significantly boost performance in high-fanout projections or ha
 Once created, the client is passed into the builder:
 
 ```java
-Fluxzero flux = Fluxzero.builder()
+Fluxzero fluxzero = Fluxzero.builder()
         .makeApplicationInstance(true)
         .build(webSocketClient);
 ```
 
-> ℹ️ Use `makeApplicationInstance(true)` to install the Flux instance as a global singleton (`Fluxzero.get()`).
+> ℹ️ Use `makeApplicationInstance(true)` to install the Fluxzero instance as a global singleton (`Fluxzero.get()`).
 > Default **true** in Spring setups.
 
 ---
@@ -100,5 +101,5 @@ Fluxzero flux = Fluxzero.builder()
 For testing or lightweight local development, use the in-memory `LocalClient` instead:
 
 ```java
-Fluxzero flux = Fluxzero.builder().build(new LocalClient());
+Fluxzero fluxzero = Fluxzero.builder().build(new LocalClient());
 ```

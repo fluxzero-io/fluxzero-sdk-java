@@ -37,7 +37,7 @@ import java.util.WeakHashMap;
  * A {@link Client} implementation that wraps another client and spies on its components using Mockito.
  * <p>
  * This class is used internally by {@link io.fluxzero.sdk.test.TestFixture#spy()} to enable mocking or
- * verification of Flux internal components such as gateway clients, tracking clients, and stores.
+ * verification of Fluxzero internal components such as gateway clients, tracking clients, and stores.
  * <p>
  * All supported components are decorated using {@link Mockito#spy(Object)} on first access and cached via a
  * {@link WeakHashMap}. Spy state can be reset via {@link #resetMocks()}.

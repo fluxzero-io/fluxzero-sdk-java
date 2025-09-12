@@ -131,7 +131,7 @@ public class ServiceUrlBuilder {
      */
     public static String buildUrl(WebSocketClient.ClientConfig clientConfig, String path) {
         String result = String.format("%s/%s?clientId=%s&clientName=%s",
-                                      clientConfig.getServiceBaseUrl(), path,
+                                      clientConfig.getRuntimeBaseUrl(), path,
                                       URLEncoder.encode(clientConfig.getId(), UTF_8),
                                       URLEncoder.encode(clientConfig.getName(), UTF_8));
         if (clientConfig.getProjectId() != null) {

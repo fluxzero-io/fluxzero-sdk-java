@@ -20,7 +20,7 @@ import lombok.Value;
 /**
  * Request to retrieve all aggregate identifiers associated with a given entity ID.
  * <p>
- * In Flux, entities may be referenced across multiple aggregates. This request returns
+ * In Fluxzero, entities may be referenced across multiple aggregates. This request returns
  * a mapping from aggregate type to aggregate ID for each aggregate that is related to the given entity ID.
  * <p>
  * This is typically used in systems that maintain cross-aggregate relationships or need

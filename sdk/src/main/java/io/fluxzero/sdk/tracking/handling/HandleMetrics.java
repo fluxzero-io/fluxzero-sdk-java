@@ -25,7 +25,7 @@ import java.lang.annotation.Target;
 /**
  * Marks a method or constructor as a handler for internal metrics events ({@link MessageType#METRICS}).
  * <p>
- * Metrics messages are emitted by Flux client applications and the Fluxzero Runtime to report on internal operations such
+ * Metrics messages are emitted by Fluxzero applications and the Fluxzero Runtime to report on internal operations such
  * as read throughput, search activity, store position updates, or handler performance. These messages are valuable for
  * observability, debugging, auditing, and building custom monitoring or alerting systems.
  * </p>

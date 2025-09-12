@@ -22,7 +22,7 @@ import java.util.function.Function;
  * Utility class for computing segment assignments using consistent hashing.
  * <p>
  * This class maps routing keys to numeric segments using a hash function, typically to support partitioned processing
- * or distribution across consumers in Flux.
+ * or distribution across consumers in Fluxzero.
  *
  * <p>
  * Segments are defined as integer ranges, and a typical range is from 0 (inclusive) to {@code MAX_SEGMENT} (exclusive),

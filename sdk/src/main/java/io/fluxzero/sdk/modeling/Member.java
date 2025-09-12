@@ -26,8 +26,8 @@ import java.lang.annotation.Target;
  * aggregate.
  * <p>
  * Entities marked with {@code @Member} participate in aggregate routing, event sourcing, and update application. When
- * an update targets a nested entity, Flux will use this annotation to traverse the aggregate structure and locate the
- * correct entity (or entities) to apply the update to.
+ * an update targets a nested entity, Fluxzero will use this annotation to traverse the aggregate structure and locate
+ * the correct entity (or entities) to apply the update to.
  *
  * <p>
  * This annotation supports modeling complex aggregates composed of multiple entities, for example:
@@ -46,7 +46,7 @@ import java.lang.annotation.Target;
  *
  * <h2>Support for new entities</h2>
  * <p>
- * If no matching entity is found for a given update, Flux will still evaluate the update against applicable
+ * If no matching entity is found for a given update, Fluxzero will still evaluate the update against applicable
  * {@code @Apply} and {@code @AssertLegal} methods. This allows new entity creation directly from the update payload
  * when appropriate logic is defined.
  * <br>For example:
@@ -60,8 +60,8 @@ import java.lang.annotation.Target;
  *
  * <h2>Immutability and parent updates</h2>
  * <p>
- * Flux assumes immutability by default. When a nested entity is added, removed, or modified, Flux will attempt to
- * create a new version of the parent entity by copying and updating the annotated container field (list, map, etc.).
+ * Fluxzero assumes immutability by default. When a nested entity is added, removed, or modified, Fluxzero will attempt
+ * to create a new version of the parent entity by copying and updating the annotated container field (list, map, etc.).
  * The parent is not modified directly.
  * <br>This behavior ensures safe update propagation and accurate change tracking, especially during event sourcing.
  * <br>For example, if {@code ProductCategory} has a list of {@code Product}s:
@@ -69,18 +69,18 @@ import java.lang.annotation.Target;
  * @Member
  * List<Product> products;
  * }</pre>
- * and one product is updated, Flux will replace the {@code products} list with a new list containing the updated
+ * and one product is updated, Fluxzero will replace the {@code products} list with a new list containing the updated
  * entity.
  *
  * <h2>Optional attributes</h2>
  * <ul>
  *     <li><strong>{@code idProperty}</strong> (default: empty):<br>
  *         Use this to explicitly specify the identifier property name on the nested entity. By default,
- *         Flux locates the identifier via the {@link io.fluxzero.sdk.modeling.EntityId} annotation.</li>
+ *         Fluxzero locates the identifier via the {@link io.fluxzero.sdk.modeling.EntityId} annotation.</li>
  *
  *     <li><strong>{@code wither}</strong> (default: empty):<br>
  *         Defines a method (by name) that should be invoked to update the container when the entity is added,
- *         removed, or replaced. Normally, Flux will update the container (e.g., list or map) automatically.
+ *         removed, or replaced. Normally, Fluxzero will update the container (e.g., list or map) automatically.
  *         This setting is useful for immutable containers or cases requiring side effects during updates.
  *     </li>
  * </ul>
@@ -113,7 +113,7 @@ public @interface Member {
      * Optionally defines the name of a method that should be used to apply updates to the container of the nested
      * entity.
      * <p>
-     * Normally, Flux automatically updates the container (for lists, maps, or singletons). This attribute is only
+     * Normally, Fluxzero automatically updates the container (for lists, maps, or singletons). This attribute is only
      * necessary if a custom update method must be invoked instead.
      */
     String wither() default "";

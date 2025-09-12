@@ -26,7 +26,7 @@ import java.util.List;
  * </p>
  *
  * <h2>Result Matching</h2>
- * The Flux client automatically routes each {@link RequestResult} back to its originating {@link Request}
+ * The Fluxzero Java SDK automatically routes each {@link RequestResult} back to its originating {@link Request}
  * using the unique {@code requestId}.
  *
  * <h2>Error Handling</h2>

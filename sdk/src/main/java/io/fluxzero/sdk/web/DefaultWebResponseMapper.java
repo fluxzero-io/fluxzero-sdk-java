@@ -38,7 +38,7 @@ import java.util.concurrent.TimeoutException;
  *       <li>{@link ValidationException} or {@link DeserializationException} → 400 Bad Request</li>
  *       <li>{@link UnauthorizedException} or {@link UnauthenticatedException} → 401 Unauthorized</li>
  *       <li>other {@link FunctionalException}s → 403 Forbidden</li>
- *       <li>{@link java.util.concurrent.TimeoutException} or Flux’s own {@code TimeoutException} → 503 Service Unavailable</li>
+ *       <li>{@link java.util.concurrent.TimeoutException} or Fluxzero's own {@code TimeoutException} → 503 Service Unavailable</li>
  *       <li>Any other {@code Throwable} → 500 Internal Server Error</li>
  *     </ul>
  *   </li>

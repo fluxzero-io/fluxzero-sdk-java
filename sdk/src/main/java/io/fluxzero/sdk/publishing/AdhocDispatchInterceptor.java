@@ -56,7 +56,7 @@ import java.util.stream.Stream;
  *
  * <h2>Disabling All Adhoc Interceptors</h2>
  * This behavior can be disabled globally by calling
- * {@link io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor()} during Flux
+ * {@link io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor()} during Fluxzero
  * client setup. This is useful in highly constrained environments or when performance is critical.
  *
  * @see DispatchInterceptor

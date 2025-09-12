@@ -112,7 +112,7 @@ testFixture.whenQuery(new GetUserProfile("123"))
 ```
 [//]: # (@formatter:on)
 
-If a class implements `Request<R>`, Flux will use its declared generic type (R) to check that:
+If a class implements `Request<R>`, Fluxzero will use its declared generic type (R) to check that:
 
 - A compatible handler exists
 - The handler returns the correct result type

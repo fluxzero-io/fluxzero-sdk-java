@@ -2,7 +2,7 @@
 
 Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
-Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+Unlike traditional HTTP clients, Fluxzero logs outbound requests as `WebRequest` messages. These are then handled by:
 
 - A **local handler** that tracks requests if the URL is **relative**, or
 - A **connected remote client or proxy**, if the URL is **absolute**.
@@ -46,11 +46,12 @@ Fluxzero.get().webRequestGateway()
 
 ### Relative vs Absolute URLs
 
-Flux supports both local and remote handling:
+Fluxzero supports both local and remote handling:
 
-- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** and executed externally.
-- **Relative URLs** (e.g., `/internal/doSomething`): The request is routed to a handler within another connected Flux
-  application.
+- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Fluxzero **Web Proxy** and executed
+  externally.
+- **Relative URLs** (e.g., `/internal/doSomething`): The request is routed to a handler within another connected
+  Fluxzero application.
 
 This allows decoupled request-response workflows across services and environments.
 
@@ -65,7 +66,8 @@ WebRequestSettings settings = WebRequestSettings.builder()
         .build();
 ```
 
-When set, the Flux Web Proxy will isolate this request in its own internal processing pipeline. This is useful when you:
+When set, the Fluxzero Web Proxy will isolate this request in its own internal processing pipeline. This is useful if
+you:
 
 - Want to isolate third-party integrations (e.g., API rate limits)
 - Need different retry or error handling strategies per destination
@@ -73,7 +75,7 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 
 ### Mocking External Endpoints in Tests
 
-Flux makes it easy to test full workflows—including outbound `WebRequest` calls—by **mocking** the response during
+Fluxzero makes it easy to test full workflows—including outbound `WebRequest` calls—by **mocking** the response during
 tests:
 
 ```java

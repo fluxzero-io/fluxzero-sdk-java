@@ -21,7 +21,7 @@ import lombok.Value;
 /**
  * Command to cancel a previously scheduled message using its {@link #scheduleId}.
  * <p>
- * This command instructs Flux to remove a scheduled message if it hasn't yet been delivered.
+ * This command instructs Fluxzero to remove a scheduled message if it hasn't yet been delivered.
  * Cancellation is idempotent — if the schedule does not exist, the command has no effect.
  * </p>
  *

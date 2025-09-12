@@ -61,8 +61,8 @@ class MyHandler {
 - threads = 2: Two threads per application instance will fetch commands.
 - maxFetchSize = 100: Up to 100 messages fetched per request, helping apply backpressure.
 
-Each thread runs a **tracker**. If you deploy the app multiple times, Flux automatically load-balances messages across
-all available trackers.
+Each thread runs a **tracker**. If you deploy the app multiple times, Fluxzero automatically load-balances messages
+across all available trackers.
 
 ### Default Consumer Settings
 

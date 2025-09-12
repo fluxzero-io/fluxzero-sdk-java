@@ -42,7 +42,7 @@ import java.lang.annotation.Target;
  * <p>
  * For deletions, returning {@code null} signals that the entity should be removed.
  * <p>
- * When the entity is part of a larger aggregate, Flux automatically routes the update to the correct entity
+ * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
  * <p>
  * {@code @Apply} methods are also used during event sourcing to reconstruct an entity's state from past updates.

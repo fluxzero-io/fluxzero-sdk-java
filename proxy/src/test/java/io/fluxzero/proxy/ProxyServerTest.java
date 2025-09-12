@@ -94,9 +94,9 @@ class ProxyServerTest {
                             return "Hello " + name;
                         }
                     })
-                    .whenApplying(fc -> httpClient.send(newRequest().POST(BodyPublishers.ofString("Flux")).build(),
+                    .whenApplying(fc -> httpClient.send(newRequest().POST(BodyPublishers.ofString("Fluxzero")).build(),
                                                         BodyHandlers.ofString()).body())
-                    .expectResult("Hello Flux");
+                    .expectResult("Hello Fluxzero");
         }
 
         private HttpRequest.Builder newRequest() {
@@ -145,8 +145,8 @@ class ProxyServerTest {
                             return "Hello " + name;
                         }
                     })
-                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Flux", true)))
-                    .expectResult("Hello Flux");
+                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Fluxzero", true)))
+                    .expectResult("Hello Fluxzero");
         }
 
         @Test
@@ -157,8 +157,8 @@ class ProxyServerTest {
                             session.sendMessage("Hello " + name);
                         }
                     })
-                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Flux", true)))
-                    .expectResult("Hello Flux");
+                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Fluxzero", true)))
+                    .expectResult("Hello Fluxzero");
         }
 
         @Test

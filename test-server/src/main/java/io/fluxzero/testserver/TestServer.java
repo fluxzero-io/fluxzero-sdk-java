@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.tracking.HasMessageStore;
 import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
@@ -47,6 +48,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.ERROR;
@@ -85,7 +87,7 @@ public class TestServer {
             memoize(projectId -> new DefaultMetricsLog(getMessageStore(projectId, METRICS)));
 
     public static void main(final String[] args) {
-        start(getIntegerProperty("FLUX_PORT", getIntegerProperty("port", 8888)));
+        start(getIntegerProperty("FLUXZERO_PORT", getIntegerProperty("FLUX_PORT", getIntegerProperty("port", 8888))));
     }
 
     public static void start(int port) {

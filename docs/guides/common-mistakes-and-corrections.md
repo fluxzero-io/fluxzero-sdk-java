@@ -545,9 +545,9 @@ fun `should process command from JSON file`() {
 JSON structure with @class annotation:
 ```json
 {
-  "@class": "com.example.flux.objecttypes.commands.CreateObjectType",
+  "@class": "com.example.fluxzero.objecttypes.commands.CreateObjectType",
   "objectTypeId": {
-    "@class": "com.example.flux.objecttypes.ObjectTypeId",
+    "@class": "com.example.fluxzero.objecttypes.ObjectTypeId",
     "uuid": "550e8400-e29b-41d4-a716-446655440000"
   },
   "name": "Person"

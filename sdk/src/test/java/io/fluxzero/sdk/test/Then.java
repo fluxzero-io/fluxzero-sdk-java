@@ -646,7 +646,7 @@ public interface Then<R> {
      * This enables referencing the result (e.g. an ID returned from a POST operation) in later calls using path or
      * query parameter placeholders such as {@code {orderId}}.
      * <p>
-     * If no explicit name is assigned using this method, Flux will implicitly bind the result to a single unnamed
+     * If no explicit name is assigned using this method, Fluxzero will implicitly bind the result to a single unnamed
      * parameter if only one is needed. For example:
      * <pre>
      * fixture.whenPost("/orders", "order-details.json")

@@ -37,9 +37,9 @@ import java.lang.reflect.Type;
  * <p>
  * <strong>Note:</strong> In most cases, {@code SocketRequest}s and {@code SocketResponse}s are created and handled
  * automatically by the {@link SocketSession}. Developers working within a Fluxzero system typically do not need
- * to construct them manually. However, understanding their format becomes important when integrating with non-Flux
+ * to construct them manually. However, understanding their format becomes important when integrating with non-Fluxzero
  * systems—such as a browser-based UI—over WebSocket. In such scenarios, this class defines the structure of a response
- * expected by a Flux client.
+ * expected by a Fluxzero client.
  *
  * @see SocketRequest
  * @see SocketSession#sendRequest(Request, java.time.Duration)

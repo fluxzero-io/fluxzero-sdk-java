@@ -49,7 +49,7 @@ public class DefaultMetricsLog implements MetricsLog {
 
     @Override
     public void registerMetrics(JsonType event, Metadata metadata) {
-        var finalMetadata = metadata.with("$applicationId", "FluxTestServer");
+        var finalMetadata = metadata.with("$applicationId", "FluxzeroTestServer");
         workerPool.submit(() -> {
             try {
                 Revision revision = event.getClass().getAnnotation(Revision.class);

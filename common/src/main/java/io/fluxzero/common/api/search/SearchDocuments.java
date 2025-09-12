@@ -30,7 +30,7 @@ import static io.fluxzero.common.SearchUtils.normalizePath;
 import static io.fluxzero.common.search.Document.Path.isLongPath;
 
 /**
- * Request used to perform a search over documents indexed in the Flux search store.
+ * Request used to perform a search over documents indexed in the Fluxzero search store.
  * <p>
  * This class is sent to the Fluxzero Runtime and supports a rich query mechanism, pagination, sorting, and selective field
  * filtering.

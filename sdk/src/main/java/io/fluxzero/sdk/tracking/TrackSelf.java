@@ -29,7 +29,7 @@ import java.lang.annotation.Target;
 /**
  * Indicates that a message payload class can handle itself as a message handler.
  * <p>
- * When this annotation is present on a class (or its interface), Flux will automatically register a handler for any
+ * When this annotation is present on a class (or its interface), Fluxzero will automatically register a handler for any
  * implementation of that type. The resulting handler behaves like a standard external consumer: the message is first
  * published to the appropriate message log and then tracked and processed via the configured consumer infrastructure.
  * </p>

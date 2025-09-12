@@ -32,9 +32,9 @@ import static io.fluxzero.common.ConsistentHashing.fallsInRange;
 /**
  * Represents the client-side tracking context during message consumption in Fluxzero.
  * <p>
- * This {@code Tracker} is used locally in a Flux client to provide filtering and stateful context when consuming
- * message batches. It is automatically set as a thread-local variable for the duration of batch processing, allowing
- * handlers and other logic to access it via {@link #current()}.
+ * This {@code Tracker} is used locally in a Fluxzero application to provide filtering and stateful context when
+ * consuming message batches. It is automatically set as a thread-local variable for the duration of batch processing,
+ * allowing handlers and other logic to access it via {@link #current()}.
  *
  * @see #current()
  * @see MessageBatch
@@ -43,7 +43,7 @@ import static io.fluxzero.common.ConsistentHashing.fallsInRange;
 @Value
 public class Tracker {
     /**
-     * Thread-local variable that holds the current tracker instance. This is automatically set by the Flux client.
+     * Thread-local variable that holds the current tracker instance. This is automatically set by the Fluxzero Java SDK.
      */
     public static final ThreadLocal<Tracker> current = new ThreadLocal<>();
 

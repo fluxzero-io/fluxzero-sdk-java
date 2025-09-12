@@ -93,7 +93,7 @@ system.
 
 ### Role annotations support nesting and overrides
 
-Flux evaluates these annotations hierarchically. For example:
+Fluxzero evaluates these annotations hierarchically. For example:
 
 - If `@RequiresAnyRole("admin")` is placed on a **package**, it applies to all handlers and payloads in that package by
   default.
@@ -145,7 +145,7 @@ You can now annotate your handlers like this:
 void handle(DeleteAccount command) { ...}
 ```
 
-Flux will interpret the enum-based annotation through the underlying `@RequiresAnyRole`.
+Fluxzero will interpret the enum-based annotation through the underlying `@RequiresAnyRole`.
 
 ---
 
@@ -159,8 +159,8 @@ Flux will interpret the enum-based annotation through the underlying `@RequiresA
 ---
 
 > 💡 **Tip:** Access control is enforced transparently — there’s no need to log or repeat the user or message context.
-> Flux automatically maintains correlation metadata between the original request and any errors, logs, or events that
-> follow.
+> Fluxzero automatically maintains correlation metadata between the original request and any errors, logs, or events
+> that follow.
 
 ---
 

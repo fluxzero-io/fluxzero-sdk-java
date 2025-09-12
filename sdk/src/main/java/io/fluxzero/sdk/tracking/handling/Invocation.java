@@ -41,7 +41,7 @@ import java.util.function.BiConsumer;
  * </ul>
  * <p>
  * As a result, developers typically do not need to call {@link #performInvocation(Callable)} directly,
- * unless they are manually invoking a handler outside of the Flux infrastructure.
+ * unless they are manually invoking a handler outside of the Fluxzero infrastructure.
  *
  * <h2>Usage</h2>
  * When used manually, wrap handler logic with {@link #performInvocation(Callable)} to activate an invocation context:

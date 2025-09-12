@@ -27,7 +27,7 @@ import io.fluxzero.sdk.Fluxzero;
 import java.util.Optional;
 
 /**
- * Central utility for resolving configuration properties within a Flux application.
+ * Central utility for resolving configuration properties within a Fluxzero application.
  *
  * <p>This class delegates to a layered {@link PropertySource}, typically obtained from the active
  * {@link io.fluxzero.sdk.Fluxzero} instance. If no context-bound property source is present, it falls
@@ -45,7 +45,7 @@ import java.util.Optional;
  *
  * <p>Common usage:
  * <pre>{@code
- * String token = ApplicationProperties.getProperty("FLUX_API_TOKEN");
+ * String token = ApplicationProperties.getProperty("FLUXZERO_API_TOKEN");
  * boolean featureEnabled = ApplicationProperties.getBooleanProperty("my.feature.enabled", true);
  * }</pre>
  *

@@ -18,7 +18,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Value;
 
 /**
- * A marker message type published to the Flux error gateway for error-level log entries.
+ * A marker message type published to the Fluxzero error gateway for error-level log entries.
  * <p>
  * The associated metadata includes stack traces, log message details, and context.
  *

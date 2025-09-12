@@ -24,8 +24,8 @@ import java.time.Duration;
 /**
  * Configuration settings for a {@link WebRequest} sent via the {@link WebRequestGateway}.
  * <p>
- * These settings influence how the request is processed and forwarded by the Flux proxy. While currently limited to a
- * few essential fields, this class is designed for extensibility and may be expanded over time to support headers,
+ * These settings influence how the request is processed and forwarded by the Fluxzero proxy. While currently limited to
+ * a few essential fields, this class is designed for extensibility and may be expanded over time to support headers,
  * retry policies, authentication strategies, and more.
  *
  * <p><strong>Example usage:</strong></p>

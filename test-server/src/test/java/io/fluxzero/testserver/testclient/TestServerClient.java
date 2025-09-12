@@ -51,7 +51,7 @@ class TestServerClient {
     @Bean
     public Client fluxzeroClient() {
         return WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder().name("testapp")
-                                                   .serviceBaseUrl(getProperty("endpoint.messaging", "ws://localhost:8888")).build());
+                                                   .runtimeBaseUrl(getProperty("endpoint.messaging", "ws://localhost:8888")).build());
     }
 
     @Component

@@ -77,7 +77,7 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * <h2>Return value inspection</h2>
- * If an {@code @AssertLegal} method returns a non-null object, Flux will also inspect that return value for further
+ * If an {@code @AssertLegal} method returns a non-null object, Fluxzero will also inspect that return value for further
  * {@code @AssertLegal} methods or properties. This allows for deep, composable validation logic.
  *
  * <h2>Ordering</h2>

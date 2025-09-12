@@ -56,6 +56,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 
@@ -151,7 +152,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
         Fluxzero fluxzero = context.getBean(Fluxzero.class);
         Optional<SpringHandlerRegistry> handlerRegistry = getBean(SpringHandlerRegistry.class);
         List<Object> potentialHandlers = springBeans.stream()
-                .map(bean -> bean instanceof FluxPrototype prototype ? prototype.getType() : bean).toList();
+                .map(bean -> bean instanceof FluxzeroPrototype prototype ? prototype.getType() : bean).toList();
         handlerRegistration.updateAndGet(r -> r == null ?
                 handlerRegistry.map(hr -> hr.registerHandlers(potentialHandlers))
                         .orElseGet(() -> fluxzero.registerHandlers(potentialHandlers)) : r);
@@ -217,11 +218,13 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
             Client client = getBean(Client.class).orElseGet(() -> getBean(WebSocketClient.ClientConfig.class)
                     .<Client>map(WebSocketClient::newInstance)
                     .orElseGet(() -> {
-                        if (ApplicationProperties.containsProperty("FLUX_BASE_URL")
-                            && ApplicationProperties.containsProperty("FLUX_APPLICATION_NAME")) {
+                        if (Stream.of("FLUXZERO_BASE_URL", "FLUX_BASE_URL")
+                                        .anyMatch(ApplicationProperties::containsProperty) &&
+                                Stream.of("FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME")
+                                        .anyMatch(ApplicationProperties::containsProperty)) {
                             var config = WebSocketClient.ClientConfig.builder().build();
                             log.info("Using connected Fluxzero client (application name: {}, service url: {})",
-                                     config.getName(), config.getServiceBaseUrl());
+                                     config.getName(), config.getRuntimeBaseUrl());
                             return WebSocketClient.newInstance(config);
                         }
                         log.info("Using in-memory Fluxzero client");

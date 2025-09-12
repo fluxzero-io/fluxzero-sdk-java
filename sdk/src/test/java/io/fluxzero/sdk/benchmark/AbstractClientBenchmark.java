@@ -41,7 +41,7 @@ public abstract class AbstractClientBenchmark {
 
     public AbstractClientBenchmark(int commandCount) {
         this(commandCount, WebSocketClient.ClientConfig.builder().name("benchmark-" + UUID.randomUUID())
-                     .serviceBaseUrl("ws://localhost:8081").build());
+                     .runtimeBaseUrl("ws://localhost:8081").build());
     }
 
     protected void testCommands() {

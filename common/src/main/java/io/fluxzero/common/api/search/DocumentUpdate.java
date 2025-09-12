@@ -20,7 +20,7 @@ import lombok.Value;
 /**
  * Represents a single low-level document update operation to be applied to a search collection.
  * <p>
- * This class is used internally by the Flux client when performing bulk update operations using
+ * This class is used internally by the Fluxzero Java SDK when performing bulk update operations using
  * {@link io.fluxzero.common.api.search.BulkUpdateDocuments}, which is sent to the Fluxzero Runtime to apply
  * multiple updates in a single request.
  * <p>

@@ -46,7 +46,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Abstract base implementation of the {@link Client} interface, providing shared logic and lifecycle management for
- * both local (in-memory) and remote (WebSocket-based) Flux clients.
+ * both local (in-memory) and remote (WebSocket-based) Fluxzero clients.
  * <p>
  * Concrete implementations such as {@link LocalClient} and {@link WebSocketClient} extend this class to define specific
  * transport and storage mechanisms for each subsystem (event store, scheduling, etc.).

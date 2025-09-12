@@ -51,7 +51,7 @@ public class GetFacetStatsResult implements RequestResult {
      * Lightweight summary of the facet statistics result, used for internal metric tracking.
      * <p>
      * This class is automatically published as a separate message to the {@code metrics} log by the
-     * Flux client after completing the request.
+     * Fluxzero Java SDK after completing the request.
      */
     @Value
     public static class Metric {

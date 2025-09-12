@@ -26,8 +26,8 @@ import java.lang.annotation.Target;
  * Marks a method or constructor as a handler for notification messages ({@link MessageType#NOTIFICATION}).
  * <p>
  * This annotation is a shorthand for defining event handlers that must receive <strong>all matching messages across all
- * segments</strong>, regardless of how messages are normally sharded or routed in Flux. It is effectively equivalent to
- * annotating an event handler with:
+ * segments</strong>, regardless of how messages are normally sharded or routed in Fluxzero. It is effectively
+ * equivalent to annotating an event handler with:
  * </p>
  *
  * <pre>{@code

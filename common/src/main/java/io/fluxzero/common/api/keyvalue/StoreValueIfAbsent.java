@@ -23,7 +23,7 @@ import lombok.Value;
  * Stores a key-value pair <strong>only if</strong> the specified key does not already exist in the key-value store.
  * <p>
  * This command ensures atomic "put-if-absent" semantics, making it useful for distributed locks, idempotency markers,
- * or one-time setup flags in legacy Flux applications.
+ * or one-time setup flags in legacy Fluxzero applications.
  * </p>
  *
  * <h2>Notes</h2>

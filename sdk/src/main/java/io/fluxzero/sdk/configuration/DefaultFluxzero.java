@@ -261,7 +261,8 @@ public class DefaultFluxzero implements Fluxzero {
         private final DelegatingClock clock = new DelegatingClock();
         private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
         private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
-        private TaskScheduler taskScheduler = new InMemoryTaskScheduler("FluxTaskScheduler", clock, newCachedThreadPool(newThreadFactory("FluxTaskScheduler-worker")));
+        private TaskScheduler taskScheduler = new InMemoryTaskScheduler("FluxzeroTaskScheduler", clock,
+                newCachedThreadPool(newThreadFactory("FluxzeroTaskScheduler-worker")));
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache = new DefaultCache();
         private Cache relationshipsCache = new DefaultCache(100_000);

@@ -34,7 +34,7 @@ import lombok.Getter;
  *   <li>{@code EVENT} – a broadcast message representing something that happened</li>
  *   <li>{@code QUERY} – a read-only request expecting a result</li>
  *   <li>{@code ERROR} – indicates failure of a prior message</li>
- *   <li>{@code WEBREQUEST} / {@code WEBRESPONSE} – HTTP/WebSocket message flows via Flux</li>
+ *   <li>{@code WEBREQUEST} / {@code WEBRESPONSE} – HTTP/WebSocket message flows via Fluxzero</li>
  * </ul>
  */
 @Getter

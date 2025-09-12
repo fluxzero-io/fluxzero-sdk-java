@@ -159,7 +159,7 @@ Fluxzero.publishMetrics(
 
 ### What Happens After You Dispatch?
 
-Once you dispatch a message using any of the above methods, Flux goes through the following pipeline:
+Once you dispatch a message using any of the above methods, Fluxzero goes through the following pipeline:
 
 #### 1. **Dispatch Interceptors (Pre-Serialization)**
 
@@ -200,7 +200,7 @@ If no local handler consumes the message, it is published to the Fluxzero Runtim
 
 ### Request Timeouts
 
-The `@Timeout` annotation allows developers to specify how long Flux should wait for a **command** or **query** to
+The `@Timeout` annotation allows developers to specify how long Fluxzero should wait for a **command** or **query** to
 complete when using synchronous (`sendAndWait`) APIs.
 
 This is especially useful for time-sensitive interactions where you want to fail fast or have specific SLA expectations

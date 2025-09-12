@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
 /**
  * Meta-annotation for parameter annotations used to inject values from an HTTP request.
  * <p>
- * Used internally by Flux to locate and bind request values to handler method parameters
+ * Used internally by Fluxzero to locate and bind request values to handler method parameters
  * based on the specified {@link WebParameterSource}.
  * </p>
  *

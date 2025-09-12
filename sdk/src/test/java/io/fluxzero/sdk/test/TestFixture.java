@@ -377,7 +377,7 @@ public class TestFixture implements Given, When {
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider
                         ? PredictableIdentityProvider.defaultPredictableIdentityProvider() : p)
                 .replaceTaskScheduler(clock -> new InMemoryTaskScheduler(
-                        "FluxTaskScheduler", clock, DirectExecutorService.newInstance()))
+                        "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
                 .addBatchInterceptor(interceptor).addHandlerInterceptor(interceptor, true);
         this.fluxzeroBuilder = fluxzeroBuilder;
         this.fluxzero = fluxzeroBuilder.build(client);

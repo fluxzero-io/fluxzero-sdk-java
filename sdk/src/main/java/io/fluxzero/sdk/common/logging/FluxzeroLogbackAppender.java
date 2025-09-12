@@ -44,7 +44,7 @@ import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
  * Runtime.
  * <p>
  * This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}
- * or {@link ConsoleError} messages to the Flux error gateway, along with detailed metadata such as stack traces, logger
+ * or {@link ConsoleError} messages to the Fluxzero error gateway, along with detailed metadata such as stack traces, logger
  * name, and message content.
  *
  * @see ConsoleWarning
@@ -57,7 +57,7 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
     /**
      * Attaches this appender to the root logger in the Logback logging context.
      * <p>
-     * Once attached, the appender will monitor and forward all warning and error logs to the Flux error gateway as
+     * Once attached, the appender will monitor and forward all warning and error logs to the Fluxzero error gateway as
      * {@link ConsoleWarning} or {@link ConsoleError} messages.
      * <p>
      * Typically, this appender is configured automatically via Logback's own configuration. This method exists for
@@ -98,7 +98,7 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
      * Processes log events of level {@code WARN} or higher.
      * <p>
      * Extracts the stack trace and relevant context, transforms the message into a {@link ConsoleWarning} or
-     * {@link ConsoleError}, and sends it to the Flux error gateway.
+     * {@link ConsoleError}, and sends it to the Fluxzero error gateway.
      *
      * @param event the logging event to be processed
      */
@@ -150,7 +150,7 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
     /**
      * Determines whether the given log event should be ignored.
      * <p>
-     * Events marked with {@code ClientUtils.ignoreMarker} will be skipped and not sent to Flux.
+     * Events marked with {@code ClientUtils.ignoreMarker} will be skipped and not sent to Fluxzero.
      *
      * @param event the logging event to check
      * @return {@code true} if the event should be ignored, {@code false} otherwise

@@ -41,7 +41,7 @@ public class ReadResult implements RequestResult {
     long timestamp = System.currentTimeMillis();
 
     /**
-     * Produces a metric-friendly summary of the result for publishing to the Flux metrics log.
+     * Produces a metric-friendly summary of the result for publishing to the Fluxzero metrics log.
      *
      * @return a {@link Metric} with batch metadata and timestamp
      */

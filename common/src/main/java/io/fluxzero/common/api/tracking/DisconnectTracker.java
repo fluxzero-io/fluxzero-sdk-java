@@ -23,7 +23,7 @@ import lombok.Value;
  * Command used to explicitly disconnect a tracker from the Fluxzero Runtime and release any claimed message segments.
  * <p>
  * This is typically only used in advanced scenarios, such as when working with external trackers that integrate with
- * Flux via long-polling or custom message ingestion mechanisms.
+ * Fluxzero via long-polling or custom message ingestion mechanisms.
  *
  * <h2>Use Cases</h2>
  * <ul>

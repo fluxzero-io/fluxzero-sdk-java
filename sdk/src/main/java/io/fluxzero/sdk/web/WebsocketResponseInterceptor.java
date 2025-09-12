@@ -40,7 +40,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
  *     depending on whether the outgoing message has a payload.</li>
  * </ul>
  *
- * <p>This ensures that the Flux WebSocket infrastructure can properly route and
+ * <p>This ensures that the Fluxzero WebSocket infrastructure can properly route and
  * interpret messages sent back to the client.
  */
 @AllArgsConstructor

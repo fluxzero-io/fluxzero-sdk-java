@@ -66,10 +66,10 @@ import static java.util.stream.Collectors.toMap;
  * <pre>{@code
  * WebSocketClient client = WebSocketClient.newInstance(
  *     WebSocketClient.ClientConfig.builder()
- *         .serviceBaseUrl("wss://my.flux.host")
+ *         .runtimeBaseUrl("wss://my.fluxzero.host")
  *         .name("my-service")
  *         .build());
- * Fluxzero flux = Fluxzero.builder().build(client);
+ * Fluxzero fluxzero = Fluxzero.builder().build(client);
  * }</pre>
  *
  * @see io.fluxzero.sdk.configuration.DefaultFluxzero#builder()
@@ -157,25 +157,29 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to
-         * property {@code FLUX_BASE_URL}.
+         * property {@code FLUXZERO_BASE_URL}.
          */
-        @Default @NonNull String serviceBaseUrl = DefaultPropertySource.getInstance().get("FLUX_BASE_URL");
+        @Default @NonNull String runtimeBaseUrl = DefaultPropertySource.getInstance().get("FLUXZERO_BASE_URL",
+                        DefaultPropertySource.getInstance().get("FLUXZERO_BASE_URL"));
 
         /**
-         * The name of the application. Defaults to property {@code FLUX_APPLICATION_NAME}.
+         * The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.
          */
-        @Default @NonNull String name = DefaultPropertySource.getInstance().get("FLUX_APPLICATION_NAME");
+        @Default @NonNull String name = DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_NAME",
+                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_NAME"));
 
         /**
          * The application identifier. May be {@code null} if not explicitly configured. Defaults to
-         * property {@code FLUX_APPLICATION_ID}.
+         * property {@code FLUXZERO_APPLICATION_ID}.
          */
-        @Default String applicationId = DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID");
+        @Default String applicationId = DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_ID",
+                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID"));
 
         /**
-         * A unique ID for the client instance. Defaults to {@code FLUX_TASK_ID} or a randomly generated UUID.
+         * A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.
          */
-        @NonNull @Default String id = DefaultPropertySource.getInstance().get("FLUX_TASK_ID", UUID.randomUUID().toString());
+        @NonNull @Default String id = DefaultPropertySource.getInstance().get("FLUXZERO_TASK_ID",
+                DefaultPropertySource.getInstance().get("FLUX_TASK_ID", UUID.randomUUID().toString()));
 
         /**
          * The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.
@@ -227,7 +231,8 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Optional project identifier. If set, it will be included in all communication with the Runtime.
          */
-        @Default String projectId = DefaultPropertySource.getInstance().get("FLUX_PROJECT_ID");
+        @Default String projectId = DefaultPropertySource.getInstance().get("FLUXZERO_PROJECT_ID",
+                DefaultPropertySource.getInstance().get("FLUX_PROJECT_ID"));
 
         /**
          * Optional type filter that restricts the types of messages tracked by this client.
@@ -285,7 +290,7 @@ public class WebSocketClient extends AbstractClient {
          * <p>
          * When {@code cacheSize > 0}, a single central tracker will be responsible for reading the latest messages from
          * the Fluxzero Runtime for a given topic. These messages are cached locally and can be reused by other trackers,
-         * significantly reducing round-trips and load on the Flux backend.
+         * significantly reducing round-trips and load on the Fluxzero Runtime.
          * <p>
          * If set to 0, each tracker reads directly from the Fluxzero Runtime independently.
          * <p>

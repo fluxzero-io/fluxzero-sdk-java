@@ -15,6 +15,7 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
@@ -24,7 +25,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
-import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.newThreadName;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
@@ -38,10 +39,14 @@ public class ProxyServer implements Registration {
     public static void main(final String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught error", e));
         int port = getIntegerProperty("PROXY_PORT", 8080);
-        Client client = Optional.ofNullable(getProperty("FLUX_BASE_URL", getProperty("FLUX_URL"))).<Client>map(url -> WebSocketClient.newInstance(
-                        WebSocketClient.ClientConfig.builder().name("$proxy").serviceBaseUrl(url)
+        Client client = Stream.of("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL")
+                .filter(ApplicationProperties::containsProperty)
+                .map(ApplicationProperties::getProperty)
+                .findFirst()
+                .map(url -> WebSocketClient.newInstance(
+                        WebSocketClient.ClientConfig.builder().name("$proxy").runtimeBaseUrl(url)
                                 .projectId(getProperty("PROJECT_ID")).build()))
-                .orElseThrow(() -> new IllegalStateException("FLUX_BASE_URL environment variable is not set"));
+                .orElseThrow(() -> new IllegalStateException("FLUXZERO_BASE_URL environment variable is not set"));
         Registration registration = start(port, new ProxyRequestHandler(client))
                 .merge(ForwardProxyConsumer.start(client));
         log.info("Fluxzero proxy server running on port {}", port);

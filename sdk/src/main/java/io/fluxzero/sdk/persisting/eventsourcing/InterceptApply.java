@@ -97,7 +97,7 @@ import java.util.Collection;
  *
  * <h3>4. Recursive interception</h3>
  * <p>
- * If the result of one {@code @InterceptApply} method is a new update object, Flux will look for matching
+ * If the result of one {@code @InterceptApply} method is a new update object, Fluxzero will look for matching
  * interceptors for the new value as well — continuing recursively until no further changes occur.
  *
  * @see Apply

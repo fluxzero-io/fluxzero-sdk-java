@@ -47,7 +47,7 @@ import java.util.function.BiFunction;
 import static java.util.Optional.ofNullable;
 
 /**
- * Default implementation of a {@link SocketSession} for managing Flux WebSocket sessions.
+ * Default implementation of a {@link SocketSession} for managing Fluxzero WebSocket sessions.
  * <p>
  * This class handles bidirectional communication over a WebSocket session, including:
  * <ul>

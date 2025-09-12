@@ -17,7 +17,7 @@ package io.fluxzero.sdk.common;
 /**
  * Represents a key-value pair with a string-based identifier.
  * <p>
- * This interface is commonly used in Flux to model lightweight references to domain objects, documents, or indexed
+ * This interface is commonly used in Fluxzero to model lightweight references to domain objects, documents, or indexed
  * values. It is intentionally simple and generic to allow broad reuse across components such as the
  * {@code DocumentStore}, {@code HandlerRepository}, and other infrastructure abstractions.
  *

@@ -412,7 +412,7 @@ public interface DocumentStore {
     CompletableFuture<Void> deleteCollection(Object collection);
 
     /**
-     * Configures Flux to use a search collection as a searchable audit trail with the given retention time.
+     * Configures Fluxzero to use a search collection as a searchable audit trail with the given retention time.
      */
     CompletableFuture<Void> createAuditTrail(Object collection, Duration retentionTime);
 

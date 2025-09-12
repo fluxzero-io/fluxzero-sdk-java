@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * Represents a batch of requests to be sent to the Fluxzero Runtime in a single network round-trip.
  * <p>
- * Used internally by the Flux client to optimize performance by batching multiple {@link Request} instances into a
+ * Used internally by the Fluxzero Java SDK to optimize performance by batching multiple {@link Request} instances into a
  * single payload. This reduces round-trips and improves throughput when many requests are sent in quick succession.
  * </p>
  *

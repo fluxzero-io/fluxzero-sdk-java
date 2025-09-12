@@ -38,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
  * both {@link RuntimeException}s and checked exceptions wrapped in runtime exceptions. In most cases, users do not
  * need to manually report errors using this gateway.
  *
- * <p>Flux can also integrate with popular logging frameworks (e.g. Logback, Log4j, SLF4J) to monitor and report any
+ * <p>Fluxzero can also integrate with popular logging frameworks (e.g. Logback, Log4j, SLF4J) to monitor and report any
  * logged warnings or errors as {@code ERROR} messages, depending on configuration. This provides deep visibility
  * into both application logic failures and operational anomalies.
  *

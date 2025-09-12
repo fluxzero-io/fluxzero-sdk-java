@@ -72,7 +72,7 @@ public record OrderPlaced(Customer customer) {
 }
 ```
 
-This instructs Flux to extract `customer.id` and use it as the routing key when publishing or consuming the message.
+This instructs Fluxzero to extract `customer.id` and use it as the routing key when publishing or consuming the message.
 
 #### Handler-Level Routing Keys
 

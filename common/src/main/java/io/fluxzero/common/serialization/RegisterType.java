@@ -48,7 +48,7 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  * <p>
- * If multiple classes have the same simple name, Flux will attempt to resolve the type using the shortest suffix
+ * If multiple classes have the same simple name, Fluxzero will attempt to resolve the type using the shortest suffix
  * that still uniquely identifies it (e.g., {@code "billing.Foo"} vs. {@code "shipping.Foo"}). If conflicts remain,
  * the returned type is unpredictable.
  *

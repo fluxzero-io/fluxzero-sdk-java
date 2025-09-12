@@ -22,7 +22,7 @@ import lombok.Value;
  * Command to delete a value from the legacy key-value store by key.
  * <p>
  * This removes the value associated with the specified {@code key} from the key-value store.
- * This command is part of the legacy storage system and is primarily relevant in older Flux applications
+ * This command is part of the legacy storage system and is primarily relevant in older Fluxzero applications
  * that still use {@code StoreValues} or {@code StoreValueIfAbsent}.
  * </p>
  *

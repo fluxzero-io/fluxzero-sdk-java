@@ -42,8 +42,8 @@ import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 /**
  * Represents a unit of communication within the Fluxzero Runtime, wrapping a payload and its metadata.
  * <p>
- * A {@code Message} serves as the base class for all messages in Flux (e.g., commands, events, queries, web requests).
- * It contains a strongly typed payload, immutable metadata, a globally unique message ID, and a timestamp.
+ * A {@code Message} serves as the base class for all messages in Fluxzero (e.g., commands, events, queries, web
+ * requests). It contains a strongly typed payload, immutable metadata, a globally unique message ID, and a timestamp.
  * </p>
  *
  * <p>

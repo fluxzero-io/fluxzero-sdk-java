@@ -127,7 +127,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * This allows applications to handle web requests using their own HTTP server rather than Fluxzero’s
      * message-based {@code @HandleWeb} infrastructure.
      * <p>
-     * <strong>Note:</strong> This feature pushes requests to the local server and bypasses Flux’s pull-based
+     * <strong>Note:</strong> This feature pushes requests to the local server and bypasses Fluxzero's pull-based
      * dispatch model. Its use is discouraged unless integration with an existing HTTP stack is required.
      *
      * @param port the port on which the local HTTP server is listening
@@ -144,7 +144,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Configures forwarding of {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a local HTTP server
      * using the specified {@link LocalServerConfig} and custom consumer configuration.
      * <p>
-     * This mechanism is useful for advanced integration scenarios but bypasses Flux's pull-based message tracking.
+     * This mechanism is useful for advanced integration scenarios but bypasses Fluxzero's pull-based message tracking.
      * Prefer native {@code @HandleWeb} handlers when possible.
      *
      * @param localServerConfig    configuration for the local server (e.g., port, error behavior)

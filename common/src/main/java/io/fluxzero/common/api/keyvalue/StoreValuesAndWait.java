@@ -24,10 +24,10 @@ import java.util.List;
 import static java.util.stream.Collectors.toList;
 
 /**
- * <strong>Deprecated:</strong> This command was used in older versions of Flux to store values and block
+ * <strong>Deprecated:</strong> This command was used in older versions of Fluxzero to store values and block
  * until they were persisted.
  * <p>
- * This pattern is no longer used or emitted by Flux clients and should not be relied upon in new development.
+ * This pattern is no longer used or emitted by Fluxzero applications and should not be relied upon in new development.
  * Use {@link StoreValues} with {@link Guarantee#STORED} instead for explicit durability semantics.
  * </p>
  *

@@ -26,7 +26,7 @@ import java.lang.annotation.Target;
 /**
  * Marks a method as a handler for {@link MessageType#WEBRESPONSE} messages.
  * <p>
- * This is typically used to inspect response messages emitted by Flux applications that originally handled
+ * This is typically used to inspect response messages emitted by Fluxzero applications that originally handled
  * {@link MessageType#WEBREQUEST} messages.
  * </p>
  *

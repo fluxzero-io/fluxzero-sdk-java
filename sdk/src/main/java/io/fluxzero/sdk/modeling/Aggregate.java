@@ -28,11 +28,11 @@ import java.lang.annotation.Target;
 /**
  * Marks a class as the root of an aggregate in the domain model.
  * <p>
- * Aggregates are the primary consistency boundaries in Flux. They may consist of a root entity (the annotated class)
+ * Aggregates are the primary consistency boundaries in Fluxzero. They may consist of a root entity (the annotated class)
  * and any number of nested child entities, which are registered using the {@link Member @Member} annotation.
  * <p>
  * This annotation also allows fine-grained configuration of event sourcing, caching, snapshotting, and automatic
- * indexing in Flux’s document store.
+ * indexing in Fluxzero's document store.
  *
  * <h2>Usage</h2>
  * <pre>{@code
@@ -142,7 +142,7 @@ public @interface Aggregate {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Whether the aggregate should be indexed in Flux’s document store (disabled by default).
+     * Whether the aggregate should be indexed in Fluxzero's document store (disabled by default).
      */
     boolean searchable() default false;
 

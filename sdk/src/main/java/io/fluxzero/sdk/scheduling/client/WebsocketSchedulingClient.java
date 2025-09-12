@@ -50,7 +50,7 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
      * Constructs a scheduling client connected to the given endpoint URL.
      *
      * @param endPointUrl The endpoint URL of the Fluxzero Runtime scheduling gateway.
-     * @param client      The Flux {@link WebSocketClient} configuration to use.
+     * @param client      The Fluxzero {@link WebSocketClient} configuration to use.
      */
     public WebsocketSchedulingClient(String endPointUrl, WebSocketClient client) {
         this(URI.create(endPointUrl), client);
@@ -60,7 +60,7 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
      * Constructs a scheduling client connected to the given endpoint URI.
      *
      * @param endpointUri The URI of the scheduling gateway.
-     * @param client      The Flux {@link WebSocketClient} configuration to use.
+     * @param client      The Fluxzero {@link WebSocketClient} configuration to use.
      */
     public WebsocketSchedulingClient(URI endpointUri, WebSocketClient client) {
         this(endpointUri, client, true);

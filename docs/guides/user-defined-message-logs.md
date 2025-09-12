@@ -30,7 +30,7 @@ Like other handlers, this can be:
 - Used to **return a result** if the message is a request
 - **Passive**, meaning it won’t emit result messages
 
-> ✅ Custom logs are fully integrated with Flux tracking and delivery infrastructure.
+> ✅ Custom logs are fully integrated with Fluxzero tracking and delivery infrastructure.
 
 ### 📬 Publishing to a Custom Log
 
@@ -48,7 +48,7 @@ This makes it easy to introduce new asynchronous workflows, specialized event ty
 
 ### 🧹 Setting Retention Time
 
-Each message log in Flux retains messages independently. You can configure how long messages in your **custom log**
+Each message log in Fluxzero retains messages independently. You can configure how long messages in your **custom log**
 should be retained:
 
 [//]: # (@formatter:off)

@@ -53,12 +53,12 @@ import static java.net.http.HttpRequest.BodyPublishers.ofByteArray;
  * <p>
  * This class is internally initialized when
  * {@link io.fluxzero.sdk.configuration.FluxzeroBuilder#forwardWebRequestsToLocalServer(int)} is
- * configured. Rather than routing messages through Flux’s internal handler infrastructure, it converts web requests
+ * configured. Rather than routing messages through Fluxzero's internal handler infrastructure, it converts web requests
  * into raw HTTP requests and asynchronously sends them to {@code http://localhost:port}.
  *
  * <h2>Purpose</h2>
  * This mechanism exists primarily for interoperability: it allows applications to integrate with their own HTTP servers
- * (e.g., frameworks like Spring Boot, Jooby, or Vert.x) rather than adopting the Flux message-based web handler
+ * (e.g., frameworks like Spring Boot, Jooby, or Vert.x) rather than adopting the Fluxzero message-based web handler
  * framework.
  *
  * <h2><span style="color:red;">⚠️ Caution: Limited Use Case</span></h2>

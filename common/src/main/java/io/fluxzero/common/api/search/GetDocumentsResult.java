@@ -57,7 +57,7 @@ public class GetDocumentsResult implements RequestResult {
     }
 
     /**
-     * Lightweight structure for representing {@link GetDocumentsResult} in Flux metrics logs.
+     * Lightweight structure for representing {@link GetDocumentsResult} in Fluxzero metrics logs.
      */
     @Value
     public static class Metric {

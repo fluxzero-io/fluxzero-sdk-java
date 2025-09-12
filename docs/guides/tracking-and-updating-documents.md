@@ -28,7 +28,7 @@ This makes `@HandleDocument` ideal for **live processing**, **projecting the lat
 
 `@HandleDocument` can also be used to **update documents in place**.
 
-If the handler returns a **newer revision** of the document, Flux will reindex and persist the result:
+If the handler returns a **newer revision** of the document, Fluxzero will reindex and persist the result:
 
 ```java
 

@@ -29,9 +29,9 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
 
 /**
  * Spring {@link BeanDefinitionRegistryPostProcessor} that detects beans annotated with {@link SocketEndpoint}
- * and registers them as {@link FluxPrototype} definitions for use in Fluxzero.
+ * and registers them as {@link FluxzeroPrototype} definitions for use in Fluxzero.
  * <p>
- * This enables WebSocket endpoints to be managed by Flux, allowing handler methods within these types to respond
+ * This enables WebSocket endpoints to be managed by Fluxzero, allowing handler methods within these types to respond
  * to socket-based requests (e.g. via {@link io.fluxzero.sdk.web.WebRequest}).
  *
  * <h2>Usage</h2>
@@ -53,7 +53,7 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
  * }</pre>
  *
  * @see SocketEndpoint
- * @see FluxPrototype
+ * @see FluxzeroPrototype
  * @see FluxzeroSpringConfig
  */
 @Slf4j
@@ -66,10 +66,10 @@ public class SocketEndpointPostProcessor implements BeanDefinitionRegistryPostPr
         }
         Arrays.stream(beanFactory.getBeanNamesForAnnotation(SocketEndpoint.class))
                 .map(beanFactory::getType).filter(Objects::nonNull)
-                .map(FluxPrototype::new)
+                .map(FluxzeroPrototype::new)
                 .forEach(prototype -> registry.registerBeanDefinition(
                          prototype.getType().getName()+ "$$SocketEndpoint",
-                         genericBeanDefinition(FluxPrototype.class, () -> prototype).getBeanDefinition()));
+                         genericBeanDefinition(FluxzeroPrototype.class, () -> prototype).getBeanDefinition()));
     }
 
     @Override

@@ -79,7 +79,7 @@ Fluxzero supports secure storage of secrets using its built-in encryption utilit
     ```
    [//]: # (@formatter:on)
 
-Decryption is transparent. Flux detects encrypted values and decrypts them automatically.
+Decryption is transparent. Fluxzero detects encrypted values and decrypts them automatically.
 
 ### In Tests
 

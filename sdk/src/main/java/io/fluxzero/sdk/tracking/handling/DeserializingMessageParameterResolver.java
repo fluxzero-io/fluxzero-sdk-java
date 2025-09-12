@@ -27,7 +27,7 @@ import java.util.function.Function;
  * This allows handler methods to access the deserialization context, including message metadata, payload, and raw
  * serialized content.
  * <p>
- * Useful when advanced information about the message is needed, such as the Flux-assigned message index.
+ * Useful when advanced information about the message is needed, such as the Fluxzero-assigned message index.
  */
 public class DeserializingMessageParameterResolver extends TypedParameterResolver<Object> {
 

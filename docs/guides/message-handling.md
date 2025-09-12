@@ -72,7 +72,7 @@ CompletableFuture<UserProfile> handle(GetUserProfile query) {
 
 This can be useful when calling asynchronous services (e.g. via HTTP or database drivers).
 
-> ⚠️ **Caution:** While supported, returning a future means Flux will consider the message *handled* as soon as the
+> ⚠️ **Caution:** While supported, returning a future means Fluxzero will consider the message *handled* as soon as the
 > handler returns the future—not when the future completes. This can be problematic if:
 >
 > - The operation must be guaranteed to complete (e.g. business-critical updates),

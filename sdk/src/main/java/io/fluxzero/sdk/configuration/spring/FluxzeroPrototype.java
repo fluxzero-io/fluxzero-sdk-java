@@ -20,7 +20,7 @@ import lombok.Value;
  * Wrapper class representing a prototype-scoped Spring handler type within Fluxzero.
  */
 @Value
-public class FluxPrototype {
+public class FluxzeroPrototype {
     /**
      * The annotated handler class.
      */

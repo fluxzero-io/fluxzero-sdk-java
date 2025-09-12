@@ -23,8 +23,8 @@ import lombok.experimental.NonFinal;
 /**
  * Command to read a batch of messages from the Fluxzero Runtime for a given consumer and tracker.
  * <p>
- * This is a low-level API, typically only used internally in Flux by client-side tracking mechanisms or in advanced
- * Flux projects to support external consumers.
+ * This is a low-level API, typically only used internally in Fluxzero by client-side tracking mechanisms or in advanced
+ * Fluxzero projects to support external consumers.
  */
 @Value
 @EqualsAndHashCode(callSuper = true)

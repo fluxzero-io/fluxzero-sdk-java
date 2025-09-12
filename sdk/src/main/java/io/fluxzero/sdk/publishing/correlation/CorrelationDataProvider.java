@@ -54,7 +54,7 @@ import static java.util.Optional.ofNullable;
  * The correlation data map may include the following keys:
  * <ul>
  *   <li><b>{@code $applicationId}</b> – ID of the application this client belongs to (optional)</li>
- *   <li><b>{@code $clientId}</b> – Unique identifier for this Flux client instance</li>
+ *   <li><b>{@code $clientId}</b> – Unique identifier for this Fluxzero client instance</li>
  *   <li><b>{@code $clientName}</b> – Logical name of the client (e.g. "service-A")</li>
  *   <li><b>{@code $consumer}</b> – Consumer name of the current {@link Tracker}, if active</li>
  *   <li><b>{@code $tracker}</b> – Unique ID of the current {@link Tracker}, if active</li>

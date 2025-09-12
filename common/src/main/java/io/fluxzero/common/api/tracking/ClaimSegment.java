@@ -44,7 +44,7 @@ import java.beans.ConstructorProperties;
  * processing across instances and offering a load-balanced coordination mechanism.
  *
  * <p>
- * This approach helps replicate Flux’s load balancing capabilities for external streams,
+ * This approach helps replicate Fluxzero’s load balancing capabilities for external streams,
  * even when the external system does not support multithreaded tracking natively.
  *
  * @see Read

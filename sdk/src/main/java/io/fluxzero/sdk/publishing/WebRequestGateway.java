@@ -31,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>
  * <strong>Benefits of this approach include:</strong>
  * <ul>
- *     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Flux message logs.</li>
+ *     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Fluxzero message logs.</li>
  *     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>
  *     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>
  * </ul>
@@ -63,7 +63,7 @@ public interface WebRequestGateway extends HasLocalHandlers {
     /**
      * Sends the given web request using default request settings and returns a future that completes with the response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Flux proxy.
+     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
      *
      * @param request the web request to send
      * @return a future completed with the {@link WebResponse}
@@ -75,7 +75,7 @@ public interface WebRequestGateway extends HasLocalHandlers {
     /**
      * Sends the given web request using given request settings and returns a future that completes with the response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Flux proxy.
+     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
      *
      * @param request the web request to send
      * @return a future completed with the {@link WebResponse}
@@ -87,7 +87,7 @@ public interface WebRequestGateway extends HasLocalHandlers {
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Flux proxy.
+     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
      *
      * @param request the web request to send
      * @return the received {@link WebResponse}
@@ -101,7 +101,7 @@ public interface WebRequestGateway extends HasLocalHandlers {
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Flux proxy.
+     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
      *
      * @param request  the web request to send
      * @param settings configuration settings for this request (e.g., timeouts, accepted encodings)

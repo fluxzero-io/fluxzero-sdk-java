@@ -370,7 +370,7 @@ public class Document {
      * Enumerates the supported types of values that can appear in a {@link Document} entry.
      * <p>
      * These types provide a normalized internal representation of different JSON-compatible values,
-     * allowing for efficient indexing, filtering, and serialization within the Flux document store.
+     * allowing for efficient indexing, filtering, and serialization within the Fluxzero document store.
      *
      * <h2>Supported Types</h2>
      * <ul>

@@ -352,7 +352,7 @@ public class SearchTest {
 
     @Test
     void testGroupSerialization() {
-        Group input = Group.of("foo", "bar", "flux", "capacitor");
+        Group input = Group.of("foo", "bar", "flux", "zero");
         String json = JsonUtils.asJson(input);
         var output = JsonUtils.fromJson(json, Group.class);
         assertEquals(input, output);

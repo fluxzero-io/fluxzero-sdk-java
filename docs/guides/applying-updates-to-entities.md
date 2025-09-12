@@ -98,7 +98,7 @@ List<CreateTask> expandBulk(BulkCreateTasks bulk) {
 }
 ```
 
-> 🔁 Flux will apply interceptors **recursively** until the final update no longer changes.
+> 🔁 Fluxzero will apply interceptors **recursively** until the final update no longer changes.
 
 ---
 

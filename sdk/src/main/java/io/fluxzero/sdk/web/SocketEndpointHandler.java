@@ -63,7 +63,7 @@ import static java.util.stream.Stream.concat;
  * message handling to the appropriate method. For non-WebSocket messages, the handler behaves like a typical
  * {@link Handler} by invoking any matching method on the target class or on cached wrappers.
  * <p>
- * This class is primarily intended for internal use by the Flux dispatcher infrastructure.
+ * This class is primarily intended for internal use by the Fluxzero dispatcher infrastructure.
  *
  * @see SocketEndpoint
  * @see SocketSession

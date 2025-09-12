@@ -47,7 +47,7 @@ import java.util.concurrent.CompletableFuture;
  *     <li>{@link #deleteValue(String, Guarantee)} - Remove a value associated with a given key.</li>
  * </ul>
  *
- * <p>This class is typically used internally by Flux clients and not accessed directly by most applications.
+ * <p>This class is typically used internally by the Fluxzero Java SDK and not accessed directly by most applications.
  * Higher-level abstractions like {@link KeyValueStore} are preferred.
  *
  * @see KeyValueClient

@@ -158,7 +158,7 @@ class TestServerTest {
         @Bean
         public WebSocketClient.ClientConfig webSocketClientProperties() {
             return WebSocketClient.ClientConfig.builder()
-                    .serviceBaseUrl("ws://localhost:" + port)
+                    .runtimeBaseUrl("ws://localhost:" + port)
                     .projectId("clienttest")
                     .name("GivenWhenThenSpringCustom Client Test")
                     .build();

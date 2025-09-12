@@ -30,9 +30,9 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
 
 /**
  * Spring {@link BeanDefinitionRegistryPostProcessor} that automatically detects beans annotated with {@link Stateful}
- * and registers them as {@link FluxPrototype} definitions for use in Fluxzero.
+ * and registers them as {@link FluxzeroPrototype} definitions for use in Fluxzero.
  * <p>
- * This enables Flux to treat prototype-scoped, stateful beans as handler instances that are discovered and
+ * This enables Fluxzero to treat prototype-scoped, stateful beans as handler instances that are discovered and
  * managed at runtime by the handler registry (via the {@link HandlerFactory}).
  *
  * <h2>Usage</h2>
@@ -40,14 +40,14 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
  * for example via {@link FluxzeroSpringConfig}.
  *
  * @see Stateful
- * @see FluxPrototype
+ * @see FluxzeroPrototype
  * @see FluxzeroSpringConfig
  */
 @Slf4j
 public class StatefulPostProcessor implements BeanDefinitionRegistryPostProcessor {
 
     /**
-     * Scans for beans annotated with {@link Stateful}, wraps each of them in a {@link FluxPrototype}, and registers
+     * Scans for beans annotated with {@link Stateful}, wraps each of them in a {@link FluxzeroPrototype}, and registers
      * them programmatically as Spring bean definitions.
      * <p>
      * If the bean factory does not support dynamic registration (i.e., is not a {@link BeanDefinitionRegistry}),
@@ -63,10 +63,10 @@ public class StatefulPostProcessor implements BeanDefinitionRegistryPostProcesso
         }
         Arrays.stream(beanFactory.getBeanNamesForAnnotation(Stateful.class))
                 .map(beanFactory::getType).filter(Objects::nonNull)
-                .map(FluxPrototype::new)
+                .map(FluxzeroPrototype::new)
                 .forEach(prototype -> registry.registerBeanDefinition(
                          prototype.getType().getName()+ "$$Stateful",
-                         genericBeanDefinition(FluxPrototype.class, () -> prototype).getBeanDefinition()));
+                         genericBeanDefinition(FluxzeroPrototype.class, () -> prototype).getBeanDefinition()));
     }
 
     /**

@@ -103,7 +103,7 @@ import static java.util.Optional.ofNullable;
  *   <li>Receiving and processing incoming {@link RequestResult} and {@link ResultBatch} messages</li>
  *   <li>Supporting command guarantees (e.g., SENT, STORED) with retries and backpressure handling</li>
  *   <li>Sending periodic ping frames to detect connection drops</li>
- *   <li>Integrating with the Flux metrics infrastructure for custom performance telemetry</li>
+ *   <li>Integrating with the Fluxzero metrics infrastructure for custom performance telemetry</li>
  * </ul>
  *
  * <h2>Key Features</h2>

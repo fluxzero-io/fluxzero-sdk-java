@@ -74,13 +74,13 @@ import static java.time.temporal.ChronoUnit.DAYS;
 /**
  * Utility class offering client-side support functions for working with Fluxzero.
  * <p>
- * Unlike {@link io.fluxzero.common.ObjectUtils}, this class is specifically intended for use within Flux client
+ * Unlike {@link io.fluxzero.common.ObjectUtils}, this class is specifically intended for use within Fluxzero client
  * applications and can make use of infrastructure components such as
  * {@link io.fluxzero.sdk.Fluxzero}.
  * <p>
  * It provides convenience methods for:
  * <ul>
- *   <li>Memoization with lifespans via Flux’s clock</li>
+ *   <li>Memoization with lifespans via Fluxzero's clock</li>
  *   <li>Topic resolution for annotated handler methods</li>
  *   <li>Determining whether handlers are local or self-tracking</li>
  *   <li>Time-bound execution blocking</li>
@@ -222,21 +222,21 @@ public class ClientUtils {
     }
 
     /**
-     * Memoizes the given supplier using a time-based lifespan and Flux’s internal clock.
+     * Memoizes the given supplier using a time-based lifespan and Fluxzero’s internal clock.
      */
     public static <T> MemoizingSupplier<T> memoize(Supplier<T> supplier, Duration lifespan) {
         return new DefaultMemoizingSupplier<>(supplier, lifespan, Fluxzero.currentClock());
     }
 
     /**
-     * Memoizes the given function using a time-based lifespan and Flux’s internal clock.
+     * Memoizes the given function using a time-based lifespan and Fluxzero's internal clock.
      */
     public static <K, V> MemoizingFunction<K, V> memoize(Function<K, V> supplier, Duration lifespan) {
         return new DefaultMemoizingFunction<>(supplier, lifespan, Fluxzero.currentClock());
     }
 
     /**
-     * Memoizes the given bi-function using a time-based lifespan and Flux’s internal clock.
+     * Memoizes the given bi-function using a time-based lifespan and Fluxzero's internal clock.
      */
     public static <T, U, R> MemoizingBiFunction<T, U, R> memoize(BiFunction<T, U, R> supplier,
                                                                  Duration lifespan) {

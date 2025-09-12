@@ -105,8 +105,8 @@ import static java.util.stream.Collectors.toMap;
  * without affecting the rest of the dispatching system.
  *
  * <p>
- * Many Jooby methods are stubbed or unsupported, as Flux only uses a subset of Jooby's APIs for request introspection
- * (not response handling).
+ * Many Jooby methods are stubbed or unsupported, as Fluxzero only uses a subset of Jooby's APIs for request
+ * introspection (not response handling).
  *
  * @see WebRequestContext
  * @see io.fluxzero.sdk.web.WebHandlerMatcher
@@ -257,7 +257,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     }
 
     /*
-        Below methods should never be invoked as they won't be exposed in Flux apps
+        Below methods should never be invoked as they won't be exposed in Fluxzero apps
      */
 
     @NotNull

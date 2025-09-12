@@ -43,8 +43,8 @@ class MethodInvokerBenchmark {
         Method method = Person.class.getDeclaredMethod("name");
         MethodHandle realMethodHandle = lookup.unreflect(method);
         MemberInvoker invoker = DefaultMemberInvoker.asInvoker(method);
-        Handler<Object> fluxHandler = createHandler(target, Handle.class);
-        HandlerInvoker fluxInvoker = fluxHandler.getInvoker(null).orElseThrow();
+        Handler<Object> fluxzeroHandler = createHandler(target, Handle.class);
+        HandlerInvoker fluxzeroInvoker = fluxzeroHandler.getInvoker(null).orElseThrow();
 
         System.out.println("Invocation result of lambda: " + invoker.invoke(target));
 
@@ -55,8 +55,8 @@ class MethodInvokerBenchmark {
             testInvoker(invoker, target);
             testMessageHandle(realMethodHandle, target);
             testReflection(method, target);
-            testFluxInvoker(fluxInvoker);
-            testFluxHandler(fluxHandler);
+            testFluxzeroInvoker(fluxzeroInvoker);
+            testFluxzeroHandler(fluxzeroHandler);
         }
 
         System.out.println("starting");
@@ -65,13 +65,13 @@ class MethodInvokerBenchmark {
         TimingUtils.time(() -> testReflection(method, target), ms -> System.out.printf("reflection: %dms, ", ms));
         TimingUtils.time(() -> testMessageHandle(realMethodHandle, target), ms -> System.out.printf("method handle: %dms, ", ms));
         TimingUtils.time(() -> testInvoker(invoker, target), ms -> System.out.printf("lambda invoker: %dms, ", ms));
-        TimingUtils.time(() -> testFluxInvoker(fluxInvoker),
-                         elapsed -> System.out.printf("flux invoker: %dms, ", elapsed), ChronoUnit.MILLIS);
-        TimingUtils.time(() -> testFluxHandler(fluxHandler), ms -> System.out.printf("flux handler: %dms, ", ms));
+        TimingUtils.time(() -> testFluxzeroInvoker(fluxzeroInvoker),
+                         elapsed -> System.out.printf("fluxzero invoker: %dms, ", elapsed), ChronoUnit.MILLIS);
+        TimingUtils.time(() -> testFluxzeroHandler(fluxzeroHandler), ms -> System.out.printf("fluxzero handler: %dms, ", ms));
 
     }
 
-    private static void testFluxInvoker(HandlerInvoker invoker) {
+    private static void testFluxzeroInvoker(HandlerInvoker invoker) {
         for (long i = 0; i < iterations; i++) {
             invoker.invoke();
         }
@@ -89,7 +89,7 @@ class MethodInvokerBenchmark {
         }
     }
 
-    private static void testFluxHandler(Handler<Object> handler) {
+    private static void testFluxzeroHandler(Handler<Object> handler) {
         for (long i = 0; i < iterations; i++) {
             handler.getInvoker(null).orElseThrow().invoke();
         }

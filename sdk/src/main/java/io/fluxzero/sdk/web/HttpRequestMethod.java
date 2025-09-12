@@ -55,7 +55,7 @@ public interface HttpRequestMethod {
     String OPTIONS = "OPTIONS";
     String TRACE = "TRACE";
 
-    // Extended WebSocket lifecycle methods (used internally by Flux)
+    // Extended WebSocket lifecycle methods (used internally by Fluxzero)
 
     /** Synthetic method representing a WebSocket handshake (initial HTTP upgrade). */
     String WS_HANDSHAKE = "WS_HANDSHAKE";

@@ -49,7 +49,7 @@ Then declare only the dependencies you actually need (no version required):
 ```
 
 > 💡 **Note:** The `test-server` and `proxy` modules are **optional**, and can be included if you want to test your
-> application locally against an **in-memory Flux server**.
+> application locally against an **in-memory Fluxzero Runtime**.
 
 ---
 

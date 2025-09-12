@@ -29,7 +29,7 @@ import java.time.temporal.ChronoUnit;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
 /**
- * Declares a {@code Consumer} within a Flux application.
+ * Declares a {@code Consumer} within a Fluxzero application.
  * <p>
  * A consumer represents an isolated group of handlers that independently track and process messages from one or more
  * message logs. It can be applied at the class or package level to group handlers together. Handlers that do not
@@ -133,13 +133,13 @@ public @interface Consumer {
      * If {@code true}, this consumer will bypass the default segment-based sharding applied by the Fluxzero Runtime and
      * attempt to process all message segments.
      * <p>
-     * By default, Flux shards messages across consumers using a routing key present in the message payload, or the
+     * By default, Fluxzero shards messages across consumers using a routing key present in the message payload, or the
      * message ID if no routing key is specified. However, some handlers may require a custom sharding strategy— for
      * instance, sharding based on a different property in the payload.
      * </p>
      *
      * <p>
-     * Setting {@code ignoreSegment = true} allows such handlers to override Flux's internal routing and apply their own
+     * Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their own
      * logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom
      * property:
      * </p>
@@ -178,7 +178,7 @@ public @interface Consumer {
     boolean singleTracker() default false;
 
     /**
-     * If {@code true}, the consumer will not rely on Flux's internal tracking index. Instead, the application itself is
+     * If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application itself is
      * responsible for determining which messages to process.
      * <p>
      * This is typically used in combination with {@link #ignoreSegment()} set to {@code true} to ensure that all
@@ -192,8 +192,8 @@ public @interface Consumer {
      * </p>
      *
      * <p>
-     * When {@code false} (the default), Flux tracks message indices and distributes segments to consumer trackers for
-     * balanced parallel processing.
+     * When {@code false} (the default), Fluxzero tracks message indices and distributes segments to consumer trackers
+     * for balanced parallel processing.
      * </p>
      */
     boolean clientControlledIndex() default false;

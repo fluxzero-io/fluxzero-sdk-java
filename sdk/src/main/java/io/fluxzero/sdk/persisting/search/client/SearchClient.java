@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
- * Low-level interface for interacting with a search and indexing service in Flux.
+ * Low-level interface for interacting with a search and indexing service in Fluxzero.
  * <p>
  * The {@code SearchClient} operates exclusively on serialized forms of documents
  * (see {@link SerializedDocument}) and search-related requests. It is the primary interface used by
@@ -114,7 +114,7 @@ public interface SearchClient extends AutoCloseable {
     CompletableFuture<Void> delete(String documentId, String collection, Guarantee guarantee);
 
     /**
-     * Configures Flux to use a search collection as a searchable audit trail.
+     * Configures Fluxzero to use a search collection as a searchable audit trail.
      *
      * @param request a request object specifying the collection to use as an audit trail and retention configuration
      * @return a future that completes when the audit trail has been created.

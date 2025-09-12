@@ -36,7 +36,7 @@ Fluxzero.index(myObject, "customCollection");
 
 ### Searchable Domain Models
 
-Many models in Flux (e.g. aggregates or stateful handlers) are automatically indexable:
+Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically indexable:
 
 - `@Aggregate(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
@@ -94,7 +94,7 @@ List<UserAccount> users = Fluxzero
 
 ### Common Filtering Constraints
 
-Flux supports a rich set of constraints:
+Fluxzero supports a rich set of constraints:
 
 - `lookAhead("cat", paths...)` – search-as-you-type lookups
 - `query("*text & (cat* | hat)", paths...)` – full-text search
@@ -379,7 +379,7 @@ This will return:
 
 ### Streaming Results
 
-Flux supports efficient streaming of large result sets:
+Fluxzero supports efficient streaming of large result sets:
 
 [//]: # (@formatter:off)
 ```java

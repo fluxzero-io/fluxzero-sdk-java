@@ -38,7 +38,7 @@ Fluxzero.get()
 
 ### Automatic Metrics from Clients
 
-Many metrics are automatically emitted by the Flux Java client:
+Many metrics are automatically emitted by the Fluxzero Java SDK:
 
 - **Connect / Disconnect events** when clients (re)connect
 - **Tracking updates** (throughput, handler times, latency)

@@ -56,7 +56,7 @@ import java.util.function.Consumer;
  * <h2>Use Cases</h2>
  * <ul>
  *   <li>Unit tests or integration tests involving command/event/query handling</li>
- *   <li>Local development without a Flux backend connection</li>
+ *   <li>Local development without using Fluxzero Runtime as a backend</li>
  *   <li>Custom tooling that simulates tracking or playback behavior</li>
  * </ul>
  *

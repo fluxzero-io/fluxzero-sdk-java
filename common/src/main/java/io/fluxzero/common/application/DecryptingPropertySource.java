@@ -38,7 +38,7 @@ import static java.util.Optional.ofNullable;
  * <p>The encryption strategy is determined using the {@code ENCRYPTION_KEY} environment variable or system property.
  * If no key is found, a no-op fallback is used, meaning decryption will be skipped.
  *
- * <p>To enable encrypted property support in a Flux application, ensure the appropriate key is present, e.g.:
+ * <p>To enable encrypted property support in a Fluxzero application, ensure the appropriate key is present, e.g.:
  * <pre>{@code
  *   export ENCRYPTION_KEY=ChaCha20|mYbAse64ENcodedKeY==
  * }</pre>

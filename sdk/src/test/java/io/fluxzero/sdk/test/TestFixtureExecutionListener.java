@@ -42,7 +42,7 @@ public class TestFixtureExecutionListener implements TestExecutionListener {
     /**
      * Invoked automatically by the JUnit 5 test engine after each test case completes.
      * <p>
-     * This will invoke {@link TestFixture#shutDownActiveFixtures()}, which closes all Flux components
+     * This will invoke {@link TestFixture#shutDownActiveFixtures()}, which closes all Fluxzero components
      * registered to the current thread.
      */
     @Override

@@ -81,7 +81,7 @@ import static java.util.stream.Stream.concat;
  * </ul>
  * <p>
  * This decorator also tracks open WebSocket sessions and ensures that message dispatch is session-aware. It works
- * transparently with the Flux client’s message routing and tracking infrastructure.
+ * transparently with the Fluxzero client’s message routing and tracking infrastructure.
  */
 @RequiredArgsConstructor
 @Slf4j

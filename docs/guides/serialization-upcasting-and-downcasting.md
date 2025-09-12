@@ -10,7 +10,7 @@ The serializer is fully pluggable, and you can supply your own by implementing o
 
 ### Revisions
 
-To track changes in your data model, annotate your class with `@Revision`. When deserializing, Flux will use this
+To track changes in your data model, annotate your class with `@Revision`. When deserializing, Fluxzero will use this
 revision number to determine whether any transformation is required.
 
 ```java
@@ -134,12 +134,12 @@ serializer.registerCasters(new CreateUserUpcaster(), new CreateUserDowncaster())
 ### How It Works
 
 - On **deserialization**:
-    - Flux detects the revision of the stored object
+    - Fluxzero detects the revision of the stored object
     - Applies all applicable `@Upcast` methods (in order)
     - Then deserializes into the latest version
 
 - On **serialization**:
-    - Flux stores the latest type and revision
+    - Fluxzero stores the latest type and revision
     - If needed, a `@Downcast` can adapt it for external use
 
 All casting occurs **in your application**, not in the Fluxzero Runtime. Stored messages remain unchanged.
