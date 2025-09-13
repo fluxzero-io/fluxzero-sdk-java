@@ -471,7 +471,7 @@ public interface Fluxzero extends AutoCloseable {
      *
      * @see Periodic
      */
-    static void schedulePeriodic(Object schedule, String scheduleId) {
+    static void schedulePeriodic(Object schedule, Object scheduleId) {
         get().messageScheduler().schedulePeriodic(schedule, scheduleId);
     }
 
@@ -507,7 +507,7 @@ public interface Fluxzero extends AutoCloseable {
      * instance of a {@link Message} in which case it will be scheduled as is. Otherwise, the schedule is published
      * using the passed value as payload without additional metadata.
      */
-    static void schedule(Object schedule, String scheduleId, Duration delay) {
+    static void schedule(Object schedule, Object scheduleId, Duration delay) {
         get().messageScheduler().schedule(schedule, scheduleId, delay);
     }
 
@@ -543,7 +543,7 @@ public interface Fluxzero extends AutoCloseable {
      * an instance of a {@link Message} in which case it will be scheduled as is. Otherwise, the command is published
      * using the passed value as payload without additional metadata.
      */
-    static void scheduleCommand(Object command, String scheduleId, Instant deadline) {
+    static void scheduleCommand(Object command, Object scheduleId, Instant deadline) {
         get().messageScheduler().scheduleCommand(command, scheduleId, deadline);
     }
 
@@ -561,7 +561,7 @@ public interface Fluxzero extends AutoCloseable {
      * instance of a {@link Message} in which case it will be scheduled as is. Otherwise, the command is published using
      * the passed value as payload without additional metadata.
      */
-    static void scheduleCommand(Object command, String scheduleId, Duration delay) {
+    static void scheduleCommand(Object command, Object scheduleId, Duration delay) {
         get().messageScheduler().scheduleCommand(command, scheduleId, delay);
     }
 
@@ -583,7 +583,7 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Cancels the schedule with given {@code scheduleId}.
      */
-    static void cancelSchedule(String scheduleId) {
+    static void cancelSchedule(Object scheduleId) {
         get().messageScheduler().cancelSchedule(scheduleId);
     }
 
