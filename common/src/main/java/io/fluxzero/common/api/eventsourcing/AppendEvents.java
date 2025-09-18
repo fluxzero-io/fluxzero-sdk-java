@@ -82,5 +82,23 @@ public class AppendEvents extends Command {
     @Value
     public static class Metric {
         List<EventBatch.Metric> eventBatches;
+
+        /**
+         * The size of the metric, representing the number of events within all batches.
+         */
+        public int getSize() {
+            return eventBatches.stream()
+                    .mapToInt(EventBatch.Metric::getSize)
+                    .sum();
+        }
+
+        /**
+         * The total number of bytes in the data across all messages within all batches.
+         */
+        public long getBytes() {
+            return eventBatches.stream()
+                    .mapToLong(EventBatch.Metric::getBytes)
+                    .sum();
+        }
     }
 }
