@@ -7,7 +7,7 @@
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
 [![Maven Central](https://img.shields.io/maven-central/v/io.fluxzero/fluxzero-sdk-java)](https://central.sonatype.com/artifact/io.fluxzero/fluxzero-sdk-java?smo=true)
 [![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/)
-[![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/master/docs/cheatsheet.pdf)
+[![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/main/docs/cheatsheet.pdf)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
