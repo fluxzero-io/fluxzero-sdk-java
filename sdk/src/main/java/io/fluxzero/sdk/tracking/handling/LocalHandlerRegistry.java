@@ -163,7 +163,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             try {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
-                if (logMessage) {
+                if (handled && logMessage) {
                     Fluxzero.getOptionally().ifPresent(fc -> {
                         SerializedMessage serializedMessage = message.getSerializedObject();
                         serializedMessage = dispatchInterceptor.modifySerializedMessage(
