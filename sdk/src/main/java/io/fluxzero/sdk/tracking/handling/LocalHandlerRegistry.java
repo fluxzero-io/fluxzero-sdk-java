@@ -16,12 +16,14 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import lombok.Getter;
 import lombok.NonNull;
@@ -85,6 +87,7 @@ import static java.util.Collections.emptyList;
 public class LocalHandlerRegistry implements HandlerRegistry {
     @Getter
     private final HandlerFactory handlerFactory;
+    private final DispatchInterceptor dispatchInterceptor;
     @Getter
     private final List<Handler<DeserializingMessage>> localHandlers = new CopyOnWriteArrayList<>();
 
@@ -161,8 +164,15 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
                 if (logMessage) {
-                    Fluxzero.getOptionally().ifPresent(fc -> fc.client().getGatewayClient(m.getMessageType())
-                            .append(Guarantee.NONE, message.getSerializedObject()));
+                    Fluxzero.getOptionally().ifPresent(fc -> {
+                        SerializedMessage serializedMessage = message.getSerializedObject();
+                        serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                                serializedMessage, m.toMessage(), m.getMessageType(), m.getTopic());
+                        if (serializedMessage != null) {
+                            fc.client().getGatewayClient(m.getMessageType(), m.getTopic())
+                                    .append(Guarantee.NONE, serializedMessage);
+                        }
+                    });
                 }
             }
         });

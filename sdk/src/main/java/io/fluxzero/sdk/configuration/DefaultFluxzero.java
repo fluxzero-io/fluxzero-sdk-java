@@ -650,7 +650,8 @@ public class DefaultFluxzero implements Fluxzero {
                     client.getSearchClient(), documentSerializer,
                     client.getSearchClient() instanceof InMemorySearchStore searchStore
                             ? new LocalDocumentHandlerRegistry(searchStore, localHandlerRegistry(
-                            DOCUMENT, handlerDecorators, parameterResolvers, handlerRepositorySupplier,
+                            DOCUMENT, handlerDecorators, parameterResolvers, dispatchInterceptors,
+                            handlerRepositorySupplier,
                             repositorySupplier), dispatchInterceptors.get(DOCUMENT), serializer)
                             : HandlerRegistry.noOp()));
 
@@ -660,6 +661,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                           serializer, dispatchInterceptors.get(EVENT),
                                                           localHandlerRegistry(EVENT, handlerDecorators,
                                                                                parameterResolvers,
+                                                                               dispatchInterceptors,
                                                                                handlerRepositorySupplier,
                                                                                repositorySupplier));
             var snapshotStore = new DefaultSnapshotStore(client.getKeyValueClient(), snapshotSerializer, eventStore);
@@ -742,6 +744,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                             dispatchInterceptors.get(COMMAND),
                                                                             localHandlerRegistry(SCHEDULE, handlerDecorators,
                                                                             parameterResolvers,
+                                                                            dispatchInterceptors,
                                                                             handlerRepositorySupplier,
                                                                             repositorySupplier));
 
@@ -844,7 +847,8 @@ public class DefaultFluxzero implements Fluxzero {
             return new DefaultGenericGateway(client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,
                                              topic, localHandlerRegistry(messageType, handlerDecorators,
-                                                                         parameterResolvers, handlerRepositorySupplier,
+                                                                         parameterResolvers, dispatchInterceptors,
+                                                                         handlerRepositorySupplier,
                                                                          repositoryProvider),
                                              responseMapper);
         }
@@ -852,19 +856,18 @@ public class DefaultFluxzero implements Fluxzero {
         protected HandlerRegistry localHandlerRegistry(MessageType messageType,
                                                        Map<MessageType, HandlerDecorator> handlerDecorators,
                                                        List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                                       Map<MessageType, DispatchInterceptor> dispatchInterceptors,
                                                        Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                                        RepositoryProvider repositoryProvider) {
-            return switch (messageType) {
-                case EVENT -> new LocalHandlerRegistry(new DefaultHandlerFactory(
-                        messageType, handlerDecorators.get(messageType),
-                        parameterResolvers, handlerRepositorySupplier, repositoryProvider))
-                        .andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
-                                NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,
-                                handlerRepositorySupplier, repositoryProvider)));
-                default -> new LocalHandlerRegistry(new DefaultHandlerFactory(
-                        messageType, handlerDecorators.get(messageType), parameterResolvers,
-                        handlerRepositorySupplier, repositoryProvider));
-            };
+            var result = new LocalHandlerRegistry(new DefaultHandlerFactory(
+                    messageType, handlerDecorators.get(messageType), parameterResolvers,
+                    handlerRepositorySupplier, repositoryProvider), dispatchInterceptors.get(messageType));
+            if (messageType == EVENT) {
+                return result.andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
+                        NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,
+                        handlerRepositorySupplier, repositoryProvider), dispatchInterceptors.get(EVENT)));
+            }
+            return result;
         }
     }
 
