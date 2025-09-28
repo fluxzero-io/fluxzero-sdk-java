@@ -16,6 +16,7 @@ package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.search.SerializedDocument;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
@@ -170,6 +171,11 @@ public interface IndexOperation {
      * Whether the operation is configured to only index if the document doesn't already exist.
      */
     boolean ifNotExists();
+
+    /**
+     * Converts the current state of the IndexOperation into a Document instance.
+     */
+    SerializedDocument toDocument();
 
     /**
      * Creates a deep copy of this operation, preserving all configured values.

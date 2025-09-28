@@ -18,12 +18,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SearchQuery;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
-import io.fluxzero.sdk.modeling.SearchParameters;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -41,9 +39,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
-import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
 import static java.util.Collections.singletonList;
-import static java.util.Optional.ofNullable;
 
 /**
  * Interface for storing, updating, and querying documents in the Fluxzero Runtime.
@@ -68,7 +64,7 @@ public interface DocumentStore {
      * indexing parameters before committing.
      */
     default IndexOperation prepareIndex(@NonNull Object object) {
-        return new DefaultIndexOperation(this, object);
+        return DefaultIndexOperation.prepare(this, object);
     }
 
     /**
@@ -76,14 +72,6 @@ public interface DocumentStore {
      * from annotations or fallback strategies.
      */
     default CompletableFuture<Void> index(@NonNull Object object) {
-        if (object instanceof Entity<?> entity) {
-            if (entity.isEmpty()) {
-                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
-                Objects.requireNonNull(entity.type(), "Entity Type must not be null");
-                return deleteDocument(entity.id(), entity.type());
-            }
-            return prepareIndex(object).index();
-        }
         if (object.getClass().isArray()) {
             if (!object.getClass().arrayType().isPrimitive()) {
                 object = Arrays.asList((Object[]) object);
@@ -92,28 +80,20 @@ public interface DocumentStore {
         if (object instanceof Collection<?> collection) {
             return CompletableFuture.allOf(collection.stream().map(this::index).toArray(CompletableFuture[]::new));
         }
-        Class<?> type = object.getClass();
-        var searchParams = ofNullable(getSearchParameters(type)).orElse(SearchParameters.defaultSearchParameters);
-        String collection = ofNullable(searchParams.getCollection()).orElseGet(type::getSimpleName);
-        Instant begin = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);
-        Instant end = ReflectionUtils.hasProperty(searchParams.getEndPath(), object)
-                ? ReflectionUtils.<Instant>readProperty(searchParams.getEndPath(), object).orElse(null) : begin;
-        String id = getAnnotatedPropertyValue(object, EntityId.class).map(Object::toString)
-                .orElseGet(() -> currentIdentityProvider().nextTechnicalId());
-        return index(object, id, collection, begin, end);
+        if (object instanceof Entity<?> entity) {
+            if (entity.isEmpty()) {
+                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
+                Objects.requireNonNull(entity.type(), "Entity Type must not be null");
+                return deleteDocument(entity.id(), entity.type());
+            }
+        }
+        return prepareIndex(object).index();
     }
 
     /**
      * Indexes one or more objects into the specified collection.
      */
     default CompletableFuture<Void> index(@NonNull Object object, Object collection) {
-        if (object instanceof Entity<?> entity) {
-            if (entity.isEmpty()) {
-                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
-                return deleteDocument(entity.id(), collection);
-            }
-            return prepareIndex(object).collection(collection).index();
-        }
         if (object.getClass().isArray()) {
             if (!object.getClass().arrayType().isPrimitive()) {
                 object = Arrays.asList((Object[]) object);
@@ -123,14 +103,13 @@ public interface DocumentStore {
             return CompletableFuture.allOf(
                     col.stream().map(v -> index(v, collection)).toArray(CompletableFuture[]::new));
         }
-        var searchParams =
-                ofNullable(getSearchParameters(object.getClass())).orElse(SearchParameters.defaultSearchParameters);
-        Instant begin = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);
-        Instant end = ReflectionUtils.hasProperty(searchParams.getEndPath(), object)
-                ? ReflectionUtils.<Instant>readProperty(searchParams.getEndPath(), object).orElse(null) : begin;
-        String id = getAnnotatedPropertyValue(object, EntityId.class).map(Object::toString)
-                .orElseGet(() -> currentIdentityProvider().nextTechnicalId());
-        return index(object, id, collection, begin, end);
+        if (object instanceof Entity<?> entity) {
+            if (entity.isEmpty()) {
+                Objects.requireNonNull(entity.id(), "Entity ID must not be null");
+                return deleteDocument(entity.id(), collection);
+            }
+        }
+        return prepareIndex(object).collection(collection).index();
     }
 
     /**
@@ -141,14 +120,8 @@ public interface DocumentStore {
             if (entity.isEmpty()) {
                 return deleteDocument(id, collection);
             }
-            return prepareIndex(object).collection(collection).id(id).index();
         }
-        var searchParams = ofNullable(getSearchParameters(object.getClass()))
-                .orElse(SearchParameters.defaultSearchParameters);
-        Instant begin = ReflectionUtils.<Instant>readProperty(searchParams.getTimestampPath(), object).orElse(null);
-        Instant end = ReflectionUtils.hasProperty(searchParams.getEndPath(), object)
-                ? ReflectionUtils.<Instant>readProperty(searchParams.getEndPath(), object).orElse(null) : begin;
-        return index(object, id, collection, begin, end);
+        return prepareIndex(object).collection(collection).id(id).index();
     }
 
     /**

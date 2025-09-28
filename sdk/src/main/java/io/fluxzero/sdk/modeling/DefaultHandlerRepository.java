@@ -31,17 +31,17 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
-import java.time.temporal.TemporalAccessor;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
+import static java.util.Optional.ofNullable;
 
 /**
  * Default implementation of {@link HandlerRepository}, backed by a {@link DocumentStore}.
@@ -72,7 +72,7 @@ public class DefaultHandlerRepository implements HandlerRepository {
             Stateful stateful = ReflectionUtils.getTypeAnnotation(type, Stateful.class);
             var defaultRepo = new DefaultHandlerRepository(
                     documentStore.get(), ClientUtils.getSearchParameters(type).getCollection(), type, stateful);
-            return Optional.ofNullable(stateful).filter(Stateful::commitInBatch)
+            return ofNullable(stateful).filter(Stateful::commitInBatch)
                     .<HandlerRepository>map(s -> new BatchingHandlerRepository(
                             defaultRepo, documentSerializer)).orElse(defaultRepo);
         });
@@ -89,42 +89,13 @@ public class DefaultHandlerRepository implements HandlerRepository {
         this.documentStore = documentStore;
         this.collection = collection;
         this.type = type;
-
-        // Resolve timestamp extraction logic
-        AtomicBoolean warnedAboutMissingTimePath = new AtomicBoolean();
-        this.timestampFunction = Optional.of(annotation).map(Stateful::timestampPath)
-                .filter(path -> !path.isBlank())
-                .<Function<Object, Instant>>map(path -> handler -> ReflectionUtils.readProperty(path, handler)
-                        .map(t -> Instant.from((TemporalAccessor) t)).orElseGet(() -> {
-                            if (handler != null) {
-                                if (ReflectionUtils.hasProperty(path, handler)) {
-                                    return null;
-                                }
-                                if (warnedAboutMissingTimePath.compareAndSet(false, true)) {
-                                    log.warn("Type {} does not declare a timestamp property at '{}'",
-                                             handler.getClass().getSimpleName(), path);
-                                }
-                            }
-                            return Fluxzero.currentTime();
-                        })).orElseGet(() -> handler -> Fluxzero.currentTime());
-
-        // Resolve end timestamp extraction logic
-        AtomicBoolean warnedAboutMissingEndPath = new AtomicBoolean();
-        this.endFunction = Optional.of(annotation).map(Stateful::endPath)
-                .filter(path -> !path.isBlank())
-                .<Function<Object, Instant>>map(path -> handler -> ReflectionUtils.readProperty(path, handler)
-                        .map(t -> Instant.from((TemporalAccessor) t)).orElseGet(() -> {
-                            if (handler != null) {
-                                if (ReflectionUtils.hasProperty(path, handler)) {
-                                    return null;
-                                }
-                                if (warnedAboutMissingEndPath.compareAndSet(false, true)) {
-                                    log.warn("Type {} does not declare an end timestamp property at '{}'",
-                                             handler.getClass().getSimpleName(), path);
-                                }
-                            }
-                            return Fluxzero.currentTime();
-                        }))
+        this.timestampFunction = Optional.of(annotation).map(Stateful::timestampPath).filter(p -> !p.isBlank())
+                .<Function<Object, Instant>>map(path -> handler -> ofNullable(
+                        parseTimeProperty(path, handler, false)).orElseGet(Fluxzero::currentTime))
+                .orElseGet(() -> handler -> Fluxzero.currentTime());
+        this.endFunction = Optional.of(annotation).map(Stateful::endPath).filter(p -> !p.isBlank())
+                .<Function<Object, Instant>>map(path -> handler -> ofNullable(
+                        parseTimeProperty(path, handler, true)).orElseGet(Fluxzero::currentTime))
                 .orElse(timestampFunction);
     }
 

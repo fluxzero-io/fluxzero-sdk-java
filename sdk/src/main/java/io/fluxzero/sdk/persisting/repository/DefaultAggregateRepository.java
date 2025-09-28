@@ -55,7 +55,6 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -66,16 +65,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
-import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
 import static io.fluxzero.sdk.modeling.ModifiableAggregateRoot.getActiveAggregatesFor;
 import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
@@ -261,41 +260,15 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.collection = Optional.of(annotation).map(Aggregate::collection)
                     .filter(s -> !s.isEmpty()).orElse(type.getSimpleName());
             this.idProperty = getAnnotatedProperty(type, EntityId.class).map(ReflectionUtils::getName).orElse(null);
-            AtomicBoolean warnedAboutMissingTimePath = new AtomicBoolean();
             this.timestampFunction = Optional.of(annotation).map(Aggregate::timestampPath)
-                    .filter(s -> !s.isBlank()).<Function<Entity<?>, Instant>>map(
-                            s -> aggregateRoot -> ReflectionUtils.readProperty(s, aggregateRoot.get())
-                                    .map(t -> Instant.from((TemporalAccessor) t)).orElseGet(() -> {
-                                        if (aggregateRoot.isPresent()) {
-                                            if (hasProperty(s, aggregateRoot.get())) {
-                                                return null;
-                                            }
-                                            if (warnedAboutMissingTimePath.compareAndSet(false, true)) {
-                                                log.warn(
-                                                        "Aggregate type {} does not declare a timestamp property at '{}'",
-                                                        aggregateRoot.get().getClass().getSimpleName(), s);
-                                            }
-                                        }
-                                        return aggregateRoot.timestamp();
-                                    }))
+                    .filter(s -> !s.isBlank())
+                    .<Function<Entity<?>, Instant>>map(s -> a -> ofNullable(parseTimeProperty(s, a.get(), false))
+                            .orElseGet(a::timestamp))
                     .orElse(Entity::timestamp);
-            AtomicBoolean warnedAboutMissingEndPath = new AtomicBoolean();
             this.endFunction = Optional.of(annotation).map(Aggregate::endPath)
-                    .filter(s -> !s.isBlank()).<Function<Entity<?>, Instant>>map(
-                            s -> aggregateRoot -> ReflectionUtils.readProperty(s, aggregateRoot.get())
-                                    .map(t -> Instant.from((TemporalAccessor) t)).orElseGet(() -> {
-                                        if (aggregateRoot.isPresent()) {
-                                            if (hasProperty(s, aggregateRoot.get())) {
-                                                return null;
-                                            }
-                                            if (warnedAboutMissingEndPath.compareAndSet(false, true)) {
-                                                log.warn(
-                                                        "Aggregate type {} does not declare an end timestamp property at '{}'",
-                                                        aggregateRoot.get().getClass().getSimpleName(), s);
-                                            }
-                                        }
-                                        return aggregateRoot.timestamp();
-                                    }))
+                    .filter(s -> !s.isBlank())
+                    .<Function<Entity<?>, Instant>>map(s -> a -> ofNullable(parseTimeProperty(s, a.get(), true))
+                            .orElseGet(a::timestamp))
                     .orElse(timestampFunction);
             this.ignoreUnknownEvents = annotation.ignoreUnknownEvents();
         }

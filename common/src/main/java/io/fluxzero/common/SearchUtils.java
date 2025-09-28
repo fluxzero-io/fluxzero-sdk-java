@@ -18,14 +18,21 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayOutputStream;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,11 +50,13 @@ import static java.util.stream.Collectors.toMap;
  * Utility class for search-related functionality such as term normalization, path transformation, glob pattern
  * matching, and primitive value extraction.
  * <p>
- * This class is used extensively during document indexing, querying, and filtering.
- * It also includes utilities for path conversion between dot and slash notation, JSON normalization,
- * and field escaping/unescaping.
+ * This class is used extensively during document indexing, querying, and filtering. It also includes utilities for path
+ * conversion between dot and slash notation, JSON normalization, and field escaping/unescaping.
  */
+@Slf4j
 public class SearchUtils {
+
+    private static final Map<Class<?>, String> knownMissingProperties = new ConcurrentHashMap<>();
 
     /**
      * Regex pattern for splitting dot-separated paths (ignoring escaped dots).
@@ -336,5 +345,43 @@ public class SearchUtils {
         fieldName = fieldName.replace("\\/", "/");
         fieldName = fieldName.replace("\\\"", "\"");
         return fieldName;
+    }
+
+    /**
+     * Parses a time-related property from an object based on the specified property path. The extracted property value
+     * can be of various types, such as LocalDate, LocalDateTime, TemporalAccessor, or String, and the method converts
+     * it to an Instant.
+     * <p>
+     * If the property is a LocalDate and the end flag is set to true, the result will represent the start of the next
+     * day; otherwise, it represents the start of the given day.
+     */
+    public static Instant parseTimeProperty(String propertyPath, Object object, boolean end) {
+        if (object == null || StringUtils.isBlank(propertyPath)) {
+            return null;
+        }
+        Object property = ReflectionUtils.readProperty(propertyPath, object).orElse(null);
+        return switch (property) {
+            case LocalDate d -> (end ? d.plusDays(1) : d)
+                    .atStartOfDay(ZoneOffset.systemDefault()).toInstant();
+            case LocalDateTime d -> d.atZone(ZoneOffset.systemDefault()).toInstant();
+            case TemporalAccessor t -> Instant.from(t);
+            case String s -> Instant.parse(s);
+            case null -> {
+                if (knownMissingProperties.putIfAbsent(object.getClass(), propertyPath) == null) {
+                    if (!ReflectionUtils.hasProperty(propertyPath, object)) {
+                        log.warn("Type {} does not declare a timestamp property '{}'",
+                                 object.getClass().getSimpleName(), propertyPath);
+                    }
+                }
+                yield null;
+            }
+            default -> {
+                if (knownMissingProperties.putIfAbsent(object.getClass(), propertyPath) == null) {
+                    log.warn("Property '{}' of type {} is not a valid timestamp property",
+                             propertyPath, property.getClass().getSimpleName());
+                }
+                yield null;
+            }
+        };
     }
 }

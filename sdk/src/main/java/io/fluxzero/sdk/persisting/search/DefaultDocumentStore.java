@@ -33,7 +33,6 @@ import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
-import io.fluxzero.common.search.Document;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -43,7 +42,6 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -58,7 +56,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static java.lang.String.format;
 import static java.util.function.UnaryOperator.identity;
 import static java.util.stream.Collectors.toList;
@@ -91,33 +88,9 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     public CompletableFuture<Void> index(Collection<?> objects, Object collection,
                                          String idPath, String beginPath,
                                          String endPath, Guarantee guarantee, boolean ifNotExists) {
-        var documents = objects.stream().map(v -> serializer.toDocument(
-                        v instanceof Entity<?> e ? e.get() : v,
-                        currentIdentityProvider().nextTechnicalId(), determineCollection(collection), null, null))
-                .map(SerializedDocument::deserializeDocument).map(d -> {
-                    Document.DocumentBuilder builder = d.toBuilder();
-                    if (StringUtils.hasText(idPath)) {
-                        builder.id(d.getEntryAtPath(idPath).filter(
-                                        e -> e.getType() == Document.EntryType.TEXT
-                                             || e.getType() == Document.EntryType.NUMERIC)
-                                           .map(Document.Entry::getValue).orElseThrow(
-                                        () -> new IllegalArgumentException(
-                                                "Could not determine the document id. Path does not exist on document: "
-                                                + d)));
-                    }
-                    if (StringUtils.hasText(beginPath)) {
-                        builder.timestamp(
-                                d.getEntryAtPath(beginPath).filter(e -> e.getType() == Document.EntryType.TEXT)
-                                        .map(Document.Entry::getValue).map(Instant::parse)
-                                        .orElse(null));
-                    }
-                    if (StringUtils.hasText(endPath)) {
-                        builder.end(d.getEntryAtPath(endPath).filter(e -> e.getType() == Document.EntryType.TEXT)
-                                            .map(Document.Entry::getValue).map(Instant::parse)
-                                            .orElse(null));
-                    }
-                    return builder.build();
-                }).map(SerializedDocument::new).collect(toList());
+        var documents = objects.stream().map(v -> DefaultIndexOperation.prepare(
+                this, v, collection, idPath, beginPath, endPath)
+                .ifNotExists(ifNotExists).toDocument()).toList();
         try {
             return client.index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
@@ -126,16 +99,17 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public <T> CompletableFuture<Void> index(Collection<? extends T> objects, Object collection,
                                              Function<? super T, ?> idFunction,
                                              Function<? super T, Instant> beginFunction,
                                              Function<? super T, Instant> endFunction, Guarantee guarantee,
                                              boolean ifNotExists) {
-        var documents = objects.stream().map(v -> serializer.toDocument(
-                v instanceof Entity<?> e ? e.get() : v, idFunction.apply(v).toString(),
-                determineCollection(collection), beginFunction.apply(v),
-                endFunction.apply(v))).collect(toList());
+        var documents = objects.stream().map(v -> DefaultIndexOperation.prepare(
+                        this, v, collection,
+                        (Function) idFunction, (Function) beginFunction, (Function) endFunction)
+                .ifNotExists(ifNotExists).toDocument()).toList();
         try {
             return client.index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
@@ -209,7 +183,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                                  determineCollection(collection)))
                     .stream().map(serializer::<T>fromDocument).toList();
         } catch (Exception e) {
-            throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection), e);
+            throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
+                                             e);
         }
     }
 
@@ -220,7 +195,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                                  determineCollection(collection)))
                     .stream().map(d -> serializer.fromDocument(d, type)).toList();
         } catch (Exception e) {
-            throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection), e);
+            throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
+                                             e);
         }
     }
 

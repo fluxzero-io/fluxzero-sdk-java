@@ -322,6 +322,10 @@ public class ReflectionUtils {
         return results;
     }
 
+    public static Optional<String> getAnnotatedPropertyName(Object target, Class<? extends Annotation> annotation) {
+        return getAnnotatedProperty(target, annotation).map(ReflectionUtils::getPropertyName);
+    }
+
     public static String getPropertyName(AccessibleObject property) {
         if (property instanceof Field field) {
             return field.getName();
