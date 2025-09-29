@@ -15,7 +15,6 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
@@ -25,9 +24,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
-import java.util.stream.Stream;
+import java.util.Optional;
 
 import static io.fluxzero.common.ObjectUtils.newThreadName;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 import static io.undertow.Handlers.path;
@@ -39,13 +39,10 @@ public class ProxyServer implements Registration {
     public static void main(final String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught error", e));
         int port = getIntegerProperty("PROXY_PORT", 8080);
-        Client client = Stream.of("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL")
-                .filter(ApplicationProperties::containsProperty)
-                .map(ApplicationProperties::getProperty)
-                .findFirst()
+        Client client = Optional.ofNullable(getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL"))
                 .map(url -> WebSocketClient.newInstance(
                         WebSocketClient.ClientConfig.builder().name("$proxy").runtimeBaseUrl(url)
-                                .projectId(getProperty("PROJECT_ID")).build()))
+                                .projectId(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID", "PROJECT_ID")).build()))
                 .orElseThrow(() -> new IllegalStateException("FLUXZERO_BASE_URL environment variable is not set"));
         Registration registration = start(port, new ProxyRequestHandler(client))
                 .merge(ForwardProxyConsumer.start(client));

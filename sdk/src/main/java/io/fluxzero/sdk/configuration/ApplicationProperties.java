@@ -24,6 +24,8 @@ import io.fluxzero.common.application.SystemPropertiesSource;
 import io.fluxzero.common.encryption.Encryption;
 import io.fluxzero.sdk.Fluxzero;
 
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -60,6 +62,16 @@ public class ApplicationProperties {
      */
     public static String getProperty(String name) {
         return getPropertySource().get(name);
+    }
+
+    /**
+     * Returns an {@link Optional} containing the first non-null property value
+     * among the provided property names, if any exist. If no properties are resolved,
+     * returns an empty {@link Optional}.
+     */
+    public static String getFirstAvailableProperty(String... propertyNames) {
+        return Arrays.stream(propertyNames)
+                .map(ApplicationProperties::getProperty).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /**

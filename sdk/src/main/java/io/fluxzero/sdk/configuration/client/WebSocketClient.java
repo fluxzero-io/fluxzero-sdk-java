@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient;
@@ -42,6 +41,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -52,6 +52,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.keyValueUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.schedulingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -158,27 +159,24 @@ public class WebSocketClient extends AbstractClient {
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to
          * property {@code FLUXZERO_BASE_URL}.
          */
-        @Default @NonNull String runtimeBaseUrl = DefaultPropertySource.getInstance().get("FLUXZERO_BASE_URL",
-                        DefaultPropertySource.getInstance().get("FLUX_BASE_URL"));
+        @Default @NonNull String runtimeBaseUrl = getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL");
 
         /**
          * The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.
          */
-        @Default @NonNull String name = DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_NAME",
-                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_NAME"));
+        @Default @NonNull String name = getFirstAvailableProperty("FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME");
 
         /**
          * The application identifier. May be {@code null} if not explicitly configured. Defaults to
          * property {@code FLUXZERO_APPLICATION_ID}.
          */
-        @Default String applicationId = DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_ID",
-                        DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID"));
+        @Default String applicationId = getFirstAvailableProperty("FLUXZERO_APPLICATION_ID", "FLUX_APPLICATION_ID");
 
         /**
          * A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.
          */
-        @NonNull @Default String id = DefaultPropertySource.getInstance().get("FLUXZERO_TASK_ID",
-                DefaultPropertySource.getInstance().get("FLUX_TASK_ID", UUID.randomUUID().toString()));
+        @NonNull @Default String id = Optional.ofNullable(getFirstAvailableProperty(
+                "FLUXZERO_TASK_ID", "FLUX_TASK_ID")).orElseGet(UUID.randomUUID()::toString);
 
         /**
          * The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.
@@ -230,8 +228,7 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Optional project identifier. If set, it will be included in all communication with the Runtime.
          */
-        @Default String projectId = DefaultPropertySource.getInstance().get("FLUXZERO_PROJECT_ID",
-                DefaultPropertySource.getInstance().get("FLUX_PROJECT_ID"));
+        @Default String projectId = getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID");
 
         /**
          * Optional type filter that restricts the types of messages tracked by this client.
