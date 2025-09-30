@@ -100,22 +100,41 @@ jobs:
           username: ${{ steps.fluxzero-jwt.outputs.userId }}
           password: ${{ steps.fluxzero-jwt.outputs.token }}
 
-      - name: Build and push test server docker
-        uses: docker/build-push-action@v6
+      - name: Extract metadata for test-server
+        id: metadata-test-server
+        uses: docker/metadata-action@v5
         with:
-          context: test-server/.
-          push: true
+          flavor: |
+            latest=true
           tags: |
-            ghcr.io/${{ github.repository }}/fluxzero-test:${{ steps.tag_version.outputs.new_version }}
-            ghcr.io/${{ github.repository }}/fluxzero-test:latest
+            type=raw,value=${{ steps.tag_version.outputs.new_version }}
+          images: |
+            ghcr.io/${{ github.repository }}/fluxzero-test
 
-      - name: Build and push proxy docker
+      - name: Build and push test-server Docker image
         uses: docker/build-push-action@v6
         with:
-          context: proxy/.
+          context: test-server
           push: true
+          tags: ${{ steps.metadata-test-server.outputs.tags }}
+          labels: ${{ steps.metadata-test-server.outputs.labels }}
+
+      - name: Extract metadata for proxy
+        id: metadata-proxy
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            latest=true
           tags: |
-            ghcr.io/${{ github.repository }}/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
-            ghcr.io/${{ github.repository }}/fluxzero-proxy:latest
-            registry.fluxzero.io/fluxzero-proxy:${{ steps.tag_version.outputs.new_version }}
-            registry.fluxzero.io/fluxzero-proxy:latest
+            type=raw,value=${{ steps.tag_version.outputs.new_version }}
+          images: |
+            ghcr.io/${{ github.repository }}/fluxzero-proxy
+            registry.fluxzero.io/fluxzero-proxy
+
+      - name: Build and push proxy Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: proxy
+          push: true
+          tags: ${{ steps.metadata-proxy.outputs.tags }}
+          labels: ${{ steps.metadata-proxy.outputs.labels }}
