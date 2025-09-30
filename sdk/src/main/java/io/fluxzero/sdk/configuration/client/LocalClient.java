@@ -16,6 +16,7 @@ package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.application.DefaultPropertySource;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore;
@@ -78,7 +79,8 @@ public class LocalClient extends AbstractClient {
                             ManagementFactory.getRuntimeMXBean().getName()));
 
     public static LocalClient newInstance() {
-        return new LocalClient(Duration.ofMinutes(2));
+        return new LocalClient(ApplicationProperties.mapProperty(
+                "FLUXZERO_LOG_RETENTION", Duration::parse, () -> Duration.ofMinutes(2)));
     }
 
     public static LocalClient newInstance(Duration messageExpiration) {

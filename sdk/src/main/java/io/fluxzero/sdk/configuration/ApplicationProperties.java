@@ -27,6 +27,8 @@ import io.fluxzero.sdk.Fluxzero;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Central utility for resolving configuration properties within a Fluxzero application.
@@ -62,6 +64,23 @@ public class ApplicationProperties {
      */
     public static String getProperty(String name) {
         return getPropertySource().get(name);
+    }
+
+    /**
+     * Maps a property value identified by its name to a desired type using the provided mapping function.
+     * If the property is not available, the method returns {@code null}.
+     */
+    public static <T> T mapProperty(String name, Function<String, T> mapper) {
+        return Optional.ofNullable(getProperty(name)).map(mapper).orElse(null);
+    }
+
+    /**
+     * Maps a property value identified by its name to a desired type using the provided mapping function.
+     * If the property is not found, the method returns a default value supplied by the given supplier.
+     */
+    public static <T> T mapProperty(String name, Function<String, T> mapper, Supplier<T> defaultValueSupplier) {
+        var stringValue = getProperty(name);
+        return stringValue == null ? defaultValueSupplier.get() : mapper.apply(stringValue);
     }
 
     /**
@@ -165,5 +184,4 @@ public class ApplicationProperties {
                 .map(p -> p instanceof DecryptingPropertySource dps ? dps : new DecryptingPropertySource(p))
                 .orElseGet(() -> new DecryptingPropertySource(DefaultPropertySource.getInstance()));
     }
-
 }
