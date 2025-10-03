@@ -74,7 +74,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.sdk.modeling.ModifiableAggregateRoot.getActiveAggregatesFor;
 import static java.lang.String.format;
-import static java.util.Optional.ofNullable;
+import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
@@ -260,16 +260,16 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.collection = Optional.of(annotation).map(Aggregate::collection)
                     .filter(s -> !s.isEmpty()).orElse(type.getSimpleName());
             this.idProperty = getAnnotatedProperty(type, EntityId.class).map(ReflectionUtils::getName).orElse(null);
-            this.timestampFunction = Optional.of(annotation).map(Aggregate::timestampPath)
-                    .filter(s -> !s.isBlank())
-                    .<Function<Entity<?>, Instant>>map(s -> a -> ofNullable(parseTimeProperty(s, a.get(), false))
-                            .orElseGet(a::timestamp))
-                    .orElse(Entity::timestamp);
-            this.endFunction = Optional.of(annotation).map(Aggregate::endPath)
-                    .filter(s -> !s.isBlank())
-                    .<Function<Entity<?>, Instant>>map(s -> a -> ofNullable(parseTimeProperty(s, a.get(), true))
-                            .orElseGet(a::timestamp))
-                    .orElse(timestampFunction);
+            String timestampPath = Optional.of(annotation)
+                    .map(Aggregate::timestampPath)
+                    .filter(not(String::isBlank))
+                    .orElse(null);
+            this.timestampFunction = a -> parseTimeProperty(timestampPath, a.get(), false, a::timestamp);
+            String endPath = Optional.of(annotation)
+                    .map(Aggregate::endPath)
+                    .filter(not(String::isBlank))
+                    .orElse(null);
+            this.endFunction = a -> parseTimeProperty(endPath, a.get(), true, () -> timestampFunction.apply(a));
             this.ignoreUnknownEvents = annotation.ignoreUnknownEvents();
         }
 

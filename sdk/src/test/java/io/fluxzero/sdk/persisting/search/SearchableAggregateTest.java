@@ -73,6 +73,30 @@ public class SearchableAggregateTest {
     }
 
     @Test
+    void testAggregateWithoutEndtime() {
+        Instant start = Instant.now();
+        Instant end = start.plusSeconds(1000);
+
+        testFixture.whenExecuting(fc -> loadAggregate("123", SearchableAggregateWithTimePath.class)
+                .update(a ->  new SearchableAggregateWithTimePath(start, null)))
+                .expectFalse(fc -> fc.documentStore().search("SearchableAggregateWithTimePath")
+                        .inPeriod(end.plusSeconds(1), end.plusSeconds(10))
+                        .fetchAll().isEmpty());
+    }
+
+    @Test
+    void testAggregateWithoutTimestamp() {
+        Instant start = Instant.now();
+        Instant end = start.plusSeconds(1000);
+
+        testFixture.whenExecuting(fc -> loadAggregate("123", SearchableAggregateWithTimePath.class)
+                .update(a -> new SearchableAggregateWithTimePath(null, end)))
+                .expectFalse(fc -> fc.documentStore().search("SearchableAggregateWithTimePath")
+                        .inPeriod(start.minusSeconds(10), start.minusSeconds(5))
+                        .fetchAll().isEmpty());
+    }
+
+    @Test
     void testAggregateWithTimePathPropertyMissing() {
         Instant timestamp = Instant.now().minusSeconds(1000);
         testFixture.whenExecuting(fc -> loadAggregate("123", SearchableAggregateWithMissingTimePath.class)
