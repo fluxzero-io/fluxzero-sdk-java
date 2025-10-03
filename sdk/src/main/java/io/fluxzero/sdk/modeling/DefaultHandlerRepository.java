@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static java.util.Optional.ofNullable;
+import static java.util.function.Predicate.not;
 
 /**
  * Default implementation of {@link HandlerRepository}, backed by a {@link DocumentStore}.
@@ -89,14 +90,16 @@ public class DefaultHandlerRepository implements HandlerRepository {
         this.documentStore = documentStore;
         this.collection = collection;
         this.type = type;
-        this.timestampFunction = Optional.of(annotation).map(Stateful::timestampPath).filter(p -> !p.isBlank())
-                .<Function<Object, Instant>>map(path -> handler -> ofNullable(
-                        parseTimeProperty(path, handler, false)).orElseGet(Fluxzero::currentTime))
-                .orElseGet(() -> handler -> Fluxzero.currentTime());
-        this.endFunction = Optional.of(annotation).map(Stateful::endPath).filter(p -> !p.isBlank())
-                .<Function<Object, Instant>>map(path -> handler -> ofNullable(
-                        parseTimeProperty(path, handler, true)).orElseGet(Fluxzero::currentTime))
-                .orElse(timestampFunction);
+        String timestampPath = Optional.of(annotation)
+                .map(Stateful::timestampPath)
+                .filter(not(String::isEmpty))
+                .orElse(null);
+        this.timestampFunction = handler -> parseTimeProperty(timestampPath, handler, false, Fluxzero::currentTime);
+        String endPath = Optional.of(annotation)
+                .map(Stateful::endPath)
+                .filter(not(String::isBlank))
+                .orElse(null);
+        this.endFunction = handler -> parseTimeProperty(endPath, handler, true, () -> timestampFunction.apply(handler));
     }
 
     @Override

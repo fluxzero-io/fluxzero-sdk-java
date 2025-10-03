@@ -25,6 +25,7 @@ import lombok.Builder;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -397,6 +398,46 @@ public class StatefulHandlerTest {
         void mappingTest() {
             TestFixture.create(MappingHandler.class).whenEvent("foo")
                     .expectTrue(fc -> Fluxzero.search(MappingHandler.class).fetchAll().size() == 1);
+        }
+    }
+
+    @Nested
+    class ValidityPeriodTests {
+        Instant start = Instant.now();
+        Instant end = start.plusSeconds(10);
+
+        @Stateful(timestampPath = "start", endPath = "end")
+        record LimitedValidity(@EntityId String id, Instant start, Instant end) {
+            @HandleEvent
+            static LimitedValidity handle(LimitedValidity event) {
+                return event;
+            }
+        }
+
+        TestFixture fixture = TestFixture.create(LimitedValidity.class).givenEvents(
+                        new LimitedValidity("no-end", start, null),
+                        new LimitedValidity("no-start", null, end));
+
+
+        record Query(Instant start, Instant end) implements Request<List<LimitedValidity>> {
+            @HandleQuery
+            List<LimitedValidity> handle() {
+                return Fluxzero.search(LimitedValidity.class).inPeriod(start, end).fetchAll();
+            }
+        }
+
+        @Test
+        void willFindDocumentWithoutStartDateWhenSearchingBefore() {
+            fixture.whenQuery(new Query(start.minusSeconds(10), start.minusSeconds(5)))
+                    .mapResult(r -> r.getFirst().id())
+                    .expectResult("no-start");
+        }
+
+        @Test
+        void willFindDocumentWithoutEndDateWhenSearchingAfter() {
+            fixture.whenQuery(new Query(end.plusSeconds(5), end.plusSeconds(10)))
+                    .mapResult(r -> r.getFirst().id())
+                    .expectResult("no-end");
         }
     }
 

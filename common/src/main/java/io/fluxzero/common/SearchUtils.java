@@ -39,10 +39,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+import static java.lang.Boolean.FALSE;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
@@ -56,7 +58,7 @@ import static java.util.stream.Collectors.toMap;
 @Slf4j
 public class SearchUtils {
 
-    private static final Map<Class<?>, String> knownMissingProperties = new ConcurrentHashMap<>();
+    private static final Map<Map.Entry<Class<?>, String>, Boolean> isValidTimestampProperty = new ConcurrentHashMap<>();
 
     /**
      * Regex pattern for splitting dot-separated paths (ignoring escaped dots).
@@ -355,32 +357,38 @@ public class SearchUtils {
      * If the property is a LocalDate and the end flag is set to true, the result will represent the start of the next
      * day; otherwise, it represents the start of the given day.
      */
-    public static Instant parseTimeProperty(String propertyPath, Object object, boolean end) {
+    public static Instant parseTimeProperty(String propertyPath, Object object, boolean end, Supplier<Instant> whenMissing) {
         if (object == null || StringUtils.isBlank(propertyPath)) {
-            return null;
+            return whenMissing.get();
         }
+
         Object property = ReflectionUtils.readProperty(propertyPath, object).orElse(null);
+        if (property == null) {
+            if (isValidTimestampProperty.computeIfAbsent(Map.entry(object.getClass(), propertyPath), key -> {
+                if (ReflectionUtils.hasProperty(key.getValue(), object)) {
+                    return true;
+                } else {
+                    log.warn("Type {} does not declare a timestamp property '{}'", key.getKey().getSimpleName(), key.getValue());
+                    return false;
+                }
+            })) {
+                return null;
+            }
+            return whenMissing.get();
+        }
+
         return switch (property) {
             case LocalDate d -> (end ? d.plusDays(1) : d)
                     .atStartOfDay(ZoneOffset.systemDefault()).toInstant();
             case LocalDateTime d -> d.atZone(ZoneOffset.systemDefault()).toInstant();
             case TemporalAccessor t -> Instant.from(t);
             case String s -> Instant.parse(s);
-            case null -> {
-                if (knownMissingProperties.putIfAbsent(object.getClass(), propertyPath) == null) {
-                    if (!ReflectionUtils.hasProperty(propertyPath, object)) {
-                        log.warn("Type {} does not declare a timestamp property '{}'",
-                                 object.getClass().getSimpleName(), propertyPath);
-                    }
-                }
-                yield null;
-            }
             default -> {
-                if (knownMissingProperties.putIfAbsent(object.getClass(), propertyPath) == null) {
+                if (isValidTimestampProperty.putIfAbsent(Map.entry(object.getClass(), propertyPath), FALSE) == null) {
                     log.warn("Property '{}' of type {} is not a valid timestamp property",
-                             propertyPath, property.getClass().getSimpleName());
+                            propertyPath, property.getClass().getSimpleName());
                 }
-                yield null;
+                yield whenMissing.get();
             }
         };
     }
