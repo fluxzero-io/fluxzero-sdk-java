@@ -34,7 +34,6 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyName;
-import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static io.fluxzero.sdk.common.ClientUtils.determineSearchCollection;
@@ -82,9 +81,8 @@ public class DefaultIndexOperation implements IndexOperation {
                 ? readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
                 "Could not determine the document id for path: %s".formatted(idPath)))
                 : currentIdentityProvider().nextTechnicalId();
-        Function<Object, Instant> beginFunction = v -> parseTimeProperty(beginPath, v, false);
-        Function<Object, Instant> endFunction = v -> hasProperty(endPath, v)
-                ? parseTimeProperty(endPath, v, false) : beginFunction.apply(v);
+        Function<Object, Instant> beginFunction = v -> parseTimeProperty(beginPath, v, false, () -> null);
+        Function<Object, Instant> endFunction = v -> parseTimeProperty(endPath, v, false, () -> beginFunction.apply(v));
         return prepare(documentStore, object, collection, idFunction, beginFunction, endFunction);
     }
 
