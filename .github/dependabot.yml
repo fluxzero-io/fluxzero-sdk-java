@@ -7,10 +7,7 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "deps:"
-    groups:
-      dependency-updates:
-        patterns:
-          - "*"
+    target-branch: "dependabot"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -19,7 +16,4 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "ci:"
-    groups:
-      dependency-updates:
-        patterns:
-          - "*"
+    target-branch: "dependabot"
