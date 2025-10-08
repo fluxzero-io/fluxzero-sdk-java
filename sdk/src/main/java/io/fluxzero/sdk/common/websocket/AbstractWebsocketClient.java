@@ -469,7 +469,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
             Fluxzero.getOptionally().ifPresentOrElse(
                     f -> publishMetrics(metric, metadata),
                     () -> client.getGatewayClient(METRICS).append(
-                            STORED, asMessage(message).addMetadata(metadata).serialize(getFallbackSerializer())));
+                            STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
         }
     }
 
