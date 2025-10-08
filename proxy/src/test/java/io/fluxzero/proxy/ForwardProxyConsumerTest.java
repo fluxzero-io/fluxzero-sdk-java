@@ -57,7 +57,7 @@ class ForwardProxyConsumerTest {
                 new InetSocketAddress("localhost", 0), 0);
         serverContext = server.createContext("/");
         port = server.getAddress().getPort();
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         server.setExecutor(executor);
         server.start();
         log.info(" Server started on port {}", port);

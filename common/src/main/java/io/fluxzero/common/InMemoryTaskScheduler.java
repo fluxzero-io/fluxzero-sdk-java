@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static io.fluxzero.common.ObjectUtils.asRunnable;
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.TimingUtils.isMissedDeadline;
 
 /**
@@ -44,6 +44,7 @@ import static io.fluxzero.common.TimingUtils.isMissedDeadline;
 public class InMemoryTaskScheduler implements TaskScheduler {
     public static int defaultDelay = 100;
     public static Clock defaultclock = Clock.systemUTC();
+    public static String defaultThreadName = "InMemoryTaskScheduler";
 
     private final ScheduledExecutorService executorService;
     private final ExecutorService workerPool;
@@ -66,6 +67,14 @@ public class InMemoryTaskScheduler implements TaskScheduler {
         this(defaultDelay, threadName, clock);
     }
 
+    public InMemoryTaskScheduler(ExecutorService workerPool) {
+        this(defaultThreadName, workerPool);
+    }
+
+    public InMemoryTaskScheduler(String threadName, ExecutorService workerPool) {
+        this(threadName, defaultclock, workerPool);
+    }
+
     public InMemoryTaskScheduler(String threadName, Clock clock, ExecutorService workerPool) {
         this(defaultDelay, threadName, clock, workerPool);
     }
@@ -75,7 +84,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     }
 
     public InMemoryTaskScheduler(int delay, Clock clock) {
-        this(delay, "InMemoryTaskScheduler", clock);
+        this(delay, defaultThreadName, clock);
     }
 
     public InMemoryTaskScheduler(int delay, String threadName) {
@@ -87,7 +96,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     }
 
     public InMemoryTaskScheduler(int delay, String threadName, Clock clock, ExecutorService workerPool) {
-        this.executorService = Executors.newSingleThreadScheduledExecutor(newThreadFactory(threadName));
+        this.executorService = Executors.newSingleThreadScheduledExecutor(newPlatformThreadFactory(threadName));
         this.workerPool = workerPool;
         this.clock = clock;
         executorService.scheduleWithFixedDelay(this::executeExpiredTasksAsync, delay, delay, TimeUnit.MILLISECONDS);

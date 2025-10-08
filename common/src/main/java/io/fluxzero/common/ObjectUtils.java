@@ -35,9 +35,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -308,31 +305,18 @@ public class ObjectUtils {
         return supplier instanceof MemoizingBiFunction<T, U, R> existing ? existing : new DefaultMemoizingBiFunction<>(supplier);
     }
 
-    private static final AtomicInteger threadNumber = new AtomicInteger(1);
-
     /**
-     * Generates a unique thread name with the given prefix.
+     * Creates a new {@link ThreadFactory} with a named prefix.
      */
-    public static String newThreadName(String prefix) {
-        return prefix + "-" + threadNumber.getAndIncrement();
+    public static ThreadFactory newPlatformThreadFactory(String prefix) {
+        return Thread.ofPlatform().name(prefix, 0L).factory();
     }
 
     /**
      * Creates a new {@link ThreadFactory} with a named prefix.
      */
-    public static ThreadFactory newThreadFactory(String prefix) {
-        return new PrefixedThreadFactory(prefix);
-    }
-
-    /**
-     * Creates a named {@link ForkJoinPool} with the given parallelism.
-     */
-    public static ExecutorService newNamedWorkStealingPool(int parallelism, String prefix) {
-        return new ForkJoinPool(parallelism, pool -> {
-            final ForkJoinWorkerThread worker = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-            worker.setName(prefix + "-pool-" + worker.getPoolIndex());
-            return worker;
-        }, null, true);
+    public static ThreadFactory newVirtualThreadFactory(String prefix) {
+        return Thread.ofVirtual().name(prefix, 0L).factory();
     }
 
     /**

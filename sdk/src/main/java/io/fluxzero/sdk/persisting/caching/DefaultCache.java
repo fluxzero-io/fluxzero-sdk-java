@@ -44,10 +44,11 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
 /**
  * Default implementation of the {@link Cache} interface using key-level synchronized access and soft references for
@@ -88,7 +89,7 @@ public class DefaultCache implements Cache, AutoCloseable {
     private final Collection<Consumer<CacheEviction>> evictionListeners = new CopyOnWriteArrayList<>();
 
     private final ScheduledExecutorService referencePurger = Executors.newScheduledThreadPool(
-            2, newThreadFactory("DefaultCache-referencePurger"));
+            2, newPlatformThreadFactory("DefaultCache-referencePurger"));
 
     private final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
 
@@ -111,7 +112,7 @@ public class DefaultCache implements Cache, AutoCloseable {
      * notifications.
      */
     public DefaultCache(int maxSize, Duration expiry) {
-        this(maxSize, Executors.newSingleThreadExecutor(newThreadFactory("DefaultCache-evictionNotifier")), expiry);
+        this(maxSize, newSingleThreadExecutor(newPlatformThreadFactory("DefaultCache-evictionNotifier")), expiry);
     }
 
     /**

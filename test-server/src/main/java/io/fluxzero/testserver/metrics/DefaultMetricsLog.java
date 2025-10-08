@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static java.lang.System.currentTimeMillis;
 import static java.util.UUID.randomUUID;
 
@@ -40,7 +40,7 @@ public class DefaultMetricsLog implements MetricsLog {
     private final ExecutorService workerPool;
 
     public DefaultMetricsLog(MessageStore store) {
-        this(store, Executors.newSingleThreadExecutor(newThreadFactory("DefaultMetricsLog")));
+        this(store, Executors.newSingleThreadExecutor(newPlatformThreadFactory("DefaultMetricsLog")));
     }
 
     public DefaultMetricsLog(MessageStore store, ExecutorService workerPool) {
