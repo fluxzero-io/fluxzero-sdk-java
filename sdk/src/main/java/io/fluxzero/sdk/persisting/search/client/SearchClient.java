@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search.client;
@@ -39,11 +40,10 @@ import java.util.stream.Stream;
 /**
  * Low-level interface for interacting with a search and indexing service in Fluxzero.
  * <p>
- * The {@code SearchClient} operates exclusively on serialized forms of documents
- * (see {@link SerializedDocument}) and search-related requests. It is the primary interface used by
- * internal components like {@link io.fluxzero.sdk.persisting.search.DocumentStore} to
- * execute actual search operations against a backing implementation (e.g., Fluxzero Runtime or
- * an in-memory search engine for testing).
+ * The {@code SearchClient} operates exclusively on serialized forms of documents (see {@link SerializedDocument}) and
+ * search-related requests. It is the primary interface used by internal components like
+ * {@link io.fluxzero.sdk.persisting.search.DocumentStore} to execute actual search operations against a backing
+ * implementation (e.g., Fluxzero Runtime or an in-memory search engine for testing).
  *
  * @see SerializedDocument
  * @see io.fluxzero.sdk.persisting.search.DocumentStore
@@ -54,9 +54,9 @@ public interface SearchClient extends AutoCloseable {
     /**
      * Indexes a list of serialized documents into the search engine.
      *
-     * @param documents     the documents to index
-     * @param guarantee     delivery guarantee (see {@link Guarantee})
-     * @param ifNotExists   if {@code true}, only index documents that do not already exist
+     * @param documents   the documents to index
+     * @param guarantee   delivery guarantee (see {@link Guarantee})
+     * @param ifNotExists if {@code true}, only index documents that do not already exist
      * @return a future that completes when the operation is done
      */
     CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists);
@@ -97,11 +97,21 @@ public interface SearchClient extends AutoCloseable {
     /**
      * Deletes documents matching a given query.
      *
-     * @param query      the search query specifying which documents to delete
-     * @param guarantee  delivery guarantee
+     * @param query     the search query specifying which documents to delete
+     * @param guarantee delivery guarantee
      * @return a future that completes when the deletion has been performed
      */
     CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee);
+
+    /**
+     * Moves documents matching a given query to the given target collection.
+     *
+     * @param query            the search query specifying which documents to move
+     * @param targetCollection the name of the collection to move documents to
+     * @param guarantee        delivery guarantee
+     * @return a future that completes when the move has been performed
+     */
+    CompletableFuture<Void> move(SearchQuery query, String targetCollection, Guarantee guarantee);
 
     /**
      * Deletes a document by its unique id and collection name.
@@ -112,6 +122,17 @@ public interface SearchClient extends AutoCloseable {
      * @return a future that completes when the deletion has been performed
      */
     CompletableFuture<Void> delete(String documentId, String collection, Guarantee guarantee);
+
+    /**
+     * Moves a document to another collection.
+     *
+     * @param documentId       the document id
+     * @param collection       the collection to move from
+     * @param targetCollection the collection to move to
+     * @param guarantee        delivery guarantee
+     * @return a future that completes when the move has been performed
+     */
+    CompletableFuture<Void> move(String documentId, String collection, String targetCollection, Guarantee guarantee);
 
     /**
      * Configures Fluxzero to use a search collection as a searchable audit trail.
@@ -169,8 +190,8 @@ public interface SearchClient extends AutoCloseable {
     /**
      * Performs a batch update on a set of documents.
      *
-     * @param updates    the update operations to perform
-     * @param guarantee  delivery guarantee
+     * @param updates   the update operations to perform
+     * @param guarantee delivery guarantee
      * @return a future that completes when the updates have been applied
      */
     CompletableFuture<Void> bulkUpdate(Collection<DocumentUpdate> updates, Guarantee guarantee);

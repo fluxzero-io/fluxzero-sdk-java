@@ -181,6 +181,22 @@ public class SerializedDocument {
     }
 
     /**
+     * Creates a new {@code SerializedDocument} instance with the specified collection name.
+     * Updates the collection field of the document and its serialized representation if present.
+     *
+     * @param collection the name of the collection to associate with this document
+     * @return a new {@code SerializedDocument} instance with the updated collection
+     */
+    public SerializedDocument withCollection(String collection) {
+        var builder = toBuilder().collection(collection);
+        if (document != null) {
+            Document doc = document.get().toBuilder().collection(collection).build();
+            builder.document(() -> doc);
+        }
+        return builder.build();
+    }
+
+    /**
      * Returns the deserialized document view.
      */
     public Document deserializeDocument() {
