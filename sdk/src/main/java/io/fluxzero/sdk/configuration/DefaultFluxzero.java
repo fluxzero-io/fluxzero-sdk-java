@@ -119,7 +119,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -756,7 +755,7 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             ThrowingRunnable shutdownHandler = () -> {
-                ForkJoinPool shutdownPool = new ForkJoinPool(MessageType.values().length);
+                var shutdownPool = newThreadPerTaskExecutor(newVirtualThreadFactory("fluxzero-shutdown-pool"));
                 Optional.ofNullable(forwardingWebConsumer).ifPresent(ForwardingWebConsumer::close);
                 shutdownPool.invokeAll(
                         trackingMap.values().stream()
