@@ -81,7 +81,6 @@ import java.util.function.Consumer;
  */
 @AllArgsConstructor
 public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMessageStore {
-    private final TrackingStrategy trackingStrategy;
     @Getter
     private final MessageStore messageStore;
     private final PositionStore positionStore;
@@ -91,9 +90,11 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Getter
     private final String topic;
 
+    @Getter(lazy = true)
+    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore);
+
     public LocalTrackingClient(MessageType messageType, String topic, Duration messageExpiration) {
         this.messageStore = new InMemoryMessageStore(messageType, messageExpiration);
-        this.trackingStrategy = new DefaultTrackingStrategy(messageStore);
         this.positionStore = new InMemoryPositionStore();
         this.messageType = messageType;
         this.topic = topic;
@@ -107,7 +108,6 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
         this.messageStore = messageStore;
         this.messageType = messageType;
         this.topic = topic;
-        this.trackingStrategy = new DefaultTrackingStrategy(messageStore);
         this.positionStore = new InMemoryPositionStore();
     }
 
@@ -131,7 +131,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration config) {
         CompletableFuture<MessageBatch> result = new CompletableFuture<>();
-        trackingStrategy.getBatch(
+        getTrackingStrategy().getBatch(
                 new WebSocketTracker(new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
                                               config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
                                               config.filterMessageTarget(), config.ignoreSegment(),
@@ -160,7 +160,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                              lastIndex == null ? -1L : lastIndex,
                              Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
                                      .orElse(null));
-        trackingStrategy.claimSegment(
+        getTrackingStrategy().claimSegment(
                 new WebSocketTracker(read, messageType, ManagementFactory.getRuntimeMXBean().getName(),
                                      null, batch ->
                         result.complete(new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
@@ -186,13 +186,13 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch,
                                                      Guarantee guarantee) {
-        trackingStrategy.disconnectTrackers(t -> t.getTrackerId().equalsIgnoreCase(trackerId), sendFinalEmptyBatch);
+        getTrackingStrategy().disconnectTrackers(t -> t.getTrackerId().equalsIgnoreCase(trackerId), sendFinalEmptyBatch);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void close() {
         messageStore.close();
-        trackingStrategy.close();
+        getTrackingStrategy().close();
     }
 }
