@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api.search;
@@ -28,11 +29,11 @@ import lombok.With;
 import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static java.util.Optional.ofNullable;
 
 /**
  * Represents a serialized form of a search document stored in a Fluxzero collection.
@@ -121,10 +122,10 @@ public class SerializedDocument {
      * Automatically extracts and converts its metadata.
      */
     public SerializedDocument(Document document) {
-        this(document.getId(), Optional.ofNullable(document.getTimestamp()).map(Instant::toEpochMilli).orElse(null),
-             Optional.ofNullable(document.getEnd()).map(Instant::toEpochMilli).orElse(null),
+        this(document.getId(), ofNullable(document.getTimestamp()).map(Instant::toEpochMilli).orElse(null),
+             ofNullable(document.getEnd()).map(Instant::toEpochMilli).orElse(null),
              document.getCollection(), null, () -> document,
-             Optional.ofNullable(document.getSummary()).map(Supplier::get).orElse(null), document.getFacets(),
+             ofNullable(document.getSummary()).map(Supplier::get).orElse(null), document.getFacets(),
              document.getSortables());
     }
 
@@ -143,12 +144,13 @@ public class SerializedDocument {
         this.document = document == null
                 ? memoize(() -> {
             Data<byte[]> d = data.get();
-            return DefaultDocumentSerializer.INSTANCE.canDeserialize(d)
-                    ? DefaultDocumentSerializer.INSTANCE.deserialize(d).toBuilder().facets(facets).sortables(indexes).build()
-                    : new Document(id, d.getType(), d.getRevision(), collection,
-                                   Optional.ofNullable(timestamp).map(Instant::ofEpochMilli).orElse(null),
-                                   Optional.ofNullable(end).map(Instant::ofEpochMilli).orElse(null),
-                                   Collections.emptyMap(), () -> summary, facets, indexes);
+            return new Document(id, d.getType(), d.getRevision(), collection,
+                                ofNullable(timestamp).map(Instant::ofEpochMilli).orElse(null),
+                                ofNullable(end).map(Instant::ofEpochMilli).orElse(null),
+                                DefaultDocumentSerializer.INSTANCE.canDeserialize(d)
+                                        ? DefaultDocumentSerializer.INSTANCE.deserialize(d)
+                                        : Collections.emptyMap(),
+                                () -> summary, facets, indexes);
         }) : document;
         this.summary = summary;
         this.facets = facets;

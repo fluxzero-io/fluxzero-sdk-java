@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search;
@@ -25,7 +26,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.experimental.Accessors;
-import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -77,7 +77,7 @@ public class DefaultIndexOperation implements IndexOperation {
 
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 String idPath, String beginPath, String endPath) {
-        Function<Object, ?> idFunction = v -> StringUtils.hasText(idPath)
+        Function<Object, ?> idFunction = v -> idPath != null && !idPath.isBlank()
                 ? readProperty(idPath, v).orElseThrow(() -> new IllegalArgumentException(
                 "Could not determine the document id for path: %s".formatted(idPath)))
                 : currentIdentityProvider().nextTechnicalId();

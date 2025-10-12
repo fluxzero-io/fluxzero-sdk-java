@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.search;
@@ -26,7 +27,6 @@ import org.msgpack.core.MessageUnpacker;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,10 +97,10 @@ public enum DefaultDocumentSerializer {
      * The data must be in the correct format and contain a supported version.
      *
      * @param document the data to deserialize
-     * @return the reconstructed {@link Document}
+     * @return the reconstructed {@link Document} entries
      * @throws IllegalArgumentException if the data cannot be parsed or is invalid
      */
-    public Document deserialize(Data<byte[]> document) {
+    public Map<Entry, List<Path>> deserialize(Data<byte[]> document) {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
@@ -109,10 +109,10 @@ public enum DefaultDocumentSerializer {
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);
             }
-            String id = unpacker.unpackString();
-            Instant timestamp = unpackTimestamp(unpacker);
-            Instant end = unpackTimestamp(unpacker);
-            String collection = unpacker.unpackString();
+            unpacker.unpackString(); //id
+            unpackTimestamp(unpacker); //timestamp
+            unpackTimestamp(unpacker); //end
+            unpacker.unpackString(); //collection
             Map<Entry, List<Path>> map = new LinkedHashMap<>();
             int size = unpacker.unpackArrayHeader();
             for (int i = 0; i < size; i++) {
@@ -124,8 +124,7 @@ public enum DefaultDocumentSerializer {
                     keys.add(new Path(unpacker.unpackString()));
                 }
             }
-            return new Document(id, document.getType(), document.getRevision(), collection, timestamp, end, map,
-                                null, Collections.emptySet(), Collections.emptySet());
+            return map;
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not deserialize document", e);
         }
