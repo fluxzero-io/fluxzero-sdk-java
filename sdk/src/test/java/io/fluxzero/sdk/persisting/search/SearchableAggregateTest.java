@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.EventPublication;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
@@ -46,6 +49,14 @@ public class SearchableAggregateTest {
                 .expectTrue(fc -> fc.documentStore().search("SearchableAggregate").fetchAll().equals(List.of(new SearchableAggregate("bar"))))
                 .expectFalse(fc -> search(SearchableAggregate.class.getSimpleName()).fetchAll().isEmpty())
                 .expectTrue(fc -> search("searchables").fetchAll().isEmpty());
+    }
+
+    @Test
+    void testAggregateWithoutEventsIsUpdatedApply() {
+        testFixture.whenExecuting(fc -> loadAggregate("123", SearchableAggregateWithoutEvents.class).apply("bar"))
+                .expectNoEvents()
+                .<SearchableAggregateWithoutEvents>mapResult(fc -> Fluxzero.search(SearchableAggregateWithoutEvents.class).fetchFirstOrNull())
+                .expectResult(r -> r.foo().equals("bar"));
     }
 
     @Test
@@ -139,6 +150,15 @@ public class SearchableAggregateTest {
 
     @Aggregate(eventSourced = false, searchable = true, cached = false)
     record SearchableAggregate(String foo) {
+    }
+
+    @Aggregate(searchable = true, cached = false, eventPublication = EventPublication.NEVER)
+    record SearchableAggregateWithoutEvents(String foo) {
+
+        @Apply
+        static SearchableAggregateWithoutEvents apply(String event) {
+            return new SearchableAggregateWithoutEvents(event);
+        }
     }
 
     @Aggregate(eventSourced = false, searchable = true, collection = "searchables")
