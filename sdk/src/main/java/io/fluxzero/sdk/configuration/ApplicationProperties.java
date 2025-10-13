@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration;
@@ -27,6 +28,7 @@ import io.fluxzero.sdk.Fluxzero;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -154,6 +156,14 @@ public class ApplicationProperties {
      */
     public static String substituteProperties(String template) {
         return getPropertySource().substituteProperties(template);
+    }
+
+    /**
+     * Substitutes placeholders in the properties using current property values.
+     * <p>Placeholders use the syntax {@code ${propertyName}}.
+     */
+    public static Properties substituteProperties(Properties properties) {
+        return getPropertySource().substituteProperties(properties);
     }
 
     /**

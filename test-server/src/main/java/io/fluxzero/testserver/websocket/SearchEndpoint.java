@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.testserver.websocket;
@@ -132,18 +133,28 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
-    void handle(DeleteDocumentById request) {
-        store.delete(request.getId(), request.getCollection(), request.getGuarantee());
+    CompletableFuture<Void> handle(MoveDocuments request) {
+        return store.move(request.getQuery(), request.getTargetCollection(), request.getGuarantee());
     }
 
     @Handle
-    void handle(DeleteCollection request) {
-        store.deleteCollection(request.getCollection(), request.getGuarantee());
+    CompletableFuture<Void> handle(DeleteDocumentById request) {
+        return store.delete(request.getId(), request.getCollection(), request.getGuarantee());
     }
 
     @Handle
-    void handle(CreateAuditTrail request) {
-        store.createAuditTrail(request);
+    CompletableFuture<Void> handle(MoveDocumentById request) {
+        return store.move(request.getId(), request.getCollection(), request.getTargetCollection(), request.getGuarantee());
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(DeleteCollection request) {
+        return store.deleteCollection(request.getCollection(), request.getGuarantee());
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(CreateAuditTrail request) {
+        return store.createAuditTrail(request);
     }
 
     @Handle

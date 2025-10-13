@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search.client;
@@ -70,8 +71,8 @@ import static java.util.stream.Collectors.toMap;
 /**
  * In-memory implementation of the {@link SearchClient}, intended for local testing and development.
  * <p>
- * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic.
- * Ideal for use in test scenarios where a real Fluxzero Runtime connection is not available or needed.
+ * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use
+ * in test scenarios where a real Fluxzero Runtime connection is not available or needed.
  */
 @AllArgsConstructor
 public class InMemorySearchStore implements SearchClient {
@@ -152,9 +153,30 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public CompletableFuture<Void> move(SearchQuery query, String targetCollection, Guarantee guarantee) {
+        var matches = documents.values().stream().filter(query::matches).toList();
+        documents.values().removeAll(matches);
+        return index(matches.stream().map(d -> d.withCollection(targetCollection)).toList(),
+                     guarantee, false);
+    }
+
+    @Override
     public CompletableFuture<Void> delete(String documentId, String collection, Guarantee guarantee) {
         documents.remove(asIdentifier(collection, documentId));
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> move(String documentId, String collection, String targetCollection,
+                                        Guarantee guarantee) {
+        SerializedDocument document = documents.remove(asIdentifier(collection, documentId));
+        if (document == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        var matches = List.of(document);
+        documents.values().removeAll(matches);
+        return index(matches.stream().map(d -> d.withCollection(targetCollection)).toList(),
+                     guarantee, false);
     }
 
     @Override

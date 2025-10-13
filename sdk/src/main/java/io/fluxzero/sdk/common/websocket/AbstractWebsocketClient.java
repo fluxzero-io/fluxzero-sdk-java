@@ -66,14 +66,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
@@ -88,6 +87,7 @@ import static java.lang.System.currentTimeMillis;
 import static java.lang.Thread.currentThread;
 import static java.lang.Thread.sleep;
 import static java.util.Optional.ofNullable;
+import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
 
 /**
  * Abstract base class for all WebSocket-based clients in the Fluxzero Java client.
@@ -197,8 +197,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
-        this.resultExecutor = Executors.newFixedThreadPool(
-                8, newThreadFactory(this + "-onMessage"));
+        this.resultExecutor = newThreadPerTaskExecutor(newVirtualThreadFactory(this + "-onMessage"));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
                 () -> container.connectToServer(this, endpointUri),
                 RetryConfiguration.builder()
@@ -470,7 +469,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
             Fluxzero.getOptionally().ifPresentOrElse(
                     f -> publishMetrics(metric, metadata),
                     () -> client.getGatewayClient(METRICS).append(
-                            STORED, asMessage(message).addMetadata(metadata).serialize(getFallbackSerializer())));
+                            STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
         }
     }
 

@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -137,7 +137,7 @@ public class Backlog<T> implements Monitored<List<T>> {
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize, ErrorHandler<List<T>> errorHandler) {
         this.maxBatchSize = maxBatchSize;
         this.consumer = consumer;
-        this.executorService = Executors.newSingleThreadExecutor(newThreadFactory("Backlog"));
+        this.executorService = Executors.newSingleThreadExecutor(newPlatformThreadFactory("Backlog"));
         this.errorHandler = errorHandler;
     }
 

@@ -104,7 +104,7 @@ import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.SCHEDULE;
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static io.fluxzero.common.ObjectUtils.run;
 import static io.fluxzero.common.ObjectUtils.tryCatch;
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
@@ -115,7 +115,7 @@ import static io.fluxzero.sdk.common.Message.asMessage;
 import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static java.util.Collections.emptyList;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.Executors.newFixedThreadPool;
+import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
@@ -342,7 +342,7 @@ public class TestFixture implements Given, When {
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
-    private static final Executor shutdownExecutor = newFixedThreadPool(16, newThreadFactory("TestFixture-shutdown"));
+    private static final Executor shutdownExecutor = newThreadPerTaskExecutor(newVirtualThreadFactory("TestFixture-shutdown"));
 
     public static void shutDownActiveFixtures() {
         var fixtures = activeFixtures.get();

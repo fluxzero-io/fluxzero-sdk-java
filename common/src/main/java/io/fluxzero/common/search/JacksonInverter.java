@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.search;
@@ -62,7 +63,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -325,7 +325,7 @@ public class JacksonInverter implements Inverter<JsonNode> {
 
     @Override
     public Data<JsonNode> convert(Data<byte[]> data) {
-        return fromData(data, () -> DefaultDocumentSerializer.INSTANCE.deserialize(data));
+        return fromData(data);
     }
 
     @Override
@@ -337,12 +337,11 @@ public class JacksonInverter implements Inverter<JsonNode> {
     }
 
     @SuppressWarnings("unchecked")
-    protected Data<JsonNode> fromData(Data<byte[]> data, Supplier<Document> documentFunction) {
+    protected Data<JsonNode> fromData(Data<byte[]> data) {
         if (JSON_FORMAT.equals(data.getFormat())) {
             return data.map(d -> getObjectMapper().readTree(d));
         }
-        var document = documentFunction.get();
-        Map<Entry, List<Path>> entries = document.getEntries();
+        Map<Entry, List<Path>> entries = DefaultDocumentSerializer.INSTANCE.deserialize(data);
         if (entries.isEmpty()) {
             return toJsonData(NullNode.getInstance(), data);
         }
