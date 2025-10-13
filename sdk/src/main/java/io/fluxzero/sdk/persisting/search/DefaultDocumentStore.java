@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search;
@@ -89,7 +90,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                          String idPath, String beginPath,
                                          String endPath, Guarantee guarantee, boolean ifNotExists) {
         var documents = objects.stream().map(v -> DefaultIndexOperation.prepare(
-                this, v, collection, idPath, beginPath, endPath)
+                        this, v, collection, idPath, beginPath, endPath)
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
             return client.index(documents, guarantee, ifNotExists);
@@ -206,6 +207,18 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
             return client.delete(id.toString(), determineCollection(collection), Guarantee.STORED);
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete document %s from collection %s", id, collection),
+                                             e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection) {
+        try {
+            return client.move(id.toString(), determineCollection(collection), determineCollection(targetCollection),
+                               Guarantee.STORED);
+        } catch (Exception e) {
+            throw new DocumentStoreException(format(
+                    "Could not move document %s from collection %s to collection %s", id, collection, targetCollection),
                                              e);
         }
     }
@@ -379,6 +392,11 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
         @Override
         public CompletableFuture<Void> delete() {
             return client.delete(queryBuilder.build(), Guarantee.STORED);
+        }
+
+        @Override
+        public CompletableFuture<Void> move(Object targetCollection) {
+            return client.move(queryBuilder.build(), determineCollection(targetCollection), Guarantee.STORED);
         }
 
         @AllArgsConstructor

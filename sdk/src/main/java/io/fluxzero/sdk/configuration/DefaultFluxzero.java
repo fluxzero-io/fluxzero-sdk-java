@@ -119,7 +119,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -140,12 +139,11 @@ import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadName;
+import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
-import static java.util.concurrent.Executors.newCachedThreadPool;
+import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -261,8 +259,9 @@ public class DefaultFluxzero implements Fluxzero {
         private final DelegatingClock clock = new DelegatingClock();
         private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
         private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
-        private TaskScheduler taskScheduler = new InMemoryTaskScheduler("FluxzeroTaskScheduler", clock,
-                newCachedThreadPool(newThreadFactory("FluxzeroTaskScheduler-worker")));
+        private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
+                "FluxzeroTaskScheduler", clock,
+                newThreadPerTaskExecutor(newVirtualThreadFactory("FluxzeroTaskScheduler-worker")));
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache = new DefaultCache();
         private Cache relationshipsCache = new DefaultCache(100_000);
@@ -394,7 +393,7 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public FluxzeroBuilder forwardWebRequestsToLocalServer(LocalServerConfig localServerConfig,
-                                                                    UnaryOperator<ConsumerConfiguration> consumerConfigurator) {
+                                                               UnaryOperator<ConsumerConfiguration> consumerConfigurator) {
             forwardingWebConsumer =
                     new ForwardingWebConsumer(localServerConfig,
                                               consumerConfigurator.apply(getDefaultConsumerConfiguration(WEBREQUEST)));
@@ -624,7 +623,8 @@ public class DefaultFluxzero implements Fluxzero {
                                                                       webResponseMapper);
 
             //add websocket request handler decorator
-            var websocketHandlerDecorator = new WebsocketHandlerDecorator(webResponseGateway, serializer, taskScheduler);
+            var websocketHandlerDecorator =
+                    new WebsocketHandlerDecorator(webResponseGateway, serializer, taskScheduler);
             handlerDecorators.computeIfPresent(WEBREQUEST, (t, i) -> websocketHandlerDecorator.andThen(i));
 
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers =
@@ -740,20 +740,22 @@ public class DefaultFluxzero implements Fluxzero {
 
             //misc
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client.getSchedulingClient(),
-                                                                            serializer, dispatchInterceptors.get(SCHEDULE),
+                                                                            serializer,
+                                                                            dispatchInterceptors.get(SCHEDULE),
                                                                             dispatchInterceptors.get(COMMAND),
-                                                                            localHandlerRegistry(SCHEDULE, handlerDecorators,
-                                                                            parameterResolvers,
-                                                                            dispatchInterceptors,
-                                                                            handlerRepositorySupplier,
-                                                                            repositorySupplier));
+                                                                            localHandlerRegistry(SCHEDULE,
+                                                                                                 handlerDecorators,
+                                                                                                 parameterResolvers,
+                                                                                                 dispatchInterceptors,
+                                                                                                 handlerRepositorySupplier,
+                                                                                                 repositorySupplier));
 
             if (!disableCacheEvictionMetrics) {
                 new CacheEvictionsLogger(metricsGateway).register(cache);
             }
 
             ThrowingRunnable shutdownHandler = () -> {
-                ForkJoinPool shutdownPool = new ForkJoinPool(MessageType.values().length);
+                var shutdownPool = newThreadPerTaskExecutor(newVirtualThreadFactory("fluxzero-shutdown-pool"));
                 Optional.ofNullable(forwardingWebConsumer).ifPresent(ForwardingWebConsumer::close);
                 shutdownPool.invokeAll(
                         trackingMap.values().stream()
@@ -798,34 +800,33 @@ public class DefaultFluxzero implements Fluxzero {
 
             //perform a controlled shutdown when the vm exits
             if (!disableShutdownHook) {
-                getRuntime().addShutdownHook(
-                        new Thread(fluxzero::close, newThreadName("DefaultFluxzero-shutdown")));
+                getRuntime().addShutdownHook(Thread.ofVirtual().name("fluxzero-shutdown").unstarted(fluxzero::close));
             }
 
             return fluxzero;
         }
 
         protected Fluxzero doBuild(Map<MessageType, ? extends Tracking> trackingSupplier,
-                                        Function<String, ? extends GenericGateway> customGatewaySupplier,
-                                        CommandGateway commandGateway, QueryGateway queryGateway,
-                                        EventGateway eventGateway, ResultGateway resultGateway,
-                                        ErrorGateway errorGateway, MetricsGateway metricsGateway,
-                                        WebRequestGateway webRequestGateway,
-                                        AggregateRepository aggregateRepository, SnapshotStore snapshotStore,
-                                        EventStore eventStore, KeyValueStore keyValueStore, DocumentStore documentStore,
-                                        MessageScheduler messageScheduler, UserProvider userProvider, Cache cache,
-                                        Serializer serializer, CorrelationDataProvider correlationDataProvider,
-                                        IdentityProvider identityProvider, PropertySource propertySource,
-                                        DelegatingClock clock, TaskScheduler taskScheduler,
-                                        Client client, ThrowingRunnable shutdownHandler) {
+                                   Function<String, ? extends GenericGateway> customGatewaySupplier,
+                                   CommandGateway commandGateway, QueryGateway queryGateway,
+                                   EventGateway eventGateway, ResultGateway resultGateway,
+                                   ErrorGateway errorGateway, MetricsGateway metricsGateway,
+                                   WebRequestGateway webRequestGateway,
+                                   AggregateRepository aggregateRepository, SnapshotStore snapshotStore,
+                                   EventStore eventStore, KeyValueStore keyValueStore, DocumentStore documentStore,
+                                   MessageScheduler messageScheduler, UserProvider userProvider, Cache cache,
+                                   Serializer serializer, CorrelationDataProvider correlationDataProvider,
+                                   IdentityProvider identityProvider, PropertySource propertySource,
+                                   DelegatingClock clock, TaskScheduler taskScheduler,
+                                   Client client, ThrowingRunnable shutdownHandler) {
             return new DefaultFluxzero(trackingSupplier, customGatewaySupplier,
-                                            commandGateway, queryGateway, eventGateway, resultGateway,
-                                            errorGateway, metricsGateway, webRequestGateway,
-                                            aggregateRepository, snapshotStore, eventStore,
-                                            keyValueStore, documentStore,
-                                            messageScheduler, userProvider, cache, serializer, correlationDataProvider,
-                                            identityProvider, propertySource,
-                                            clock, taskScheduler, this, client, shutdownHandler);
+                                       commandGateway, queryGateway, eventGateway, resultGateway,
+                                       errorGateway, metricsGateway, webRequestGateway,
+                                       aggregateRepository, snapshotStore, eventStore,
+                                       keyValueStore, documentStore,
+                                       messageScheduler, userProvider, cache, serializer, correlationDataProvider,
+                                       identityProvider, propertySource,
+                                       clock, taskScheduler, this, client, shutdownHandler);
         }
 
         protected ConsumerConfiguration getDefaultConsumerConfiguration(MessageType messageType) {

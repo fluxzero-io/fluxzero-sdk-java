@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -221,7 +222,8 @@ class GivenWhenThenAsyncTest {
     @Consumer(name = "MixedHandler", errorHandler = IgnoringErrorHandler.class)
     private static class AsyncCommandHandler {
 
-        private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+                newPlatformThreadFactory("AsyncCommandHandler"));
 
         @HandleCommand
         public CompletableFuture<String> handle(YieldsAsyncResult command) {

@@ -59,7 +59,6 @@ import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.ObjectUtils.newThreadName;
 import static io.fluxzero.common.ServicePathBuilder.eventSourcingPath;
 import static io.fluxzero.common.ServicePathBuilder.gatewayPath;
 import static io.fluxzero.common.ServicePathBuilder.keyValuePath;
@@ -145,7 +144,7 @@ public class TestServer {
         Undertow server = Undertow.builder().addHttpListener(port, "0.0.0.0").setHandler(shutdownHandler).build();
         server.start();
 
-        getRuntime().addShutdownHook(new Thread(() -> {
+        getRuntime().addShutdownHook(Thread.ofVirtual().name("fluxzero-test-server-shutdown").unstarted(() -> {
             log.info("Initiating controlled shutdown");
             shutdownHandler.shutdown();
             try {
@@ -154,7 +153,7 @@ public class TestServer {
                 log.warn("Thread to kill server was interrupted");
                 Thread.currentThread().interrupt();
             }
-        }, newThreadName("TestServer-shutdown")));
+        }));
 
         log.info("Fluxzero test server running on port {}", port);
     }

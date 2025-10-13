@@ -26,7 +26,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetSocketAddress;
 import java.util.Optional;
 
-import static io.fluxzero.common.ObjectUtils.newThreadName;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
@@ -50,10 +49,10 @@ public class ProxyServer implements Registration {
                 .merge(ForwardProxyConsumer.start(client));
         log.info("Fluxzero proxy server running on port {}", port);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        Runtime.getRuntime().addShutdownHook(Thread.ofVirtual().name("ProxyServer-shutdown").unstarted(() -> {
             log.info("Stopping Fluxzero proxy server");
             registration.cancel();
-        }, newThreadName("ProxyServer-shutdown")));
+        }));
     }
 
     /**

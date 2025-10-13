@@ -63,7 +63,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -73,13 +72,14 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
-import static io.fluxzero.common.ObjectUtils.newThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadName;
+import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static jakarta.websocket.CloseReason.CloseCodes.NO_STATUS_CODE;
 import static jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION;
+import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
+import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
 
 @Slf4j
 public abstract class WebsocketEndpoint extends Endpoint {
@@ -104,14 +104,14 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     protected WebsocketEndpoint() {
         this.objectMapper = defaultObjectMapper;
-        this.requestExecutor = Executors.newFixedThreadPool(64, newThreadFactory(getClass().getSimpleName()));
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutDown, newThreadName(getClass().getSimpleName() + "-shutdown")));
+        this.requestExecutor = newThreadPerTaskExecutor(newVirtualThreadFactory(getClass().getSimpleName()));
+        getRuntime().addShutdownHook(Thread.ofVirtual().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     protected WebsocketEndpoint(@Nullable Executor requestExecutor) {
         this.objectMapper = defaultObjectMapper;
         this.requestExecutor = Optional.ofNullable(requestExecutor).orElse(SameThreadExecutor.INSTANCE);
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutDown, newThreadName(getClass().getSimpleName() + "-shutdown")));
+        getRuntime().addShutdownHook(Thread.ofVirtual().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     private final Handler<ClientMessage> handler =

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api;
@@ -38,25 +39,7 @@ import io.fluxzero.common.api.scheduling.CancelSchedule;
 import io.fluxzero.common.api.scheduling.GetSchedule;
 import io.fluxzero.common.api.scheduling.GetScheduleResult;
 import io.fluxzero.common.api.scheduling.Schedule;
-import io.fluxzero.common.api.search.BulkUpdateDocuments;
-import io.fluxzero.common.api.search.CreateAuditTrail;
-import io.fluxzero.common.api.search.DeleteCollection;
-import io.fluxzero.common.api.search.DeleteDocumentById;
-import io.fluxzero.common.api.search.DeleteDocuments;
-import io.fluxzero.common.api.search.GetDocument;
-import io.fluxzero.common.api.search.GetDocumentResult;
-import io.fluxzero.common.api.search.GetDocumentStats;
-import io.fluxzero.common.api.search.GetDocumentStatsResult;
-import io.fluxzero.common.api.search.GetDocuments;
-import io.fluxzero.common.api.search.GetDocumentsResult;
-import io.fluxzero.common.api.search.GetFacetStats;
-import io.fluxzero.common.api.search.GetFacetStatsResult;
-import io.fluxzero.common.api.search.GetSearchHistogram;
-import io.fluxzero.common.api.search.GetSearchHistogramResult;
-import io.fluxzero.common.api.search.HasDocument;
-import io.fluxzero.common.api.search.IndexDocuments;
-import io.fluxzero.common.api.search.SearchDocuments;
-import io.fluxzero.common.api.search.SearchDocumentsResult;
+import io.fluxzero.common.api.search.*;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
@@ -165,7 +148,9 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetDocumentsResult.class, name = "getDocumentsResult"),
         @JsonSubTypes.Type(value = DeleteCollection.class, name = "deleteCollection"),
         @JsonSubTypes.Type(value = DeleteDocuments.class, name = "deleteDocuments"),
+        @JsonSubTypes.Type(value = MoveDocuments.class, name = "moveDocuments"),
         @JsonSubTypes.Type(value = DeleteDocumentById.class, name = "deleteDocumentById"),
+        @JsonSubTypes.Type(value = MoveDocumentById.class, name = "moveDocumentById"),
         @JsonSubTypes.Type(value = BulkUpdateDocuments.class, name = "bulkUpdateDocuments"),
         @JsonSubTypes.Type(value = GetDocumentStats.class, name = "getDocumentStats"),
         @JsonSubTypes.Type(value = SearchDocumentsResult.class, name = "searchDocumentsResult"),
