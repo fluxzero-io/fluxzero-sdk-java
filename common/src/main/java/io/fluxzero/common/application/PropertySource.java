@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,16 +10,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.application;
-
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -127,19 +127,42 @@ public interface PropertySource {
                 String value;
                 if (keyWithDefault.length == 1) {
                     value = get(key);
-                    if (value == null) {
-                        LoggerFactory.getLogger(getClass())
-                                .warn("Property named \"{}\" hasn't been set", key);
-                    }
                 } else {
                     value = get(keyWithDefault[0], keyWithDefault[1]);
                 }
-                valueList.add(value == null ? "" : value);
+                if (value == null) {
+                    throw new IllegalStateException("Property named \"%s\" hasn't been set".formatted(key));
+                }
+                valueList.add(value);
             }
         }
 
         String result = String.format(resultBuilder.toString(), valueList.toArray());
-        return result.equals(template) ? result : substituteProperties(result);
+        try {
+            return result.equals(template) ? result : substituteProperties(result);
+        } catch (StackOverflowError e) {
+            throw new IllegalStateException("Recursive substitution detected in \"%s\"".formatted(template), e);
+        }
+    }
+
+    /**
+     * Substitutes all placeholders of the form <code>${property[:default]}</code> in
+     * the values of the given {@link Properties} object.
+     * <p>
+     * Supports recursive substitutions and default fallback values (e.g. <code>${env:dev}</code>).
+     *
+     * @param properties the properties object to substitute values in
+     * @return a new {@link Properties} instance with all substitutions applied
+     */
+    default Properties substituteProperties(Properties properties) {
+        Properties result = new Properties();
+        for (String name : properties.stringPropertyNames()) {
+            String value = properties.getProperty(name);
+            if (value != null) {
+                result.setProperty(name, substituteProperties(value));
+            }
+        }
+        return result;
     }
 
     /**
