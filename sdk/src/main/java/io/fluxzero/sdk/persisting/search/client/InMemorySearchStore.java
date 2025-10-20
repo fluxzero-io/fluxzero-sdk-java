@@ -255,7 +255,10 @@ public class InMemorySearchStore implements SearchClient {
             try {
                 byCollection.forEach((collection, messages) -> {
                     var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
-                    messages.forEach(m -> log.put(m.getIndex(), m));
+                    messages.forEach(m -> {
+                        log.values().removeIf(mOld -> mOld.getMessageId().equals(m.getMessageId()));
+                        log.put(m.getIndex(), m);
+                    });
                 });
                 if (retentionTime != null) {
                     purgeExpiredMessages(retentionTime);
