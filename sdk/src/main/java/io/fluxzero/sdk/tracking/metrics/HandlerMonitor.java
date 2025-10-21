@@ -77,7 +77,7 @@ public class HandlerMonitor implements HandlerInterceptor {
                         m -> Fluxzero.getOptionally().ifPresent(fc -> fc.metricsGateway().publish(
                                 new CompleteMessageEvent(
                                         consumer, invoker.getTargetClass().getSimpleName(),
-                                        m.getIndex(), m.getType(),
+                                        m.getIndex(), m.getMessageType(), m.getTopic(), formatType(m, invoker),
                                         e != null, start.until(Instant.now(), NANOS)),
                                 Metadata.of(correlationData)))));
             }
