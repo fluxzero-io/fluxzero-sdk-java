@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,47 +10,53 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
 
-import io.fluxzero.common.handling.TypedParameterResolver;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
-import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
 
-import static java.util.Optional.ofNullable;
-
 /**
- * Resolves handler method parameters of type {@link Message}.
+ * Resolves handler method parameters of type {@link DeserializingMessage}.
  * <p>
- * This resolver is useful when a handler method needs access to the raw {@link Message} object
- * associated with the invocation context.
+ * This allows handler methods to access the deserialization context, including message metadata, payload, and raw
+ * serialized content.
  * <p>
- * Resolution is attempted via the message context itself (if it implements {@link HasMessage}),
- * or from the current thread-local {@link DeserializingMessage} as a fallback.
- *
- * <p>Example:
- * <pre>{@code
- * @HandleCommand
- * public void handle(MyCommand command, Message message) {
- *     Instant timestamp = message.getTimestamp();
- * }
- * }</pre>
+ * Useful when advanced information about the message is needed, such as the Fluxzero-assigned message index.
  */
-public class MessageParameterResolver extends TypedParameterResolver<Object> {
-
-    public MessageParameterResolver() {
-        super(Message.class);
-    }
+public class MessageParameterResolver implements ParameterResolver<Object> {
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
-        return m -> m instanceof HasMessage hasMessage ? hasMessage.toMessage()
-                : ofNullable(DeserializingMessage.getCurrent()).map(DeserializingMessage::toMessage).orElse(null);
+        if (DeserializingMessage.class.isAssignableFrom(p.getType())) {
+            return m -> m instanceof DeserializingMessage ? m : DeserializingMessage.getCurrent();
+        }
+        if (SerializedMessage.class.isAssignableFrom(p.getType())) {
+            return m -> {
+                var dm = m instanceof DeserializingMessage dem ? dem : DeserializingMessage.getCurrent();
+                return dm.getSerializedObject();
+            };
+        }
+        if (HasMessage.class.isAssignableFrom(p.getType())) {
+            return m -> {
+                var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
+                return dm.toMessage();
+            };
+        }
+        return null;
+    }
+
+    @Override
+    public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
+        return HasMessage.class.isAssignableFrom(parameter.getType())
+               || SerializedMessage.class.isAssignableFrom(parameter.getType());
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration;
@@ -72,7 +73,6 @@ import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
 import io.fluxzero.sdk.tracking.handling.DefaultRepositoryProvider;
 import io.fluxzero.sdk.tracking.handling.DefaultResponseMapper;
-import io.fluxzero.sdk.tracking.handling.DeserializingMessageParameterResolver;
 import io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
@@ -633,8 +633,8 @@ public class DefaultFluxzero implements Fluxzero {
                 parameterResolvers.add(new UserParameterResolver(userProvider));
             }
             parameterResolvers.addAll(List.of(new TriggerParameterResolver(client, serializer),
-                                              new DeserializingMessageParameterResolver(),
-                                              new MetadataParameterResolver(), new MessageParameterResolver(),
+                                              new MessageParameterResolver(),
+                                              new MetadataParameterResolver(),
                                               websocketHandlerDecorator,
                                               new WebParamParameterResolver(),
                                               new WebPayloadParameterResolver(
