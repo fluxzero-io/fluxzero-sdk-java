@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.metrics;
@@ -34,6 +35,7 @@ import java.util.function.Function;
 
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
 import static io.fluxzero.sdk.common.ClientUtils.isLocalSelfHandler;
+import static io.fluxzero.sdk.web.WebUtils.getWebPatterns;
 import static java.time.temporal.ChronoUnit.NANOS;
 
 @Slf4j
@@ -68,7 +70,7 @@ public class HandlerMonitor implements HandlerInterceptor {
             Fluxzero.getOptionally().ifPresent(fc -> fc.metricsGateway().publish(new HandleMessageEvent(
                     consumer, invoker.getTargetClass().getSimpleName(),
                     message.getIndex(), message.getMessageType(), message.getTopic(),
-                    formatType(message), exceptionalResult, start.until(Instant.now(), NANOS), completed)));
+                    formatType(message, invoker), exceptionalResult, start.until(Instant.now(), NANOS), completed)));
             if (!completed) {
                 Map<String, String> correlationData = Fluxzero.currentCorrelationData();
                 ((CompletionStage<?>) result).whenComplete((r, e) -> message.run(
@@ -84,10 +86,13 @@ public class HandlerMonitor implements HandlerInterceptor {
         }
     }
 
-    protected String formatType(DeserializingMessage message) {
+    protected String formatType(DeserializingMessage message, HandlerInvoker invoker) {
         if (message.getMessageType() == MessageType.WEBREQUEST) {
             try {
-                return "%s %s".formatted(WebRequest.getMethod(message.getMetadata()), WebRequest.getUrl(message.getMetadata()));
+                var webPatterns = getWebPatterns(invoker.getTargetClass(), null, invoker.getMethod());
+                String uriPattern = webPatterns.size() == 1
+                        ? webPatterns.getFirst().getUri() : WebRequest.getUrl(message.getMetadata());
+                return "%s %s".formatted(WebRequest.getMethod(message.getMetadata()), uriPattern);
             } catch (Exception ignored) {}
         }
         return message.getType();
