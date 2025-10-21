@@ -50,7 +50,6 @@ import org.jetbrains.annotations.Nullable;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.HttpCookie;
 import java.net.URI;
@@ -300,12 +299,6 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     @NotNull
     @Override
     public Context dispatch(@NotNull Executor executor, @NotNull Runnable action) {
-        return this;
-    }
-
-    @NotNull
-    @Override
-    public Context detach(@NotNull Route.Handler next) throws Exception {
         return this;
     }
 
