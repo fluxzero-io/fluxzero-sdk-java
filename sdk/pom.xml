@@ -48,7 +48,7 @@
         <dependency>
             <groupId>io.jooby</groupId>
             <artifactId>jooby</artifactId>
-            <version>4.0.7</version>
+            <version>4.0.9</version>
         </dependency>
 
         <!--websocket client-->
