@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.serialization.jackson;
@@ -39,11 +40,17 @@ import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * A {@link ContentFilter} implementation that uses Jackson to filter content dynamically for a specific {@link User}.
@@ -107,18 +114,27 @@ public class JacksonContentFilter implements ContentFilter {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T filterContent(T value, User viewer) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            FilteringSerializer.rootValue.set(value);
-            return viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
-        } catch (Exception e) {
-            log.warn("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
-            return value;
-        } finally {
-            FilteringSerializer.rootValue.remove();
-        }
+        return switch (value) {
+            case null -> null;
+            case Collection<?> collection -> (T) collection.stream().flatMap(
+                    v -> v == null ? Stream.of((Object) null)
+                            : Optional.ofNullable(filterContent(v, viewer)).stream()).toList();
+            case Map<?, ?> map -> (T) map.entrySet().stream().flatMap(entry -> {
+                var v = filterContent(entry.getValue(), viewer);
+                return v == null ? Stream.empty() : Stream.of(new AbstractMap.SimpleEntry<>(entry.getKey(), v));
+            }).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> v2, LinkedHashMap::new));
+            default -> {
+                try {
+                    FilteringSerializer.rootValue.set(value);
+                    yield viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
+                } catch (Exception e) {
+                    log.warn("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
+                    yield value;
+                } finally {
+                    FilteringSerializer.rootValue.remove();
+                }
+            }
+        };
     }
 
     /**
