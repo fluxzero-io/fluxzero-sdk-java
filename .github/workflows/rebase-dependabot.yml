@@ -24,25 +24,25 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch or create dependabot branch
+      - name: Fetch or create dependabot staging branch
         run: |
-          if git fetch origin dependabot:dependabot; then
+          if git fetch origin dependabot-staging:dependabot-staging; then
             echo "Fetched existing dependabot branch."
           else
             echo "Dependabot branch not found, creating from main..."
-            git checkout -b dependabot origin/main
-            git push -u origin dependabot
+            git checkout -b dependabot-staging origin/main
+            git push -u origin dependabot-staging
           fi
 
-      - name: Rebase or reset dependabot onto main
+      - name: Rebase or reset dependabot staging branch onto main
         run: |
-          git checkout dependabot
+          git checkout dependabot-staging
           if git rebase origin/main; then
             echo "Rebase successful. Pushing..."
-            git push --force-with-lease origin dependabot
+            git push --force-with-lease origin dependabot-staging
           else
             echo "Conflict detected. Resetting dependabot to main..."
             git rebase --abort || true
             git reset --hard origin/main
-            git push --force origin dependabot
+            git push --force origin dependabot-staging
           fi

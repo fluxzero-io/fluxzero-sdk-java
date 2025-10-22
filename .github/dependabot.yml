@@ -7,7 +7,7 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "deps:"
-    target-branch: "dependabot"
+    target-branch: "dependabot-staging"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -16,4 +16,15 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "ci:"
-    target-branch: "dependabot"
+    target-branch: "dependabot-staging"
+
+  - package-ecosystem: "docker"
+    directories:
+     - proxy
+     - test-server
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps:"
+    target-branch: "dependabot-staging"
