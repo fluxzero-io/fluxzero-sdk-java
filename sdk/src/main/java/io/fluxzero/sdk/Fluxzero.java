@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk;
@@ -920,6 +921,29 @@ public interface Fluxzero extends AutoCloseable {
      */
     static Search search(SearchQuery.Builder queryBuilder) {
         return get().documentStore().search(queryBuilder);
+    }
+
+    /**
+     * Checks whether a document exists for the given identifier and its associated type. The type is used to determine
+     * the document collection.
+     */
+    static boolean hasDocument(Id<?> id) {
+        return hasDocument(id, id.getType());
+    }
+
+    /**
+     * Checks if a document exists in the specified collection.
+     */
+    static boolean hasDocument(Object id, Object collection) {
+        return get().documentStore().hasDocument(id, collection);
+    }
+
+    /**
+     * Fetches a document by id using the associated type to determine the collection. The result is deserialized into
+     * the stored type.
+     */
+    static <T> Optional<T> getDocument(Id<T> id) {
+        return get().documentStore().fetchDocument(id);
     }
 
     /**

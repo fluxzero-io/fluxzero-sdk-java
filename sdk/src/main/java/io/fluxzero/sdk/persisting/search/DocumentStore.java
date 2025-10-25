@@ -23,6 +23,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Id;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -351,9 +352,25 @@ public interface DocumentStore {
     Search search(SearchQuery.Builder queryBuilder);
 
     /**
+     * Checks whether a document exists for the given identifier and its associated type. The type is used to determine
+     * the document collection.
+     */
+    default boolean hasDocument(Id<?> id) {
+        return hasDocument(id, id.getType());
+    }
+
+    /**
      * Checks if a document exists in the specified collection.
      */
     boolean hasDocument(Object id, Object collection);
+
+    /**
+     * Fetches a document by id using the associated type to determine the collection. The result is deserialized into
+     * the stored type.
+     */
+    default <T> Optional<T> fetchDocument(Id<T> id) {
+        return fetchDocument(id, id.getType());
+    }
 
     /**
      * Fetches a document by ID and deserializes it into the stored type.
