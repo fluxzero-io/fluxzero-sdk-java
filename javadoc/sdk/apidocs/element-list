@@ -29,6 +29,7 @@ io.fluxzero.sdk.tracking
 io.fluxzero.sdk.tracking.client
 io.fluxzero.sdk.tracking.handling
 io.fluxzero.sdk.tracking.handling.authentication
+io.fluxzero.sdk.tracking.handling.contentfiltering
 io.fluxzero.sdk.tracking.handling.errorreporting
 io.fluxzero.sdk.tracking.handling.validation
 io.fluxzero.sdk.tracking.metrics
