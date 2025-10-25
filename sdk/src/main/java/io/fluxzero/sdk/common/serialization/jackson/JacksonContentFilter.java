@@ -126,9 +126,10 @@ public class JacksonContentFilter implements ContentFilter {
             default -> {
                 try {
                     FilteringSerializer.rootValue.set(value);
-                    yield viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
+                    yield viewer == null ? mapper.convertValue(value, (Class<T>) value.getClass()) :
+                            viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
                 } catch (Exception e) {
-                    log.warn("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
+                    log.error("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
                     yield value;
                 } finally {
                     FilteringSerializer.rootValue.remove();

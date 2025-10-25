@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.serialization;
@@ -28,9 +29,6 @@ import java.lang.annotation.Target;
  * <p>
  * Filtering allows objects to dynamically adjust their exposed content based on who is viewing them.
  * This is especially useful in projections, document models, or search results that may be shared with different roles.
- *
- * <p><strong>Invocation:</strong> Filtering is applied by calling {@link Fluxzero#filterContent(Object, User)}.
- * Filtering is <strong>not</strong> automatic; it must be triggered explicitly.</p>
  *
  * <p><strong>Injection:</strong> The annotated method may accept the following parameters:
  * <ul>
@@ -55,9 +53,11 @@ import java.lang.annotation.Target;
  *
  * <p><strong>Example (filtering the object):</strong></p>
  * <pre>{@code
- * @FilterContent
- * public Order filter(User user) {
- *     return user.hasRole("admin") ? this : new Order(maskedFieldsOnly());
+ * @FilterContent // Applied to type - filters all handler results
+ * public class Order {
+ *     public Order filter(User user) {
+ *         return user.hasRole("admin") ? this : new Order(maskedFieldsOnly());
+ *     }
  * }
  * }</pre>
  *
@@ -69,10 +69,22 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
+ * <p><strong>Invocation:</strong> Filtering can be applied in two ways:
+ * <ul>
+ *   <li>Explicitly by calling {@link Fluxzero#filterContent(Object, User)}</li>
+ *   <li>Automatically for request handler results when the handler, its class, or package is annotated with {@link FilterContent @FilterContent}</li>
+ * </ul>
+ *
+ * <p><strong>For automatic filtering:</strong> @FilterContent can be applied to a handler at three levels:
+ * <ul>
+ *   <li>Method level - filters specific method results</li>
+ *   <li>Type level - automatically filters all handler results in the class</li>
+ *   <li>Package level - automatically filters all handler results in the package or subpackage</li>
+ * </ul>
+ *
  * @see Fluxzero#filterContent(Object, User)
- * @see Serializer#filterContent(Object, User)
  */
-@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface FilterContent {
 }

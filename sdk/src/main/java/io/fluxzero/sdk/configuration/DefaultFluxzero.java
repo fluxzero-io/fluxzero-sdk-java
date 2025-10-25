@@ -86,6 +86,7 @@ import io.fluxzero.sdk.tracking.handling.TriggerParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor;
 import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
+import io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor;
 import io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor;
 import io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor;
 import io.fluxzero.sdk.tracking.metrics.HandlerMonitor;
@@ -549,6 +550,13 @@ public class DefaultFluxzero implements Fluxzero {
                     dispatchInterceptors.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
                     handlerDecorators.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
                 });
+            }
+
+            //enable content filtering
+            {
+                ContentFilterInterceptor interceptor = new ContentFilterInterceptor(serializer);
+                EnumSet.allOf(MessageType.class).stream().filter(MessageType::isRequest).forEach(
+                        type -> handlerDecorators.computeIfPresent(type, (t, i) -> i.andThen(interceptor)));
             }
 
             //enable message correlation
