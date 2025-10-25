@@ -18,9 +18,11 @@ package io.fluxzero.sdk.givenwhenthen.filtercontent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.Request;
 
+import java.util.Optional;
+
 public class PackageFilteredQuery implements Request<FilteredContent> {
     @HandleQuery
-    protected FilteredContent handle() {
-        return new FilteredContent("public", "private");
+    protected Optional<FilteredContent> handle() {
+        return Optional.of(new FilteredContent("public", "private"));
     }
 }

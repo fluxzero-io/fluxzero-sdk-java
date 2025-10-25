@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -123,19 +124,40 @@ public class RequestAnnotationProcessor extends AbstractProcessor {
             TypeMirror expectedReturnType = typeArguments.getFirst();
             TypeMirror handlerReturnType = ((ExecutableType) method.asType()).getReturnType();
 
-            TypeMirror futureType = getElementUtils().getTypeElement(Future.class.getCanonicalName()).asType();
-            if (getTypeUtils().isAssignable(getTypeUtils().erasure(handlerReturnType),
-                                            getTypeUtils().erasure(futureType))) {
-                List<? extends TypeMirror> futureTypeArgs = ((DeclaredType) handlerReturnType).getTypeArguments();
-                if (futureTypeArgs.isEmpty()) {
-                    processingEnv.getMessager().printMessage(
-                            Diagnostic.Kind.ERROR,
-                            "Return type of request handler is invalid. Should be assignable to Future<"
-                            + expectedReturnType + ">",
-                            method);
-                    return;
+            {
+                //check for Future<R>
+                TypeMirror futureType = getElementUtils().getTypeElement(Future.class.getCanonicalName()).asType();
+                if (getTypeUtils().isAssignable(getTypeUtils().erasure(handlerReturnType),
+                                                getTypeUtils().erasure(futureType))) {
+                    List<? extends TypeMirror> futureTypeArgs = ((DeclaredType) handlerReturnType).getTypeArguments();
+                    if (futureTypeArgs.isEmpty()) {
+                        processingEnv.getMessager().printMessage(
+                                Diagnostic.Kind.ERROR,
+                                "Return type of request handler is invalid. Should be assignable to Future<"
+                                + expectedReturnType + ">",
+                                method);
+                        return;
+                    }
+                    handlerReturnType = futureTypeArgs.getFirst();
                 }
-                handlerReturnType = futureTypeArgs.getFirst();
+            }
+
+            {
+                //check for Optional<R>
+                TypeMirror optionalType = getElementUtils().getTypeElement(Optional.class.getCanonicalName()).asType();
+                if (getTypeUtils().isAssignable(getTypeUtils().erasure(handlerReturnType),
+                                                getTypeUtils().erasure(optionalType))) {
+                    List<? extends TypeMirror> wrapperTypeArgs = ((DeclaredType) handlerReturnType).getTypeArguments();
+                    if (wrapperTypeArgs.isEmpty()) {
+                        processingEnv.getMessager().printMessage(
+                                Diagnostic.Kind.ERROR,
+                                "Return type of request handler is invalid. Should be assignable to Optional<"
+                                + expectedReturnType + ">",
+                                method);
+                        return;
+                    }
+                    handlerReturnType = wrapperTypeArgs.getFirst();
+                }
             }
 
             if (!getTypeUtils().isAssignable(handlerReturnType, expectedReturnType)) {

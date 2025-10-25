@@ -116,6 +116,7 @@ public class JacksonContentFilter implements ContentFilter {
     public <T> T filterContent(T value, User viewer) {
         return switch (value) {
             case null -> null;
+            case Optional<?> optional -> (T) optional.map(v -> filterContent(v, viewer));
             case Collection<?> collection -> (T) collection.stream().flatMap(
                     v -> v == null ? Stream.of((Object) null)
                             : Optional.ofNullable(filterContent(v, viewer)).stream()).toList();
