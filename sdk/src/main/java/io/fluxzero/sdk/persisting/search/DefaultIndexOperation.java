@@ -18,7 +18,11 @@ package io.fluxzero.sdk.persisting.search;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
+import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
+import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import lombok.AccessLevel;
@@ -75,6 +79,17 @@ public class DefaultIndexOperation implements IndexOperation {
                        searchParams.getTimestampPath(), searchParams.getEndPath());
     }
 
+    /**
+     * Prepares a new {@code DefaultIndexOperation} instance to manage document indexing with specified path mappings.
+     *
+     * @param documentStore the {@link DocumentStore} used to store and manage the index operations
+     * @param object the object to be indexed, which will be analyzed and converted for storage
+     * @param collection the collection in which the object resides
+     * @param idPath the path used to determine the unique ID of the document; if null or blank, a new ID is generated
+     * @param beginPath the path specifying the beginning timestamp of the document; ignored if null
+     * @param endPath the path specifying the ending timestamp of the document; defaults to corresponding begin timestamp if null
+     * @return an initialized {@code DefaultIndexOperation} for managing document indexing
+     */
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 String idPath, String beginPath, String endPath) {
         Function<Object, ?> idFunction = v -> idPath != null && !idPath.isBlank()
@@ -86,6 +101,19 @@ public class DefaultIndexOperation implements IndexOperation {
         return prepare(documentStore, object, collection, idFunction, beginFunction, endFunction);
     }
 
+    /**
+     * Prepares a new {@code DefaultIndexOperation} instance for managing document indexing
+     * with specified functions for extracting key properties from the object.
+     *
+     * @param documentStore the {@code DocumentStore} used to manage and store index operations
+     * @param object the object to be indexed, which will be analyzed and converted for storage
+     * @param collection the collection in which the object resides
+     * @param idFunction a {@code Function} to extract the unique ID of the document from the object
+     * @param beginFunction a {@code Function} to determine the beginning timestamp of the document from the object
+     * @param endFunction a {@code Function} to determine the ending timestamp of the document from the object
+     * @return a fully initialized {@code DefaultIndexOperation} for the specified object and collection
+     *         with the metadata and timestamps appropriately set
+     */
     public static DefaultIndexOperation prepare(DocumentStore documentStore, Object object, @NonNull Object collection,
                                                 Function<Object, ?> idFunction, Function<Object, Instant> beginFunction,
                                                 Function<Object, Instant> endFunction) {
@@ -108,20 +136,35 @@ public class DefaultIndexOperation implements IndexOperation {
         return new DefaultIndexOperation(documentStore, object, collection, id, metadata, start, end, false);
     }
 
+    /**
+     * Prepares a new {@code DefaultIndexOperation} instance for deleting a document
+     * from the specified collection in the {@code DocumentStore}.
+     *
+     * @param documentStore the {@code DocumentStore} used to store and manage the index operations
+     * @param collection the collection from which the document should be deleted
+     * @param id the unique identifier of the document to be deleted
+     * @return a {@code DefaultIndexOperation} instance configured for the delete operation
+     */
+    public static DefaultIndexOperation prepareDelete(DocumentStore documentStore, @NonNull Object collection, @NonNull Object id) {
+        return new DefaultIndexOperation(documentStore, null, collection, id, Metadata.empty(), null, null, false);
+    }
+
     @JsonIgnore
     final transient DocumentStore documentStore;
-    final Object value;
+    Object value;
     @NonNull
     Object collection;
     @NonNull
     Object id;
-    @NonNull
     Metadata metadata;
     Instant start, end;
     boolean ifNotExists;
 
     @Override
     public CompletableFuture<Void> index(Guarantee guarantee) {
+        if (value == null) {
+            return documentStore.deleteDocument(id, collection, guarantee);
+        }
         return documentStore.index(value, id, collection, start, end, metadata, guarantee, ifNotExists);
     }
 
@@ -129,6 +172,17 @@ public class DefaultIndexOperation implements IndexOperation {
     public SerializedDocument toDocument() {
         return documentStore.getSerializer()
                 .toDocument(value, id.toString(), determineSearchCollection(collection), start, end);
+    }
+
+    @Override
+    public BulkUpdate toBulkUpdate() {
+        if (value == null) {
+            return new DeleteDocument(id, collection);
+        }
+        if (ifNotExists) {
+            return new IndexDocumentIfNotExists(value, id, collection, start, end);
+        }
+        return new IndexDocument(value, id, collection, start, end);
     }
 
     @Override

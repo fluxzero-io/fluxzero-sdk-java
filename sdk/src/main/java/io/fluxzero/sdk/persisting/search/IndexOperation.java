@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SerializedDocument;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -78,7 +80,8 @@ public interface IndexOperation {
     }
 
     /**
-     * Executes the indexing operation with the provided guarantee.
+     * Executes the indexing operation with the provided guarantee. If the value is {@code null}, the document will be
+     * deleted.
      */
     CompletableFuture<Void> index(Guarantee guarantee);
 
@@ -91,6 +94,12 @@ public interface IndexOperation {
      * Sets the collection into which the document should be indexed.
      */
     IndexOperation collection(@NonNull Object collection);
+
+    /**
+     * Sets the value to be indexed. If the value is {@code null}, the document will be deleted when {@link #index()} is
+     * invoked.
+     */
+    IndexOperation value(Object value);
 
     /**
      * Sets the start time (timestamp) for the document.
@@ -163,6 +172,17 @@ public interface IndexOperation {
     Object id();
 
     /**
+     * Returns the configured collection for the document.
+     */
+    Object collection();
+
+    /**
+     * Returns the configured value to be indexed. If the value is {@code null}, the document will be deleted when
+     * {@link #index()} is invoked.
+     */
+    Object value();
+
+    /**
      * Returns the configured metadata.
      */
     Metadata metadata();
@@ -176,6 +196,11 @@ public interface IndexOperation {
      * Converts the current state of the IndexOperation into a Document instance.
      */
     SerializedDocument toDocument();
+
+    /**
+     * Converts the current state of the IndexOperation into a {@link BulkUpdate} instance.
+     */
+    BulkUpdate toBulkUpdate();
 
     /**
      * Creates a deep copy of this operation, preserving all configured values.

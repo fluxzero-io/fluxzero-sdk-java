@@ -72,8 +72,9 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     private final HasLocalHandlers handlerRegistry;
 
     @Override
-    public CompletableFuture<Void> index(@NonNull Object object, Object id, Object collection, Instant begin,
-                                         Instant end, Metadata metadata, Guarantee guarantee, boolean ifNotExists) {
+    public CompletableFuture<Void> index(@NonNull Object object, @NonNull Object id, @NonNull Object collection,
+                                         Instant begin, Instant end, Metadata metadata, Guarantee guarantee,
+                                         boolean ifNotExists) {
         try {
             object = object instanceof Entity<?> e ? e.get() : object;
             return client.index(List.of(serializer.toDocument(object, id.toString(),
@@ -133,14 +134,15 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
 
     public DocumentUpdate serializeAction(BulkUpdate update) {
         String collection = determineCollection(update.getCollection());
-        var builder = DocumentUpdate.builder().collection(collection).id(update.getId()).type(update.getType());
+        var builder = DocumentUpdate.builder().collection(collection)
+                .id(update.getId().toString()).type(update.getType());
         if (update instanceof IndexDocument u) {
             var document = u.getObject() instanceof SerializedDocument s
-                    ? s : serializer.toDocument(u.getObject(), u.getId(), collection, u.getTimestamp(), u.getEnd());
+                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(), u.getEnd());
             return builder.object(document).build();
         } else if (update instanceof IndexDocumentIfNotExists u) {
             var document = u.getObject() instanceof SerializedDocument s
-                    ? s : serializer.toDocument(u.getObject(), u.getId(), collection, u.getTimestamp(), u.getEnd());
+                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(), u.getEnd());
             return builder.object(document).build();
         }
         return builder.build();
@@ -202,9 +204,9 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     }
 
     @Override
-    public CompletableFuture<Void> deleteDocument(Object id, Object collection) {
+    public CompletableFuture<Void> deleteDocument(Object id, Object collection, Guarantee guarantee) {
         try {
-            return client.delete(id.toString(), determineCollection(collection), Guarantee.STORED);
+            return client.delete(id.toString(), determineCollection(collection), guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete document %s from collection %s", id, collection),
                                              e);
@@ -212,10 +214,10 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     }
 
     @Override
-    public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection) {
+    public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection, Guarantee guarantee) {
         try {
             return client.move(id.toString(), determineCollection(collection), determineCollection(targetCollection),
-                               Guarantee.STORED);
+                               guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Could not move document %s from collection %s to collection %s", id, collection, targetCollection),

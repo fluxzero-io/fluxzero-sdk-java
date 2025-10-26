@@ -70,8 +70,8 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes one or more objects using the default configuration. Timestamps, collection names, and IDs are inferred
-     * from annotations or fallback strategies.
+     * Indexes one or more objects using the default configuration, using {@link Guarantee#STORED}. Timestamps,
+     * collection names, and IDs are inferred from annotations or fallback strategies.
      */
     default CompletableFuture<Void> index(@NonNull Object object) {
         if (object.getClass().isArray()) {
@@ -93,7 +93,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes one or more objects into the specified collection.
+     * Indexes one or more objects into the specified collection, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(@NonNull Object object, Object collection) {
         if (object.getClass().isArray()) {
@@ -115,7 +115,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a single object with an explicitly provided ID and collection.
+     * Indexes a single object with an explicitly provided ID and collection, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(@NonNull Object object, Object id, Object collection) {
         if (object instanceof Entity<?> entity) {
@@ -127,7 +127,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a single object at a specific timestamp.
+     * Indexes a single object at a specific timestamp, using {@link Guarantee#STORED}.
      * <p>
      * The same value is used as both start and end time of the document.
      */
@@ -137,7 +137,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a single object with a specific start and end time.
+     * Indexes a single object with a specific start and end time, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default CompletableFuture<Void> index(@NonNull Object object, Object id, Object collection, Instant begin,
@@ -146,7 +146,8 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a document with the specified guarantees, metadata, and if-not-exists condition.
+     * Indexes a document with the specified guarantees, metadata, and if-not-exists condition, using
+     * {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(@NotNull Object object, Object id, Object collection, Instant begin,
                                           Instant end,
@@ -155,13 +156,14 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a document with the specified guarantees, metadata, and if-not-exists condition.
+     * Indexes a document with the specified guarantees, metadata, and if-not-exists condition, using
+     * {@link Guarantee#STORED}.
      */
     CompletableFuture<Void> index(@NotNull Object object, Object id, Object collection, Instant begin, Instant end,
                                   Metadata metadata, Guarantee guarantee, boolean ifNotExists);
 
     /**
-     * Indexes a collection of objects into a named collection.
+     * Indexes a collection of objects into a named collection, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(Collection<?> objects, Object collection) {
         return index(objects, collection, v -> getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
@@ -169,7 +171,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using a function to extract the object ID.
+     * Indexes a collection of objects using a function to extract the object ID, using {@link Guarantee#STORED}.
      */
     default <T> CompletableFuture<Void> index(Collection<? extends T> objects, Object collection,
                                               Function<? super T, ?> idFunction) {
@@ -177,7 +179,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using property paths for ID and timestamps.
+     * Indexes a collection of objects using property paths for ID and timestamps, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default CompletableFuture<Void> index(Collection<?> objects, Object collection, String idPath,
@@ -186,7 +188,8 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using property paths for ID, start, and end timestamps.
+     * Indexes a collection of objects using property paths for ID, start, and end timestamps, using
+     * {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default CompletableFuture<Void> index(Collection<?> objects, Object collection, String idPath,
@@ -195,14 +198,15 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using functional accessors for ID and time intervals.
+     * Indexes a collection of objects using functional accessors for ID and time intervals, using
+     * {@link Guarantee#STORED}.
      */
     CompletableFuture<Void> index(Collection<?> objects, Object collection, String idPath,
-                                  String beginPath, String endPath, Guarantee guarantee,
-                                  boolean ifNotExists);
+                                  String beginPath, String endPath, Guarantee guarantee, boolean ifNotExists);
 
     /**
-     * Indexes a collection of objects using property paths for ID, start, and end timestamps.
+     * Indexes a collection of objects using property paths for ID, start, and end timestamps, using
+     * {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> index(Collection<? extends T> objects, Object collection,
@@ -212,7 +216,8 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using property paths for ID, start, and end timestamps.
+     * Indexes a collection of objects using property paths for ID, start, and end timestamps, using
+     * {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> index(Collection<? extends T> objects, Object collection,
@@ -223,7 +228,8 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a collection of objects using functional accessors for ID and time intervals.
+     * Indexes a collection of objects using functional accessors for ID and time intervals, using
+     * {@link Guarantee#STORED}.
      */
     <T> CompletableFuture<Void> index(Collection<? extends T> objects, Object collection,
                                       Function<? super T, ?> idFunction,
@@ -232,8 +238,8 @@ public interface DocumentStore {
                                       boolean ifNotExists);
 
     /**
-     * Indexes a document only if it is not already present in the index. The given object may be a collection of
-     * objects.
+     * Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}. The given
+     * object may be a collection of objects.
      */
     default CompletableFuture<Void> indexIfNotExists(Object object, Object collection) {
         return indexIfNotExists(object instanceof Collection<?> ? (Collection<?>) object : singletonList(object),
@@ -241,14 +247,14 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a document only if it is not already present in the index.
+     * Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> indexIfNotExists(Object object, Object id, Object collection) {
         return indexIfNotExists(object, id, collection, null);
     }
 
     /**
-     * Indexes a document only if it is not already present in the index.
+     * Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default CompletableFuture<Void> indexIfNotExists(Object object, Object id, Object collection, Instant timestamp) {
@@ -256,7 +262,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes a document only if it is not already present in the index.
+     * Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default CompletableFuture<Void> indexIfNotExists(Object object, Object id, Object collection, Instant begin,
@@ -265,7 +271,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.
      */
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection) {
         return indexIfNotExists(objects, collection,
@@ -274,7 +280,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.
      */
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection,
                                                          Function<? super T, ?> idFunction) {
@@ -282,27 +288,25 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection,
-                                                         String idPath,
-                                                         String timestampPath) {
+                                                         String idPath, String timestampPath) {
         return index(objects, collection, idPath, timestampPath, timestampPath, Guarantee.STORED, true);
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection,
-                                                         String idPath,
-                                                         String beginPath, String endPath) {
+                                                         String idPath, String beginPath, String endPath) {
         return index(objects, collection, idPath, beginPath, endPath, Guarantee.STORED, true);
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection,
@@ -312,7 +316,7 @@ public interface DocumentStore {
     }
 
     /**
-     * Indexes documents only if there are not already present in the index.
+     * Indexes documents only if there are not already present in the index, using given {@link Guarantee}.
      */
     @SneakyThrows
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection,
@@ -393,14 +397,28 @@ public interface DocumentStore {
     <T> Collection<T> fetchDocuments(Collection<?> ids, Object collection, Class<T> type);
 
     /**
-     * Deletes a document from the collection.
+     * Deletes a document from the collection, using {@link Guarantee#STORED}.
      */
-    CompletableFuture<Void> deleteDocument(Object id, Object collection);
+    default CompletableFuture<Void> deleteDocument(Object id, Object collection) {
+        return deleteDocument(id, collection, Guarantee.STORED);
+    }
 
     /**
-     * Deletes a document from the collection.
+     * Deletes a document from the collection, using given {@link Guarantee}.
      */
-    CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection);
+    CompletableFuture<Void> deleteDocument(Object id, Object collection, Guarantee guarantee);
+
+    /**
+     * Deletes a document from the collection, using {@link Guarantee#STORED}.
+     */
+    default CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection) {
+        return moveDocument(id, collection, targetCollection, Guarantee.STORED);
+    }
+
+    /**
+     * Deletes a document from the collection, using given {@link Guarantee}.
+     */
+    CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection, Guarantee guarantee);
 
     /**
      * Deletes an entire collection of documents.
