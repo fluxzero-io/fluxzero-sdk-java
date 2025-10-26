@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.search;
@@ -114,9 +115,6 @@ public class Document {
      */
     Map<Entry, List<Path>> entries;
 
-    /**
-     * Optional string-based summary supplier for describing the document contents.
-     */
     @JsonIgnore
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
@@ -133,6 +131,16 @@ public class Document {
      */
     @Builder.Default
     Set<SortableEntry> sortables = Collections.emptySet();
+
+    /**
+     * Retrieves the summary of the document or {@code null} if no summary is available.
+     * <p>
+     * A summary describes the document contents as a single string concatenating all property values.
+     */
+    @JsonIgnore
+    public String getSummary() {
+        return summary.get();
+    }
 
     /**
      * Retrieves the first matching {@link Entry} for a given query path.
@@ -233,7 +241,11 @@ public class Document {
          * If the entry's type is {@link EntryType#TEXT}, the value is normalized using
          * {@link SearchUtils#normalize(String)}. Otherwise, the raw value is returned.
          */
-        @JsonIgnore @Getter(lazy = true) @Accessors(fluent = true) @EqualsAndHashCode.Exclude @ToString.Exclude
+        @JsonIgnore
+        @Getter(lazy = true)
+        @Accessors(fluent = true)
+        @EqualsAndHashCode.Exclude
+        @ToString.Exclude
         String asPhrase = getType() == EntryType.TEXT ? SearchUtils.normalize(getValue()) : getValue();
 
         /**
@@ -242,7 +254,11 @@ public class Document {
          * If the entry's type is {@link EntryType#NUMERIC}, the value is converted into a {@link BigDecimal}. If the
          * type is not numeric, this property is null.
          */
-        @JsonIgnore @Getter(lazy = true) @Accessors(fluent = true) @EqualsAndHashCode.Exclude @ToString.Exclude
+        @JsonIgnore
+        @Getter(lazy = true)
+        @Accessors(fluent = true)
+        @EqualsAndHashCode.Exclude
+        @ToString.Exclude
         BigDecimal asNumber = getType() == NUMERIC ? new BigDecimal(getValue()) : null;
 
         /**
@@ -294,7 +310,7 @@ public class Document {
         private static final Function<String, String[]> splitFunction = memoize(in -> splitPattern.split(in));
 
         private static final Function<String, String> shortValueFunction = memoize(in -> Arrays.stream(
-                splitPattern.split(in))
+                        splitPattern.split(in))
                 .filter(p -> !SearchUtils.isInteger(p)).map(SearchUtils::unescapeFieldName).collect(joining("/")));
 
         /**
@@ -369,8 +385,8 @@ public class Document {
     /**
      * Enumerates the supported types of values that can appear in a {@link Document} entry.
      * <p>
-     * These types provide a normalized internal representation of different JSON-compatible values,
-     * allowing for efficient indexing, filtering, and serialization within the Fluxzero document store.
+     * These types provide a normalized internal representation of different JSON-compatible values, allowing for
+     * efficient indexing, filtering, and serialization within the Fluxzero document store.
      *
      * <h2>Supported Types</h2>
      * <ul>

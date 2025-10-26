@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api.search.constraints;
@@ -27,12 +28,11 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Abstract base class for constraints that apply to specific paths in a
- * {@link io.fluxzero.common.search.Document}.
+ * Abstract base class for constraints that apply to specific paths in a {@link io.fluxzero.common.search.Document}.
  * <p>
  * A {@code PathConstraint} allows filtering a document based on matching criteria applied to specific
- * {@link io.fluxzero.common.search.Document.Entry} values at one or more paths. It forms the foundation for
- * constraints like {@link MatchConstraint}, {@link BetweenConstraint}, {@link ExistsConstraint}, etc.
+ * {@link io.fluxzero.common.search.Document.Entry} values at one or more paths. It forms the foundation for constraints
+ * like {@link MatchConstraint}, {@link BetweenConstraint}, {@link ExistsConstraint}, etc.
  *
  * <h2>Path Filtering</h2>
  * The constraint applies only to values located at the paths specified via {@link #getPaths()}. If no paths are
@@ -65,7 +65,7 @@ public abstract class PathConstraint implements Constraint {
      * @param entry the document entry to evaluate
      * @return {@code true} if the entry satisfies the condition; {@code false} otherwise
      */
-    protected abstract boolean matches(Document.Entry entry);
+    protected abstract boolean matches(Document.Entry entry, Document document);
 
     @Override
     public boolean matches(Document document) {
@@ -99,11 +99,12 @@ public abstract class PathConstraint implements Constraint {
     private Predicate<Document> computeDocumentPredicate() {
         Predicate<Path> pathPredicate = getPaths().stream().map(
                 Path::pathPredicate).reduce(Predicate::or).orElseGet(() -> p -> true);
-        return checkPathBeforeEntry() ? d -> d.getEntries().entrySet().stream()
-                .anyMatch(e -> e.getValue().stream().anyMatch(pathPredicate) && matches(e.getKey())) :
-                d -> d.getEntries().entrySet().stream()
-                        .anyMatch(e -> matches(e.getKey()) && (e.getValue().isEmpty()
-                                ? pathPredicate.test(Path.EMPTY_PATH) :
-                                e.getValue().stream().anyMatch(pathPredicate)));
+        return checkPathBeforeEntry()
+                ? d -> d.getEntries().entrySet().stream()
+                .anyMatch(e -> e.getValue().stream().anyMatch(pathPredicate) && matches(e.getKey(), d))
+                : d -> d.getEntries().entrySet().stream()
+                .anyMatch(e -> matches(e.getKey(), d) && (e.getValue().isEmpty()
+                        ? pathPredicate.test(Path.EMPTY_PATH)
+                        : e.getValue().stream().anyMatch(pathPredicate)));
     }
 }

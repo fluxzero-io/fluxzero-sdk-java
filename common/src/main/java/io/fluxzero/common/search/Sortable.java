@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,11 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.search.constraints.BetweenConstraint;
+import io.fluxzero.common.api.search.constraints.ExistsConstraint;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -27,7 +29,8 @@ import java.lang.annotation.Target;
  * Marker annotation on fields and getters that indicates that a property is to be used for sorting and filtering.
  * <p>
  * Use this annotation if you want to filter documents fast using a {@link BetweenConstraint} or when you want to sort
- * documents in a collection on something else than the default document time range.
+ * documents in a collection on something else than the default document time range. Filtering using
+ * {@link ExistsConstraint} is also much faster, as it can be done using a single index lookup.
  * <p>
  * The index value is determined as follows:
  * <p>

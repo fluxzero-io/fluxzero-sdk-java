@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api.search.constraints;
@@ -17,6 +18,7 @@ package io.fluxzero.common.api.search.constraints;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.Document.EntryType;
+import io.fluxzero.common.search.Sortable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -57,6 +59,10 @@ import static io.fluxzero.common.SearchUtils.ISO_FULL;
  * // Matches documents with timestamps before a certain date
  * Constraint c3 = BetweenConstraint.below(Instant.now(), "createdAt");
  * }</pre>
+ * <p>
+ * Note: to speed up {@link BetweenConstraint} matching, it is recommended to annotate fields with {@link Sortable}.
+ *
+ * @see Sortable
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -123,7 +129,7 @@ public class BetweenConstraint extends PathConstraint {
     List<String> paths;
 
     @Override
-    protected boolean matches(Document.Entry entry) {
+    protected boolean matches(Document.Entry entry, Document document) {
         return matcher().test(entry);
     }
 

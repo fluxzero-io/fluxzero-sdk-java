@@ -125,8 +125,7 @@ public class SerializedDocument {
         this(document.getId(), ofNullable(document.getTimestamp()).map(Instant::toEpochMilli).orElse(null),
              ofNullable(document.getEnd()).map(Instant::toEpochMilli).orElse(null),
              document.getCollection(), null, () -> document,
-             ofNullable(document.getSummary()).map(Supplier::get).orElse(null), document.getFacets(),
-             document.getSortables());
+             document.getSummary(), document.getFacets(), document.getSortables());
     }
 
     @SuppressWarnings("unused")

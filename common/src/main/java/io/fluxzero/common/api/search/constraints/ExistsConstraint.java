@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api.search.constraints;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.NoOpConstraint;
 import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.Sortable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -45,6 +47,10 @@ import java.util.List;
  * // Matches if any of the specified paths or their children exist
  * Constraint c2 = ExistsConstraint.exists(true, "address", "email");
  * }</pre>
+ * <p>
+ * Note: to speed up {@link ExistsConstraint} matching, it is recommended to annotate fields with {@link Sortable}.
+ *
+ * @see Sortable
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -62,14 +68,15 @@ public class ExistsConstraint extends PathConstraint {
     /**
      * Represents a non-null path within a document that is checked for existence.
      */
-    @NonNull String exists;
+    @NonNull
+    String exists;
 
     @JsonIgnore
     @Getter(lazy = true)
     List<String> paths = exists.endsWith("**") ? List.of(exists) : List.of(exists, exists + "/**");
 
     @Override
-    protected boolean matches(Document.Entry entry) {
+    protected boolean matches(Document.Entry entry, Document document) {
         return entry.getType() != Document.EntryType.NULL;
     }
 

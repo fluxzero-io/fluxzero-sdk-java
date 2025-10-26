@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -193,7 +193,6 @@ public class StatefulHandlerTest {
         }
 
         @Stateful
-        @SearchExclude
         @Builder(toBuilder = true)
         record StaticHandler(@EntityId @Association(value = {"someId", "aliasId"}, excludedClasses = ExcludedEvent.class) String someId,
                              @Association(excludeMetadata = true) String otherId,

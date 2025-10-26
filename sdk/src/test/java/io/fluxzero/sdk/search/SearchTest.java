@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.search;
@@ -31,8 +32,10 @@ import io.fluxzero.common.api.search.bulkupdate.DeleteDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.constraints.BetweenConstraint;
 import io.fluxzero.common.api.search.constraints.FacetConstraint;
+import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.search.Facet;
+import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.common.search.Sortable;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
@@ -813,6 +816,14 @@ public class SearchTest {
     }
 
     @Nested
+    class SearchExcludeTests {
+        @Test
+        void cannotFindExcluded() {
+            expectNoMatch(MatchConstraint.match("excluded"));
+        }
+    }
+
+    @Nested
     class GetById {
         private final Given testFixture = TestFixture.create()
                 .givenDocument(new SomeDocument(), "id1", "test")
@@ -878,6 +889,8 @@ public class SearchTest {
         @Sortable
         Instant ts;
         String foo;
+        @SearchExclude
+        String fieldExclusion = "excluded";
         @Sortable
         BigDecimal someNumber;
         Map<String, Object> booleans;
