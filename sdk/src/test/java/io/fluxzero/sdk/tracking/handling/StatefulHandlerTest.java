@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -179,6 +180,20 @@ public class StatefulHandlerTest {
         }
 
         @Test
+        void handlerIsUpdated_associationOnNestedCollectionField() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new EventWithNestedPropertyList(new NestedPropertyList(List.of("bar", "foo"))))
+                    .expectOnlyCommands(2);
+        }
+
+        @Test
+        void handlerIsUpdated_associationOnMapCollectionField() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new EventWithMapPropertyList(Map.of("nested", List.of("bar", "foo"))))
+                    .expectOnlyCommands(2);
+        }
+
+        @Test
         void handlerIsUpdated_alwaysAssociate() {
             testFixture.givenEvents(new SomeEvent("foo"))
                     .whenEvent(new AlwaysAssociate())
@@ -297,6 +312,20 @@ public class StatefulHandlerTest {
             @HandleEvent
             @Association("someIds")
             StaticHandler update(EventWithPropertyList event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            @Association("someIds/nested")
+            StaticHandler update(EventWithNestedPropertyList event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            @Association("someIds/nested")
+            StaticHandler update(EventWithMapPropertyList event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -486,6 +515,15 @@ public class StatefulHandlerTest {
     }
 
     record EventWithPropertyList(List<String> someIds) {
+    }
+
+    record EventWithNestedPropertyList(NestedPropertyList someIds) {
+    }
+
+    record NestedPropertyList(List<String> nested) {
+    }
+
+    record EventWithMapPropertyList(Map<String, List<String>> someIds) {
     }
 }
 

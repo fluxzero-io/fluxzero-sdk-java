@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.reflection;
@@ -76,6 +77,7 @@ import static java.lang.String.format;
 import static java.util.Arrays.stream;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ClassUtils.getAllInterfaces;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
@@ -507,7 +509,15 @@ public class ReflectionUtils {
                 if (object == null) {
                     return null;
                 }
-                object = gettersCache.apply(object.getClass(), part).apply(object);
+                if (object instanceof Collection<?> collection) {
+                    object = collection.stream().flatMap(
+                            o -> {
+                                Object apply = computeNestedGetter(o.getClass(), part).apply(o);
+                                return apply instanceof Collection<?> c ? c.stream() : Stream.of(apply);
+                            }).collect(toList());
+                } else {
+                    object = computeNestedGetter(object.getClass(), part).apply(object);
+                }
             }
             return object;
         };
@@ -517,6 +527,9 @@ public class ReflectionUtils {
     private static Function<Object, Object> computeGetter(@NonNull Class<?> type, @NonNull String propertyName) {
         if (ObjectNode.class.isAssignableFrom(type)) {
             return target -> ((ObjectNode) target).get(propertyName);
+        }
+        if (Map.class.isAssignableFrom(type)) {
+            return target -> ((Map<?, ?>) target).get(propertyName);
         }
         PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
         return getMethod(type, "get" + StringUtils.capitalize(propertyName)).map(m -> (Member) m)

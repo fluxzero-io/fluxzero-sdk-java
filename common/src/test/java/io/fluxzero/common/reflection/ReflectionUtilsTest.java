@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.reflection;
@@ -21,10 +22,13 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Singular;
 import lombok.Value;
 import lombok.experimental.NonFinal;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.determineCommonAncestors;
 import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
@@ -41,7 +45,11 @@ class ReflectionUtilsTest {
                     .child(MockObject.builder().propertyWithGetter("childGetter").propertyWithoutGetter("childNoGetter")
                                    .child(MockObject.builder().propertyWithoutGetter(null)
                                                   .propertyWithGetter("grandChildGetter").build()).build())
-                    .child2(MockObject.builder().propertyWithoutGetter("child2Field").build()).build();
+                    .child2(MockObject.builder().propertyWithoutGetter("child2Field").build())
+                    .children(List.of(
+                            MockObject.builder().propertyWithoutGetter("listChild1Field").build(),
+                            MockObject.builder().propertyWithoutGetter("listChild2Field").children(List.of(MockObject.builder().propertyWithoutGetter("listChild3Field").build())).build())
+                    ).build();
 
     @Nested
     class ReadTest {
@@ -61,6 +69,14 @@ class ReflectionUtilsTest {
         void testReadingChildGetter() {
             assertEquals(someObject.getChild().getPropertyWithGetter(),
                          readProperty("child/propertyWithGetter", someObject).orElseThrow());
+        }
+
+        @Test
+        void testReadingChildrenProperties() {
+            assertEquals(someObject.children.stream().flatMap(c -> c.children.stream()).map(c -> c.propertyWithoutGetter).toList(),
+                         readProperty("children/children/propertyWithoutGetter", someObject).orElseThrow());
+            assertEquals(someObject.children.stream().map(c -> c.propertyWithoutGetter).toList(),
+                         readProperty("children/propertyWithoutGetter", someObject).orElseThrow());
         }
 
         @Test
@@ -193,6 +209,9 @@ class ReflectionUtilsTest {
         MockObject child;
         @Getter(AccessLevel.NONE)
         MockObject child2;
+        @Getter(AccessLevel.NONE)
+        @Singular( "listChild")
+        List<MockObject> children;
 
         public String getOther() {
             return "someOtherValue";
