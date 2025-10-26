@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.givenwhenthen;
@@ -35,6 +36,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
+import io.fluxzero.sdk.web.HandlePost;
 import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -194,6 +196,11 @@ public class GivenWhenThenAuthenticationTest {
     }
 
     @Test
+    void testWhenPostByUser() {
+        testFixture.whenPostByUser(new MockUser("modify"), "/update", new Update()).expectResult("success");
+    }
+
+    @Test
     void testAuthorizedModifyAsSystem() {
         user = new MockUser("modify", "system");
         testFixture.whenCommand(new Update()).expectSuccessfulResult();
@@ -307,6 +314,12 @@ public class GivenWhenThenAuthenticationTest {
 
         @HandleCommand
         void handle(Delete command) {
+        }
+
+        @HandlePost("/update")
+        @RequiresAnyRole("modify")
+        String handlePost(Update command) {
+            return "success";
         }
     }
 

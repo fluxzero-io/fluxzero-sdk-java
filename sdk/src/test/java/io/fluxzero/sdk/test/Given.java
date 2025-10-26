@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -19,6 +20,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -41,13 +43,15 @@ import java.util.Arrays;
  * commands, events, schedules, documents, requests, and more. Any effects introduced during this phase
  * <strong>will not</strong> be included in the {@code then} phase assertions.
  * <p>
- * This interface extends {@link When}, allowing you to skip directly to the {@code when} phase if no prior activity is required.
+ * This interface extends {@link When}, allowing you to skip directly to the {@code when} phase if no prior activity is
+ * required.
  * <p>
  * In all {@code givenXyz(...)} methods, any argument that is a {@link String} and ends with {@code .json} is
- * interpreted as the location of a JSON resource (e.g., {@code "/user/create-user.json"}). The resource will be
- * loaded and deserialized using {@link JsonUtils}.
+ * interpreted as the location of a JSON resource (e.g., {@code "/user/create-user.json"}). The resource will be loaded
+ * and deserialized using {@link JsonUtils}.
  * <p>
- * The JSON file must include a {@code @class} property to indicate the fully qualified class name of the object to deserialize:
+ * The JSON file must include a {@code @class} property to indicate the fully qualified class name of the object to
+ * deserialize:
  * <pre>{@code
  * {
  *   "@class": "com.example.CreateUser",
@@ -56,8 +60,8 @@ import java.util.Arrays;
  * }</pre>
  * <p>
  * It is also possible to refer to a class using its simple name or partial package path if the class or one of its
- * ancestor packages is annotated with {@link io.fluxzero.common.serialization.RegisterType @RegisterType}.
- * For example, if {@code @RegisterType} is present on the {@code com.example} package, you may use:
+ * ancestor packages is annotated with {@link io.fluxzero.common.serialization.RegisterType @RegisterType}. For example,
+ * if {@code @RegisterType} is present on the {@code com.example} package, you may use:
  * <pre>{@code
  * {
  *   "@class": "CreateUser"
@@ -86,7 +90,7 @@ import java.util.Arrays;
  * @see JsonUtils
  * @see io.fluxzero.common.serialization.RegisterType
  */
-public interface Given extends When {
+public interface Given<Self extends Given<Self>> extends When {
 
     /**
      * Specifies one or more commands that were issued before the behavior under test.
@@ -96,7 +100,7 @@ public interface Given extends When {
      * <p>
      * You may also pass a {@code String} ending in {@code .json} to load a payload from a resource file.
      */
-    Given givenCommands(Object... commands);
+    Self givenCommands(Object... commands);
 
     /**
      * Specifies one or more commands that were issued by the specified {@code user} before the behavior under test.
@@ -107,7 +111,7 @@ public interface Given extends When {
      * Each command can be a raw {@link Message} or a plain object. If not a {@code Message}, it will be wrapped as a
      * payload.
      */
-    Given givenCommandsByUser(Object user, Object... commands);
+    Self givenCommandsByUser(Object user, Object... commands);
 
     /**
      * Specifies one or more requests that were sent to the given custom message {@code topic} before the behavior under
@@ -115,7 +119,7 @@ public interface Given extends When {
      * <p>
      * Each request may be a {@link Message} or a plain object to be wrapped with default metadata.
      */
-    Given givenCustom(String topic, Object... requests);
+    Self givenCustom(String topic, Object... requests);
 
     /**
      * Specifies one or more requests that were sent to the given custom {@code topic} by the specified {@code user}.
@@ -124,7 +128,7 @@ public interface Given extends When {
      * <p>
      * Each request may be a {@link Message} or a plain object to be wrapped with default metadata.
      */
-    Given givenCustomByUser(Object user, String topic, Object... requests);
+    Self givenCustomByUser(Object user, String topic, Object... requests);
 
     /**
      * Simulates one or more events that were previously applied to a specific aggregate.
@@ -133,7 +137,7 @@ public interface Given extends When {
      * <p>
      * You may also pass a {@code String} ending in {@code .json} to load an event from a resource file.
      */
-    default Given givenAppliedEvents(Id<?> aggregateId, Object... events) {
+    default Self givenAppliedEvents(Id<?> aggregateId, Object... events) {
         return givenAppliedEvents(aggregateId.toString(), aggregateId.getType(), events);
     }
 
@@ -142,33 +146,33 @@ public interface Given extends When {
      * <p>
      * Events can be {@link Message}, {@link Data} (auto-deserialized and upcasted), or plain objects.
      */
-    Given givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events);
+    Self givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events);
 
     /**
      * Publishes one or more events that were emitted before the behavior under test.
      * <p>
      * Events may be {@link Message} or plain objects.
      */
-    Given givenEvents(Object... events);
+    Self givenEvents(Object... events);
 
     /**
      * Stores a document in the search index before the behavior under test.
      * <p>
      * If the object is annotated with {@link Searchable}, the annotation metadata will determine how it's indexed.
      */
-    Given givenDocument(Object document);
+    Self givenDocument(Object document);
 
     /**
      * Stores a document in the given {@code collection} with a generated ID and no timestamps.
      */
-    default Given givenDocument(Object document, Object collection) {
+    default Self givenDocument(Object document, Object collection) {
         return givenDocument(document, getFluxzero().identityProvider().nextTechnicalId(), collection);
     }
 
     /**
      * Stores a document in the given {@code collection} with a specific {@code id} and no timestamps.
      */
-    default Given givenDocument(Object document, Object id, Object collection) {
+    default Self givenDocument(Object document, Object id, Object collection) {
         return givenDocument(document, id, collection, null);
     }
 
@@ -176,19 +180,19 @@ public interface Given extends When {
      * Stores a document with a specific {@code id} and timestamp in the given {@code collection}. The timestamp is used
      * as both start and end time.
      */
-    default Given givenDocument(Object document, Object id, Object collection, Instant timestamp) {
+    default Self givenDocument(Object document, Object id, Object collection, Instant timestamp) {
         return givenDocument(document, id, collection, timestamp, timestamp);
     }
 
     /**
      * Stores a document with specific {@code id}, {@code collection}, and time range.
      */
-    Given givenDocument(Object document, Object id, Object collection, Instant start, Instant end);
+    Self givenDocument(Object document, Object id, Object collection, Instant start, Instant end);
 
     /**
      * Stores multiple documents in the given {@code collection} with random IDs and no timestamps.
      */
-    Given givenDocuments(Object collection, Object firstDocument, Object... otherDocuments);
+    Self givenDocuments(Object collection, Object firstDocument, Object... otherDocuments);
 
     /**
      * Registers a stateful handler instance before the behavior under test.
@@ -197,26 +201,26 @@ public interface Given extends When {
      *
      * @see io.fluxzero.sdk.tracking.handling.Stateful
      */
-    default Given givenStateful(Object stateful) {
+    default Self givenStateful(Object stateful) {
         return givenDocument(stateful);
     }
 
     /**
      * Schedules one or more commands before the behavior under test.
      */
-    Given givenSchedules(Schedule... schedules);
+    Self givenSchedules(Schedule... schedules);
 
     /**
      * Issues one or more scheduled commands before the behavior under test.
      */
-    Given givenScheduledCommands(Schedule... commands);
+    Self givenScheduledCommands(Schedule... commands);
 
     /**
      * Simulates expired schedules that should be processed before the behavior under test.
      * <p>
      * If the object is not a {@link Message}, it is wrapped as a payload with a generated ID and the current time.
      */
-    default Given givenExpiredSchedules(Object... schedules) {
+    default Self givenExpiredSchedules(Object... schedules) {
         return givenSchedules(
                 Arrays.stream(schedules).map(p -> new Schedule(
                                 p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime()))
@@ -228,63 +232,124 @@ public interface Given extends When {
      * <p>
      * Any schedules that expire during the jump will be processed.
      */
-    Given givenTimeAdvancedTo(Instant timestamp);
+    Self givenTimeAdvancedTo(Instant timestamp);
 
     /**
      * Advances the test clock by the given {@code duration} before the behavior under test.
      * <p>
      * Any schedules that expire during the jump will be processed.
      */
-    Given givenElapsedTime(Duration duration);
+    Self givenElapsedTime(Duration duration);
 
     /**
      * Simulates a web request that was issued before the behavior under test.
      */
-    Given givenWebRequest(WebRequest webRequest);
+    default Self givenWebRequest(WebRequest webRequest) {
+        return givenWebRequestByUser(null, webRequest);
+    }
+
+    /**
+     * Simulates a web request that was issued by the given user before the behavior under test.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    Self givenWebRequestByUser(@Nullable Object user, WebRequest webRequest);
 
     /**
      * Simulates a POST request to the specified {@code path} with the given {@code payload}.
      */
-    default Given givenPost(String path, Object payload) {
-        return givenWebRequest(
-                WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload).build());
+    default Self givenPost(String path, Object payload) {
+        return givenPostByUser(null, path, payload);
+    }
+
+    /**
+     * Simulates a POST request by the given user to the specified {@code path} with the given {@code payload}.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Self givenPostByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(
+                user, WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload).build());
     }
 
     /**
      * Simulates a PUT request to the specified {@code path} with the given {@code payload}.
      */
-    default Given givenPut(String path, Object payload) {
-        return givenWebRequest(
-                WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
+    default Self givenPut(String path, Object payload) {
+        return givenPutByUser(null, path, payload);
+    }
+
+    /**
+     * Simulates a PUT request by the given user to the specified {@code path} with the given {@code payload}.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Self givenPutByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(
+                user, WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
     }
 
     /**
      * Simulates a PATCH request to the specified {@code path} with the given {@code payload}.
      */
-    default Given givenPatch(String path, Object payload) {
-        return givenWebRequest(
-                WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
+    default Self givenPatch(String path, Object payload) {
+        return givenPatchByUser(null, path, payload);
+    }
+
+    /**
+     * Simulates a PATCH request by the given user to the specified {@code path} with the given {@code payload}.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Self givenPatchByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(
+                user, WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
     }
 
     /**
      * Simulates a DELETE request to the specified {@code path}.
      */
-    default Given givenDelete(String path) {
-        return givenWebRequest(
-                WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
+    default Self givenDelete(String path) {
+        return givenDeleteByUser(null, path);
+    }
+
+    /**
+     * Simulates a DELETE request by the given user to the specified {@code path} with the given {@code payload}.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Self givenDeleteByUser(Object user, String path) {
+        return givenWebRequestByUser(
+                user, WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
     }
 
     /**
      * Simulates a GET request to the specified {@code path}.
      */
-    default Given givenGet(String path) {
-        return givenWebRequest(WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
+    default Self givenGet(String path) {
+        return givenGetByUser(null, path);
+    }
+
+    /**
+     * Simulates a GET request by the given user to the specified {@code path} with the given {@code payload}.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Self givenGetByUser(Object user, String path) {
+        return givenWebRequestByUser(
+                user, WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
     }
 
     /**
      * Performs any arbitrary precondition using the {@link Fluxzero} instance directly.
      */
-    Given given(ThrowingConsumer<Fluxzero> condition);
+    Self given(ThrowingConsumer<Fluxzero> condition);
 
     /**
      * Returns the {@link Fluxzero} instance used in this test fixture.
@@ -308,7 +373,7 @@ public interface Given extends When {
     /**
      * Adds a cookie to be used in subsequent simulated web requests.
      */
-    default Given withCookie(String name, String value) {
+    default Self withCookie(String name, String value) {
         return withCookie(new HttpCookie(name, value));
     }
 
@@ -317,38 +382,38 @@ public interface Given extends When {
      * <p>
      * Expired cookies will remove any matching previously added cookie.
      */
-    Given withCookie(HttpCookie cookie);
+    Self withCookie(HttpCookie cookie);
 
     /**
      * Adds or removes headers to be used in subsequent simulated web requests.
      * <p>
      * If {@code headerValues} is empty, the header will be removed.
      */
-    Given withHeader(String headerName, String... headerValues);
+    Self withHeader(String headerName, String... headerValues);
 
     /**
      * Removes a previously set header for simulated web requests.
      */
-    default Given withoutHeader(String headerName) {
+    default Self withoutHeader(String headerName) {
         return withHeader(headerName);
     }
 
     /**
      * Overrides the test fixture's clock. Use this to simulate time-based behavior explicitly.
      */
-    Given withClock(Clock clock);
+    Self withClock(Clock clock);
 
     /**
      * Fixes the time at which the test fixture starts.
      */
-    Given atFixedTime(Instant time);
+    Self atFixedTime(Instant time);
 
     /**
      * Sets an application property for the duration of the test fixture.
      * <p>
      * Only effective if your components resolve properties through {@link ApplicationProperties}.
      */
-    Given withProperty(String name, Object value);
+    Self withProperty(String name, Object value);
 
     /**
      * Registers a singleton (injected) bean to be used during the test fixture.
@@ -356,12 +421,12 @@ public interface Given extends When {
      * The bean will be available for injection into handlers that use
      * {@link org.springframework.beans.factory.annotation.Autowired}.
      */
-    Given withBean(Object bean);
+    Self withBean(Object bean);
 
     /**
      * Instructs the test fixture to ignore any exceptions that occur during the {@code Given} phase.
      * <p>
      * Errors in a later phase will still be recorded.
      */
-    Given ignoringErrors();
+    Self ignoringErrors();
 }

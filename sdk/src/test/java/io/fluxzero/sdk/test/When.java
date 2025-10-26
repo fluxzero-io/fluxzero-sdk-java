@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -22,6 +23,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -55,8 +57,7 @@ import java.util.function.UnaryOperator;
  * }</pre>
  * <p>
  * It is also possible to refer to a class using its simple name or partial package path if the class or one of its
- * ancestor packages is annotated with {@link RegisterType @RegisterType}. For
- * example:
+ * ancestor packages is annotated with {@link RegisterType @RegisterType}. For example:
  * <pre>{@code
  * {
  *   "@class": "CreateUser"
@@ -98,7 +99,8 @@ public interface When {
     /**
      * Executes the specified command on behalf of a user and returns a result expectation.
      * <p>
-     * The {@code user} may be a {@link User} instance or an ID resolved via {@link UserProvider}.
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     @SuppressWarnings("unchecked")
     default <R> Then<R> whenCommandByUser(Object user, Request<R> command) {
@@ -108,7 +110,8 @@ public interface When {
     /**
      * Executes the specified command on behalf of a user and returns a result expectation.
      * <p>
-     * The {@code user} may be a {@link User} instance or an ID resolved via {@link UserProvider}.
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     Then<Object> whenCommandByUser(Object user, Object command);
 
@@ -132,7 +135,8 @@ public interface When {
     /**
      * Executes the given query on behalf of a user and returns its result.
      * <p>
-     * The {@code user} may be a {@link User} or an identifier resolved via {@link UserProvider}.
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     @SuppressWarnings("unchecked")
     default <R> Then<R> whenQueryByUser(Object user, Request<R> query) {
@@ -142,7 +146,8 @@ public interface When {
     /**
      * Executes the given query on behalf of a user and returns its result.
      * <p>
-     * The {@code user} may be a {@link User} or an identifier resolved via {@link UserProvider}.
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     Then<Object> whenQueryByUser(Object user, Object query);
 
@@ -162,7 +167,8 @@ public interface When {
     /**
      * Sends a request to a custom topic on behalf of a user and returns its result.
      * <p>
-     * The {@code user} may be a {@link User} or ID resolved via {@link UserProvider}.
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     @SuppressWarnings("unchecked")
     default <R> Then<R> whenCustomByUser(Object user, String topic, Request<R> request) {
@@ -171,6 +177,9 @@ public interface When {
 
     /**
      * Sends a message to a custom topic on behalf of a user and returns expectations for result or side effects.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
      */
     Then<Object> whenCustomByUser(Object user, String topic, Object message);
 
@@ -184,8 +193,8 @@ public interface When {
     /**
      * Applies events to a specific aggregate instance and publishes them.
      * <p>
-     * Events may be {@link Message}, serialized {@link Data}, or POJOs.
-     * Data will be upcasted and deserialized before applying.
+     * Events may be {@link Message}, serialized {@link Data}, or POJOs. Data will be upcasted and deserialized before
+     * applying.
      */
     default Then<?> whenEventsAreApplied(Id<?> aggregateId, Object... events) {
         return whenEventsAreApplied(aggregateId.toString(), aggregateId.getType(), events);
@@ -194,17 +203,17 @@ public interface When {
     /**
      * Applies events to a specific aggregate instance and publishes them.
      * <p>
-     * Events may be {@link Message}, serialized {@link Data}, or POJOs.
-     * Data will be upcasted and deserialized before applying.
+     * Events may be {@link Message}, serialized {@link Data}, or POJOs. Data will be upcasted and deserialized before
+     * applying.
      */
     Then<?> whenEventsAreApplied(String aggregateId, Class<?> aggregateClass, Object... events);
 
     /**
      * Executes a search query on the specified collection and returns the expected result.
      *
-     * @param collection   the collection to search in
-     * @param searchQuery  the search query operator
-     * @param <R>          the result type
+     * @param collection  the collection to search in
+     * @param searchQuery the search query operator
+     * @param <R>         the result type
      */
     <R> Then<List<R>> whenSearching(Object collection, UnaryOperator<Search> searchQuery);
 
@@ -222,20 +231,21 @@ public interface When {
     /**
      * Executes a search query on the collection inferred from the class and returns the expected result.
      *
-     * @param collection   the collection class
-     * @param searchQuery  the search query operator
-     * @param <R>          the result type
+     * @param collection  the collection class
+     * @param searchQuery the search query operator
+     * @param <R>         the result type
      */
     default <R> Then<List<R>> whenSearching(Class<R> collection, UnaryOperator<Search> searchQuery) {
         return this.whenSearching((Object) collection, searchQuery);
     }
 
     /**
-     * Executes a search query with constraints on the collection inferred from the class and returns the expected result.
+     * Executes a search query with constraints on the collection inferred from the class and returns the expected
+     * result.
      *
-     * @param collection   the collection class
-     * @param constraints  the search constraints
-     * @param <R>          the result type
+     * @param collection  the collection class
+     * @param constraints the search constraints
+     * @param <R>         the result type
      */
     default <R> Then<List<R>> whenSearching(Class<R> collection, Constraint... constraints) {
         return whenSearching(collection, s -> s.constraint(constraints));
@@ -244,13 +254,23 @@ public interface When {
     /**
      * Executes the specified {@link WebRequest} and returns expectations for side effects or response.
      */
-    Then<Object> whenWebRequest(WebRequest request);
+    default Then<Object> whenWebRequest(WebRequest request) {
+        return whenWebRequestByUser(null, request);
+    }
+
+    /**
+     * Executes the specified {@link WebRequest} and returns expectations for side effects or response.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    Then<Object> whenWebRequestByUser(@Nullable Object user, WebRequest request);
 
     /**
      * Simulates a POST request to the specified path with the given payload.
      */
     default Then<Object> whenPost(String path, Object payload) {
-        return whenWebRequest(WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload).build());
+        return whenPostByUser(null, path, payload);
     }
 
     /**
@@ -261,31 +281,82 @@ public interface When {
     }
 
     /**
+     * Simulates a POST request by the given user to the specified path with the given payload.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Then<Object> whenPostByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload)
+                .build());
+    }
+
+    /**
      * Simulates a PUT request to the specified path with the given payload.
      */
     default Then<Object> whenPut(String path, Object payload) {
-        return whenWebRequest(WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
+        return whenPutByUser(null, path, payload);
+    }
+
+    /**
+     * Simulates a PUT request by the given user to the specified path with the given payload.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Then<Object> whenPutByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
     }
 
     /**
      * Simulates a PATCH request to the specified path with the given payload.
      */
     default Then<Object> whenPatch(String path, Object payload) {
-        return whenWebRequest(WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
+        return whenPatchByUser(null, path, payload);
+    }
+
+    /**
+     * Simulates a PATCH request by the given user to the specified path with the given payload.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Then<Object> whenPatchByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
     }
 
     /**
      * Simulates a DELETE request to the specified path.
      */
     default Then<Object> whenDelete(String path) {
-        return whenWebRequest(WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
+        return whenDeleteByUser(null, path);
+    }
+
+    /**
+     * Simulates a DELETE request by the given user to the specified path.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Then<Object> whenDeleteByUser(Object user, String path) {
+        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
     }
 
     /**
      * Simulates a GET request to the specified path.
      */
     default Then<Object> whenGet(String path) {
-        return whenWebRequest(WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
+        return whenGetByUser(null, path);
+    }
+
+    /**
+     * Simulates a GET request by the given user to the specified path.
+     * <p>
+     * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
+     * {@link UserProvider} will resolve it to a {@code User}.
+     */
+    default Then<Object> whenGetByUser(Object user, String path) {
+        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
     }
 
     /**
@@ -310,8 +381,8 @@ public interface When {
     /**
      * Tests the behavior of upcasting the given value.
      * <p>
-     * The value may be a {@link Data} instance or a {@link String} referencing a serialized Data resource.
-     * If the value is a .json file reference, it will be loaded and deserialized accordingly.
+     * The value may be a {@link Data} instance or a {@link String} referencing a serialized Data resource. If the value
+     * is a .json file reference, it will be loaded and deserialized accordingly.
      *
      * @param value the data to upcast
      * @param <R>   the resulting type
@@ -351,6 +422,7 @@ public interface When {
      * @return expectation for the result (typically asserting nothing has changed)
      */
     default Then<?> whenNothingHappens() {
-        return whenExecuting(fc -> {});
+        return whenExecuting(fc -> {
+        });
     }
 }

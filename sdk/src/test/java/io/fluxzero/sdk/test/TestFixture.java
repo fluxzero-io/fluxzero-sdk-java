@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -201,7 +202,7 @@ import static java.util.stream.Stream.empty;
  */
 @Slf4j
 @Getter(AccessLevel.PACKAGE)
-public class TestFixture implements Given, When {
+public class TestFixture implements Given<TestFixture>, When {
     /**
      * Creates a synchronous {@code TestFixture} with the given handlers.
      * <p>
@@ -219,7 +220,7 @@ public class TestFixture implements Given, When {
      * Creates a synchronous {@code TestFixture} using a custom {@link FluxzeroBuilder} and handlers.
      *
      * @param fluxzeroBuilder a builder for configuring the test Fluxzero instance
-     * @param handlers             one or more handler instances or classes
+     * @param handlers        one or more handler instances or classes
      * @return a new {@code TestFixture}
      */
     public static TestFixture create(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
@@ -227,8 +228,8 @@ public class TestFixture implements Given, When {
     }
 
     /**
-     * Creates a synchronous {@code TestFixture} using a factory function to produce handlers after the
-     * {@link Fluxzero} is built.
+     * Creates a synchronous {@code TestFixture} using a factory function to produce handlers after the {@link Fluxzero}
+     * is built.
      *
      * @param handlersFactory a function that takes a {@link Fluxzero} and returns a list of handler instances
      * @return a new {@code TestFixture}
@@ -241,8 +242,7 @@ public class TestFixture implements Given, When {
      * Creates a synchronous {@code TestFixture} using a custom {@link FluxzeroBuilder} and a handler factory.
      *
      * @param fluxzeroBuilder a builder for configuring the Fluxzero instance
-     * @param handlersFactory      a function that takes a {@link Fluxzero} and returns a list of handler
-     *                             instances
+     * @param handlersFactory a function that takes a {@link Fluxzero} and returns a list of handler instances
      * @return a new {@code TestFixture}
      */
     public static TestFixture create(FluxzeroBuilder fluxzeroBuilder,
@@ -267,7 +267,7 @@ public class TestFixture implements Given, When {
      * Creates an asynchronous {@code TestFixture} using a custom {@link FluxzeroBuilder} and handlers.
      *
      * @param fluxzeroBuilder a builder for configuring the Fluxzero instance
-     * @param handlers             one or more handler instances or classes
+     * @param handlers        one or more handler instances or classes
      * @return a new {@code TestFixture}
      */
     public static TestFixture createAsync(FluxzeroBuilder fluxzeroBuilder, Object... handlers) {
@@ -290,8 +290,7 @@ public class TestFixture implements Given, When {
      * produce handlers after the {@link Fluxzero} is built.
      *
      * @param fluxzeroBuilder a builder for configuring the Fluxzero instance
-     * @param handlersFactory      a function that takes a {@link Fluxzero} and returns a list of handler
-     *                             instances
+     * @param handlersFactory a function that takes a {@link Fluxzero} and returns a list of handler instances
      * @return a new {@code TestFixture}
      */
     public static TestFixture createAsync(FluxzeroBuilder fluxzeroBuilder,
@@ -307,8 +306,8 @@ public class TestFixture implements Given, When {
      * client implementation.
      *
      * @param fluxzeroBuilder builder for configuring the Fluxzero instance
-     * @param client               the client to use in the test fixture
-     * @param handlers             one or more handler instances or classes
+     * @param client          the client to use in the test fixture
+     * @param handlers        one or more handler instances or classes
      * @return a new {@code TestFixture}
      */
     public static TestFixture createAsync(FluxzeroBuilder fluxzeroBuilder, Client client,
@@ -342,7 +341,8 @@ public class TestFixture implements Given, When {
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
-    private static final Executor shutdownExecutor = newThreadPerTaskExecutor(newVirtualThreadFactory("TestFixture-shutdown"));
+    private static final Executor shutdownExecutor =
+            newThreadPerTaskExecutor(newVirtualThreadFactory("TestFixture-shutdown"));
 
     public static void shutDownActiveFixtures() {
         var fixtures = activeFixtures.get();
@@ -715,11 +715,6 @@ public class TestFixture implements Given, When {
     }
 
     @Override
-    public TestFixture givenStateful(Object stateful) {
-        return (TestFixture) Given.super.givenStateful(stateful);
-    }
-
-    @Override
     public TestFixture givenSchedules(Schedule... schedules) {
         Class<?> callerClass = getCallerClass();
         givenModification(fixture -> fixture.asMessages(callerClass, (Object[]) schedules).forEach(
@@ -739,39 +734,10 @@ public class TestFixture implements Given, When {
     }
 
     @Override
-    public TestFixture givenWebRequest(WebRequest webRequest) {
+    public TestFixture givenWebRequestByUser(Object user, WebRequest webRequest) {
         Class<?> callerClass = getCallerClass();
-        return givenModification(fixture -> fixture.executeWebRequest(fixture.parseObject(webRequest, callerClass)));
-    }
-
-    @Override
-    public TestFixture givenPost(String path, Object payload) {
-        return (TestFixture) Given.super.givenPost(path, payload);
-    }
-
-    @Override
-    public TestFixture givenPut(String path, Object payload) {
-        return (TestFixture) Given.super.givenPut(path, payload);
-    }
-
-    @Override
-    public TestFixture givenPatch(String path, Object payload) {
-        return (TestFixture) Given.super.givenPatch(path, payload);
-    }
-
-    @Override
-    public TestFixture givenDelete(String path) {
-        return (TestFixture) Given.super.givenDelete(path);
-    }
-
-    @Override
-    public TestFixture givenGet(String path) {
-        return (TestFixture) Given.super.givenGet(path);
-    }
-
-    @Override
-    public TestFixture withCookie(String name, String value) {
-        return (TestFixture) Given.super.withCookie(name, value);
+        return givenModification(fixture -> fixture.executeWebRequest(
+                fixture.addUser(getUser(user), fixture.parseObject(webRequest, callerClass))));
     }
 
     @Override
@@ -887,8 +853,8 @@ public class TestFixture implements Given, When {
     }
 
     @Override
-    public Then<Object> whenWebRequest(WebRequest request) {
-        WebRequest message = trace(request);
+    public Then<Object> whenWebRequestByUser(Object user, WebRequest request) {
+        WebRequest message = addUser(getUser(user), trace(request));
         return whenApplying(fc -> {
             try {
                 var response = executeWebRequest(message);
@@ -993,7 +959,7 @@ public class TestFixture implements Given, When {
 
     protected User getUser(Object userOrId) {
         if (userOrId == null) {
-            throw new UnauthorizedException("User %s could not be provided".formatted(userOrId));
+            return null;
         }
         User result = userOrId instanceof User user ? user
                 : fluxzero.apply(fc -> fc.userProvider().getUserById(userOrId));
@@ -1185,9 +1151,10 @@ public class TestFixture implements Given, When {
         return result;
     }
 
-    protected Message addUser(User user, Object value) {
+    @SuppressWarnings("unchecked")
+    protected <M extends Message> M addUser(User user, M value) {
         Class<?> callerClass = getCallerClass();
-        return fluxzero.apply(fc -> asMessage(parseObject(value, callerClass)).addUser(user));
+        return (M) fluxzero.apply(fc -> asMessage(parseObject(value, callerClass)).addUser(user));
     }
 
     @SuppressWarnings("unchecked")
@@ -1204,7 +1171,8 @@ public class TestFixture implements Given, When {
             }
             if (remaining.size() == 1) {
                 String value = lastResultValue().map(Object::toString).orElseThrow(
-                        () -> new IllegalStateException("Path parameters is unknown: %s ".formatted(remaining.getFirst())));
+                        () -> new IllegalStateException(
+                                "Path parameters is unknown: %s ".formatted(remaining.getFirst())));
                 replacementUrl = WebUtils.replacePathParameter(replacementUrl, remaining.getFirst(), value);
                 webParams.put(remaining.getFirst(), value);
             }
@@ -1232,7 +1200,8 @@ public class TestFixture implements Given, When {
     }
 
     protected Optional<Object> lastResultValue() {
-        if (fixtureResult.getPreviousResult() != null && fixtureResult.getPreviousResult().getResult() instanceof Object v) {
+        if (fixtureResult.getPreviousResult() != null && fixtureResult.getPreviousResult()
+                .getResult() instanceof Object v) {
             var value = v instanceof WebResponse r ? r.getPayload() instanceof Object rv ? rv : null : v;
             return ofNullable(value);
         }
