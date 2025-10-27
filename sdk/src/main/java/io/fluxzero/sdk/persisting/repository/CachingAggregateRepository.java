@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.repository;
@@ -160,11 +161,11 @@ public class CachingAggregateRepository implements AggregateRepository {
                     long index = m.getIndex();
                     cache.<Entity<?>>computeIfPresent(
                             id, (i, before) -> {
-                                Long lastIndex = before.highestEventIndex();
+                                Long lastIndex = before.lastEventIndex();
                                 if (lastIndex == null) {
                                     //The cached aggregate was last updated by this client, but we received an event
-                                    // from another client. If we would apply the event, the version ordering of this
-                                    // aggregate would not be consistent with the global event index order. To prevent
+                                    // from another client. If we applied the event, the version ordering of this
+                                    // aggregate would be inconsistent with the global event index order. To prevent
                                     // this, we delete this aggregate from the cache.
                                     return null;
                                 }
