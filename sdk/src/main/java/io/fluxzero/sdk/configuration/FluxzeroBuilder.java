@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration;
@@ -46,9 +47,9 @@ import java.util.function.UnaryOperator;
  * Builder interface for constructing a {@link Fluxzero} instance.
  * <p>
  * This interface exposes advanced configuration hooks for customizing message handling, dispatch behavior,
- * serialization, user resolution, correlation tracking, and many other aspects of a Fluxzero client. It is
- * primarily used via {@link io.fluxzero.sdk.configuration.DefaultFluxzero} but can be extended or
- * wrapped for deeper integrations.
+ * serialization, user resolution, correlation tracking, and many other aspects of a Fluxzero client. It is primarily
+ * used via {@link io.fluxzero.sdk.configuration.DefaultFluxzero} but can be extended or wrapped for deeper
+ * integrations.
  */
 public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
@@ -56,13 +57,13 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Update the default consumer configuration for the specified message type.
      */
     FluxzeroBuilder configureDefaultConsumer(MessageType messageType,
-                                                  UnaryOperator<ConsumerConfiguration> updateFunction);
+                                             UnaryOperator<ConsumerConfiguration> updateFunction);
 
     /**
      * Adds a specific consumer configuration for one or more message types.
      */
     FluxzeroBuilder addConsumerConfiguration(ConsumerConfiguration consumerConfiguration,
-                                                  MessageType... messageTypes);
+                                             MessageType... messageTypes);
 
     /**
      * Registers a {@link BatchInterceptor} that applies to the given message types.
@@ -81,7 +82,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Adds a {@link DispatchInterceptor} for specified message types with optional priority.
      */
     FluxzeroBuilder addDispatchInterceptor(DispatchInterceptor interceptor, boolean highPriority,
-                                                MessageType... forTypes);
+                                           MessageType... forTypes);
 
     /**
      * Adds a {@link HandlerInterceptor} for given message types.
@@ -94,7 +95,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Adds a {@link HandlerInterceptor} with specified priority.
      */
     default FluxzeroBuilder addHandlerInterceptor(HandlerInterceptor interceptor, boolean highPriority,
-                                                       MessageType... forTypes) {
+                                                  MessageType... forTypes) {
         return addHandlerDecorator(interceptor, highPriority, forTypes);
     }
 
@@ -121,11 +122,11 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder replaceCache(Cache cache);
 
     /**
-     * Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP
-     * server on the specified port.
+     * Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server on
+     * the specified port.
      * <p>
-     * This allows applications to handle web requests using their own HTTP server rather than Fluxzero’s
-     * message-based {@code @HandleWeb} infrastructure.
+     * This allows applications to handle web requests using their own HTTP server rather than Fluxzero’s message-based
+     * {@code @HandleWeb} infrastructure.
      * <p>
      * <strong>Note:</strong> This feature pushes requests to the local server and bypasses Fluxzero's pull-based
      * dispatch model. Its use is discouraged unless integration with an existing HTTP stack is required.
@@ -141,8 +142,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     }
 
     /**
-     * Configures forwarding of {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a local HTTP server
-     * using the specified {@link LocalServerConfig} and custom consumer configuration.
+     * Configures forwarding of {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a local HTTP server using
+     * the specified {@link LocalServerConfig} and custom consumer configuration.
      * <p>
      * This mechanism is useful for advanced integration scenarios but bypasses Fluxzero's pull-based message tracking.
      * Prefer native {@code @HandleWeb} handlers when possible.
@@ -154,7 +155,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * @see io.fluxzero.sdk.web.ForwardingWebConsumer
      */
     FluxzeroBuilder forwardWebRequestsToLocalServer(LocalServerConfig localServerConfig,
-                                                         UnaryOperator<ConsumerConfiguration> consumerConfigurator);
+                                                    UnaryOperator<ConsumerConfiguration> consumerConfigurator);
 
     /**
      * Replaces the default response mapper used for generic result mapping.
@@ -287,6 +288,15 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Marks the built instance as the global (application-level) {@link Fluxzero}.
      */
     FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance);
+
+    /**
+     * Disables Fluxzero’s built-in keepalive mechanism.
+     * <p>
+     * By default, a Fluxzero instance keeps the JVM running after it is built by maintaining a single non-daemon
+     * thread. Calling this method disables that behavior, allowing the application to terminate normally once the main
+     * thread finishes.
+     */
+    FluxzeroBuilder disableKeepalive();
 
     /**
      * Builds the Fluxzero instance using the provided low-level {@link Client}.

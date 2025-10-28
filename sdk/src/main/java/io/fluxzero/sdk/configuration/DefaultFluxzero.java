@@ -280,6 +280,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableWebResponseCompression;
         private boolean disableAdhocDispatchInterceptor;
         private boolean makeApplicationInstance;
+        private boolean disableKeepalive;
         private UserProvider userProvider = UserProvider.defaultUserProvider;
         private IdentityProvider identityProvider = IdentityProvider.defaultIdentityProvider;
         private PropertySource propertySource = DefaultPropertySource.getInstance();
@@ -513,6 +514,12 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance) {
             this.makeApplicationInstance = makeApplicationInstance;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder disableKeepalive() {
+            this.disableKeepalive = true;
             return this;
         }
 
@@ -811,6 +818,18 @@ public class DefaultFluxzero implements Fluxzero {
                 getRuntime().addShutdownHook(Thread.ofVirtual().name("fluxzero-shutdown").unstarted(fluxzero::close));
             }
 
+            if (!disableKeepalive) {
+                var thread = Thread.ofPlatform().daemon(false).name("fluxzero-keepalive")
+                        .start(() -> {
+                            try {
+                                Thread.sleep(Long.MAX_VALUE);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                        });
+                fluxzero.beforeShutdown(thread::interrupt);
+            }
+
             return fluxzero;
         }
 
@@ -828,11 +847,13 @@ public class DefaultFluxzero implements Fluxzero {
                                    DelegatingClock clock, TaskScheduler taskScheduler,
                                    Client client, ThrowingRunnable shutdownHandler) {
             return new DefaultFluxzero(trackingSupplier, customGatewaySupplier,
-                                       commandGateway, queryGateway, eventGateway, resultGateway,
+                                       commandGateway, queryGateway, eventGateway,
+                                       resultGateway,
                                        errorGateway, metricsGateway, webRequestGateway,
                                        aggregateRepository, snapshotStore, eventStore,
                                        keyValueStore, documentStore,
-                                       messageScheduler, userProvider, cache, serializer, correlationDataProvider,
+                                       messageScheduler, userProvider, cache, serializer,
+                                       correlationDataProvider,
                                        identityProvider, propertySource,
                                        clock, taskScheduler, this, client, shutdownHandler);
         }
