@@ -25,6 +25,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.ToString;
 
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -43,14 +45,15 @@ import java.util.stream.Collectors;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED;
 import static java.util.Optional.ofNullable;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.toMap;
 
 /**
- * A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events
- * with commit support for persisting the state and synchronizing it with the Fluxzero Runtime.
+ * A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events with commit
+ * support for persisting the state and synchronizing it with the Fluxzero Runtime.
  * <p>
- * This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}),
- * providing additional lifecycle management for:
+ * This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}), providing
+ * additional lifecycle management for:
  * <ul>
  *     <li>Capturing uncommitted changes during an event or command handler execution.</li>
  *     <li>Intercepting and applying updates and events with legality assertions.</li>
@@ -81,7 +84,6 @@ import static java.util.stream.Collectors.toMap;
  * or updated within a processing thread, without requiring external state.
  *
  * @param <T> the type of the aggregate's value.
- *
  * @see ImmutableAggregateRoot
  * @see LazyAggregateRoot
  * @see CommitHandler
@@ -94,6 +96,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     private static final ThreadLocal<Map<String, ModifiableAggregateRoot<?>>> activeAggregates =
             ThreadLocal.withInitial(LinkedHashMap::new);
+    private static final ThreadLocal<List<CompletableFuture<?>>> activeCommits
+            = ThreadLocal.withInitial(ArrayList::new);
 
     @SuppressWarnings("unchecked")
     public static <T> Optional<ModifiableAggregateRoot<T>> getIfActive(Object aggregateId) {
@@ -260,21 +264,35 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         }
         applied.clear();
         if (!commitInBatch) {
-            commit();
-            activeAggregates.get().remove(id().toString(), this);
+            commitAndClear();
         } else if (waitingForBatchEnd.compareAndSet(false, true)) {
-            DeserializingMessage.whenBatchCompletes(this::whenBatchCompletes);
+            DeserializingMessage.whenBatchCompletes(e -> {
+                waitingForBatchEnd.set(false);
+                commitAndClear();
+            });
         }
     }
 
-    protected void whenBatchCompletes(Throwable error) {
-        waitingForBatchEnd.set(false);
-        commit();
+    @SneakyThrows
+    protected void commitAndClear() {
+        commit(true);
         activeAggregates.get().remove(id().toString(), this);
+        if (activeAggregates.get().isEmpty()) {
+            try {
+                CompletableFuture.allOf(activeCommits.get().toArray(CompletableFuture[]::new)).get(2, MINUTES);
+            } finally {
+                activeCommits.remove();
+            }
+        }
     }
 
     @Override
     public Entity<T> commit() {
+        return commit(false);
+    }
+
+    @SneakyThrows
+    protected Entity<T> commit(boolean async) {
         if (committing) {
             commitPending = true;
             return this;
@@ -289,7 +307,12 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             uncommitted.clear();
             var before = lastCommitted;
             lastCommitted = lastStable;
-            commitHandler.handle(lastStable, events, before);
+            var future = commitHandler.handle(lastStable, events, before);
+            if (async) {
+                activeCommits.get().add(future);
+            } else {
+                future.get(2, MINUTES);
+            }
         } finally {
             committing = false;
         }
@@ -312,7 +335,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @FunctionalInterface
     public interface CommitHandler {
-        void handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
+        CompletableFuture<?> handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
     }
 
 }
