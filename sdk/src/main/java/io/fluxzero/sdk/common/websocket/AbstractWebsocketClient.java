@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.websocket;
@@ -315,7 +316,8 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
                             .with("requestId", webSocketRequest.request.getRequestId(),
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
                             .with(webSocketRequest.correlationData)
-                            .with("batchId", batchId);
+                            .with("batchId", batchId)
+                            .with("request", webSocketRequest.request.toMetric());
                     Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
                             .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
                                     .ifPresentOrElse(
