@@ -91,8 +91,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.CUSTOM;
-import static io.fluxzero.common.MessageType.EVENT;
-import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static java.util.Arrays.stream;
 
 /**
@@ -656,7 +654,7 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Id<T> aggregateId) {
-        return playbackToHandledEvent(get().aggregateRepository().load(aggregateId));
+        return playbackToHandledMessage(get().aggregateRepository().load(aggregateId));
     }
 
     /**
@@ -669,7 +667,7 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId) {
-        return playbackToHandledEvent(get().aggregateRepository().load(aggregateId));
+        return playbackToHandledMessage(get().aggregateRepository().load(aggregateId));
     }
 
     /**
@@ -681,7 +679,7 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId, Class<T> aggregateType) {
-        return playbackToHandledEvent(get().aggregateRepository().load(aggregateId, aggregateType));
+        return playbackToHandledMessage(get().aggregateRepository().load(aggregateId, aggregateType));
     }
 
     /**
@@ -698,7 +696,7 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregateFor(Object entityId, Class<?> defaultType) {
-        return playbackToHandledEvent(get().aggregateRepository().loadFor(entityId, defaultType));
+        return playbackToHandledMessage(get().aggregateRepository().loadFor(entityId, defaultType));
     }
 
     /**
@@ -779,13 +777,10 @@ public interface Fluxzero extends AutoCloseable {
         return get().aggregateRepository().asEntity(value);
     }
 
-    private static <T> Entity<T> playbackToHandledEvent(Entity<T> entity) {
+    private static <T> Entity<T> playbackToHandledMessage(Entity<T> entity) {
         DeserializingMessage message = DeserializingMessage.getCurrent();
-        if (!Entity.isApplying()
-            && message != null && (message.getMessageType() == EVENT || message.getMessageType() == NOTIFICATION)
-            && entity.rootAnnotation().eventSourced()
-            && entity.id().toString().equals(Entity.getAggregateId(message))
-            && Entity.hasSequenceNumber(message)) {
+        if (!Entity.isApplying() && message != null && !message.getMessageType().isRequest()
+            && entity.rootAnnotation().eventSourced() && Entity.hasSequenceNumber(message)) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId());
         }
         return entity;

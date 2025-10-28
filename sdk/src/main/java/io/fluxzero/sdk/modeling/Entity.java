@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -395,8 +396,8 @@ public interface Entity<T> {
 
     /**
      * Finds a version of this entity matching the given eventIndex or eventId. This method plays back the aggregate
-     * until the aggregate's {@link #lastEventIndex()} smaller or equal to eventIndex or {@link #lastEventId()} equals
-     * eventId.
+     * until the aggregate's {@link #lastEventIndex()} is null or smaller or equal to eventIndex
+     * or {@link #lastEventId()} equals the given eventId.
      *
      * @param eventIndex the index of the event to revert to, or null if the index is not provided
      * @param eventId    the unique ID of the event to revert to
@@ -412,7 +413,7 @@ public interface Entity<T> {
                 return false;
             }
             Long aggregateIndex = aggregate.lastEventIndex();
-            return aggregateIndex != null && aggregateIndex <= eventIndex;
+            return aggregateIndex == null || aggregateIndex <= eventIndex;
         }).orElseThrow(() -> new IllegalStateException(format(
                 "Could not load aggregate %s of type %s for event %s. Aggregate (%s) started at event %s",
                 id(), type().getSimpleName(), eventIndex, this, lastEventIndex())));
