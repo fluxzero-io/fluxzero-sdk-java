@@ -24,6 +24,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Command to perform a batch update of documents in the search/document store.
@@ -59,6 +60,18 @@ public class BulkUpdateDocuments extends Command {
         return updates.size();
     }
 
+    /**
+     * @return the total number of bytes of all the updates in this batch.
+     */
+    @JsonIgnore
+    public long getBytes() {
+        return updates.stream()
+                .map(DocumentUpdate::getObject)
+                .filter(Objects::nonNull)
+                .mapToLong(SerializedDocument::bytes)
+                .sum();
+    }
+
     @Override
     public String toString() {
         return "BulkUpdateDocuments of length " + updates.size();
@@ -69,7 +82,7 @@ public class BulkUpdateDocuments extends Command {
      */
     @Override
     public Object toMetric() {
-        return new Metric(updates.size(), guarantee);
+        return new Metric(updates.size(), guarantee, getBytes());
     }
 
     /**
@@ -87,5 +100,6 @@ public class BulkUpdateDocuments extends Command {
     public static class Metric {
         int size;
         Guarantee guarantee;
+        long bytes;
     }
 }
