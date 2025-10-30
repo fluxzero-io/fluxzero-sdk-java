@@ -1,13 +1,5 @@
-FROM azul/zulu-openjdk-alpine:25-jre-headless
+FROM gcr.io/distroless/java25-debian13:nonroot@sha256:1bea63434771d1a97f5bb8c37e5dfa3b06d7cfa188a1d271825927a19a02efdd
 
-RUN apk upgrade
+COPY target/fluxzero-test-server.jar .
 
-COPY target/fluxzero-test-server.jar /
-
-# Add user and group for non-root
-RUN addgroup -S java \
- && adduser -D -S -s /sbin/nologin -G java java
-
-USER java
-COPY entrypoint.sh /
-ENTRYPOINT [ "/entrypoint.sh" ]
+CMD [ "-XX:MaxRAMPercentage=75.0", "-jar", "fluxzero-test-server.jar" ]
