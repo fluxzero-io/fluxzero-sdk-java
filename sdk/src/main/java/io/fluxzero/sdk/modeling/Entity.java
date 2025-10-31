@@ -45,7 +45,6 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty
 import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.Message.asMessage;
-import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Optional.ofNullable;
@@ -396,27 +395,22 @@ public interface Entity<T> {
 
     /**
      * Finds a version of this entity matching the given eventIndex or eventId. This method plays back the aggregate
-     * until the aggregate's {@link #lastEventIndex()} is null or smaller or equal to eventIndex
-     * or {@link #lastEventId()} equals the given eventId.
+     * until the aggregate's {@link #lastEventIndex()} is null or smaller or equal to eventIndex or
+     * {@link #lastEventId()} equals the given eventId.
      *
      * @param eventIndex the index of the event to revert to, or null if the index is not provided
      * @param eventId    the unique ID of the event to revert to
      * @return the aggregate entity reverted to the specified event state
      * @throws IllegalStateException if the playback to the event state fails
      */
-    default Entity<T> playBackToEvent(Long eventIndex, String eventId) {
+    default Optional<Entity<T>> playBackToEvent(Long eventIndex, String eventId) {
         return playBackToCondition(aggregate -> {
-            if (Objects.equals(eventId, aggregate.lastEventId())) {
+            if (eventIndex == null || Objects.equals(eventId, aggregate.lastEventId())) {
                 return true;
             }
-            if (eventIndex == null) {
-                return false;
-            }
             Long aggregateIndex = aggregate.lastEventIndex();
-            return aggregateIndex == null || aggregateIndex <= eventIndex;
-        }).orElseThrow(() -> new IllegalStateException(format(
-                "Could not load aggregate %s of type %s for event %s. Aggregate (%s) started at event %s",
-                id(), type().getSimpleName(), eventIndex, this, lastEventIndex())));
+            return aggregateIndex != null && aggregateIndex <= eventIndex;
+        });
     }
 
     /**

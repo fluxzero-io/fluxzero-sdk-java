@@ -91,6 +91,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.CUSTOM;
+import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static java.util.Arrays.stream;
 
 /**
@@ -120,9 +122,9 @@ import static java.util.Arrays.stream;
 public interface Fluxzero extends AutoCloseable {
 
     /**
-     * Fluxzero instance set by the current application. Used as a fallback when no threadlocal instance was set.
-     * This is added as a convenience for applications that never have more than one than Fluxzero instance which
-     * will be the case for nearly all applications. On application startup simply fill this application instance.
+     * Fluxzero instance set by the current application. Used as a fallback when no threadlocal instance was set. This
+     * is added as a convenience for applications that never have more than one than Fluxzero instance which will be the
+     * case for nearly all applications. On application startup simply fill this application instance.
      */
     AtomicReference<Fluxzero> applicationInstance = new AtomicReference<>();
 
@@ -160,8 +162,8 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Gets the clock of the current Fluxzero instance (obtained via {@link #getOptionally()}). If there is no
-     * current instance the system's UTC clock is returned.
+     * Gets the clock of the current Fluxzero instance (obtained via {@link #getOptionally()}). If there is no current
+     * instance the system's UTC clock is returned.
      */
     static Clock currentClock() {
         return getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC);
@@ -454,8 +456,8 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Starts a new periodic schedule, returning the schedule's id. The {@code schedule} parameter may be an instance of
-     * a {@link Message} or the schedule payload. If the payload is not annotated with
-     * {@link Periodic} an {@link IllegalArgumentException} is thrown.
+     * a {@link Message} or the schedule payload. If the payload is not annotated with {@link Periodic} an
+     * {@link IllegalArgumentException} is thrown.
      *
      * @see Periodic
      */
@@ -465,8 +467,8 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Starts a new periodic schedule using given schedule id. The {@code schedule} parameter may be an instance of a
-     * {@link Message} or the schedule payload. If the payload is not annotated with
-     * {@link Periodic} an {@link IllegalArgumentException} is thrown.
+     * {@link Message} or the schedule payload. If the payload is not annotated with {@link Periodic} an
+     * {@link IllegalArgumentException} is thrown.
      *
      * @see Periodic
      */
@@ -597,7 +599,8 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Sends the given web request using the given request settings and returns a future that completes with the response.
+     * Sends the given web request using the given request settings and returns a future that completes with the
+     * response.
      * <p>
      * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
      */
@@ -779,9 +782,14 @@ public interface Fluxzero extends AutoCloseable {
 
     private static <T> Entity<T> playbackToHandledMessage(Entity<T> entity) {
         DeserializingMessage message = DeserializingMessage.getCurrent();
-        if (!Entity.isApplying() && message != null && !message.getMessageType().isRequest()
-            && entity.rootAnnotation().eventSourced() && Entity.hasSequenceNumber(message)) {
-            return entity.playBackToEvent(message.getIndex(), message.getMessageId());
+        if (message != null && (message.getMessageType() == EVENT || message.getMessageType() == NOTIFICATION)
+            && entity.id().toString().equals(Entity.getAggregateId(message))
+            && !Entity.isApplying() && entity.rootAnnotation().eventSourced() && entity.sequenceNumber() >= 0L) {
+            return entity.playBackToEvent(message.getIndex(), message.getMessageId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Could not load entity %s of type %s for event %s. Entity (%s) started at event %s"
+                                    .formatted(entity.id(), entity.type().getSimpleName(), message.getIndex(),
+                                               entity, entity.lastEventIndex())));
         }
         return entity;
     }
@@ -964,7 +972,8 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Gets a collection of documents by their IDs from the given collection and deserializes them into the stored type.
+     * Gets a collection of documents by their IDs from the given collection and deserializes them into the stored
+     * type.
      */
     static <T> Collection<T> getDocuments(Collection<?> ids, Object collection) {
         return get().documentStore().fetchDocuments(ids, collection);
@@ -1161,8 +1170,8 @@ public interface Fluxzero extends AutoCloseable {
     DocumentStore documentStore();
 
     /**
-     * Returns the UserProvider used by Fluxzero to authenticate users. May be {@code null} if user authentication
-     * is disabled.
+     * Returns the UserProvider used by Fluxzero to authenticate users. May be {@code null} if user authentication is
+     * disabled.
      */
     UserProvider userProvider();
 
@@ -1207,8 +1216,8 @@ public interface Fluxzero extends AutoCloseable {
     FluxzeroConfiguration configuration();
 
     /**
-     * Returns the low level client used by this Fluxzero instance to interface with the Fluxzero Runtime. Of
-     * course the returned client may also be a stand-in for the actual service.
+     * Returns the low level client used by this Fluxzero instance to interface with the Fluxzero Runtime. Of course the
+     * returned client may also be a stand-in for the actual service.
      */
     Client client();
 

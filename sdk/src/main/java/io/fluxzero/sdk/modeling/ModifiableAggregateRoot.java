@@ -90,7 +90,7 @@ import static java.util.stream.Collectors.toMap;
  * @see EventPublication
  * @see EventPublicationStrategy
  */
-@ToString(onlyExplicitlyIncluded = true)
+@ToString(onlyExplicitlyIncluded = true, callSuper = true)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements AggregateRoot<T> {
 
