@@ -30,7 +30,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
-import static io.micrometer.common.util.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
 /**
  * Interface for scheduling deferred or periodic execution of messages in the Fluxzero Runtime.

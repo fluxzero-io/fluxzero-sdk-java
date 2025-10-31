@@ -2,7 +2,7 @@
 
 ### Java Version
 
-Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
+Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 25** and remains
 compatible with recent versions.
 
 ---
