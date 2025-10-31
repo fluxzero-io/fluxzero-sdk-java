@@ -20,6 +20,7 @@ import io.fluxzero.common.reflection.typeregistry.empty.inner.ChildOfEmpty;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import org.joor.CompileOptions;
 import org.joor.Reflect;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -31,11 +32,11 @@ class TypeRegistryProcessorTest {
     @Test
     void classForName() {
         assertThrows(ClassNotFoundException.class, () -> ReflectionUtils.classForName("Foo"));
-        assertEquals(Foo.class, ReflectionUtils.classForName(Foo.class.getName()));
-        assertEquals(Bar.class, ReflectionUtils.classForName("Bar"));
-        assertEquals(FooBar.class, ReflectionUtils.classForName("FooBar"));
-        assertEquals(FooBar.class, ReflectionUtils.classForName("typeregistry.FooBar"));
-        assertEquals(ChildOfEmpty.class, ReflectionUtils.classForName("ChildOfEmpty"));
+        Assertions.assertEquals(Foo.class, ReflectionUtils.classForName(Foo.class.getName()));
+        Assertions.assertEquals(Bar.class, ReflectionUtils.classForName("Bar"));
+        Assertions.assertEquals(FooBar.class, ReflectionUtils.classForName("FooBar"));
+        Assertions.assertEquals(FooBar.class, ReflectionUtils.classForName("typeregistry.FooBar"));
+        Assertions.assertEquals(ChildOfEmpty.class, ReflectionUtils.classForName("ChildOfEmpty"));
     }
 
     @Test

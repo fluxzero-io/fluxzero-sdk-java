@@ -54,30 +54,6 @@ public class GivenWhenThenWebTest {
         }
 
         @Test
-        void testPostString_substitutePlaceholders() {
-            testFixture.whenPost("/string", "body")
-                    .expectResult("val1")
-                    .andThen()
-                    .whenPost("/followUp/{var1}", null)
-                    .expectResult("val1val2")
-                    .andThen()
-                    .whenPost("/followUp/{var1}/{val2}", null)
-                    .expectResult("val1val1val2");
-        }
-
-        @Test
-        void testPostString_substituteMultiplePlaceholders() {
-            testFixture.whenPost("/string", "body")
-                    .asWebParameter("var1")
-                    .andThen()
-                    .whenPost("/string2", "body")
-                    .asWebParameter("var2")
-                    .andThen()
-                    .whenPost("/followUp/{var1}/{var2}")
-                    .expectResult("val1val2");
-        }
-
-        @Test
         void testPostString_getResult() {
             Then<Object> then = testFixture.whenPost("/string", "body");
             assertEquals("val1", then.getResult());

@@ -1,4 +1,4 @@
-FROM azul/zulu-openjdk-alpine:21-jre-headless
+FROM azul/zulu-openjdk-alpine:25-jre-headless
 
 RUN apk upgrade
 
