@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,11 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.handling;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
 
@@ -27,8 +29,8 @@ import java.util.function.Function;
  * {@code payload}, {@code metadata}, authenticated {@code User}, or other derived values.
  *
  * <p>
- * Custom {@code ParameterResolver ParameterResolvers} can be registered with a {@code FluxzeroBuilder} to
- * influence handler invocation logic across one or more message types.
+ * Custom {@code ParameterResolver ParameterResolvers} can be registered with a {@code FluxzeroBuilder} to influence
+ * handler invocation logic across one or more message types.
  *
  * @param <M> the type of message object used by the handler invocation context, often {@code DeserializingMessage}
  */
@@ -93,7 +95,19 @@ public interface ParameterResolver<M> {
      * @param parameter the method parameter to test
      * @return {@code true} if the message should be processed, {@code false} if it should be filtered out
      */
-    default boolean filterMessage(M message, Parameter parameter) {
+    default boolean test(M message, Parameter parameter) {
+        return true;
+    }
+
+    /**
+     * Returns {@code true} if this resolver might apply to the given method. Implementations should perform only
+     * inexpensive checks and never throw.
+     *
+     * @param method      the handler method or constructor
+     * @param targetClass the declaring or target class
+     * @return {@code true} if this resolver could apply, {@code false} otherwise
+     */
+    default boolean mayApply(Executable method, Class<?> targetClass) {
         return true;
     }
 }

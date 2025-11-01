@@ -356,13 +356,8 @@ public class ReflectionUtils {
         return target == null ? List.of() : getAnnotatedMethods(target.getClass(), annotation);
     }
 
-    public static boolean isMethodAnnotationPresent(Class<?> target, Class<? extends Annotation> annotation) {
-        for (Method method : methodsCache.apply(target)) {
-            if (getMethodAnnotation(method, annotation).isPresent()) {
-                return true;
-            }
-        }
-        return false;
+    public static boolean isMethodAnnotationPresent(Executable method, Class<? extends Annotation> annotation) {
+        return getMethodAnnotation(method, annotation).isPresent();
     }
 
     public static List<Field> getAnnotatedFields(Class<?> target, Class<? extends Annotation> annotation) {
@@ -992,7 +987,7 @@ public class ReflectionUtils {
 
     /*
        Adopted from https://stackoverflow.com/questions/49105303/how-to-get-annotation-from-overridden-method-in-java/49164791
-       
+
        Returns annotation or meta annotation.
     */
     public static <A extends Annotation> Optional<A> getMethodAnnotation(Executable m, Class<? extends Annotation> a) {

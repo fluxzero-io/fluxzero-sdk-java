@@ -21,6 +21,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
 
@@ -58,5 +59,18 @@ public class MessageParameterResolver implements ParameterResolver<Object> {
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return HasMessage.class.isAssignableFrom(parameter.getType())
                || SerializedMessage.class.isAssignableFrom(parameter.getType());
+    }
+
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        for (Parameter parameter : method.getParameters()) {
+            if (HasMessage.class.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
+            if (SerializedMessage.class.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

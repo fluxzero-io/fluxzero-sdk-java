@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -24,6 +25,7 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.Optional;
 import java.util.function.Function;
@@ -112,6 +114,16 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return value instanceof DeserializingMessage m && m.getMessageType() == MessageType.WEBREQUEST
                && ReflectionUtils.isAnnotationPresent(parameter, WebParam.class);
+    }
+
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        for (Parameter parameter : method.getParameters()) {
+            if (ReflectionUtils.isAnnotationPresent(parameter, WebParam.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Value

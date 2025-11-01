@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -125,7 +126,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      * @return {@code true} if the trigger information matches the parameter's constraints, {@code false} otherwise
      */
     @Override
-    public boolean filterMessage(HasMessage message, Parameter parameter) {
+    public boolean test(HasMessage message, Parameter parameter) {
         Trigger trigger = parameter.getAnnotation(Trigger.class);
         if (!filterMessage(message, trigger)) {
             return false;
@@ -222,5 +223,15 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
                 .flatMap(s -> serializer.deserializeMessages(Stream.of(s), messageType))
                 .filter(d -> type.isAssignableFrom(d.getPayloadClass()))
                 .findFirst();
+    }
+
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        for (Parameter parameter : method.getParameters()) {
+            if (ReflectionUtils.has(Trigger.class, parameter)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

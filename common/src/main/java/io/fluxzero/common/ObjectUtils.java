@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common;
@@ -324,6 +325,19 @@ public class ObjectUtils {
      */
     public static <T> Consumer<? super T> tryAccept(Consumer<? super T> consumer) {
         return t -> tryRun(() -> consumer.accept(t));
+    }
+
+    /**
+     * Returns a predicate that silently returns false when the given predicate throws an error.
+     */
+    public static <T> Predicate<T> silentTest(Predicate<T> predicate) {
+        return t -> {
+            try {
+                return predicate.test(t);
+            } catch (Exception ignored) {
+                return false;
+            }
+        };
     }
 
     /**

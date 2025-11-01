@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.Map;
@@ -134,6 +136,19 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return SocketSession.class.isAssignableFrom(parameter.getType())
                && ReflectionUtils.isOrHas(methodAnnotation, HandleWeb.class);
+    }
+
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        if (!ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class)) {
+            return false;
+        }
+        for (Parameter parameter : method.getParameters()) {
+            if (SocketSession.class.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected void onAbort(DefaultSocketSession session, int code) {

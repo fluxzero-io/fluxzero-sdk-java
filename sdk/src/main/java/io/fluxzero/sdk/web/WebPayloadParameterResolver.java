@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -21,6 +22,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
 
@@ -72,14 +74,14 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     }
 
     @Override
-    public boolean filterMessage(HasMessage m, Parameter p) {
+    public boolean test(HasMessage m, Parameter p) {
         if (authoriseUser) {
             Object payload = m.getPayloadAs(p.getType());
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
         }
-        return ParameterResolver.super.filterMessage(m, p);
+        return ParameterResolver.super.test(m, p);
     }
 
     /**
@@ -94,5 +96,10 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return ReflectionUtils.isOrHas(methodAnnotation, HandleWeb.class);
+    }
+
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
     }
 }

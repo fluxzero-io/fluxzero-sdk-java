@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.handling;
@@ -17,6 +18,7 @@ package io.fluxzero.common.handling;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 
 /**
@@ -49,5 +51,18 @@ public abstract class TypedParameterResolver<M> implements ParameterResolver<M> 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, M value) {
         return type.isAssignableFrom(parameter.getType());
+    }
+
+    /**
+     * Determines whether this resolver may be applicable to the given method or constructor.
+     */
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        for (Parameter parameter : method.getParameters()) {
+            if (type.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

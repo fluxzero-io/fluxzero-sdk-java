@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.spring;
@@ -25,6 +26,7 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -98,4 +100,13 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
         };
     }
 
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        for (Parameter parameter : method.getParameters()) {
+            if (ReflectionUtils.has(Autowired.class, parameter)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

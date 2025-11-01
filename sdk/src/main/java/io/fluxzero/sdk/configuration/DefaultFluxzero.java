@@ -76,6 +76,7 @@ import io.fluxzero.sdk.tracking.handling.DefaultResponseMapper;
 import io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
+import io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
 import io.fluxzero.sdk.tracking.handling.MetadataParameterResolver;
@@ -655,6 +656,7 @@ public class DefaultFluxzero implements Fluxzero {
                                               new WebPayloadParameterResolver(
                                                       !disablePayloadValidation, userProvider != null),
                                               new PayloadParameterResolver(),
+                                              new JsonPayloadParameterResolver(),
                                               new EntityParameterResolver()));
 
             var repositorySupplier = new DefaultRepositoryProvider();
