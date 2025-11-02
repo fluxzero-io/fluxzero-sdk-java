@@ -205,7 +205,7 @@ public class Document {
                             Predicate<Path> pathPredicate = Path.pathPredicate(queryPath);
                             Comparator<Document> valueComparator =
                                     Comparator.nullsLast(Comparator.comparing(d -> {
-                                        Stream<SortableEntry> matchingEntries = d.getSortableEntries(pathPredicate);
+                                        Stream<Entry> matchingEntries = d.getMatchingEntries(pathPredicate);
                                         return (reversed ? matchingEntries.max(naturalOrder()) :
                                                 matchingEntries.min(naturalOrder())).orElse(null);
                                     }, Comparator.nullsLast(naturalOrder())));

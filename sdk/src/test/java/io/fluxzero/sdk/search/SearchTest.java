@@ -693,6 +693,22 @@ public class SearchTest {
         }
 
         @Test
+        void sortOnField_nonSortable() {
+            var a = new SomeDocument().toBuilder().weirdChars("a").symbols("aaa")
+                    .someNumber(new BigDecimal("50")).ts(Instant.parse("2023-12-01T12:00:00Z")).build();
+            var b = new SomeDocument().toBuilder().weirdChars("b").build();
+            var nullFields = new SomeDocument().toBuilder().weirdChars("nullFields").symbols(null).someNumber(null).ts(null).build();
+
+            TestFixture.create().atFixedTime(now)
+                    .givenDocument(b, "id2", "test", now)
+                    .givenDocument(a, "id1", "test", now)
+                    .givenDocument(nullFields, nullFields.getSomeId(), "test", now)
+                    .whenApplying(
+                            fc -> fc.documentStore().search("test").sortBy("weirdChars").fetchAll())
+                    .expectResult(List.of(a, b, nullFields));
+        }
+
+        @Test
         void betweenWithNull() {
             SomeDocument nullFields = new SomeDocument().toBuilder().someId("nullFields").symbols(null).someNumber(null).ts(null).build();
             testFixture
