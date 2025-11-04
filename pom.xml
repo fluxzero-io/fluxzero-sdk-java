@@ -432,6 +432,9 @@
                             <autoPublish>true</autoPublish>
                             <waitUntil>published</waitUntil>
                             <waitMaxTime>3600</waitMaxTime>
+                            <excludeArtifacts>
+                                <artifact>annotation-processor-tests</artifact>
+                            </excludeArtifacts>
                         </configuration>
                     </plugin>
                 </plugins>

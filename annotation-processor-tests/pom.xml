@@ -12,6 +12,8 @@
 
     <artifactId>annotation-processor-tests</artifactId>
 
+    <name>annotation-processor-tests</name>
+
     <dependencies>
         <dependency>
             <groupId>io.fluxzero</groupId>
