@@ -19,36 +19,9 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
           cache: 'maven'
-
-      # TODO: publish the json doclet in maven central
-      # then we do not need to download it ourselves here.
-      - name: Install JSON doclet
-        run: |
-          set -euo pipefail
-          JSON_DOCLET_VERSION=0.0.4
-          REPO="fluxzero-io/json-doclet"
-          JAR="json-doclet-${JSON_DOCLET_VERSION}.jar"
-          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${JSON_DOCLET_VERSION}/${JAR}"
-          TARGET_DIR="$(pwd)/target/tools"
-          JAR_PATH="${TARGET_DIR}/${JAR}"
-          mkdir -p "${TARGET_DIR}"
-          if [[ ! -f "${JAR_PATH}" ]]; then
-            echo "Downloading ${JAR} from ${DOWNLOAD_URL}" >&2
-            AUTH_ARGS=()
-            if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-              AUTH_ARGS=("--header" "Authorization: Bearer ${GITHUB_TOKEN}")
-            fi
-            curl --fail --location --output "${JAR_PATH}" "${AUTH_ARGS[@]}" "${DOWNLOAD_URL}"
-          else
-            echo "Reusing existing ${JAR_PATH}" >&2
-          fi
-          ./mvnw --batch-mode install:install-file \
-            -Dfile="${JAR_PATH}" \
-            -DgroupId=io.fluxzero \
-            -DartifactId=json-doclet \
-            -Dversion="${JSON_DOCLET_VERSION}" \
-            -Dpackaging=jar \
-            -DgeneratePom=true
+          server-id: github
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Maven install
         run: ./mvnw -B install -DskipTests
