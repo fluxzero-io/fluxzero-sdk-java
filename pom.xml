@@ -41,7 +41,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <undertow.version>2.3.20.Final</undertow.version>
         <kotlin.version>2.2.21</kotlin.version>
-        <json.doclet.version>0.0.3</json.doclet.version>
+        <json.doclet.version>0.0.6</json.doclet.version>
     </properties>
 
     <dependencyManagement>
