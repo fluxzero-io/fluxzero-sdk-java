@@ -19,20 +19,24 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
           cache: 'maven'
+          server-id: github
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Maven install
-        run: mvn -B install -DskipTests
+        run: ./mvnw -B install -DskipTests
 
-      - name: Generate javadoc html
-        run: mvn -B site
-
-      - name: Generate javadoc html
+      - name: Generate documentation site
         run: |
-          mvn -B site
+          ./mvnw -B site -Pjson-doclet
           for module in sdk common proxy test-server; do
             mkdir -p target/site/$module
             mv $module/target/site/* target/site/$module/
           done
+          if [ -d target/json-docs ]; then
+            mkdir -p target/site/json-doclet
+            cp -R target/json-docs/. target/site/json-doclet/
+          fi
           find target/site -name "*.html" -exec sed -i'' '/<head>/a\
           <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\
           <meta http-equiv="Pragma" content="no-cache" />\
