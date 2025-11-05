@@ -13,6 +13,45 @@
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
 functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
+The published documentation now includes both the HTML Javadoc and machine-readable JSON produced by the
+[`json-doclet`](https://github.com/fluxzero-io/json-doclet) project:
+
+- HTML: https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/
+- JSON: https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/json-doclet/
+
+To regenerate the JSON locally, ensure Maven can authenticate against GitHub Packages by defining the `github`
+server in `~/.m2/settings.xml`, for example:
+
+```xml
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GITHUB_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
+```
+
+Use a GitHub token (classic PAT or `GITHUB_TOKEN`) with the `read:packages` scope.
+
+```bash
+export GITHUB_ACTOR="<your-github-username>"
+export GITHUB_TOKEN="<token-with-read-packages>"
+```
+
+Then run:
+
+```bash
+./mvnw -B verify -DskipTests -Pjson-doclet
+```
+
+The json-doclet output lands in `target/json-docs`; the `publish-javadoc` workflow copies it to the GitHub Pages
+site on release.
+
 ---
 
 ## Installation
