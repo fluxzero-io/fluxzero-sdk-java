@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"l":"io.fluxzero.testserver"},{"l":"io.fluxzero.testserver.metrics"},{"l":"io.fluxzero.testserver.scheduling"},{"l":"io.fluxzero.testserver.websocket"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"l":"io.fluxzero.testserver"},{"l":"io.fluxzero.testserver.metrics"},{"l":"io.fluxzero.testserver.scheduling"},{"l":"io.fluxzero.testserver.websocket"}];updateSearchResults();
