@@ -67,17 +67,26 @@ jobs:
             echo "maven-profiles=${{ inputs.maven-profiles }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install Java and Maven
+      - name: Install Java and Maven (standard)
+        if: steps.config.outputs.json-enabled != 'true'
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '25'
           cache: 'maven'
-          server-id: ${{ steps.config.outputs.json-enabled == 'true' && 'github' || '' }}
-          server-username: ${{ steps.config.outputs.json-enabled == 'true' && github.actor || '' }}
-          server-password: ${{ steps.config.outputs.json-enabled == 'true' && secrets.GITHUB_TOKEN || '' }}
 
-      - name: Maven install (for json-doclet dependencies)
+      - name: Install Java and Maven (with GitHub Packages auth for json-doclet)
+        if: steps.config.outputs.json-enabled == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+          server-id: github
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Maven install (to fetch json-doclet from GitHub Packages)
         if: steps.config.outputs.json-enabled == 'true'
         run: ./mvnw -B install -DskipTests
 
