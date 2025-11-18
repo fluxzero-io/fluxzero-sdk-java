@@ -98,7 +98,7 @@ jobs:
   # Job 3: Generate and publish javadoc (runs in parallel after build)
   javadoc:
     needs: build-and-test
-    uses: ./.github/workflows/reusable-javadoc.yml
+    uses: ./.github/workflows/javadoc.yml
 
   # Job 4: Create GitHub release (runs in parallel after build)
   github-release:
