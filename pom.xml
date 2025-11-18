@@ -462,7 +462,7 @@
                         <executions>
                             <execution>
                                 <id>json-docs</id>
-                                <phase>verify</phase>
+                                <phase>site</phase>
                                 <goals>
                                     <goal>aggregate</goal>
                                 </goals>
