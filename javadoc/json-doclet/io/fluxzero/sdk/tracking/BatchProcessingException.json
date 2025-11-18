@@ -1,0 +1,134 @@
+{
+  "name" : "BatchProcessingException",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  } ],
+  "documentation" : " Exception thrown during message batch processing to intentionally halt tracking after a specific message.\n <p>\n This exception provides a clean way to interrupt processing without treating the batch as failed. When thrown,\n the tracker stops consuming messages and commits its position up to—but not including—the message at the specified\n {@code messageIndex}.\n\n <h2>Semantics</h2>\n <ul>\n   <li>The {@code messageIndex} refers to the index of the **message that caused the halt** within the current batch.</li>\n   <li>The tracker will commit all messages prior to this index.</li>\n   <li>Remaining messages in the batch will be retried when tracking resumes.</li>\n </ul>\n\n <h2>Auto-Indexing</h2>\n <p>\n If no index is explicitly provided, the exception will attempt to resolve the current message index automatically\n via {@link io.fluxzero.sdk.common.serialization.DeserializingMessage#getOptionally()}. This makes it\n convenient to throw from inside a handler or interceptor.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Gracefully halting tracking due to domain constraints or environmental factors</li>\n   <li>Aborting a batch without marking it as failed (e.g., for safe reprocessing)</li>\n   <li>Stopping execution when continuation might result in corruption or inconsistency</li>\n </ul>\n\n <h2>Example</h2>\n <pre>{@code\n @HandleEvent\n public void on(CriticalSystemEvent event) {\n     if (systemInUnsafeState()) {\n         throw new BatchProcessingException(\"Unsafe state detected. Halting tracker.\");\n     }\n }\n }</pre>\n\n <p>The tracker will commit its position up to the last successfully processed message before the one that triggered the exception.\n\n @see io.fluxzero.sdk.tracking.Tracker\n @see io.fluxzero.sdk.tracking.ErrorHandler\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "messageIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException.messageIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Index of the message within the batch that caused the interruption.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception using the index of the currently handled message, if available.\n"
+  }, {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception with a specified message index.\n"
+  }, {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception with a message and automatically determines the current message index.\n"
+  }, {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception with a message and a specified message index.\n"
+  }, {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception with a message, cause, and automatically determined message index.\n"
+  }, {
+    "name" : "BatchProcessingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchProcessingException#BatchProcessingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the exception with a message, cause, and message index.\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

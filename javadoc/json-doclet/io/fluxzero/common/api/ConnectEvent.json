@@ -1,0 +1,71 @@
+{
+  "name" : "ConnectEvent",
+  "qualifiedName" : "io.fluxzero.common.api.ConnectEvent",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " A runtime-generated event that indicates a client has successfully connected to the Fluxzero Runtime.\n <p>\n This event includes metadata such as the client's name, instance ID, session ID, and the service endpoint\n it connected to.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Track client connection activity for monitoring or alerting</li>\n   <li>Audit log of system uptime or usage</li>\n </ul>\n\n @see DisconnectEvent\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.client",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Logical client name, typically set via {@code ClientConfiguration#getClientName()}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "clientId",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.clientId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Unique client instance ID (e.g., including machine identifier).\n",
+    "constantValue" : null
+  }, {
+    "name" : "service",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.service",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Name of the service the client connected to (e.g., {@code event-sourcing-endpoint}).\n",
+    "constantValue" : null
+  }, {
+    "name" : "sessionId",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.sessionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Internal (websocket) session ID used by the Fluxzero Runtime to track this connection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp when the connection occurred.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConnectEvent",
+    "qualifiedName" : "io.fluxzero.common.api.ConnectEvent#ConnectEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

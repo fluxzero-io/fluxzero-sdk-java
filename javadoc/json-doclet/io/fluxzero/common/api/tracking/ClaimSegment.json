@@ -1,0 +1,101 @@
+{
+  "name" : "ClaimSegment",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegment",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " A request to claim a message segment for consumption in client-controlled tracking mode.\n <p>\n This is a specialization of {@link Read} that registers the tracker and reserves a segment range for local message\n consumption. It does not fetch messages ({@code maxSize = 0}). Instead, it enables the client to handle message\n delivery independently, for example:\n\n <h2>Typical usage</h2>\n This is used when:\n <ul>\n     <li>The tracker wants to fetch messages from a client-side message cache</li>\n     <li>The tracker wants to fetch messages manually from a {@link MessageStore} or other source</li>\n     <li>The tracker handles <em>external messages</em> (e.g. updates from an external API) and wants to filter\n     those based on its assigned segment range</li>\n </ul>\n\n <h2>External source integration</h2>\n In distributed systems where multiple application instances are polling external sources,\n using {@code ClaimSegment} allows each instance to claim a distinct range of segments.\n This enables segment-based filtering of externally received updates, preventing duplicate\n processing across instances and offering a load-balanced coordination mechanism.\n\n <p>\n This approach helps replicate Fluxzero’s load balancing capabilities for external streams,\n even when the external system does not support multithreaded tracking natively.\n\n @see Read\n @see MessageStore\n @see io.fluxzero.common.api.tracking.Position\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.tracking.Read",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ClaimSegment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegment#ClaimSegment",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"messageType\",\"consumer\",\"trackerId\",\"maxTimeout\",\"clientControlledIndex\",\"typeFilter\",\"filterMessageTarget\",\"lastIndex\",\"purgeTimeout\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTimeout",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clientControlledIndex",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFilter",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filterMessageTarget",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "purgeTimeout",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ClaimSegment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegment#ClaimSegment",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "read",
+      "type" : "io.fluxzero.common.api.tracking.Read",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

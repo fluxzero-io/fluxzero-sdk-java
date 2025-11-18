@@ -1,0 +1,44 @@
+{
+  "name" : "FormParam",
+  "qualifiedName" : "io.fluxzero.sdk.web.FormParam",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "PARAMETER"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.web.WebParam",
+    "values" : {
+      "type" : "FORM"
+    }
+  } ],
+  "documentation" : " Injects an individual form field or a complete form object into a handler method parameter.\n <p>\n The request must use {@code application/x-www-form-urlencoded} or {@code multipart/form-data}.\n </p>\n\n <h2>Examples:</h2>\n <pre>{@code\n @HandlePost(\"/newsletter\")\n void subscribe(@FormParam String email) { ... }\n\n @HandlePost(\"/user\")\n UserId createUser(@FormParam UserForm form) { ... }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.web.FormParam#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Form parameter name. If left empty, it defaults to the method parameter's name;\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

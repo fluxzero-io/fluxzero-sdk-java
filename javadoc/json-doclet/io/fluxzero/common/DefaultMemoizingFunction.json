@@ -1,0 +1,193 @@
+{
+  "name" : "DefaultMemoizingFunction",
+  "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A default implementation of the {@link MemoizingFunction} interface that provides caching functionality for computed\n function results. The results are cached by key, and can be optionally configured with a time-based expiration\n policy.\n <p>\n This class uses a {@link ConcurrentHashMap} internally for thread-safe storage of cached entries.\n\n @param <K> the type of input keys\n @param <V> the type of values produced by applying the delegate function\n",
+  "typeParameters" : [ "K", "V" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.MemoizingFunction<K,V>" ],
+  "fields" : [ {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.clock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.delegate",
+    "type" : "java.util.function.Function<K,V>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lifespan",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.lifespan",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.map",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,io.fluxzero.common.DefaultMemoizingFunction.Entry>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nullValue",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.nullValue",
+    "type" : "io.fluxzero.common.DefaultMemoizingFunction.Entry",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultMemoizingFunction",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#DefaultMemoizingFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#apply",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forEach",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#forEach",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<? super V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isCached",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#isCached",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#remove",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

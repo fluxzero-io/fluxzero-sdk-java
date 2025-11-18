@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "dataprotection",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DataProtectionInterceptor.json",
+    "name" : "DataProtectionInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor",
+    "kind" : "class"
+  }, {
+    "file" : "DropProtectedData.json",
+    "name" : "DropProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DropProtectedData",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ProtectData.json",
+    "name" : "ProtectData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.ProtectData",
+    "kind" : "annotation_type"
+  } ],
+  "subdirectories" : [ ]
+}

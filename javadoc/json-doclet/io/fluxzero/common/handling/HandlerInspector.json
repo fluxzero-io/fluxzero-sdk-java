@@ -1,0 +1,223 @@
+{
+  "name" : "HandlerInspector",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Utility for inspecting and constructing handler components from annotated methods.\n <p>\n The {@code HandlerInspector} scans classes for methods that match handler criteria (e.g., {@code @HandleCommand}),\n and constructs {@link Handler}, {@link HandlerMatcher}, and {@link HandlerInvoker} instances based on those methods.\n It supports both stateless (singleton) and stateful handlers by accepting target suppliers and parameter resolvers.\n </p>\n\n <p>\n This class is the core of the handler discovery and resolution mechanism in Fluxzero, bridging the gap between\n annotated user-defined classes and runtime message dispatch infrastructure.\n </p>\n\n <h2>Capabilities</h2>\n <ul>\n     <li>Detect handler methods on a class based on annotations and signatures</li>\n     <li>Create {@link Handler} instances that provide lifecycle-aware invocation logic</li>\n     <li>Build {@link HandlerMatcher}s that analyze message applicability</li>\n     <li>Support parameter resolution for dependency injection and message binding</li>\n </ul>\n\n @see Handler\n @see HandlerMatcher\n @see HandlerInvoker\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "HandlerInspector",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#HandlerInspector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#createHandler",
+    "returnType" : "io.fluxzero.common.handling.Handler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link Handler} for the given target object and annotation type. This variant uses a default no-op\n parameter resolver.\n\n @param target           the handler instance\n @param methodAnnotation the annotation to detect handler methods (e.g. {@code @HandleCommand})\n @param <M>              the message type\n @return a new {@code Handler} instance\n"
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#createHandler",
+    "returnType" : "io.fluxzero.common.handling.Handler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link Handler} backed by a target supplier and parameter resolvers. Suitable for stateful handlers\n where the instance depends on the message content.\n\n @param target             the handler instance\n @param parameterResolvers resolvers for handler method parameters\n @param methodAnnotation   the annotation to detect handler methods (e.g. {@code @HandleCommand})\n @param <M>                the message type\n @return a handler capable of resolving and invoking methods on the target\n"
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#createHandler",
+    "returnType" : "io.fluxzero.common.handling.Handler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link Handler} backed by a target supplier and parameter resolvers. Suitable for stateful handlers\n where the instance depends on the message content.\n\n @param target             the handler instance\n @param parameterResolvers resolvers for handler method parameters\n @param config             handler configuration settings\n @param <M>                the message type\n @return a handler capable of resolving and invoking methods on the target\n"
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#createHandler",
+    "returnType" : "io.fluxzero.common.handling.Handler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetSupplier",
+      "type" : "java.util.function.Function<M,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link Handler} backed by a target supplier and parameter resolvers. Suitable for stateful handlers\n where the instance depends on the message content.\n\n @param targetSupplier     provides the handler instance to use for a given message\n @param targetClass        the class containing handler methods\n @param parameterResolvers resolvers for handler method parameters\n @param config             handler configuration settings\n @param <M>                the message type\n @return a handler capable of resolving and invoking methods on the target\n"
+  }, {
+    "name" : "hasHandlerMethods",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#hasHandlerMethods",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerConfiguration",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the given class contains at least one method or constructor that matches the handler\n configuration.\n\n @param targetClass          the class to inspect\n @param handlerConfiguration the handler configuration to match against\n @return {@code true} if at least one method or constructor is a valid handler\n"
+  }, {
+    "name" : "inspect",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#inspect",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Inspects the given class for methods matching the specified annotation and builds a {@link HandlerMatcher}.\n <p>\n This matcher can later be used to resolve a {@link HandlerInvoker} for a target object and message.\n </p>\n\n @param targetClass        the class containing handler methods\n @param parameterResolvers resolvers for handler method parameters\n @param config             handler configuration settings\n"
+  }, {
+    "name" : "inspect",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#inspect",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Inspects the given class for methods matching the specified annotation and builds a {@link HandlerMatcher}.\n <p>\n This matcher can later be used to resolve a {@link HandlerInvoker} for a target object and message.\n </p>\n\n @param targetClass        the class containing handler methods\n @param parameterResolvers resolvers for handler method parameters\n @param methodAnnotation   the annotation to detect handler methods (e.g. {@code @HandleCommand})\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "MethodHandlerMatcher",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ObjectHandlerMatcher",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,69 @@
+{
+  "package" : {
+    "name" : "casting",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "AnnotatedCaster.json",
+    "name" : "AnnotatedCaster",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster",
+    "kind" : "class"
+  }, {
+    "file" : "Cast.json",
+    "name" : "Cast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Cast",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "CastInspector.json",
+    "name" : "CastInspector",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector",
+    "kind" : "class"
+  }, {
+    "file" : "CastParameters.json",
+    "name" : "CastParameters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastParameters",
+    "kind" : "class"
+  }, {
+    "file" : "Caster.json",
+    "name" : "Caster",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Caster",
+    "kind" : "interface"
+  }, {
+    "file" : "CasterChain.json",
+    "name" : "CasterChain",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultCasterChain.json",
+    "name" : "DefaultCasterChain",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultCasterChain.ConvertingSerializedObject.json",
+    "name" : "DefaultCasterChain.ConvertingSerializedObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingSerializedObject",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultCasterChain.DataRevision.json",
+    "name" : "DefaultCasterChain.DataRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$DataRevision",
+    "kind" : "class"
+  }, {
+    "file" : "Downcast.json",
+    "name" : "Downcast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Downcast",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HasSource.json",
+    "name" : "HasSource",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.HasSource",
+    "kind" : "interface"
+  }, {
+    "file" : "Upcast.json",
+    "name" : "Upcast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Upcast",
+    "kind" : "annotation_type"
+  } ],
+  "subdirectories" : [ ]
+}

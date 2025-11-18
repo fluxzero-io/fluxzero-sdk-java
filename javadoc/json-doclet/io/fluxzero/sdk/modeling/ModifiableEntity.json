@@ -1,0 +1,212 @@
+{
+  "name" : "ModifiableEntity",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " A mutable view on a nested entity within a {@link ModifiableAggregateRoot}.\n <p>\n This class wraps a delegate {@link Entity} and maintains a reference to the root {@link ModifiableAggregateRoot},\n enabling mutating operations—such as {@link #update(UnaryOperator)}, {@link #apply(Message)}, and\n {@link #assertLegal(Object)}—to be routed through the root context.\n <p>\n This ensures that:\n <ul>\n     <li>All changes are tracked and committed through the root aggregate’s lifecycle.</li>\n     <li>Relationship resolution and legality checks are coordinated at the aggregate level.</li>\n     <li>Nested child entities participate in the aggregate’s commit process transparently.</li>\n </ul>\n <p>\n The {@code ModifiableEntity} is typically returned when loading or navigating to a non-root entity\n (i.e., a member or child entity) of an aggregate. Despite being indirectly updatable,\n such child entities share the same mutation and commit infrastructure as the root.\n <p>\n Any invocation of {@code update()}, {@code apply()}, {@code assertAndApply()}, or {@code commit()}\n will cause the root aggregate to manage the lifecycle and capture any applied events or state changes.\n\n @param <T> the type of the entity’s value\n @see ModifiableAggregateRoot\n @see DelegatingEntity\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "io.fluxzero.sdk.modeling.DelegatingEntity<T>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "root",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity.root",
+    "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModifiableEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#ModifiableEntity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventMessage",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadOrMessage",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#assertLegal",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#commit",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "entities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#entities",
+    "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#parent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previous",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#previous",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "update",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity#update",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.UnaryOperator<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

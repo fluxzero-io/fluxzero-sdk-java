@@ -1,0 +1,280 @@
+{
+  "name" : "Data",
+  "qualifiedName" : "io.fluxzero.common.api.Data",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "exclude" : "\"value\""
+    }
+  } ],
+  "documentation" : " A generic container for holding a value along with serialization metadata such as type, revision, and format.\n <p>\n This class is used extensively throughout Fluxzero to represent serialized or intermediate values (e.g.:\n {@link com.fasterxml.jackson.databind.JsonNode}), often as part of {@link SerializedMessage},\n {@link SerializedDocument}, or key-value entries.\n\n @param <T> the type of the value held in this container\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.SerializedObject<T>" ],
+  "fields" : [ {
+    "name" : "DOCUMENT_FORMAT",
+    "qualifiedName" : "io.fluxzero.common.api.Data.DOCUMENT_FORMAT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Custom format identifier for document data used in {@link SerializedDocument}.\n",
+    "constantValue" : "document"
+  }, {
+    "name" : "JSON_FORMAT",
+    "qualifiedName" : "io.fluxzero.common.api.Data.JSON_FORMAT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Standard media type for JSON data.\n",
+    "constantValue" : "application/json"
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.common.api.Data.format",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " Optional format hint (e.g., {@code \"application/json\"} or {@code \"document\"}).\n <p>\n Used by serializers to determine how to interpret the binary data. Defaults to {@link #JSON_FORMAT}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.common.api.Data.revision",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " Revision number of the serialized value.\n <p>\n Used for versioning and upcasting.\n",
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.common.api.Data.type",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " Fully qualified type name (typically class name) of the serialized value.\n <p>\n Used for type resolution and deserialization.\n",
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.api.Data.value",
+    "type" : "java.util.function.Supplier<T>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Supplier for lazily retrieving the wrapped value.\n <p>\n This enables delayed deserialization and efficient memory use, especially for large payloads.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Data",
+    "qualifiedName" : "io.fluxzero.common.api.Data#Data",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code Data} instance without a specific format (defaults to JSON).\n"
+  }, {
+    "name" : "Data",
+    "qualifiedName" : "io.fluxzero.common.api.Data#Data",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"value\",\"type\",\"revision\",\"format\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code Data} instance with a fixed value and full metadata.\n"
+  }, {
+    "name" : "Data",
+    "qualifiedName" : "io.fluxzero.common.api.Data#Data",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code Data} instance with a {@link Supplier} to support lazy access.\n"
+  } ],
+  "methods" : [ {
+    "name" : "data",
+    "qualifiedName" : "io.fluxzero.common.api.Data#data",
+    "returnType" : "io.fluxzero.common.api.Data<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this instance (for {@link SerializedObject} compatibility).\n"
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.Data#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getFormat",
+    "qualifiedName" : "io.fluxzero.common.api.Data#getFormat",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the effective format for the data, defaulting to {@link #JSON_FORMAT} if {@code format} is null or\n \"json\".\n"
+  }, {
+    "name" : "getValue",
+    "qualifiedName" : "io.fluxzero.common.api.Data#getValue",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the deserialized value. This may trigger lazy loading via the supplier.\n\n @return the deserialized object\n"
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.Data#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.common.api.Data#map",
+    "returnType" : "io.fluxzero.common.api.Data<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "io.fluxzero.common.ThrowingFunction<T,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Transforms the value using a custom mapping function, while preserving serialization metadata.\n\n @param mapper transformation function that may throw an exception\n @param <M>    result type after mapping\n @return a new {@code Data<M>} with the mapped value and original serialization metadata\n"
+  }, {
+    "name" : "withData",
+    "qualifiedName" : "io.fluxzero.common.api.Data#withData",
+    "returnType" : "io.fluxzero.common.api.Data<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces this instance with another {@code Data} object. This method simply returns the provided argument\n (identity transform).\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

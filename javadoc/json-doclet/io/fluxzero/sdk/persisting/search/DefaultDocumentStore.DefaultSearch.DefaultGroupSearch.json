@@ -1,0 +1,58 @@
+{
+  "name" : "DefaultGroupSearch",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch$DefaultGroupSearch",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "protected" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.search.GroupSearch" ],
+  "fields" : [ {
+    "name" : "groupBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch$DefaultGroupSearch.groupBy",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultGroupSearch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch$DefaultGroupSearch#DefaultGroupSearch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "aggregate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch$DefaultGroupSearch#aggregate",
+    "returnType" : "java.util.Map<io.fluxzero.common.api.search.Group,java.util.Map<java.lang.String,io.fluxzero.common.api.search.DocumentStats.FieldStats>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fields",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

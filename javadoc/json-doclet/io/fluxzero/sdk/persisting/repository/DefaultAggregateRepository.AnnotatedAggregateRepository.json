@@ -1,0 +1,298 @@
+{
+  "name" : "AnnotatedAggregateRepository",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Aggregate-type-specific delegate used internally by {@link DefaultAggregateRepository}.\n <p>\n This class is instantiated per aggregate class and parses metadata from the {@link Aggregate} annotation to\n determine:\n <ul>\n   <li>Whether the aggregate is event-sourced or backed by the document store.</li>\n   <li>If and how frequently snapshots should be created.</li>\n   <li>Whether the aggregate is indexed for search.</li>\n   <li>How events should be published and committed.</li>\n   <li>Which cache(s) to use.</li>\n </ul>\n\n <p>It provides loading and committing capabilities tailored to the configured storage and publication strategy.\n It also supports refetching aggregates from the Fluxzero Runtime and maintaining relationships with child entities.\n\n <p>Snapshot and document-based aggregates are supported out of the box. Event replay is triggered as needed.\n\n <p>This class is not intended to be used directly outside the {@code DefaultAggregateRepository}.\n\n @param <T> the aggregate root type\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aggregateCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.aggregateCache",
+    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commitInBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.commitInBatch",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "endFunction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.endFunction",
+    "type" : "java.util.function.Function<io.fluxzero.sdk.modeling.Entity<?>,java.time.Instant>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "eventPublication",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.eventPublication",
+    "type" : "io.fluxzero.sdk.modeling.EventPublication",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "eventSourced",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.eventSourced",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "idProperty",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.idProperty",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ignoreUnknownEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.ignoreUnknownEvents",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.publicationStrategy",
+    "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationshipsCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.relationshipsCache",
+    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.searchable",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.snapshotStore",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotTrigger",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.snapshotTrigger",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotTrigger",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestampFunction",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.timestampFunction",
+    "type" : "java.util.function.Function<io.fluxzero.sdk.modeling.Entity<?>,java.time.Instant>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.type",
+    "type" : "java.lang.Class<T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AnnotatedAggregateRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#AnnotatedAggregateRepository",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#commit",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "after",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unpublishedEvents",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "before",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eventSourceModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#eventSourceModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#fromValue",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadSnapshot",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#loadSnapshot",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#storeEvents",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "appliedEvents",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "futures",
+      "type" : "java.util.List<java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

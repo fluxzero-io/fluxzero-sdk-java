@@ -1,0 +1,271 @@
+{
+  "name" : "ClientConfig",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig",
+  "packageName" : "io.fluxzero.sdk.configuration.client",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Configuration class for creating a {@link WebSocketClient}.\n <p>\n This configuration defines identifiers, service URLs, compression settings, and session allocations for various\n message types. It is immutable and can be modified fluently via its {@code #toBuilder()} method.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "applicationId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to\n property {@code FLUXZERO_APPLICATION_ID}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "compression",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.compression",
+    "type" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "disableMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.disableMetrics",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether to disable sending metrics from this client.\n",
+    "constantValue" : null
+  }, {
+    "name" : "eventSourcingSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.eventSourcingSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the event sourcing subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "gatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.gatewaySessions",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.lang.Integer>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}.\n Defaults to {@link #defaultGatewaySessions()}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.id",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "keyValueSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.keyValueSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.name",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "pingDelay",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.pingDelay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The delay between automatic ping messages. Defaults to {@code 10 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "pingTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.pingTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " How long to wait for a ping response before timing out. Defaults to {@code 5 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "projectId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.projectId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtimeBaseUrl",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.runtimeBaseUrl",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to\n property {@code FLUXZERO_BASE_URL}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "searchSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.searchSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the search subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "trackingConfigs",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.trackingConfigs",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Configuration map for tracking clients per {@link MessageType}.\n Defaults to {@link #defaultTrackingSessions()}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "typeFilter",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.typeFilter",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional type filter that restricts the types of messages tracked by this client.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ClientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "defaultGatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultGatewaySessions",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultTrackingSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultTrackingSessions",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withGatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withGatewaySessions",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "count",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code ClientConfig} with a modified gateway session count for the specified message type.\n"
+  }, {
+    "name" : "withTrackingConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withTrackingConfig",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code ClientConfig} with a modified tracking config for the specified message type.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

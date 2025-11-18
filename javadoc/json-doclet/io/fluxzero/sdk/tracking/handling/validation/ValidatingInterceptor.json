@@ -1,0 +1,63 @@
+{
+  "name" : "ValidatingInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link HandlerInterceptor} that validates the payload of messages before they are handled.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
+  "fields" : [ {
+    "name" : "validator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor.validator",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#interceptHandling",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

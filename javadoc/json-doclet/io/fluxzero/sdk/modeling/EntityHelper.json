@@ -1,0 +1,149 @@
+{
+  "name" : "EntityHelper",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Strategy interface for handling domain entity operations such as applying updates,\n validating state transitions, and intercepting updates.\n <p>\n Implementations of this interface coordinate the invocation of methods annotated with\n {@link InterceptApply}, {@link AssertLegal}, and {@link Apply}.\n <p>\n These operations allow Fluxzero entities to transform messages before applying them, enforce invariants,\n and apply updates.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "applyInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#applyInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an invoker that can apply the given event to the provided entity.\n\n @param message the message to apply\n @param entity the entity to which the message should be applied\n @return a handler invoker if an applicable handler method is found\n"
+  }, {
+    "name" : "applyInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#applyInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "searchChildren",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an invoker for applying the event to the entity, optionally checking nested entities.\n\n @param message the event to apply\n @param entity the root or intermediate entity\n @param searchChildren whether to search nested child entities for applicable handlers\n @return a handler invoker if a suitable method is located\n"
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#assertLegal",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : " Validates whether the given value results in a legal state transition for the specified entity.\n Throws an exception if the result would be illegal.\n\n @param value the value to validate\n @param entity the current entity state\n @param <E> the type of exception that may be thrown\n @throws E if the value is deemed illegal\n"
+  }, {
+    "name" : "checkLegality",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#checkLegality",
+    "returnType" : "java.util.Optional<E>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the given value would be considered legal for the specified entity.\n Does not throw but instead returns an exception if illegal.\n\n @param value the value to validate\n @param entity the entity context\n @param <E> the type of exception\n @return an exception if illegal, or an empty Optional if legal\n"
+  }, {
+    "name" : "intercept",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#intercept",
+    "returnType" : "java.util.stream.Stream<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts the given value before it is applied to an entity. This may result in transformation or\n expansion of the value to one or more derived messages.\n\n @param value the value to be intercepted, typically the payload of a message\n @param entity the entity receiving the value\n @return a stream of intercepted values or messages to be applied\n"
+  }, {
+    "name" : "isLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#isLegal",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the given value is considered legal for the specified entity.\n\n @param value the value to check\n @param entity the entity context\n @return true if legal, false otherwise\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

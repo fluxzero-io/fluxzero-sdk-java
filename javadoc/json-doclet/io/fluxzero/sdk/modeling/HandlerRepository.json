@@ -1,0 +1,82 @@
+{
+  "name" : "HandlerRepository",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Repository interface for storing and retrieving {@code @Stateful} handler instances.\n <p>\n Handlers are typically indexed and matched based on their {@code @Association} fields and methods.\n Implementations of this interface provide the backing logic to locate, store, and remove these handlers.\n <p>\n This interface is particularly useful in scenarios involving sagas, process managers, or other\n stateful event-driven components where runtime state needs to be persisted and recalled based on\n message correlation data.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes the handler instance identified by the given ID from the repository.\n\n @param id the identifier of the handler instance to delete\n @return a future that completes when the deletion has finished\n"
+  }, {
+    "name" : "findByAssociation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository#findByAssociation",
+    "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.common.Entry<?>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "associations",
+      "type" : "java.util.Map<java.lang.Object,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds all handler instances that match the given set of associations.\n <p>\n The association map typically represents values extracted from incoming messages\n (e.g., correlation keys) and will be matched against fields or methods annotated with\n {@code @Association} in registered handler instances.\n\n @param associations a map of association values, where the key is the value to match and the\n                     value is the corresponding property name or path (e.g. {@code foo/bar/name}) in the handler\n @return a collection of entries representing matching handler instances\n"
+  }, {
+    "name" : "getAll",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository#getAll",
+    "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.common.Entry<?>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves all currently stored handler instances.\n\n @return a collection of all known handler entries\n"
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository#put",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Persists or updates the handler instance identified by the given ID.\n\n @param id    the unique identifier for the handler instance\n @param value the handler instance to persist\n @return a future that completes when the operation has finished\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

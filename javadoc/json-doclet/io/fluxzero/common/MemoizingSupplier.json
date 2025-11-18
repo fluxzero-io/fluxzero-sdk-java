@@ -1,0 +1,40 @@
+{
+  "name" : "MemoizingSupplier",
+  "qualifiedName" : "io.fluxzero.common.MemoizingSupplier",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link Supplier} that memoizes (caches) the result of a single computation.\n The first time the supplier is called, the result is stored and reused for all subsequent calls until cleared.\n\n <p>Instances of this interface are typically created using:\n {@code io.fluxzero.sdk.common.ClientUtils#memoize(Supplier)}\n\n <pre>{@code\n MemoizingSupplier<Config> configSupplier = ClientUtils.memoize(this::loadConfig);\n Config config = configSupplier.get(); // computes and caches\n boolean cached = configSupplier.isCached(); // true\n configSupplier.clear(); // clears the cached value\n }</pre>\n\n <p>Time-bound memoization is also supported:\n <pre>{@code\n MemoizingSupplier<Token> tokenSupplier =\n     ClientUtils.memoize(this::fetchToken, Duration.ofMinutes(15));\n }</pre>\n\n @param <T> the result type\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ "java.util.function.Supplier<T>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.MemoizingSupplier#clear",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Clears the cached value, forcing the next call to recompute.\n"
+  }, {
+    "name" : "isCached",
+    "qualifiedName" : "io.fluxzero.common.MemoizingSupplier#isCached",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this supplier has already cached a value.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

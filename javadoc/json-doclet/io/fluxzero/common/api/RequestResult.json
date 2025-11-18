@@ -1,0 +1,40 @@
+{
+  "name" : "RequestResult",
+  "qualifiedName" : "io.fluxzero.common.api.RequestResult",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Marker interface for responses to {@link Request} objects (including commands and queries).\n <p>\n Implementations of this interface are returned by the Fluxzero Runtime and matched to\n their corresponding {@link Request} using the {@code requestId}.\n </p>\n\n <p>\n A typical {@code RequestResult} contains minimal payload and metadata for monitoring,\n and may override {@link #toMetric()} to avoid logging full results.\n </p>\n\n @see Request\n @see ErrorResult\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getRequestId",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#getRequestId",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The requestId of the original {@link Request} this result corresponds to.\n"
+  }, {
+    "name" : "getTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#getTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) when this result was generated.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

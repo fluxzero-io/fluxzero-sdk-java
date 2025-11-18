@@ -1,0 +1,199 @@
+{
+  "name" : "AdhocDispatchInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link DispatchInterceptor} that enables thread-local, dynamically scoped interceptors during message dispatch.\n\n <p>This class allows you to temporarily override dispatch behavior for one or more {@link MessageType}s within\n a specific scope (such as during the invocation of a handler or message batch). It is particularly useful for use\n cases where message output needs to be suppressed, enriched, rerouted, or filtered conditionally.\n\n <p>Adhoc interceptors are applied using\n {@link #runWithAdhocInterceptor(Runnable, DispatchInterceptor, MessageType...)} or\n {@link #runWithAdhocInterceptor(Callable, DispatchInterceptor, MessageType...)}.\n\n <h2>Typical Use Case: Disabling Metrics</h2>\n A common use case is disabling outbound metric messages for specific message consumers via {@link DisableMetrics}\n which internally uses this behavior:\n\n <pre>{@code\n @Consumer(batchInterceptors = DisableMetrics.class)\n public class OrderHandler {\n     @HandleEvent\n     public void on(OrderPlaced event) {\n         // This handler will execute with METRICS messages disabled\n     }\n }\n }</pre>\n\n <h2>Disabling All Adhoc Interceptors</h2>\n This behavior can be disabled globally by calling\n {@link io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor()} during Fluxzero\n client setup. This is useful in highly constrained environments or when performance is critical.\n\n @see DispatchInterceptor\n @see DisableMetrics\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor" ],
+  "fields" : [ {
+    "name" : "delegates",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor.delegates",
+    "type" : "java.lang.ThreadLocal<java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.publishing.DispatchInterceptor>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AdhocDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#AdhocDispatchInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getAdhocInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#getAdhocInterceptor",
+    "returnType" : "java.util.Optional<? extends io.fluxzero.sdk.publishing.DispatchInterceptor>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the current thread-local ad hoc interceptor for the given {@link MessageType}, if present.\n\n @param messageType The message type to look up.\n @return An optional interceptor for the specified message type.\n"
+  }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts a message before dispatch for the given message type and topic. Delegates to any registered ad hoc\n interceptor for the current thread.\n"
+  }, {
+    "name" : "modifySerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#modifySerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optionally modifies the serialized message before dispatch, delegating to any registered ad hoc interceptor for\n the current thread.\n"
+  }, {
+    "name" : "monitorDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#monitorDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optionally monitors a dispatched message using any registered ad hoc interceptor for the current thread.\n"
+  }, {
+    "name" : "runWithAdhocInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#runWithAdhocInterceptor",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adhocInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Executes the given {@link Runnable} while temporarily enabling the provided interceptor for the specified message\n types.\n <p>\n After the task completes (or throws), the previous interceptors are automatically restored. If no message types\n are specified, the interceptor is applied to all {@link MessageType}s.\n\n @param task             The task to run.\n @param adhocInterceptor The interceptor to apply during execution.\n @param messageTypes     The message types for which to apply the interceptor. If empty, all types are used.\n"
+  }, {
+    "name" : "runWithAdhocInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#runWithAdhocInterceptor",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adhocInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Executes the given {@link Callable} while temporarily enabling the provided interceptor for the specified message\n types.\n <p>\n After the task completes (or throws), the previous interceptors are automatically restored. If no message types\n are specified, the interceptor is applied to all {@link MessageType}s.\n\n @param task             The task to run.\n @param adhocInterceptor The interceptor to apply during execution.\n @param messageTypes     The message types for which to apply the interceptor. If empty, all types are used.\n @param <T>              The return type of the task.\n @return The result from the task.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

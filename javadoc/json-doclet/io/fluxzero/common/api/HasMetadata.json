@@ -1,0 +1,59 @@
+{
+  "name" : "HasMetadata",
+  "qualifiedName" : "io.fluxzero.common.api.HasMetadata",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Marker interface for objects that carry associated {@link Metadata}.\n <p>\n Implementations of this interface expose a structured metadata map that can be used for routing, correlation, trace\n propagation, or other contextual behavior within the Fluxzero Runtime.\n </p>\n\n <p>\n Typical implementers include {@code Message}, {@link SerializedMessage}, and custom types that participate in message\n tracking or enrichment.\n </p>\n\n @see Metadata\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "FINAL_CHUNK",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata.FINAL_CHUNK",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$finalChunk"
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "chunked",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata#chunked",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines if the data associated with this metadata is \"chunked\". This method checks if the metadata contains a\n {@code FINAL_CHUNK} key.\n\n @return true if the metadata contains the {@code FINAL_CHUNK} key, false otherwise.\n"
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the {@link Metadata} associated with this object.\n\n @return metadata attached to this instance; never {@code null}\n"
+  }, {
+    "name" : "lastChunk",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata#lastChunk",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines if the data associated with this metadata is the final part of the data. This method evaluates the\n value of the {@code FINAL_CHUNK} key in the metadata. If it is missing or set to {@code true}, this method\n returns {@code true}.\n\n @return true if the metadata value for the {@code FINAL_CHUNK} key is {@code true}, false otherwise.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

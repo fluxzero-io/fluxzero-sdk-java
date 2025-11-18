@@ -1,0 +1,164 @@
+{
+  "package" : {
+    "name" : "reflection",
+    "qualifiedName" : "io.fluxzero.common.reflection",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DefaultMemberInvoker.json",
+    "name" : "DefaultMemberInvoker",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMemberInvoker.FallbackFunction.json",
+    "name" : "DefaultMemberInvoker.FallbackFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FallbackFunction",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer0.json",
+    "name" : "DefaultMemberInvoker._Consumer0",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer0",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer1.json",
+    "name" : "DefaultMemberInvoker._Consumer1",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer1",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer10.json",
+    "name" : "DefaultMemberInvoker._Consumer10",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer10",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer2.json",
+    "name" : "DefaultMemberInvoker._Consumer2",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer2",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer3.json",
+    "name" : "DefaultMemberInvoker._Consumer3",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer3",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer4.json",
+    "name" : "DefaultMemberInvoker._Consumer4",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer4",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer5.json",
+    "name" : "DefaultMemberInvoker._Consumer5",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer5",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer6.json",
+    "name" : "DefaultMemberInvoker._Consumer6",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer6",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer7.json",
+    "name" : "DefaultMemberInvoker._Consumer7",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer7",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer8.json",
+    "name" : "DefaultMemberInvoker._Consumer8",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer8",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Consumer9.json",
+    "name" : "DefaultMemberInvoker._Consumer9",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer9",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function0.json",
+    "name" : "DefaultMemberInvoker._Function0",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function0",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function1.json",
+    "name" : "DefaultMemberInvoker._Function1",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function1",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function10.json",
+    "name" : "DefaultMemberInvoker._Function10",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function10",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function2.json",
+    "name" : "DefaultMemberInvoker._Function2",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function2",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function3.json",
+    "name" : "DefaultMemberInvoker._Function3",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function3",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function4.json",
+    "name" : "DefaultMemberInvoker._Function4",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function4",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function5.json",
+    "name" : "DefaultMemberInvoker._Function5",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function5",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function6.json",
+    "name" : "DefaultMemberInvoker._Function6",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function6",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function7.json",
+    "name" : "DefaultMemberInvoker._Function7",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function7",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function8.json",
+    "name" : "DefaultMemberInvoker._Function8",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function8",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker._Function9.json",
+    "name" : "DefaultMemberInvoker._Function9",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Function9",
+    "kind" : "interface"
+  }, {
+    "file" : "GenericTypeResolver.json",
+    "name" : "GenericTypeResolver",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver",
+    "kind" : "class"
+  }, {
+    "file" : "GenericTypeResolver.ParameterizedTypeImpl.json",
+    "name" : "GenericTypeResolver.ParameterizedTypeImpl",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl",
+    "kind" : "class"
+  }, {
+    "file" : "KotlinReflectionUtils.json",
+    "name" : "KotlinReflectionUtils",
+    "qualifiedName" : "io.fluxzero.common.reflection.KotlinReflectionUtils",
+    "kind" : "class"
+  }, {
+    "file" : "MemberInvoker.json",
+    "name" : "MemberInvoker",
+    "qualifiedName" : "io.fluxzero.common.reflection.MemberInvoker",
+    "kind" : "interface"
+  }, {
+    "file" : "ParameterRegistry.json",
+    "name" : "ParameterRegistry",
+    "qualifiedName" : "io.fluxzero.common.reflection.ParameterRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "ReflectionUtils.json",
+    "name" : "ReflectionUtils",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils",
+    "kind" : "class"
+  }, {
+    "file" : "ReflectionUtils.PropertyNotFoundException.json",
+    "name" : "ReflectionUtils.PropertyNotFoundException",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$PropertyNotFoundException",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

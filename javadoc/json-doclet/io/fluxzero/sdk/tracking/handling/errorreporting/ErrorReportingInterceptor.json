@@ -1,0 +1,92 @@
+{
+  "name" : "ErrorReportingInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.errorreporting",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " {@link HandlerInterceptor} that reports exceptions to the configured {@link ErrorGateway}.\n <p>\n This interceptor captures any uncaught exceptions thrown during message handling and appends them to the error log.\n It also supports reporting errors from asynchronous {@link CompletionStage} results returned by handler methods.\n <p>\n Local handler invocations (typically in-process invocations marked as {@code @LocalHandler}) are excluded from error reporting.\n\n <h2>Behavior</h2>\n <ul>\n     <li>If the handler returns a {@link CompletionStage}, any exception occurring during its completion is reported.</li>\n     <li>If the handler throws an exception synchronously, it is reported immediately and rethrown.</li>\n     <li>Exceptions marked as {@link FunctionalException} or {@link TechnicalException} are passed through as-is.</li>\n     <li>Other exceptions are wrapped in a {@link TechnicalException} and enriched with stack trace metadata.</li>\n </ul>\n\n @see ErrorGateway\n @see HandlerInterceptor\n @see TechnicalException\n @see FunctionalException\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
+  "fields" : [ {
+    "name" : "errorGateway",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor.errorGateway",
+    "type" : "io.fluxzero.sdk.publishing.ErrorGateway",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ErrorReportingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#ErrorReportingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#interceptHandling",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reportError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor#reportError",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

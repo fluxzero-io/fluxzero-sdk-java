@@ -1,0 +1,79 @@
+{
+  "name" : "EnvironmentVariablesSource",
+  "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link PropertySource} that resolves property values from system environment variables.\n <p>\n This source accesses environment variables via {@link System#getenv(String)} and can be used to inject configuration\n values directly from the host operating system or container runtime.\n\n <p>This is typically used to override configuration in deployment environments without modifying\n application-specific property files.\n\n <h2>Example usage</h2>\n <pre>\n export fluxzero TOKEN=secret-token\n </pre>\n In your application:\n <pre>\n fluxzero.api.token = ApplicationProperties.get(\"FLUXZERO_API_TOKEN\")\n </pre>\n\n <p>This source is usually combined with others (like {@link ApplicationPropertiesSource}) in a layered\n configuration strategy where environment variables take precedence.\n\n @see System#getenv(String)\n @see ApplicationPropertiesSource\n @see JavaPropertiesSource\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.application.EnvironmentVariablesSource>",
+  "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "EnvironmentVariablesSource",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#EnvironmentVariablesSource",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#get",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the value of the given property name from the system environment.\n\n @param name the name of the environment variable\n @return the value, or {@code null} if the variable is not defined\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#valueOf",
+    "returnType" : "io.fluxzero.common.application.EnvironmentVariablesSource",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#values",
+    "returnType" : "io.fluxzero.common.application.EnvironmentVariablesSource[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

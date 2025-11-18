@@ -1,0 +1,74 @@
+{
+  "name" : "CacheEvictionsLogger",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger",
+  "packageName" : "io.fluxzero.sdk.persisting.caching",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Logs and publishes cache eviction events as metrics.\n <p>\n This class listens for eviction events from a {@link Cache} and forwards them to the configured\n {@link MetricsGateway}. It is typically used to track cache performance and health over time,\n especially in distributed or memory-sensitive applications.\n\n <p>\n To activate logging for a particular cache instance, call {@link #register(Cache)}.\n This will subscribe the logger to that cache’s eviction stream.\n\n <pre>\n {@code\n Cache cache = ...;\n CacheEvictionsLogger logger = new CacheEvictionsLogger(Fluxzero.get().metricsGateway());\n logger.register(cache);\n }\n </pre>\n\n @see CacheEvictionEvent\n @see Cache#registerEvictionListener(Consumer)\n @see MetricsGateway\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>" ],
+  "fields" : [ {
+    "name" : "metricsGateway",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger.metricsGateway",
+    "type" : "io.fluxzero.sdk.publishing.MetricsGateway",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CacheEvictionsLogger",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger#CacheEvictionsLogger",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "accept",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger#accept",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "evictionEvent",
+      "type" : "io.fluxzero.sdk.persisting.caching.CacheEviction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Publishes the given cache eviction event to the configured metrics gateway.\n\n @param evictionEvent the event to report.\n"
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger#register",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cache",
+      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers this logger as an eviction listener for the given {@link Cache}.\n <p>\n Eviction events will be reported to the configured {@link MetricsGateway}.\n\n @param cache The cache to monitor for evictions.\n @return A {@link Registration} that can be used to unsubscribe later.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,684 @@
+{
+  "name" : "FluxzeroBuilder",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+  "packageName" : "io.fluxzero.sdk.configuration",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Builder interface for constructing a {@link Fluxzero} instance.\n <p>\n This interface exposes advanced configuration hooks for customizing message handling, dispatch behavior,\n serialization, user resolution, correlation tracking, and many other aspects of a Fluxzero client. It is primarily\n used via {@link io.fluxzero.sdk.configuration.DefaultFluxzero} but can be extended or wrapped for deeper\n integrations.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.configuration.FluxzeroConfiguration" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "addBatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addBatchInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.BatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Registers a {@link BatchInterceptor} that applies to the given message types.\n"
+  }, {
+    "name" : "addConsumerConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumerConfiguration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a specific consumer configuration for one or more message types.\n"
+  }, {
+    "name" : "addDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "highPriority",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link DispatchInterceptor} for specified message types with optional priority.\n"
+  }, {
+    "name" : "addDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch. Shortcut for highPriority =\n false.\n"
+  }, {
+    "name" : "addHandlerDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerDecorator",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "decorator",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "highPriority",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link HandlerDecorator} with control over priority.\n"
+  }, {
+    "name" : "addHandlerDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerDecorator",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "decorator",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link HandlerDecorator} for the given message types.\n"
+  }, {
+    "name" : "addHandlerInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "highPriority",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link HandlerInterceptor} with specified priority.\n"
+  }, {
+    "name" : "addHandlerInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n"
+  }, {
+    "name" : "addParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addParameterResolver",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterResolver",
+      "type" : "io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a {@link ParameterResolver} to support injection of method arguments in handlers.\n"
+  }, {
+    "name" : "addPropertySource",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addPropertySource",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a {@link PropertySource} to the configuration chain.\n"
+  }, {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#build",
+    "returnType" : "io.fluxzero.sdk.Fluxzero",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Builds the Fluxzero instance using the provided low-level {@link Client}.\n"
+  }, {
+    "name" : "configureDefaultConsumer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#configureDefaultConsumer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Update the default consumer configuration for the specified message type.\n"
+  }, {
+    "name" : "disableAdhocDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables support for dynamically injected dispatch interceptors.\n"
+  }, {
+    "name" : "disableAutomaticAggregateCaching",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAutomaticAggregateCaching",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables automatic caching of aggregates.\n"
+  }, {
+    "name" : "disableCacheEvictionMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableCacheEvictionMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables metrics related to cache eviction.\n"
+  }, {
+    "name" : "disableDataProtection",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableDataProtection",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables security filtering based on {@code @FilterContent}.\n"
+  }, {
+    "name" : "disableErrorReporting",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableErrorReporting",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables automatic error reporting (e.g., via {@link ErrorGateway}).\n"
+  }, {
+    "name" : "disableKeepalive",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableKeepalive",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables Fluxzero’s built-in keepalive mechanism.\n <p>\n By default, a Fluxzero instance keeps the JVM running after it is built by maintaining a single non-daemon\n thread. Calling this method disables that behavior, allowing the application to terminate normally once the main\n thread finishes.\n"
+  }, {
+    "name" : "disableMessageCorrelation",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableMessageCorrelation",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables automatic message correlation.\n"
+  }, {
+    "name" : "disablePayloadValidation",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disablePayloadValidation",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables payload validation.\n"
+  }, {
+    "name" : "disableScheduledCommandHandler",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableScheduledCommandHandler",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prevents installation of the default scheduled command handler.\n"
+  }, {
+    "name" : "disableShutdownHook",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableShutdownHook",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prevents registration of a shutdown hook.\n"
+  }, {
+    "name" : "disableTrackingMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableTrackingMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables tracking of processing metrics.\n"
+  }, {
+    "name" : "disableWebResponseCompression",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableWebResponseCompression",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables compression for web responses.\n"
+  }, {
+    "name" : "forwardWebRequestsToLocalServer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#forwardWebRequestsToLocalServer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server on\n the specified port.\n <p>\n This allows applications to handle web requests using their own HTTP server rather than Fluxzero’s message-based\n {@code @HandleWeb} infrastructure.\n <p>\n <strong>Note:</strong> This feature pushes requests to the local server and bypasses Fluxzero's pull-based\n dispatch model. Its use is discouraged unless integration with an existing HTTP stack is required.\n\n @param port the port on which the local HTTP server is listening\n @return this builder instance\n @see #forwardWebRequestsToLocalServer(LocalServerConfig, UnaryOperator)\n @see io.fluxzero.sdk.web.ForwardingWebConsumer\n"
+  }, {
+    "name" : "forwardWebRequestsToLocalServer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#forwardWebRequestsToLocalServer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "localServerConfig",
+      "type" : "io.fluxzero.sdk.web.LocalServerConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerConfigurator",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures forwarding of {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a local HTTP server using\n the specified {@link LocalServerConfig} and custom consumer configuration.\n <p>\n This mechanism is useful for advanced integration scenarios but bypasses Fluxzero's pull-based message tracking.\n Prefer native {@code @HandleWeb} handlers when possible.\n\n @param localServerConfig    configuration for the local server (e.g., port, error behavior)\n @param consumerConfigurator function to customize the underlying\n                             {@link io.fluxzero.sdk.tracking.ConsumerConfiguration}\n @return this builder instance\n @see io.fluxzero.sdk.web.ForwardingWebConsumer\n"
+  }, {
+    "name" : "makeApplicationInstance",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#makeApplicationInstance",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "makeApplicationInstance",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks the built instance as the global (application-level) {@link Fluxzero}.\n"
+  }, {
+    "name" : "registerUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#registerUserProvider",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "userProvider",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a user provider used for resolving and authenticating {@link User} instances.\n"
+  }, {
+    "name" : "replaceCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceCache",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cache",
+      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the default cache implementation.\n"
+  }, {
+    "name" : "replaceCorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceCorrelationDataProvider",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "correlationDataProvider",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the {@link CorrelationDataProvider} used to attach correlation data to messages.\n"
+  }, {
+    "name" : "replaceDefaultResponseMapper",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceDefaultResponseMapper",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseMapper",
+      "type" : "io.fluxzero.sdk.tracking.handling.ResponseMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the default response mapper used for generic result mapping.\n"
+  }, {
+    "name" : "replaceDocumentSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceDocumentSerializer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentSerializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the document serializer for search indexing.\n"
+  }, {
+    "name" : "replaceIdentityProvider",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceIdentityProvider",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replaceFunction",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.common.IdentityProvider>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the identity provider used to generate message and entity identifiers.\n"
+  }, {
+    "name" : "replaceMessageRoutingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceMessageRoutingInterceptor",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageRoutingInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the default routing interceptor used for message dispatch.\n"
+  }, {
+    "name" : "replacePropertySource",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replacePropertySource",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replacer",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.application.PropertySource>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the existing property source.\n"
+  }, {
+    "name" : "replaceRelationshipsCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceRelationshipsCache",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replaceFunction",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.persisting.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the internal relationships cache with a new implementation.\n"
+  }, {
+    "name" : "replaceSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceSerializer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the default serializer used for events, commands, snapshots, and documents.\n"
+  }, {
+    "name" : "replaceSnapshotSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceSnapshotSerializer",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Overrides the serializer used specifically for snapshot serialization.\n"
+  }, {
+    "name" : "replaceTaskScheduler",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceTaskScheduler",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<java.time.Clock,io.fluxzero.common.TaskScheduler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the default {@link TaskScheduler} implementation.\n"
+  }, {
+    "name" : "replaceWebResponseMapper",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceWebResponseMapper",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webResponseMapper",
+      "type" : "io.fluxzero.sdk.web.WebResponseMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the {@link WebResponseMapper} used for handling web responses.\n"
+  }, {
+    "name" : "withAggregateCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#withAggregateCache",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cache",
+      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures a dedicated cache for a specific aggregate type.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

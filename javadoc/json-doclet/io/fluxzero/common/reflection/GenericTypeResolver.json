@@ -1,0 +1,168 @@
+{
+  "name" : "GenericTypeResolver",
+  "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver",
+  "packageName" : "io.fluxzero.common.reflection",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Utility class for resolving generic type information in class hierarchies. This class provides methods to resolve and\n extract generic type details, including parameterized and array types, from a given class type in relation to a\n target type.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GenericTypeResolver",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#GenericTypeResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "erase",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#erase",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getGenericType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#getGenericType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clazz",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matchAndResolve",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#matchAndResolve",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reifyType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#reifyType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolveType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clazz",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveTypeVariable",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolveTypeVariable",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<java.lang.reflect.TypeVariable<?>,java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ParameterizedTypeImpl",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

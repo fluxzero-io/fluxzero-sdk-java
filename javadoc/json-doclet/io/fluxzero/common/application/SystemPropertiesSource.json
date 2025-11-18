@@ -1,0 +1,28 @@
+{
+  "name" : "SystemPropertiesSource",
+  "qualifiedName" : "io.fluxzero.common.application.SystemPropertiesSource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link PropertySource} implementation that reads configuration properties from the JVM system properties.\n <p>\n This source delegates to {@link System#getProperties()} to retrieve key-value pairs. It allows for application\n configuration using the {@code -Dkey=value} syntax when starting the JVM.\n\n <h2>Example:</h2>\n <pre>{@code\n java -Dmy.config.value=42 -jar my-app.jar\n }</pre>\n\n <p>This value could then be resolved via {@link PropertySource#get(String) PropertySource#get(\"my.config.value\")}.\n\n @see JavaPropertiesSource\n @see System#getProperties()\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.application.JavaPropertiesSource",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "SystemPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.SystemPropertiesSource#SystemPropertiesSource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

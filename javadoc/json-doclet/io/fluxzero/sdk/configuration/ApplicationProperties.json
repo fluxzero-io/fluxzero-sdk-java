@@ -1,0 +1,320 @@
+{
+  "name" : "ApplicationProperties",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties",
+  "packageName" : "io.fluxzero.sdk.configuration",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Central utility for resolving configuration properties within a Fluxzero application.\n\n <p>This class delegates to a layered {@link PropertySource}, typically obtained from the active\n {@link io.fluxzero.sdk.Fluxzero} instance. If no context-bound property source is present, it falls\n back to a {@link DecryptingPropertySource} that wraps the default layered {@link DefaultPropertySource}.\n\n <p>Property sources are accessed in a prioritized order:\n <ol>\n   <li>{@link EnvironmentVariablesSource} – highest precedence</li>\n   <li>{@link SystemPropertiesSource}</li>\n   <li>{@link ApplicationEnvironmentPropertiesSource} – e.g. application-dev.properties</li>\n   <li>{@link ApplicationPropertiesSource} – fallback base configuration from application.properties</li>\n </ol>\n\n <p>Property resolution supports typed access, default values, encryption, and template substitution.\n\n <p>Common usage:\n <pre>{@code\n String token = ApplicationProperties.getProperty(\"FLUXZERO_API_TOKEN\");\n boolean featureEnabled = ApplicationProperties.getBooleanProperty(\"my.feature.enabled\", true);\n }</pre>\n\n @see PropertySource\n @see DefaultPropertySource\n @see DecryptingPropertySource\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ApplicationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#ApplicationProperties",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "containsProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#containsProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns {@code true} if a property with the given name exists.\n"
+  }, {
+    "name" : "decryptValue",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#decryptValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "encryptedValue",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decrypts the given encrypted value using the configured {@link Encryption} strategy.\n <p>Returns the original value if decryption is not applicable.\n"
+  }, {
+    "name" : "encryptValue",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#encryptValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Encrypts the given value using the configured {@link Encryption} strategy.\n"
+  }, {
+    "name" : "getBooleanProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getBooleanProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a boolean property by key, returning {@code false} if not present.\n <p>Accepts case-insensitive \"true\" as {@code true}, otherwise returns {@code false}.\n"
+  }, {
+    "name" : "getBooleanProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getBooleanProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a boolean property by key, returning a default if the property is not present.\n"
+  }, {
+    "name" : "getEncryption",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getEncryption",
+    "returnType" : "io.fluxzero.common.encryption.Encryption",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the currently active {@link Encryption} instance.\n <p>By default, wraps the encryption from the current {@link PropertySource}.\n"
+  }, {
+    "name" : "getFirstAvailableProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getFirstAvailableProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyNames",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns an {@link Optional} containing the first non-null property value\n among the provided property names, if any exist. If no properties are resolved,\n returns an empty {@link Optional}.\n"
+  }, {
+    "name" : "getIntegerProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getIntegerProperty",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves an integer property by key, or {@code null} if not found.\n\n @throws NumberFormatException if the property value is not a valid integer\n"
+  }, {
+    "name" : "getIntegerProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getIntegerProperty",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves an integer property by key, or returns the given default value if not found.\n\n @throws NumberFormatException if the property value is not a valid integer\n"
+  }, {
+    "name" : "getProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the raw string property for the given key, or {@code null} if not found.\n"
+  }, {
+    "name" : "getProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the string property value for the given key, or the specified default if not found.\n"
+  }, {
+    "name" : "getPropertySource",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getPropertySource",
+    "returnType" : "io.fluxzero.common.application.DecryptingPropertySource",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mapProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#mapProperty",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<java.lang.String,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maps a property value identified by its name to a desired type using the provided mapping function.\n If the property is not available, the method returns {@code null}.\n"
+  }, {
+    "name" : "mapProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#mapProperty",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<java.lang.String,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValueSupplier",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maps a property value identified by its name to a desired type using the provided mapping function.\n If the property is not found, the method returns a default value supplied by the given supplier.\n"
+  }, {
+    "name" : "requireProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#requireProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the string property for the given key, throwing an {@link IllegalStateException} if not found.\n"
+  }, {
+    "name" : "substituteProperties",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#substituteProperties",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "template",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Substitutes placeholders in the given template using current property values.\n <p>Placeholders use the syntax {@code ${propertyName}}.\n"
+  }, {
+    "name" : "substituteProperties",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#substituteProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "properties",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Substitutes placeholders in the properties using current property values.\n <p>Placeholders use the syntax {@code ${propertyName}}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

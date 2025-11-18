@@ -1,0 +1,285 @@
+{
+  "name" : "TimingUtils",
+  "qualifiedName" : "io.fluxzero.common.TimingUtils",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Utility class for measuring execution time and retrying operations with configurable backoff and error handling.\n <p>\n Provides static methods to:\n <ul>\n     <li>Measure the execution duration of tasks with optional reporting callbacks.</li>\n     <li>Retry failing tasks with custom retry conditions and backoff strategies.</li>\n     <li>Check if a deadline has passed.</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "TimingUtils",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#TimingUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "isMissedDeadline",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#isMissedDeadline",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the given deadline has passed using the specified {@link Clock}.\n\n @param clock    the clock to use\n @param deadline the deadline to compare\n @return true if the current time is after the deadline\n"
+  }, {
+    "name" : "isMissedDeadline",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#isMissedDeadline",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the given deadline has passed using the system UTC clock.\n\n @param deadline the deadline to compare\n @return true if the current time is after the deadline\n"
+  }, {
+    "name" : "retryOnFailure",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#retryOnFailure",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retries a task indefinitely if it fails, using a fixed delay.\n\n @param task  the task to retry\n @param delay the delay between retries\n"
+  }, {
+    "name" : "retryOnFailure",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#retryOnFailure",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retries a task indefinitely if it fails and matches the given exception predicate.\n\n @param task      the task to retry\n @param delay     the delay between retries\n @param predicate predicate to determine which exceptions are retryable\n"
+  }, {
+    "name" : "retryOnFailure",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#retryOnFailure",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"BusyWait\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.RetryConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retries a {@link Callable} task using a full {@link RetryConfiguration}. Supports optional logging, error test\n logic, retry limits, and fail-fast behavior.\n\n @param task          the task to run\n @param configuration the retry configuration\n @param <T>           the result type\n @return the result of the task\n"
+  }, {
+    "name" : "retryOnFailure",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#retryOnFailure",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retries a {@link Callable} task indefinitely with a fixed delay.\n\n @param task  the task to retry\n @param delay the delay between retries\n @param <T>   the result type\n @return the successful result\n"
+  }, {
+    "name" : "retryOnFailure",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#retryOnFailure",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorTest",
+      "type" : "java.util.function.Predicate<java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retries a {@link Callable} task with a delay and a predicate to filter retryable exceptions.\n\n @param task      the task to execute\n @param delay     the delay between retries\n @param errorTest predicate to test whether an exception is retryable\n @param <T>       the result type\n @return the successful result, or {@code null} if not retryable and throwOnFailingErrorTest is false\n"
+  }, {
+    "name" : "time",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#time",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "java.util.function.Consumer<java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a task and measures its execution time in milliseconds.\n\n @param task     the task to run\n @param callback the callback to report the elapsed time\n"
+  }, {
+    "name" : "time",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#time",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "java.util.function.Consumer<java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeUnit",
+      "type" : "java.time.temporal.TemporalUnit",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a task and measures its execution time in the specified {@link TemporalUnit}.\n\n @param task     the task to run\n @param callback the callback to report the elapsed time\n @param timeUnit the unit of time to report\n"
+  }, {
+    "name" : "time",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#time",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "java.util.function.Consumer<java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a {@link Callable} and measures its execution time in milliseconds.\n\n @param task     the task to run\n @param callback the callback to report the elapsed time\n @param <T>      the return type of the task\n @return the result of the callable\n"
+  }, {
+    "name" : "time",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#time",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "java.util.function.Consumer<java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeUnit",
+      "type" : "java.time.temporal.TemporalUnit",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a {@link Callable} and measures its execution time in the given {@link TemporalUnit}.\n\n @param task     the task to run\n @param callback the callback to report the elapsed time\n @param timeUnit the time unit to use\n @param <T>      the return type of the task\n @return the result of the callable\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

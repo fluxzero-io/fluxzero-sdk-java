@@ -1,0 +1,52 @@
+{
+  "name" : "ReadFromIndex",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Request to fetch a batch of messages from a given log starting from a given index.\n <p>\n This low-level API is typically used by administrators or tools that want to directly inspect messages in a\n message log without relying on a registered consumer or tracker.\n <p>\n This request bypasses the segment claiming and tracker coordination logic normally used in streaming consumption.\n It is useful for debugging, audit trails, or manual inspection of persisted messages.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "maxSize",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex.maxSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The maximum number of messages to return in a single batch.\n <p>\n Note that the actual number of returned messages may be smaller if there are fewer available at or above\n the specified index.\n",
+    "constantValue" : null
+  }, {
+    "name" : "minIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex.minIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The minimum index (inclusive) to start reading messages from.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ReadFromIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex#ReadFromIndex",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

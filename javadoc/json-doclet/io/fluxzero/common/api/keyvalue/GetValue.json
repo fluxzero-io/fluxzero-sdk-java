@@ -1,0 +1,44 @@
+{
+  "name" : "GetValue",
+  "qualifiedName" : "io.fluxzero.common.api.keyvalue.GetValue",
+  "packageName" : "io.fluxzero.common.api.keyvalue",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Request to retrieve a value from the legacy key-value store.\n <p>\n This request returns the serialized value associated with the specified {@code key}, if present. It is part of the\n legacy key-value subsystem, which has largely been superseded by the document store.\n </p>\n\n <h2>Behavior</h2>\n <ul>\n   <li>If the key is not found, the returned {@link io.fluxzero.common.api.Data} will be {@code null} or empty depending on usage context.</li>\n   <li>The value is returned as raw serialized data in {@link io.fluxzero.common.api.Data} format.</li>\n </ul>\n\n <h2>Usage Notes</h2>\n <ul>\n   <li>This API is mostly retained for backwards compatibility. Prefer using the {@code SearchClient} for modern data queries and lookups.</li>\n   <li>The result is returned in a {@link GetValueResult} response.</li>\n </ul>\n\n @see GetValueResult\n @see StoreValues\n @see DeleteValue\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.GetValue.key",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The key to retrieve from the store.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetValue",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.GetValue#GetValue",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

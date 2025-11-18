@@ -1,0 +1,47 @@
+{
+  "name" : "AppliedEvent",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.AppliedEvent",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents an event that has been applied to an aggregate along with its intended publication strategy.\n\n <p>This object combines a deserialized event with its {@link EventPublicationStrategy}, allowing the system\n to determine how the event should be treated upon commit:\n <ul>\n   <li>Whether it should be published immediately to the event gateway</li>\n   <li>Whether it should only be persisted in the event store of the aggregate</li>\n   <li>Or both (default behavior)</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "event",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AppliedEvent.event",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The deserialized message representing the applied domain event.\n",
+    "constantValue" : null
+  }, {
+    "name" : "publicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AppliedEvent.publicationStrategy",
+    "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The publication strategy indicating whether this event should be published, stored, or both.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AppliedEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AppliedEvent#AppliedEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

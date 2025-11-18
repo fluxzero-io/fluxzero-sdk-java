@@ -1,0 +1,74 @@
+{
+  "name" : "Condition",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean$Condition",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "org.springframework.core.annotation.Order",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.SuppressWarnings",
+    "values" : {
+      "value" : "\"NullableProblems\",\"ConstantConditions\""
+    }
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "org.springframework.context.annotation.ConfigurationCondition" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Condition",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean$Condition#Condition",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getConfigurationPhase",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean$Condition#getConfigurationPhase",
+    "returnType" : "org.springframework.context.annotation.ConfigurationCondition.ConfigurationPhase",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean$Condition#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "org.springframework.context.annotation.ConditionContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "org.springframework.core.type.AnnotatedTypeMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

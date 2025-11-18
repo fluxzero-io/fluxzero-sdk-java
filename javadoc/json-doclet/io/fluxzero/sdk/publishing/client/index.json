@@ -1,0 +1,19 @@
+{
+  "package" : {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "GatewayClient.json",
+    "name" : "GatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketGatewayClient.json",
+    "name" : "WebsocketGatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.WebsocketGatewayClient",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

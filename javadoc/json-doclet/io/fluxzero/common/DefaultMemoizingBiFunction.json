@@ -1,0 +1,174 @@
+{
+  "name" : "DefaultMemoizingBiFunction",
+  "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A default implementation of the {@link MemoizingBiFunction} interface that memoizes (caches) results of a\n {@link BiFunction} based on a pair of input arguments. Cached results can be reused for identical subsequent\n calls, and the cache can optionally be configured with a lifespan and a custom clock for time-based eviction.\n\n This class internally uses a {@link MemoizingFunction}, with the input arguments wrapped as\n {@link Map.Entry} for caching purposes.\n\n @param <T> the type of the first input argument\n @param <U> the type of the second input argument\n @param <R> the type of the computed result\n",
+  "typeParameters" : [ "T", "U", "R" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.MemoizingBiFunction<T,U,R>" ],
+  "fields" : [ {
+    "name" : "function",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction.function",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.util.Map.Entry<T,U>,R>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultMemoizingBiFunction",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#DefaultMemoizingBiFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.BiFunction<T,U,R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultMemoizingBiFunction",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#DefaultMemoizingBiFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.BiFunction<T,U,R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#apply",
+    "returnType" : "R",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forEach",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#forEach",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<? super R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isCached",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#isCached",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction#remove",
+    "returnType" : "R",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

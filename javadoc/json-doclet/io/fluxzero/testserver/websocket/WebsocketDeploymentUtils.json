@@ -1,0 +1,132 @@
+{
+  "name" : "WebsocketDeploymentUtils",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "bufferPool",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.bufferPool",
+    "type" : "io.undertow.connector.ByteBufferPool",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebsocketDeploymentUtils",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#WebsocketDeploymentUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "createWebsocketDeploymentInfo",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWebsocketDeploymentInfo",
+    "returnType" : "io.undertow.websockets.jsr.WebSocketDeploymentInfo",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createWorker",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWorker",
+    "returnType" : "org.xnio.XnioWorker",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deploy",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#deploy",
+    "returnType" : "io.undertow.server.handlers.PathHandler",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointSupplier",
+      "type" : "java.util.function.Function<java.lang.String,jakarta.websocket.Endpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathHandler",
+      "type" : "io.undertow.server.handlers.PathHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deployFromSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#deployFromSession",
+    "returnType" : "io.undertow.server.handlers.PathHandler",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointSupplier",
+      "type" : "io.fluxzero.common.MemoizingFunction<jakarta.websocket.Session,jakarta.websocket.Endpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathHandler",
+      "type" : "io.undertow.server.handlers.PathHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getProjectId",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#getProjectId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

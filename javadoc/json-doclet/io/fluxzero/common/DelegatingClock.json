@@ -1,0 +1,105 @@
+{
+  "name" : "DelegatingClock",
+  "qualifiedName" : "io.fluxzero.common.DelegatingClock",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A concrete implementation of a {@link Clock} that delegates its method calls to another {@link Clock}\n instance, allowing runtime manipulation of the delegated clock.\n\n <p>This class is useful when you need to dynamically switch the clock's implementation during runtime,\n for example, testing scenarios requiring adjustable or controlled time flows.\n\n <p>The delegated clock instance is stored atomically to ensure thread-safe updates.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.time.Clock",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock.delegate",
+    "type" : "java.util.concurrent.atomic.AtomicReference<java.time.Clock>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DelegatingClock",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#DelegatingClock",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getZone",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#getZone",
+    "returnType" : "java.time.ZoneId",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "instant",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#instant",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setDelegate",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#setDelegate",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.time.@lombok.NonNull Clock",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withZone",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#withZone",
+    "returnType" : "java.time.Clock",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "zone",
+      "type" : "java.time.ZoneId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

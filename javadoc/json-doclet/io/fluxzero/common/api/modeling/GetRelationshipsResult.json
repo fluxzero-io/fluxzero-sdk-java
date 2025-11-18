@@ -1,0 +1,55 @@
+{
+  "name" : "GetRelationshipsResult",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Response to a {@link GetRelationships} request, containing all known relationships for a given entity ID.\n <p>\n This includes all aggregates that reference or embed the specified entity, along with the entity ID used\n in the relationship.\n\n @see GetRelationships\n @see Relationship\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "relationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult.relationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " List of {@link Relationship} instances that reference the given entity ID across one or more aggregates.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Unique identifier linking this result to the originating {@link GetRelationships} request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp indicating when this result was created.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetRelationshipsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult#GetRelationshipsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

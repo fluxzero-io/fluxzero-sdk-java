@@ -1,0 +1,84 @@
+{
+  "name" : "ErrorGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gateway interface for reporting errors during message handling.\n <p>\n The {@code ErrorGateway} is responsible for publishing error messages that occur during the processing of\n commands, queries, schedules, web requests, or other types of messages. These error messages are typically\n forwarded to a centralized error stream, which may be consumed for diagnostics, alerting, auditing, or automated\n handling.\n\n <p>This interface provides methods to report errors as plain objects or as {@link Message} instances, along with\n optional {@link Metadata} and a {@link Guarantee} that controls the dispatching behavior (e.g. SENT vs STORED).\n\n <h2>Automatic Error Reporting</h2>\n Fluxzero automatically reports exceptions that are thrown during handler method invocation. This includes\n both {@link RuntimeException}s and checked exceptions wrapped in runtime exceptions. In most cases, users do not\n need to manually report errors using this gateway.\n\n <p>Fluxzero can also integrate with popular logging frameworks (e.g. Logback, Log4j, SLF4J) to monitor and report any\n logged warnings or errors as {@code ERROR} messages, depending on configuration. This provides deep visibility\n into both application logic failures and operational anomalies.\n\n <h2>Manual Use Cases</h2>\n Manual usage of this gateway is only necessary in edge cases such as:\n <ul>\n   <li>Forwarding functional errors from external systems that are not raised as exceptions.</li>\n   <li>Publishing structured error messages for use in dashboards, alerting systems, or external consumers.</li>\n   <li>Custom pipelines where message handling does not involve regular handler mechanisms.</li>\n </ul>\n\n @see HasLocalHandlers\n @see Guarantee\n @see io.fluxzero.sdk.common.exception.FunctionalException\n @see io.fluxzero.sdk.common.exception.TechnicalException\n @see ResultGateway for sending command/query results instead of errors\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reports an error using the provided object. If the object is a {@link Message}, it is passed through with its\n payload and metadata intact. Otherwise, it is wrapped in a new message with empty metadata.\n\n @param error the error object or {@link Message} to report\n"
+  }, {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reports an error with the given payload and metadata using the default {@link Guarantee#NONE}.\n <p>\n This method blocks until the reporting operation is completed or fails.\n\n @param payload  the error payload\n @param metadata context metadata for the error\n"
+  }, {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reports an error with the given payload, metadata, and delivery guarantee.\n <p>\n Returns a future that completes once the error message is sent or stored based on the provided guarantee.\n\n @param payload   the error payload\n @param metadata  metadata describing the context of the error\n @param guarantee whether to ensure message is sent ({@link Guarantee#SENT}) or stored ({@link Guarantee#STORED})\n @return a future that completes once the message has been handled appropriately\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

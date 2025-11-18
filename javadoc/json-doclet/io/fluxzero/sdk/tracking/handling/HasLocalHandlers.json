@@ -1,0 +1,82 @@
+{
+  "name" : "HasLocalHandlers",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Base interface for gateways that support registering local message handlers.\n <p>\n Gateways that implement this interface can invoke message handlers directly in-memory, without involving the Fluxzero\n Runtime. This is useful for scenarios where local responsiveness is critical or when the message is\n intended only for the current application.\n <p>\n Local handler registration is typically used for commands, queries, events, and other messages where in-process\n handling is desired. Handlers are registered per-target object, and can be selectively filtered using a\n {@link HandlerFilter}.\n\n @see HandlerFilter\n @see LocalHandler\n @see TrackSelf\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "hasLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers#hasLocalHandlers",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether any local handlers are currently registered for this gateway.\n\n @return {@code true} if local handlers are present, {@code false} otherwise\n"
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers the given handler object and includes only the methods that are annotated with a recognized handler\n annotation (e.g., {@code @HandleCommand}, {@code @HandleQuery}, etc.).\n <p>\n This method uses {@link LocalHandler} to determine which methods to include. If a payload has an annotated\n handler like {@link HandleQuery} inside its class and the class is <em>not</em> annotated with {@link TrackSelf}, the\n handler is also considered to be local.\n\n @param target the object containing handler methods\n @return a {@link Registration} which can be used to unregister the handlers\n"
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a handler object, including only those methods that match the provided {@link HandlerFilter}.\n <p>\n This method offers fine-grained control over which handler methods are registered, based on custom logic applied\n to method annotations and/or signatures.\n\n @param target        the handler object containing annotated methods\n @param handlerFilter the filter used to determine which methods should be registered\n @return a {@link Registration} which can be used to unregister the handlers\n"
+  }, {
+    "name" : "setSelfHandlerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers#setSelfHandlerFilter",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selfHandlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets a custom filter to control whether a handler method is considered a local handler for the current\n application. This is typically used internally to ensure that handlers are associated with the correct\n application or component.\n\n @param selfHandlerFilter a {@link HandlerFilter} to apply to registered handlers\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,58 @@
+{
+  "name" : "ForeverRetryingErrorHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.ForeverRetryingErrorHandler",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A specialized {@link RetryingErrorHandler} that retries failed operations indefinitely until they succeed.\n <p>\n This handler is useful in scenarios where failure is considered temporary and must eventually resolve before\n processing can proceed. It ensures **no message is ever skipped or dropped**, regardless of how many attempts\n are required.\n\n <p><strong>Behavior:</strong>\n <ul>\n     <li>Applies retry logic to all errors that match the provided {@code errorFilter} (default: non-functional errors).</li>\n     <li>Waits a fixed {@link Duration} between attempts (default: 10 seconds).</li>\n     <li>Never stops the consumer or throws — tracking continues until the retry succeeds.</li>\n     <li>Logs retry attempts and outcomes via inherited {@link RetryConfiguration}.</li>\n </ul>\n\n <p><strong>Use Cases:</strong>\n <ul>\n     <li>Systems that rely on eventual consistency and cannot tolerate message loss</li>\n     <li>Recoverable infrastructure failures (e.g., DB outages, network timeouts)</li>\n     <li>Replaying old messages into strict projections</li>\n </ul>\n\n <p><strong>Usage Example:</strong>\n <pre>{@code\n @Consumer(name = \"criticalProjection\", errorHandler = ForeverRetryingErrorHandler.class)\n public class StrictProjectionHandler {\n     @HandleEvent\n     void on(FinancialTransaction event) {\n         // Will retry forever on failure until the event is handled successfully\n     }\n }\n }</pre>\n\n @see RetryingErrorHandler\n @see ErrorHandler\n @see FunctionalException\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.tracking.RetryingErrorHandler",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ForeverRetryingErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ForeverRetryingErrorHandler#ForeverRetryingErrorHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code ForeverRetryingErrorHandler} with a default 10-second delay between attempts,\n retrying non-functional errors and logging both functional and technical failures.\n"
+  }, {
+    "name" : "ForeverRetryingErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ForeverRetryingErrorHandler#ForeverRetryingErrorHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorFilter",
+      "type" : "java.util.function.Predicate<java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "logFunctionalErrors",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorMapper",
+      "type" : "java.util.function.Function<java.lang.Throwable,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code ForeverRetryingErrorHandler} with custom delay, error filtering, logging, and error mapping.\n\n @param delay               the delay between retries\n @param errorFilter         predicate to select which errors should trigger retries\n @param logFunctionalErrors whether to log functional errors\n @param errorMapper         maps the final error into a result (though retries never exhaust)\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

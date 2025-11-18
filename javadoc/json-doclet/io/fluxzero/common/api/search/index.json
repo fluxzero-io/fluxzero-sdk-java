@@ -1,0 +1,230 @@
+{
+  "package" : {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.common.api.search",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "BulkUpdate.json",
+    "name" : "BulkUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate",
+    "kind" : "interface"
+  }, {
+    "file" : "BulkUpdate.Type.json",
+    "name" : "BulkUpdate.Type",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate$Type",
+    "kind" : "enum"
+  }, {
+    "file" : "BulkUpdateDocuments.json",
+    "name" : "BulkUpdateDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "BulkUpdateDocuments.Metric.json",
+    "name" : "BulkUpdateDocuments.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "Constraint.json",
+    "name" : "Constraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint",
+    "kind" : "interface"
+  }, {
+    "file" : "CreateAuditTrail.json",
+    "name" : "CreateAuditTrail",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail",
+    "kind" : "class"
+  }, {
+    "file" : "DeleteCollection.json",
+    "name" : "DeleteCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection",
+    "kind" : "class"
+  }, {
+    "file" : "DeleteDocumentById.json",
+    "name" : "DeleteDocumentById",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById",
+    "kind" : "class"
+  }, {
+    "file" : "DeleteDocuments.json",
+    "name" : "DeleteDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentStats.json",
+    "name" : "DocumentStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentStats.FieldStats.json",
+    "name" : "DocumentStats.FieldStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats$FieldStats",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentUpdate.json",
+    "name" : "DocumentUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate",
+    "kind" : "class"
+  }, {
+    "file" : "FacetEntry.json",
+    "name" : "FacetEntry",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetEntry",
+    "kind" : "class"
+  }, {
+    "file" : "FacetStats.json",
+    "name" : "FacetStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetStats",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocument.json",
+    "name" : "GetDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocument",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentResult.json",
+    "name" : "GetDocumentResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentResult.Metric.json",
+    "name" : "GetDocumentResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentStats.json",
+    "name" : "GetDocumentStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentStatsResult.json",
+    "name" : "GetDocumentStatsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStatsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentStatsResult.Metric.json",
+    "name" : "GetDocumentStatsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStatsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocuments.json",
+    "name" : "GetDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentsResult.json",
+    "name" : "GetDocumentsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetDocumentsResult.Metric.json",
+    "name" : "GetDocumentsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetFacetStats.json",
+    "name" : "GetFacetStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStats",
+    "kind" : "class"
+  }, {
+    "file" : "GetFacetStatsResult.json",
+    "name" : "GetFacetStatsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStatsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetFacetStatsResult.Metric.json",
+    "name" : "GetFacetStatsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStatsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetSearchHistogram.json",
+    "name" : "GetSearchHistogram",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchHistogram",
+    "kind" : "class"
+  }, {
+    "file" : "GetSearchHistogramResult.json",
+    "name" : "GetSearchHistogramResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchHistogramResult",
+    "kind" : "class"
+  }, {
+    "file" : "Group.json",
+    "name" : "Group",
+    "qualifiedName" : "io.fluxzero.common.api.search.Group",
+    "kind" : "class"
+  }, {
+    "file" : "HasDocument.json",
+    "name" : "HasDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.HasDocument",
+    "kind" : "class"
+  }, {
+    "file" : "IndexDocuments.json",
+    "name" : "IndexDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "IndexDocuments.Metric.json",
+    "name" : "IndexDocuments.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "MoveDocumentById.json",
+    "name" : "MoveDocumentById",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocumentById",
+    "kind" : "class"
+  }, {
+    "file" : "MoveDocuments.json",
+    "name" : "MoveDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "NoOpConstraint.json",
+    "name" : "NoOpConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.NoOpConstraint",
+    "kind" : "class"
+  }, {
+    "file" : "SearchDocuments.json",
+    "name" : "SearchDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "SearchDocumentsResult.json",
+    "name" : "SearchDocumentsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocumentsResult",
+    "kind" : "class"
+  }, {
+    "file" : "SearchDocumentsResult.Metric.json",
+    "name" : "SearchDocumentsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocumentsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "SearchHistogram.json",
+    "name" : "SearchHistogram",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram",
+    "kind" : "class"
+  }, {
+    "file" : "SearchQuery.json",
+    "name" : "SearchQuery",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery",
+    "kind" : "class"
+  }, {
+    "file" : "SearchQuery.Builder.json",
+    "name" : "SearchQuery.Builder",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery$Builder",
+    "kind" : "class"
+  }, {
+    "file" : "SerializedDocument.json",
+    "name" : "SerializedDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument",
+    "kind" : "class"
+  }, {
+    "file" : "SortableEntry.json",
+    "name" : "SortableEntry",
+    "qualifiedName" : "io.fluxzero.common.api.search.SortableEntry",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "bulkupdate",
+    "path" : "bulkupdate"
+  }, {
+    "name" : "constraints",
+    "path" : "constraints"
+  } ]
+}

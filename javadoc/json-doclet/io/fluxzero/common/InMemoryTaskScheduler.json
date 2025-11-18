@@ -1,0 +1,428 @@
+{
+  "name" : "InMemoryTaskScheduler",
+  "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " An in-memory implementation of the {@link TaskScheduler} interface, enabling scheduling and execution of tasks in a\n virtualized time environment. This class is suitable for deterministic testing and scenarios where precise control\n over task execution is required.\n <p>\n This scheduler uses a {@link ScheduledExecutorService} to periodically check for and execute tasks that have passed\n their deadlines. Tasks can be submitted for immediate execution or scheduled for execution at a specified time.\n <p>\n The scheduler also allows for asynchronous task execution using a provided {@link ExecutorService} or a default\n direct executor if one is not provided.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.TaskScheduler" ],
+  "fields" : [ {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.clock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultDelay",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.defaultDelay",
+    "type" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultThreadName",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.defaultThreadName",
+    "type" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultclock",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.defaultclock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executorService",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.executorService",
+    "type" : "java.util.concurrent.ScheduledExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "tasks",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.tasks",
+    "type" : "java.util.Set<io.fluxzero.common.InMemoryTaskScheduler.Task>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "workerPool",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.workerPool",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#clock",
+    "returnType" : "java.time.Clock",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeExpiredTasks",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasks",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeExpiredTasksAsync",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasksAsync",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#schedule",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutdown",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#shutdown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "submit",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#submit",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryRunTask",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#tryRunTask",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.common.InMemoryTaskScheduler.Task",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Task",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler$Task",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  } ]
+}

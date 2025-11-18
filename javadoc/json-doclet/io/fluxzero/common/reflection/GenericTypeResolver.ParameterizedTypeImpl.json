@@ -1,0 +1,69 @@
+{
+  "name" : "ParameterizedTypeImpl",
+  "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl",
+  "packageName" : "io.fluxzero.common.reflection",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.reflect.ParameterizedType" ],
+  "fields" : [ {
+    "name" : "actualTypeArguments",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.actualTypeArguments",
+    "type" : "java.lang.reflect.Type[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ownerType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.ownerType",
+    "type" : "java.lang.reflect.Type",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rawType",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl.rawType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ParameterizedTypeImpl",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#ParameterizedTypeImpl",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver$ParameterizedTypeImpl#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

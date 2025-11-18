@@ -1,0 +1,47 @@
+{
+  "name" : "CommitHandler",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unpublished",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beforeUpdate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

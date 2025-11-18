@@ -1,0 +1,52 @@
+{
+  "name" : "MetadataParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Resolves handler method parameters of type {@link Metadata}.\n <p>\n This resolver can inject metadata into handler methods in two ways:\n <ul>\n   <li>If the message being handled implements {@link HasMetadata}, its metadata is directly returned.</li>\n   <li>Otherwise, the metadata is extracted from the current {@link DeserializingMessage} (if available).</li>\n </ul>\n\n <p>Example handler:\n <pre>{@code\n @HandleCommand\n public void handle(MyCommand command, Metadata metadata) {\n     String user = metadata.get(\"userId\");\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.handling.TypedParameterResolver<java.lang.Object>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "MetadataParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver#MetadataParameterResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

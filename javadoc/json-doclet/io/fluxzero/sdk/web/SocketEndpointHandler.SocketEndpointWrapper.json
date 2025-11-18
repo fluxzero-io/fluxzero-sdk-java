@@ -1,0 +1,245 @@
+{
+  "name" : "SocketEndpointWrapper",
+  "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "io.fluxzero.sdk.web.Path",
+    "values" : {
+      "value" : "*"
+    }
+  }, {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A stateful wrapper around a WebSocket endpoint instance, managing per-session behavior and message handling.\n <p>\n This class is created per WebSocket session and holds:\n <ul>\n     <li>A lazily instantiated target handler</li>\n     <li>Connection health tracking (ping/pong logic)</li>\n     <li>Automatic session cleanup via {@link Registration} hooks</li>\n     <li>Delegation to matching methods for open, message, pong, and close events</li>\n </ul>\n <p>\n When the first {@code @HandleSocketOpen} or {@code @HandleSocketMessage} message arrives for a session,\n the target handler is initialized and stored. Subsequent WebSocket lifecycle messages (e.g. {@code @HandleSocketPong},\n {@code @HandleSocketClose}) are routed to the correct methods on the same instance.\n <p>\n Ping scheduling and timeout behavior is based on the {@link SocketEndpoint#aliveCheck()} configuration.\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n @see HandleSocketPong\n @see HandleSocketClose\n @see SocketEndpoint\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "annotation",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.annotation",
+    "type" : "io.fluxzero.sdk.web.SocketEndpoint",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "closeCallback",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.closeCallback",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.closed",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pingDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.pingDeadline",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pingDelay",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.pingDelay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pingTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.pingTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "session",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.session",
+    "type" : "io.fluxzero.sdk.web.SocketSession",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper.targetHandler",
+    "type" : "io.fluxzero.sdk.tracking.handling.MutableHandler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SocketEndpointWrapper",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#SocketEndpointWrapper",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "abort",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#abort",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeCode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isOpen",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#isOpen",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onClose",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#onClose",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.web.HandleSocketClose",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onOpenOrMessage",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#onOpenOrMessage",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.web.HandleSocketOpen",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.web.HandleSocketMessage",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.web.SocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onPong",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#onPong",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.web.HandleSocketPong",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#sendPing",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pingTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "taskScheduler",
+      "type" : "io.fluxzero.common.TaskScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trySchedulePing",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#trySchedulePing",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unwrap",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper#unwrap",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

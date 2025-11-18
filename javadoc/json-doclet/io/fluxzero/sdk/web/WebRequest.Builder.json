@@ -1,0 +1,296 @@
+{
+  "name" : "Builder",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Data",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.NoArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.Accessors",
+    "values" : {
+      "chain" : "true",
+      "fluent" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.experimental.FieldDefaults",
+    "values" : {
+      "level" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " Fluent builder for {@link WebRequest}. Use {@link #builder()} to start building.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "acceptGzipEncoding",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.acceptGzipEncoding",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cookies",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.cookies",
+    "type" : "java.util.List<java.net.HttpCookie>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Setter",
+      "values" : {
+        "value" : "NONE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.headers",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.metadata",
+    "type" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.method",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.payload",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "url",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder.url",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Builder",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#Builder",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Builder",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#Builder",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "body",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#body",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#build",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clearHeader",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#clearHeader",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "contentType",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#contentType",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "contentType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cookie",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#cookie",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cookie",
+      "type" : "java.net.HttpCookie",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "header",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#header",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "header",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#header",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifAbsent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headerIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headerIfAbsent",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headers",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headers",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,84 @@
+{
+  "name" : "MetricsGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gateway interface for publishing metrics messages in Fluxzero.\n <p>\n This gateway provides a convenient way to log and transmit application performance data, operational metrics, or\n monitoring signals. Metrics messages can be published either as raw payloads or as fully constructed {@link Message}\n objects. Metadata and delivery guarantees can also be specified.\n <p>\n Metrics are typically not routed for domain logic handling, but can be consumed by local handlers as well as\n non-local handlers (e.g., for logging or real-time telemetry).\n\n <p><strong>Example usage:</strong>\n <pre>{@code\n Fluxzero.publishMetrics(new SystemMetrics(...));\n }</pre>\n\n @see Message\n @see Guarantee\n @see HasLocalHandlers\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "publish",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway#publish",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metrics",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Publishes a metrics message using default metadata and {@link Guarantee#NONE}.\n <p>\n If the provided value is already a {@link Message}, its payload and metadata will be extracted. Otherwise, it is\n wrapped in a new {@link Message}.\n\n @param metrics the metrics object or {@link Message} to publish\n"
+  }, {
+    "name" : "publish",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway#publish",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Publishes a metrics payload with the specified metadata and a {@link Guarantee#NONE} delivery guarantee.\n\n @param payload  the payload of the metrics message\n @param metadata metadata to attach to the message\n"
+  }, {
+    "name" : "publish",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway#publish",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Publishes a metrics message with the specified metadata and delivery guarantee.\n <p>\n This method may complete asynchronously.\n\n @param payload   the metrics payload\n @param metadata  metadata to attach to the message\n @param guarantee delivery guarantee (e.g., {@link Guarantee#SENT} or {@link Guarantee#STORED})\n @return a {@link CompletableFuture} that completes when the message is published (or not, depending on the\n guarantee)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

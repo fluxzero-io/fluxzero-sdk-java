@@ -1,0 +1,122 @@
+{
+  "name" : "DefaultWebRequestGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Default implementation of the {@link WebRequestGateway} interface that delegates requests to a configured\n {@link GenericGateway}. This class acts as a bridge for handling outbound web requests using Fluxzero Runtime’s proxy\n mechanism.\n <p>\n It supports sending web requests in both asynchronous (fire-and-forget, future-based) and synchronous (blocking)\n manners, utilizing the underlying delegate to process the actual interactions with the Fluxzero Runtime.\n\n @see WebRequestGateway\n @see GenericGateway\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.WebRequestGateway" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway.delegate",
+    "type" : "io.fluxzero.sdk.publishing.GenericGateway",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.Delegate",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultWebRequestGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#DefaultWebRequestGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#sendAndForget",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requests",
+      "type" : "io.fluxzero.sdk.web.WebRequest[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#sendAndWait",
+    "returnType" : "io.fluxzero.sdk.web.WebResponse",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

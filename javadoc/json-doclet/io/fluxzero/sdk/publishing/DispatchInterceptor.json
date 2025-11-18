@@ -1,0 +1,128 @@
+{
+  "name" : "DispatchInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Mechanism that enables modification, monitoring, or conditional suppression of messages before they are dispatched to\n local handlers or published to the Fluxzero Runtime.\n <p>\n A {@code DispatchInterceptor} allows observing and transforming messages during the dispatch process. It is typically\n used to inject metadata, rewrite payloads, log outgoing messages, or prevent dispatching certain messages based on\n custom rules.\n\n <p><strong>Key behaviors:</strong>\n <ul>\n   <li>{@link #interceptDispatch} is used for altering or blocking a message before it's handled or published.</li>\n   <li>{@link #modifySerializedMessage} can change the final serialized message before it's stored or sent to the Fluxzero Runtime.</li>\n   <li>{@link #monitorDispatch} is a post-processing hook for monitoring without side effects or blocking.</li>\n </ul>\n\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor.noOp",
+    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " No-op implementation of the {@code DispatchInterceptor} that returns the original message unchanged.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#andThen",
+    "returnType" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nextInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Chains this interceptor with another. The resulting interceptor applies this one first, then the next one.\n\n @param nextInterceptor the interceptor to run after this one\n @return a new {@code DispatchInterceptor} representing the combined logic\n"
+  }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts the dispatch of a message before it is serialized and published or locally handled.\n <p>\n You may modify the message or return {@code null} to block dispatching. Throwing an exception also prevents\n dispatching.\n\n @param message     the message to be dispatched\n @param messageType the type of the message (e.g., COMMAND, EVENT, etc.)\n @param topic       the target topic or null if not applicable\n @return the modified message, the same message, or {@code null} to prevent dispatch\n"
+  }, {
+    "name" : "modifySerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#modifySerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Allows modifications to the serialized representation of the message before it is actually published.\n <p>\n This is called after {@link #interceptDispatch} and should not be used to block dispatching — use\n {@link #interceptDispatch} for that purpose instead.\n\n @param serializedMessage the serialized form of the message\n @param message           the deserialized message object\n @param messageType       the message type\n @param topic             the target topic\n @return the modified or original {@link SerializedMessage}\n"
+  }, {
+    "name" : "monitorDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#monitorDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Hook to observe the dispatch of a message. This method is called after all interceptors have had a chance to\n block or modify the message.\n <p>\n Use this for logging or metrics, but <em>not</em> to alter or block the message.\n\n @param message     the final message about to be handled or published\n @param messageType the type of the message\n @param topic       the topic to which the message is dispatched (can be null)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

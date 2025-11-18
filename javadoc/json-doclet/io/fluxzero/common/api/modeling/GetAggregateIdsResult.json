@@ -1,0 +1,55 @@
+{
+  "name" : "GetAggregateIdsResult",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Response to a {@link GetAggregateIds} request, returning a mapping of aggregate IDs to types.\n <p>\n The result indicates all aggregates that are associated with the provided entity ID.\n This is particularly useful for routing messages or updates when only an entity reference is known.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "aggregateIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult.aggregateIds",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " A map where the key is the aggregate ID and the value is the corresponding aggregate type\n that contains or is associated with the given entity ID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Unique identifier linking this result to its originating request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The timestamp at which this result was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetAggregateIdsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult#GetAggregateIdsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

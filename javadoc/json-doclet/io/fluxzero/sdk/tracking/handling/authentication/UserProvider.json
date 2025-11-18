@@ -1,0 +1,175 @@
+{
+  "name" : "UserProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Service interface for managing {@link User} identities in Fluxzero.\n <p>\n A {@code UserProvider} is responsible for extracting, resolving, and injecting user identity information into\n messages. It enables user-aware processing by:\n <ul>\n   <li>Resolving the current authenticated {@link User}</li>\n   <li>Looking up users by ID or from message metadata</li>\n   <li>Storing user metadata into messages for downstream correlation</li>\n </ul>\n <p>\n Implementations of this interface can be registered via Java’s {@link ServiceLoader}. When multiple implementations\n are found, they are combined using {@link #andThen(UserProvider)}.\n\n @see User\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "defaultUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider.defaultUserProvider",
+    "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default {@code UserProvider} discovered via {@link ServiceLoader}. If multiple providers are found, they are\n chained using {@link #andThen(UserProvider)}. May be {@code null} if no provider is registered.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "addToMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#addToMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds user-related metadata to a message, overwriting existing values if present.\n\n @param metadata the original metadata\n @param user     the user whose info should be added\n @return new metadata including the user identity\n"
+  }, {
+    "name" : "addToMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#addToMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifAbsent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds user-related metadata to a message.\n\n @param metadata the original metadata\n @param user     the user to include\n @param ifAbsent if {@code true}, metadata is only added if not already present\n @return updated {@link Metadata} with user info conditionally added\n"
+  }, {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#andThen",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this provider with another.\n <p>\n The returned provider will try this provider first, falling back to {@code other} if a user cannot be resolved.\n This is useful for composing multiple resolution strategies.\n\n @param other another user provider to chain after this one\n @return a new {@code UserProvider} that delegates to both providers\n"
+  }, {
+    "name" : "containsUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#containsUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the given metadata contains user information that can be resolved by this provider.\n\n @param metadata the metadata to inspect\n @return {@code true} if the metadata contains recognizable user information\n"
+  }, {
+    "name" : "fromMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#fromMessage",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts the {@link User} from a given {@link HasMessage} instance. Implementations may inspect message metadata\n or payload to resolve the user identity.\n\n @param message the message containing potential user-related metadata\n @return the resolved {@link User}, or {@code null} if no user info was found\n"
+  }, {
+    "name" : "getActiveUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#getActiveUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the currently active user, typically injected by the current context.\n\n @return the active {@link User}, or {@link User#getCurrent()} if not explicitly provided\n"
+  }, {
+    "name" : "getSystemUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#getSystemUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the {@link User} representing the system (non-human) identity. Typically used for scheduled messages,\n internal services, etc.\n"
+  }, {
+    "name" : "getUserById",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#getUserById",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "userId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves a {@link User} by their unique identifier.\n <p>\n This method is primarily used in {@code TestFixture}-based access control tests, such as when using\n {@code whenCommandByUser(...)}, to simulate requests by a specific user.\n <p>\n Implementations may return {@code null} if the user cannot be found, or alternatively return a new, unprivileged\n {@link User} instance. The latter approach allows tests to verify authorization behavior for unknown or default\n users without requiring explicit user creation.\n\n @param userId the unique identifier of the user (typically a String or number)\n @return the matching {@link User}, a default unprivileged {@link User}, or {@code null} if not found\n"
+  }, {
+    "name" : "removeFromMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider#removeFromMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes any user-related metadata entries from the given {@link Metadata}.\n\n @param metadata the metadata to clean\n @return a new {@link Metadata} instance without any user-specific keys\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

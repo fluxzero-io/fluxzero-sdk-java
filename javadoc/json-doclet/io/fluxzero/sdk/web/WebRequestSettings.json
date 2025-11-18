@@ -1,0 +1,69 @@
+{
+  "name" : "WebRequestSettings",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Configuration settings for a {@link WebRequest} sent via the {@link WebRequestGateway}.\n <p>\n These settings influence how the request is processed and forwarded by the Fluxzero proxy. While currently limited to\n a few essential fields, this class is designed for extensibility and may be expanded over time to support headers,\n retry policies, authentication strategies, and more.\n\n <p><strong>Example usage:</strong></p>\n <pre>{@code\n WebRequestSettings settings = WebRequestSettings.builder()\n     .httpVersion(HttpVersion.HTTP_2)\n     .timeout(Duration.ofSeconds(30))\n     .consumer(\"google-traffic\")\n     .build();\n }</pre>\n\n @see WebRequestGateway#sendAndWait(WebRequest, WebRequestSettings)\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.consumer",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Name of the consumer responsible for handling the request, typically {@code \"forward-proxy\"}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "httpVersion",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.httpVersion",
+    "type" : "io.fluxzero.sdk.web.HttpVersion",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " HTTP version to be used for the web request (e.g., HTTP/1.1 or HTTP/2).\n",
+    "constantValue" : null
+  }, {
+    "name" : "timeout",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.timeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum duration to wait for the response before timing out.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebRequestSettings",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings#WebRequestSettings",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

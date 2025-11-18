@@ -1,0 +1,53 @@
+{
+  "name" : "DelegatingHandler",
+  "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Abstract base class for {@link Handler} implementations that delegate to another handler.\n <p>\n This is useful for decorating or extending handler behavior while preserving its target class and delegation\n logic.\n </p>\n\n @param <M> the message type\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.Handler<M>" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler.delegate",
+    "type" : "io.fluxzero.common.handling.Handler<M>",
+    "modifiers" : [ "final", "protected" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DelegatingHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler#DelegatingHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getTargetClass",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler#getTargetClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

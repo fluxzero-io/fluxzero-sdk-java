@@ -1,0 +1,105 @@
+{
+  "name" : "JsonPayloadParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link ParameterResolver} that converts the message payload to the parameter's declared type\n if that type is assignable to {@link JsonNode}.\n <p>\n This resolver supports handler parameters that accept JSON payloads directly as {@code JsonNode}\n instances. When matched, it uses {@link HasMessage#getPayloadAs(java.lang.reflect.Type)} to\n deserialize the message payload into the declared parameter type.\n </p>\n\n <p>\n Example usage:\n </p>\n <pre>{@code\n @HandleCommand(allowedClasses = CreateProject.class)\n void handle(JsonNode command) {\n     // The message payload is automatically converted to a JsonNode instance\n }\n }</pre>\n\n <p>\n This resolver only applies to handler methods or constructors that declare at least one parameter\n of a type assignable to {@link JsonNode}. Additionally, the format of the message payload must be\n JSON, as indicated by {@link Data#JSON_FORMAT}.\n </p>\n\n @see ParameterResolver\n @see HasMessage#getPayloadAs(java.lang.reflect.Type)\n @see Data#JSON_FORMAT\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "JsonPayloadParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver#JsonPayloadParameterResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether this resolver matches the given parameter.\n <p>\n A parameter is considered a match if it is assignable to {@link JsonNode}\n and the payload format of the message equals {@link Data#JSON_FORMAT}.\n </p>\n"
+  }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this resolver may apply to the given method.\n <p>\n This implementation returns {@code true} if any of the method's parameters\n are assignable to {@link JsonNode}.\n </p>\n"
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a function that converts the message payload to the expected parameter type\n using {@link HasMessage#getPayloadAs(java.lang.reflect.Type)}.\n\n @param parameter        the handler method parameter to resolve\n @param methodAnnotation the handler method annotation, if present\n @return a function that produces the converted JSON payload value\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

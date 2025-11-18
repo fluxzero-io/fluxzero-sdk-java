@@ -1,0 +1,53 @@
+{
+  "name" : "StripStringsModule",
+  "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A Jackson module that customizes the deserialization of strings.\n <p>\n The module sets up a custom deserializer for {@link String} values. This deserializer: 1. Converts blank strings\n (strings containing only whitespace) to {@code null}. 2. Trims non-blank strings to remove leading and trailing\n whitespace.\n <p>\n This module is enabled by default in {@link JsonUtils} and hence in {@code JacksonSerializer}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.module.SimpleModule",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "StripStringsModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule#StripStringsModule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "setupModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule#setupModule",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.Module.SetupContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "BlankStringsToNullDeserializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule$BlankStringsToNullDeserializer",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

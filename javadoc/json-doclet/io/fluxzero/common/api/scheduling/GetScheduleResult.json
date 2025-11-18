@@ -1,0 +1,78 @@
+{
+  "name" : "GetScheduleResult",
+  "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult",
+  "packageName" : "io.fluxzero.common.api.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Response to a {@link GetSchedule} request, containing the matching {@link SerializedSchedule}, if found.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The identifier of the request this result corresponds to.\n",
+    "constantValue" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult.schedule",
+    "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The retrieved schedule, or {@code null} if no schedule exists for the given ID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The system time when this result was generated (milliseconds since epoch).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetScheduleResult",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult#GetScheduleResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult#toMetric",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,184 @@
+{
+  "package" : {
+    "name" : "modeling",
+    "qualifiedName" : "io.fluxzero.sdk.modeling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "Aggregate.json",
+    "name" : "Aggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "AggregateRoot.json",
+    "name" : "AggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateRoot",
+    "kind" : "interface"
+  }, {
+    "file" : "Alias.json",
+    "name" : "Alias",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Alias",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "AnnotatedEntityHolder.json",
+    "name" : "AnnotatedEntityHolder",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder",
+    "kind" : "class"
+  }, {
+    "file" : "AnnotatedEntityHolder.Id.json",
+    "name" : "AnnotatedEntityHolder.Id",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$Id",
+    "kind" : "class"
+  }, {
+    "file" : "AppliedEvent.json",
+    "name" : "AppliedEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AppliedEvent",
+    "kind" : "class"
+  }, {
+    "file" : "AssertLegal.json",
+    "name" : "AssertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "BatchingHandlerRepository.json",
+    "name" : "BatchingHandlerRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.BatchingHandlerRepository",
+    "kind" : "class"
+  }, {
+    "file" : "BatchingHandlerRepository.Update.json",
+    "name" : "BatchingHandlerRepository.Update",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.BatchingHandlerRepository$Update",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEntityHelper.json",
+    "name" : "DefaultEntityHelper",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEntityHelper.DefaultAggregate.json",
+    "name" : "DefaultEntityHelper.DefaultAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$DefaultAggregate",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEntityHelper.DeserializingMessageWithEntity.json",
+    "name" : "DefaultEntityHelper.DeserializingMessageWithEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$DeserializingMessageWithEntity",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEntityHelper.MessageWithEntity.json",
+    "name" : "DefaultEntityHelper.MessageWithEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEntityHelper.UnknownAggregate.json",
+    "name" : "DefaultEntityHelper.UnknownAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$UnknownAggregate",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultHandlerRepository.json",
+    "name" : "DefaultHandlerRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultHandlerRepository",
+    "kind" : "class"
+  }, {
+    "file" : "DelegatingEntity.json",
+    "name" : "DelegatingEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity",
+    "kind" : "class"
+  }, {
+    "file" : "Entity.json",
+    "name" : "Entity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity",
+    "kind" : "interface"
+  }, {
+    "file" : "EntityHelper.json",
+    "name" : "EntityHelper",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper",
+    "kind" : "interface"
+  }, {
+    "file" : "EntityId.json",
+    "name" : "EntityId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityId",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "EntityParameterResolver.json",
+    "name" : "EntityParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "EventPublication.json",
+    "name" : "EventPublication",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication",
+    "kind" : "enum"
+  }, {
+    "file" : "EventPublicationStrategy.json",
+    "name" : "EventPublicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "kind" : "enum"
+  }, {
+    "file" : "HandlerRepository.json",
+    "name" : "HandlerRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HandlerRepository",
+    "kind" : "interface"
+  }, {
+    "file" : "HasEntity.json",
+    "name" : "HasEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.HasEntity",
+    "kind" : "interface"
+  }, {
+    "file" : "Id.json",
+    "name" : "Id",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id",
+    "kind" : "class"
+  }, {
+    "file" : "ImmutableAggregateRoot.json",
+    "name" : "ImmutableAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot",
+    "kind" : "class"
+  }, {
+    "file" : "ImmutableEntity.json",
+    "name" : "ImmutableEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity",
+    "kind" : "class"
+  }, {
+    "file" : "LazyAggregateRoot.json",
+    "name" : "LazyAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot",
+    "kind" : "class"
+  }, {
+    "file" : "Member.json",
+    "name" : "Member",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Member",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ModifiableAggregateRoot.json",
+    "name" : "ModifiableAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot",
+    "kind" : "class"
+  }, {
+    "file" : "ModifiableAggregateRoot.CommitHandler.json",
+    "name" : "ModifiableAggregateRoot.CommitHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler",
+    "kind" : "interface"
+  }, {
+    "file" : "ModifiableEntity.json",
+    "name" : "ModifiableEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableEntity",
+    "kind" : "class"
+  }, {
+    "file" : "NoOpEntity.json",
+    "name" : "NoOpEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.NoOpEntity",
+    "kind" : "class"
+  }, {
+    "file" : "SearchParameters.json",
+    "name" : "SearchParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters",
+    "kind" : "class"
+  }, {
+    "file" : "SideEffectFreeEntity.json",
+    "name" : "SideEffectFreeEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SideEffectFreeEntity",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

@@ -1,0 +1,55 @@
+{
+  "name" : "BooleanResult",
+  "qualifiedName" : "io.fluxzero.common.api.BooleanResult",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " A generic response containing a boolean value, typically used to indicate success/failure.\n <p>\n Often used for requests such as checks or validations where the outcome is binary.\n </p>\n\n @see RequestResult\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.BooleanResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " ID correlating this result with its originating request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "success",
+    "qualifiedName" : "io.fluxzero.common.api.BooleanResult.success",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether the operation was successful.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.BooleanResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Time at which the result was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "BooleanResult",
+    "qualifiedName" : "io.fluxzero.common.api.BooleanResult#BooleanResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

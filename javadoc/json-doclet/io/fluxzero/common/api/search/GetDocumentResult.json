@@ -1,0 +1,78 @@
+{
+  "name" : "GetDocumentResult",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Result returned in response to a {@link io.fluxzero.common.api.search.GetDocument} request.\n <p>\n This result includes a single {@link SerializedDocument} identified by its ID and collection,\n or {@code null} if the document could not be found.\n\n @see io.fluxzero.common.api.search.GetDocument\n @see SerializedDocument\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.document",
+    "type" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The document that was retrieved, or {@code null} if no matching document was found.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The ID of the request that triggered this result. Used to correlate the response with the original request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The system time (in milliseconds since epoch) at which this result was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetDocumentResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#GetDocumentResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#toMetric",
+    "returnType" : "io.fluxzero.common.api.search.GetDocumentResult.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts this result to a compact representation for metrics logging.\n\n @return a {@link Metric} containing only the response timestamp.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

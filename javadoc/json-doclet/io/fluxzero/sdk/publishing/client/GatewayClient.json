@@ -1,0 +1,74 @@
+{
+  "name" : "GatewayClient",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+  "packageName" : "io.fluxzero.sdk.publishing.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Low-level interface for sending {@link SerializedMessage}s to a gateway (e.g. commands, events, queries).\n <p>\n This interface is primarily used internally within the Fluxzero Java SDK and its Runtime transport layers. It\n defines the mechanics for appending serialized messages to a backing system such as the Fluxzero Runtime or an in-memory\n store.\n\n <p><strong>Note:</strong> End users typically <em>do not interact</em> with this interface directly.\n Instead, they should rely on the higher-level gateways such as:\n <ul>\n   <li>{@link CommandGateway}</li>\n   <li>{@link QueryGateway}</li>\n   <li>{@link EventGateway}</li>\n   <li>{@link WebRequestGateway}</li>\n </ul>\n or more conveniently, dispatch messages using the static utility methods provided by {@link Fluxzero},\n such as:\n <pre>\n     Fluxzero.sendCommandAndWait(new MyCommand());\n     Fluxzero.publishEvent(new SomethingHappened());\n </pre>\n\n @see SerializedMessage\n @see Guarantee\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.Monitored<java.util.List<io.fluxzero.common.api.SerializedMessage>>", "java.lang.AutoCloseable" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "append",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#append",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.common.api.SerializedMessage[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Append the given messages to the gateway, applying the given delivery {@link Guarantee}.\n\n @param guarantee the delivery guarantee that should be respected (e.g. at-most-once, at-least-once)\n @param messages  one or more serialized messages to append\n @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery\n fails\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes this gateway client, releasing any associated resources (e.g. network connections or background tasks).\n"
+  }, {
+    "name" : "setRetentionTime",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#setRetentionTime",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "duration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes once the retention setting is updated\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

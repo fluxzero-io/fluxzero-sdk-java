@@ -1,0 +1,50 @@
+{
+  "name" : "WebParam",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebParam",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "ANNOTATION_TYPE"
+    }
+  } ],
+  "documentation" : " Meta-annotation for parameter annotations used to inject values from an HTTP request.\n <p>\n Used internally by Fluxzero to locate and bind request values to handler method parameters\n based on the specified {@link WebParameterSource}.\n </p>\n\n @see PathParam\n @see QueryParam\n @see HeaderParam\n @see FormParam\n @see CookieParam\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebParam#type",
+    "returnType" : "io.fluxzero.sdk.web.WebParameterSource",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The source of the parameter within the request (e.g. path, query, header).\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebParam#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional name of the parameter (e.g. path variable or query param).\n If empty, defaults to the method parameter's name.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,65 @@
+{
+  "name" : "HandleDocumentFilter",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocumentFilter",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link MessageFilter} that routes {@link DeserializingMessage} instances to methods annotated with\n {@link HandleDocument}, based on the message's topic.\n\n <p>This filter checks if the target handler method is annotated with {@code @HandleDocument}, and if so,\n whether the resolved topic from the annotation matches the topic of the incoming message. If both conditions are met,\n the message will be considered eligible for handling by the method.\n\n <p>The resolved topic is derived using {@link ClientUtils#getTopic(HandleDocument, Executable)},\n which supports dynamic resolution based on annotation configuration and handler context.\n\n <p>Annotation lookups are memoized for performance.\n\n @see HandleDocument\n @see DeserializingMessage\n @see ClientUtils#getTopic(HandleDocument, Executable)\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ {
+    "name" : "handleDocumentCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocumentFilter.handleDocumentCache",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.handling.HandleDocument>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandleDocumentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocumentFilter#HandleDocumentFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocumentFilter#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

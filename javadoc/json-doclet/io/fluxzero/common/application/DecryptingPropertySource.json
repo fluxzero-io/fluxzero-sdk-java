@@ -1,0 +1,122 @@
+{
+  "name" : "DecryptingPropertySource",
+  "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link PropertySource} decorator that transparently decrypts encrypted property values.\n\n <p>This implementation wraps a delegate {@link PropertySource} and attempts to decrypt any retrieved\n property value using a configured {@link Encryption} strategy.\n\n <p>Decryption is only applied to values identified as encrypted via {@link Encryption#isEncrypted(String)}.\n Values that are not encrypted are returned as-is.\n\n <p>The encryption strategy is determined using the {@code ENCRYPTION_KEY} environment variable or system property.\n If no key is found, a no-op fallback is used, meaning decryption will be skipped.\n\n <p>To enable encrypted property support in a Fluxzero application, ensure the appropriate key is present, e.g.:\n <pre>{@code\n   export ENCRYPTION_KEY=ChaCha20|mYbAse64ENcodedKeY==\n }</pre>\n\n @see Encryption\n @see DefaultEncryption\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
+  "fields" : [ {
+    "name" : "decryptionCache",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource.decryptionCache",
+    "type" : "java.util.function.Function<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource.delegate",
+    "type" : "io.fluxzero.common.application.PropertySource",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "encryption",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource.encryption",
+    "type" : "io.fluxzero.common.encryption.Encryption",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : " Returns the {@link Encryption} instance used by this property source.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DecryptingPropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#DecryptingPropertySource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code DecryptingPropertySource} using a delegate and automatically resolves the encryption key from\n system or environment variables.\n <p>It looks for the {@code ENCRYPTION_KEY} or {@code encryption_key} in the following order:\n <ul>\n   <li>Environment variable {@code ENCRYPTION_KEY}</li>\n   <li>Environment variable {@code encryption_key}</li>\n   <li>System property {@code ENCRYPTION_KEY}</li>\n   <li>System property {@code encryption_key}</li>\n </ul>\n\n <p>If no key is found, a no-op encryption fallback is used.\n\n @param delegate the property source to wrap\n"
+  }, {
+    "name" : "DecryptingPropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#DecryptingPropertySource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "encryption",
+      "type" : "io.fluxzero.common.encryption.Encryption",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code DecryptingPropertySource} using an explicit {@link Encryption} strategy.\n\n @param delegate   the property source to wrap\n @param encryption the encryption strategy to apply to values\n"
+  }, {
+    "name" : "DecryptingPropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#DecryptingPropertySource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "encryptionKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code DecryptingPropertySource} using the given encryption key.\n <p>If the provided key is invalid or unrecognized, a no-op encryption fallback is used.\n\n @param delegate      the property source to wrap\n @param encryptionKey the Base64-encoded encryption key in the form {@code algorithm|key}\n"
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#get",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the decrypted value of the given property name.\n\n <p>If the underlying property is encrypted (i.e., {@link Encryption#isEncrypted(String)} is {@code true}),\n it is decrypted using the configured {@link Encryption} implementation.\n Otherwise, the raw value is returned unchanged.\n\n <p>Values are cached after the first decryption attempt for efficiency.\n\n @param name the property key\n @return the decrypted or original property value, or {@code null} if not found\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

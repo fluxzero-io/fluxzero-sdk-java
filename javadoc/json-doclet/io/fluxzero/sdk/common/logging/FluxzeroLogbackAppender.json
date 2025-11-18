@@ -1,0 +1,99 @@
+{
+  "name" : "FluxzeroLogbackAppender",
+  "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender",
+  "packageName" : "io.fluxzero.sdk.common.logging",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A Logback-compatible appender that automatically publishes warning and error-level log events to the Fluxzero\n Runtime.\n <p>\n This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}\n or {@link ConsoleError} messages to the Fluxzero error gateway, along with detailed metadata such as stack traces, logger\n name, and message content.\n\n @see ConsoleWarning\n @see ConsoleError\n @see Fluxzero#errorGateway()\n",
+  "typeParameters" : [ ],
+  "superClass" : "ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "FluxzeroLogbackAppender",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#FluxzeroLogbackAppender",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "append",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#append",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "ch.qos.logback.classic.spi.ILoggingEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Processes log events of level {@code WARN} or higher.\n <p>\n Extracts the stack trace and relevant context, transforms the message into a {@link ConsoleWarning} or\n {@link ConsoleError}, and sends it to the Fluxzero error gateway.\n\n @param event the logging event to be processed\n"
+  }, {
+    "name" : "attach",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#attach",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attaches this appender to the root logger in the Logback logging context.\n <p>\n Once attached, the appender will monitor and forward all warning and error logs to the Fluxzero error gateway as\n {@link ConsoleWarning} or {@link ConsoleError} messages.\n <p>\n Typically, this appender is configured automatically via Logback's own configuration. This method exists for\n dynamic attachment at runtime—e.g., during testing or in environments where programmatic logging configuration is\n preferred.\n"
+  }, {
+    "name" : "detach",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#detach",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Detaches any active instances of this appender from the root logger.\n <p>\n This is useful for runtime cleanup or reconfiguration.\n"
+  }, {
+    "name" : "getRootLogger",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#getRootLogger",
+    "returnType" : "ch.qos.logback.classic.Logger",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the root logger from the SLF4J/Logback environment.\n\n @return the root {@link Logger}\n"
+  }, {
+    "name" : "ignoreEvent",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#ignoreEvent",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "ch.qos.logback.classic.spi.ILoggingEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether the given log event should be ignored.\n <p>\n Events marked with {@code ClientUtils.ignoreMarker} will be skipped and not sent to Fluxzero.\n\n @param event the logging event to check\n @return {@code true} if the event should be ignored, {@code false} otherwise\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

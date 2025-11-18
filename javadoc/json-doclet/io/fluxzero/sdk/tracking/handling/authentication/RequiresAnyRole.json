@@ -1,0 +1,56 @@
+{
+  "name" : "RequiresAnyRole",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,CONSTRUCTOR,METHOD,ANNOTATION_TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Declares role-based access control for message handlers or payload types.\n <p>\n When placed on a handler method, class, or package, or on the payload class the {@code @RequiresAnyRole} annotation\n restricts invocation of that handler to users possessing at least one of the specified roles. If the current user (or\n the user associated with the incoming message) lacks a matching role, an exception is thrown or the handler is\n silently skipped, depending on the value of {@link #throwIfUnauthorized()}. Silent skipping allows other eligible\n handlers to take over, enabling flexible delegation.\n <p>\n This annotation supports meta-annotations. It can be applied to a custom annotation that expresses roles using an\n enum, allowing more structured or type-safe role definitions. Role names are obtained from the\n {@code toString()} method of the enum.\n\n <h2>Example (on handler method):</h2>\n <pre>{@code\n @HandleCommand\n @RequiresAnyRole({\"admin\", \"editor\"})\n void handle(UpdateArticle command) {}\n }</pre>\n\n <h2>Example (on payload class):</h2>\n <pre>{@code\n @RequiresAnyRole(\"admin\")\n public record DeleteAccount(String userId) {}\n }</pre>\n\n <h2>Meta-annotation usage (with enum roles):</h2>\n <pre>{@code\n @RequiresAnyRole\n @Target({ElementType.PACKAGE, ElementType.TYPE, ElementType.CONSTRUCTOR, ElementType.METHOD})\n public @interface RequiresRole {\n     Role[] value();\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "throwIfUnauthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole#throwIfUnauthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether an exception should be thrown when the authorization check fails.\n <p>\n If {@code true} (the default), an exception will be thrown when the user is unauthorized:\n <ul>\n   <li>{@link UnauthenticatedException} – if no authenticated user is present</li>\n   <li>{@link UnauthorizedException} – if the user is present but lacks required roles</li>\n </ul>\n <p>\n If {@code false}, the annotated handler or message will be silently skipped instead. This opt-out strategy is\n useful for conditionally invoked handlers where fallback behavior or a timeout is preferred.\n <p>\n Defaults to {@code true}.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole#value",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " One or more role names (case-sensitive) that grant access. At least one of the listed roles must be held by the\n user for access to be granted.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

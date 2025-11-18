@@ -1,0 +1,312 @@
+{
+  "name" : "AbstractClient",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient",
+  "packageName" : "io.fluxzero.sdk.configuration.client",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.FieldDefaults",
+    "values" : {
+      "level" : "PRIVATE",
+      "makeFinal" : "true"
+    }
+  } ],
+  "documentation" : " Abstract base implementation of the {@link Client} interface, providing shared logic and lifecycle management for\n both local (in-memory) and remote (WebSocket-based) Fluxzero clients.\n <p>\n Concrete implementations such as {@link LocalClient} and {@link WebSocketClient} extend this class to define specific\n transport and storage mechanisms for each subsystem (event store, scheduling, etc.).\n\n <h2>Responsibilities</h2>\n <ul>\n     <li>Manages memoized creation and reuse of {@link GatewayClient} and {@link TrackingClient} instances.</li>\n     <li>Coordinates shutdown behavior and cleanup tasks via {@link #shutDown()} and {@link #beforeShutdown(Runnable)}.</li>\n     <li>Provides monitoring support for dispatched messages using {@link ClientDispatchMonitor}.</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.configuration.client.Client" ],
+  "fields" : [ {
+    "name" : "eventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.eventStoreClient",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gatewayClients",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.gatewayClients",
+    "type" : "io.fluxzero.common.MemoizingBiFunction<io.fluxzero.common.MessageType,java.lang.String,? extends io.fluxzero.sdk.publishing.client.GatewayClient>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Lazily instantiated and memoized gateway clients, keyed by message type and topic.\n",
+    "constantValue" : null
+  }, {
+    "name" : "keyValueClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.keyValueClient",
+    "type" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "monitors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.monitors",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<java.util.Map.Entry<io.fluxzero.sdk.configuration.client.ClientDispatchMonitor,io.fluxzero.common.Registration>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Map of message type to a list of dispatch monitors and their corresponding registrations.\n",
+    "constantValue" : null
+  }, {
+    "name" : "schedulingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.schedulingClient",
+    "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "searchClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.searchClient",
+    "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shutdownTasks",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.shutdownTasks",
+    "type" : "java.util.Set<java.lang.Runnable>",
+    "modifiers" : [ "final", "protected" ],
+    "annotations" : [ ],
+    "documentation" : " Tracks shutdown callbacks that will be run when {@link #shutDown()} is invoked.\n",
+    "constantValue" : null
+  }, {
+    "name" : "trackingClients",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient.trackingClients",
+    "type" : "io.fluxzero.common.MemoizingBiFunction<io.fluxzero.common.MessageType,java.lang.String,? extends io.fluxzero.sdk.tracking.client.TrackingClient>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Lazily instantiated and memoized tracking clients, keyed by message type and topic.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AbstractClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#AbstractClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "beforeShutdown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#beforeShutdown",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createEventStoreClient",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link EventStoreClient}.\n"
+  }, {
+    "name" : "createGatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createGatewayClient",
+    "returnType" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link GatewayClient} for the given message type and topic.\n"
+  }, {
+    "name" : "createKeyValueClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createKeyValueClient",
+    "returnType" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link KeyValueClient}.\n"
+  }, {
+    "name" : "createSchedulingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createSchedulingClient",
+    "returnType" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link SchedulingClient}.\n"
+  }, {
+    "name" : "createSearchClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createSearchClient",
+    "returnType" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link SearchClient}.\n"
+  }, {
+    "name" : "createTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#createTrackingClient",
+    "returnType" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Subclasses must implement this method to return a {@link TrackingClient} for the given message type and topic.\n"
+  }, {
+    "name" : "getGatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#getGatewayClient",
+    "returnType" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized {@link GatewayClient} for the given message type and topic. Automatically registers any\n previously registered {@link ClientDispatchMonitor} instances.\n"
+  }, {
+    "name" : "getTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#getTrackingClient",
+    "returnType" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "monitorDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#monitorDispatch",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "monitor",
+      "type" : "io.fluxzero.sdk.configuration.client.ClientDispatchMonitor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

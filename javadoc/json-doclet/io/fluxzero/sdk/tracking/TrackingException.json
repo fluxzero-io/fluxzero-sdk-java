@@ -1,0 +1,53 @@
+{
+  "name" : "TrackingException",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Exception thrown during the initialization of message tracking in Fluxzero.\n <p>\n This exception indicates a configuration or startup problem when assigning handlers to consumers\n or when attempting to initiate tracking more than once for the same consumer configuration.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "TrackingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#TrackingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code TrackingException} with the specified message.\n\n @param message the detail message\n"
+  }, {
+    "name" : "TrackingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#TrackingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code TrackingException} with the specified message and cause.\n\n @param message the detail message\n @param cause   the root cause\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

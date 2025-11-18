@@ -1,0 +1,87 @@
+{
+  "name" : "HandlerMatcher",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Defines the logic to determine whether a given target object can handle a message, and how to invoke it.\n <p>\n A {@code HandlerMatcher} is a stateless strategy that inspects a target object and a message to:\n <ul>\n   <li>Determine whether the target can handle the message ({@link #canHandle(Object)})</li>\n   <li>Expose the applicable handler methods ({@link #matchingMethods(Object)})</li>\n   <li>Return a {@link HandlerInvoker} capable of executing the handler method ({@link #getInvoker(Object, Object)})</li>\n </ul>\n\n <p>\n Unlike a {@link Handler}, a {@code HandlerMatcher} does not resolve or manage instances.\n It simply inspects a provided target instance and message to resolve possible invocations.\n </p>\n\n @param <T> the type of the handler instance\n @param <M> the type of the message\n @see Handler\n @see HandlerInvoker\n",
+  "typeParameters" : [ "T", "M" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the given message can be handled by a handler instance of type {@code T}. This is a lightweight\n check and may be used for fast filtering or diagnostics.\n\n @param message the message to check\n @return {@code true} if the matcher may be able to produce an invoker for the given message\n"
+  }, {
+    "name" : "getInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#getInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to resolve a {@link HandlerInvoker} for the given target instance and message.\n\n @param target  the handler object\n @param message the message to be handled\n @return an optional invoker if the message is supported by the target; empty otherwise\n"
+  }, {
+    "name" : "matchingMethods",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#matchingMethods",
+    "returnType" : "java.util.stream.Stream<java.lang.reflect.Executable>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a stream of methods from the target class that match the given message. Typically used for diagnostics or\n documentation tools.\n\n @param message the message to match against\n @return a stream of matching {@link Executable} handler methods\n"
+  }, {
+    "name" : "or",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#or",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<T,M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "next",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<T,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this {@code HandlerMatcher} with another {@code HandlerMatcher} to form a composite matcher.\n The resulting matcher is capable of delegating matching responsibilities to both the current\n matcher and the provided next matcher.\n\n @param next the next {@code HandlerMatcher} to combine with the current matcher\n @return a new {@code HandlerMatcher} that combines the current matcher and the provided next matcher\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

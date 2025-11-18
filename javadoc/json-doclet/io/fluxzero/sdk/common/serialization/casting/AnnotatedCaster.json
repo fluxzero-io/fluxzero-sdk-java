@@ -1,0 +1,105 @@
+{
+  "name" : "AnnotatedCaster",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster",
+  "packageName" : "io.fluxzero.sdk.common.serialization.casting",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Represents a dynamically discovered casting method (annotated with {@link Upcast} or {@link Downcast})\n that is bound to a specific data revision and type.\n\n <p>This class delegates casting logic to a functional wrapper around the annotated method, and is\n typically instantiated by {@link CastInspector} as part of building a {@link CasterChain}.\n\n @param <T> the underlying type of the serialized data\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "castFunction",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster.castFunction",
+    "type" : "java.util.function.Function<io.fluxzero.common.api.SerializedObject<T>,java.util.stream.Stream<io.fluxzero.common.api.SerializedObject<T>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster.method",
+    "type" : "java.lang.reflect.Method",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster.parameters",
+    "type" : "io.fluxzero.sdk.common.serialization.casting.CastParameters",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AnnotatedCaster",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#AnnotatedCaster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "castParameters",
+      "type" : "io.fluxzero.sdk.common.serialization.casting.CastParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "castFunction",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.SerializedObject<T>,java.util.stream.Stream<io.fluxzero.common.api.SerializedObject<T>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new {@code AnnotatedCaster}.\n\n @param method the underlying Java method that performs casting\n @param castParameters the parameters from the {@link Cast} annotation (e.g., type and revision)\n @param castFunction a function that applies the casting logic to a given {@link SerializedObject}\n"
+  } ],
+  "methods" : [ {
+    "name" : "cast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#cast",
+    "returnType" : "java.util.stream.Stream<S>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "S" ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "S",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the casting logic to the given serialized object if its type and revision match this caster’s parameters.\n If the input does not match, it is returned unmodified.\n\n @param input the serialized object to potentially cast\n @param <S> the input and output serialized object type\n @return a stream containing the casted result(s) or the original input if no match was found\n"
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

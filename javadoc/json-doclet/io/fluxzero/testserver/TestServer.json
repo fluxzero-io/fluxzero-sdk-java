@@ -1,0 +1,181 @@
+{
+  "name" : "TestServer",
+  "qualifiedName" : "io.fluxzero.testserver.TestServer",
+  "packageName" : "io.fluxzero.testserver",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "clients",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer.clients",
+    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metricsLogSupplier",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer.metricsLogSupplier",
+    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.testserver.metrics.MetricsLog>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TestServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#TestServer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getMessageStore",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageStore",
+    "returnType" : "io.fluxzero.common.tracking.MessageStore",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "projectId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessageStore",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageStore",
+    "returnType" : "io.fluxzero.common.tracking.MessageStore",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "projectId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getStoreIdentifier",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getStoreIdentifier",
+    "returnType" : "io.fluxzero.testserver.TestServer.StoreIdentifier",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "s",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTopic",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getTopic",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "s",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "main",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#main",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "args",
+      "type" : "java.lang.String[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#start",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "StoreIdentifier",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "TestServerProject",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$TestServerProject",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

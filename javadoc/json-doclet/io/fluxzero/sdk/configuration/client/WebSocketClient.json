@@ -1,0 +1,248 @@
+{
+  "name" : "WebSocketClient",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+  "packageName" : "io.fluxzero.sdk.configuration.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {
+      "access" : "PROTECTED"
+    }
+  } ],
+  "documentation" : " A {@link Client} implementation that connects to the Fluxzero Runtime using WebSocket connections.\n <p>\n This client enables full integration with the Fluxzero Runtime by delegating all gateway, tracking, and subsystem\n communication to remote endpoints defined by the {@link ClientConfig}. It is typically used in production and testing\n environments where communication with the Fluxzero Runtime is required.\n\n <h2>Usage</h2>\n <pre>{@code\n WebSocketClient client = WebSocketClient.newInstance(\n     WebSocketClient.ClientConfig.builder()\n         .runtimeBaseUrl(\"wss://my.fluxzero.host\")\n         .name(\"my-service\")\n         .build());\n Fluxzero fluxzero = Fluxzero.builder().build(client);\n }</pre>\n\n @see io.fluxzero.sdk.configuration.DefaultFluxzero#builder()\n @see Client\n @see LocalClient for an in-memory alternative\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "clientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.clientConfig",
+    "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebSocketClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#WebSocketClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "applicationId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#applicationId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createEventStoreClient",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createGatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createGatewayClient",
+    "returnType" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createKeyValueClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createKeyValueClient",
+    "returnType" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createSchedulingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createSchedulingClient",
+    "returnType" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createSearchClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createSearchClient",
+    "returnType" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createTrackingClient",
+    "returnType" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#id",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#name",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newInstance",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#newInstance",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ClientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {
+        "toBuilder" : "true"
+      }
+    } ]
+  }, {
+    "name" : "TrackingClientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$TrackingClientConfig",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {
+        "toBuilder" : "true"
+      }
+    } ]
+  } ]
+}

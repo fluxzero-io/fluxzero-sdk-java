@@ -1,0 +1,141 @@
+{
+  "package" : {
+    "name" : "publishing",
+    "qualifiedName" : "io.fluxzero.sdk.publishing",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "AdhocDispatchInterceptor.json",
+    "name" : "AdhocDispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor",
+    "kind" : "class"
+  }, {
+    "file" : "CommandGateway.json",
+    "name" : "CommandGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.CommandGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultCommandGateway.json",
+    "name" : "DefaultCommandGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultCommandGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultErrorGateway.json",
+    "name" : "DefaultErrorGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultErrorGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEventGateway.json",
+    "name" : "DefaultEventGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultEventGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultGenericGateway.json",
+    "name" : "DefaultGenericGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMetricsGateway.json",
+    "name" : "DefaultMetricsGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultMetricsGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultQueryGateway.json",
+    "name" : "DefaultQueryGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultQueryGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultRequestHandler.json",
+    "name" : "DefaultRequestHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultRequestHandler.ResponseCallback.json",
+    "name" : "DefaultRequestHandler.ResponseCallback",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultResultGateway.json",
+    "name" : "DefaultResultGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultWebRequestGateway.json",
+    "name" : "DefaultWebRequestGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway",
+    "kind" : "class"
+  }, {
+    "file" : "DispatchInterceptor.json",
+    "name" : "DispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "kind" : "interface"
+  }, {
+    "file" : "ErrorGateway.json",
+    "name" : "ErrorGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "EventGateway.json",
+    "name" : "EventGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.EventGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "GatewayException.json",
+    "name" : "GatewayException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GatewayException",
+    "kind" : "class"
+  }, {
+    "file" : "GenericGateway.json",
+    "name" : "GenericGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "MetricsGateway.json",
+    "name" : "MetricsGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "QueryGateway.json",
+    "name" : "QueryGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "RequestHandler.json",
+    "name" : "RequestHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "kind" : "interface"
+  }, {
+    "file" : "ResultGateway.json",
+    "name" : "ResultGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ResultGateway",
+    "kind" : "interface"
+  }, {
+    "file" : "Timeout.json",
+    "name" : "Timeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.Timeout",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "TimeoutException.json",
+    "name" : "TimeoutException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.TimeoutException",
+    "kind" : "class"
+  }, {
+    "file" : "WebRequestGateway.json",
+    "name" : "WebRequestGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway",
+    "kind" : "interface"
+  } ],
+  "subdirectories" : [ {
+    "name" : "client",
+    "path" : "client"
+  }, {
+    "name" : "correlation",
+    "path" : "correlation"
+  }, {
+    "name" : "dataprotection",
+    "path" : "dataprotection"
+  }, {
+    "name" : "routing",
+    "path" : "routing"
+  } ]
+}

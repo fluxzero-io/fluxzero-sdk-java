@@ -1,0 +1,19 @@
+{
+  "package" : {
+    "name" : "scheduling",
+    "qualifiedName" : "io.fluxzero.testserver.scheduling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "TestServerScheduleStore.json",
+    "name" : "TestServerScheduleStore",
+    "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore",
+    "kind" : "class"
+  }, {
+    "file" : "TestServerScheduleStore.Deadline.json",
+    "name" : "TestServerScheduleStore.Deadline",
+    "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore$Deadline",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

@@ -1,0 +1,58 @@
+{
+  "name" : "HandleSchedule",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleSchedule",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,CONSTRUCTOR"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.tracking.handling.HandleMessage",
+    "values" : {
+      "value" : "SCHEDULE"
+    }
+  } ],
+  "documentation" : " Marks a method or constructor as a handler for scheduled messages ({@link MessageType#SCHEDULE}).\n <p>\n These handlers are invoked in response to scheduled triggers, typically time-based.\n <p>\n Scheduled messages may originate from an explicit schedule call (see\n {@link MessageScheduler}), or from a payload annotated with {@link Periodic}, which\n enables automatic rescheduling after each invocation.\n\n <h2>Return behavior</h2>\n A {@code @HandleSchedule} method may return a value to control rescheduling behavior:\n <ul>\n     <li><b>{@code null}</b>: continue scheduling using the default strategy if the schedule is {@link Periodic}.</li>\n     <li><b>{@link java.time.Duration} or {@link java.time.Instant}</b>: overrides the next schedule delay or time.</li>\n     <li><b>A new payload</b>: schedules the returned object as the next scheduled message. If this new payload is annotated\n         with {@link Periodic}, the periodic settings on that payload take precedence.</li>\n     <li>Returning a new {@link io.fluxzero.sdk.scheduling.Schedule} reschedules that message using the specified payload and deadline.</li>\n </ul>\n <p>\n To cancel a periodic schedule, throw a {@link io.fluxzero.sdk.scheduling.CancelPeriodic} exception.\n\n <h3>Example: Dynamic continuation using payload return</h3>\n <pre>{@code\n @HandleSchedule\n PollUpdates on(PollUpdates poll) {\n     var updates = Fluxzero.queryAndWait(poll);\n     // Process updates\n     return new PollUpdates(updates.getContinuationToken());\n }\n }</pre>\n If {@code PollUpdates} is annotated with {@link Periodic}, its delay or cron expression will be used for rescheduling.\n\n <h3>Example: Return a delay for the next schedule</h3>\n <pre>{@code\n @HandleSchedule\n Duration on(HealthCheck ping) {\n     if (!isAlive()) {\n         throw new CancelPeriodic(\"Service offline\");\n     }\n     return Duration.ofSeconds(30);\n }\n }</pre>\n This will schedule the same {@code ping} message to be retried after 30 seconds.\n\n @see HandleMessage\n @see MessageType#SCHEDULE\n @see Periodic\n @see MessageScheduler\n @see io.fluxzero.sdk.scheduling.CancelPeriodic\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "allowedClasses",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleSchedule#allowedClasses",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restricts which payload types this handler may be invoked for.\n"
+  }, {
+    "name" : "disabled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleSchedule#disabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, disables this handler during discovery.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

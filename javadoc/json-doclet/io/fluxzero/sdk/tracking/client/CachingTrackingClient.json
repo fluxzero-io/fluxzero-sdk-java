@@ -1,0 +1,463 @@
+{
+  "name" : "CachingTrackingClient",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient",
+  "packageName" : "io.fluxzero.sdk.tracking.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link TrackingClient} implementation that wraps another client (typically a {@link WebsocketTrackingClient})\n and caches recent messages in memory to reduce redundant round trips to the Fluxzero Runtime.\n <p>\n This client is particularly useful in environments where multiple consumers or trackers are processing the\n same stream of messages. Rather than each tracker reading from the backend individually, a shared in-memory cache\n serves recent messages directly when possible.\n\n <h2>Behavior</h2>\n <ul>\n   <li>Internally starts a special tracker that continuously appends new messages to a bounded in-memory cache.</li>\n   <li>Trackers that read from this client are first served from the local cache when possible.</li>\n   <li>Falls back to the delegate {@link TrackingClient} for uncached or missed messages.</li>\n   <li>Trackers waiting for new messages are notified via scheduled polling or real-time cache updates.</li>\n   <li>Cache size is limited via {@code maxCacheSize}; old messages are evicted in insertion order.</li>\n </ul>\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Optimizing performance when many trackers are polling the same stream concurrently</li>\n   <li>Reducing network latency and load on the Fluxzero Runtime for high-volume message types</li>\n   <li>Minimizing end-to-end processing delay in horizontally scaled applications</li>\n </ul>\n\n <h2>Tracking Mechanics</h2>\n <ul>\n   <li>Uses a background tracker configured with {@code ignoreSegment = true} and {@code clientControlledIndex = true}\n       to stream all new messages into the cache.</li>\n   <li>Trackers calling {@link #read} are served from the cache if their {@code lastIndex} is already present.</li>\n   <li>If not, the delegate is queried directly to maintain completeness.</li>\n </ul>\n\n <h2>Thread Safety</h2>\n <ul>\n   <li>The cache is backed by a {@link ConcurrentSkipListMap} for safe concurrent access.</li>\n   <li>Eviction and tracker notifications are synchronized to prevent race conditions.</li>\n </ul>\n\n @see TrackingClient\n @see WebsocketTrackingClient\n @see Fluxzero\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.client.TrackingClient" ],
+  "fields" : [ {
+    "name" : "cache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.cache",
+    "type" : "java.util.concurrent.ConcurrentSkipListMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.delegate",
+    "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxCacheSize",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.maxCacheSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.registration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scheduler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.scheduler",
+    "type" : "java.util.concurrent.ScheduledExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "started",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.started",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "waitingTrackers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.waitingTrackers",
+    "type" : "java.util.Map<java.lang.String,java.lang.Runnable>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CachingTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#CachingTrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cacheNewMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#cacheNewMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "claimSegment",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#claimSegment",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.ClaimSegmentResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "disconnectTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#disconnectTracker",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sendFinalEmptyBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "filterMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#filterMessages",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segmentRange",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessageBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getMessageBatch",
+    "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "claim",
+      "type" : "io.fluxzero.common.api.tracking.ClaimSegmentResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getMessageType",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPosition",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getPosition",
+    "returnType" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTopic",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getTopic",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#read",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readFromIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readFromIndex",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeOldMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#removeOldMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resetPosition",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#resetPosition",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storePosition",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#storePosition",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "waitForMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#waitForMessages",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "claimResult",
+      "type" : "io.fluxzero.common.api.tracking.ClaimSegmentResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

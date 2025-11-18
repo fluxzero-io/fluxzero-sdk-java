@@ -1,0 +1,239 @@
+{
+  "name" : "CorrelationDataProvider",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+  "packageName" : "io.fluxzero.sdk.publishing.correlation",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Strategy interface for extracting correlation metadata from the current context.\n <p>\n Correlation metadata is used to propagate contextual information (e.g. trace IDs, user info, client IDs) across\n messages within the same logical execution chain.\n <p>\n When a message is dispatched, the active {@code CorrelationDataProvider} is queried to generate key-value pairs that\n are added to the message's metadata. These entries can then be accessed by downstream handlers to maintain\n traceability and context awareness.\n\n <p>\n A {@code CorrelationDataProvider} may extract metadata based on:\n <ul>\n     <li>The {@link DeserializingMessage} currently being handled</li>\n     <li>The {@link SerializedMessage} most recently published</li>\n     <li>The {@link Client} that is processing the message</li>\n     <li>The {@link MessageType} of the outgoing message</li>\n </ul>\n\n <h2>Standard Metadata Keys</h2>\n The correlation data map may include the following keys:\n <ul>\n   <li><b>{@code $applicationId}</b> – ID of the application this client belongs to (optional)</li>\n   <li><b>{@code $clientId}</b> – Unique identifier for this Fluxzero client instance</li>\n   <li><b>{@code $clientName}</b> – Logical name of the client (e.g. \"service-A\")</li>\n   <li><b>{@code $consumer}</b> – Consumer name of the current {@link Tracker}, if active</li>\n   <li><b>{@code $tracker}</b> – Unique ID of the current {@link Tracker}, if active</li>\n   <li><b>{@code $correlationId}</b> – ID used to correlate this message with the currently handled message (message index or ID if index is unavailable)</li>\n   <li><b>{@code $traceId}</b> – ID representing the trace this message belongs to (usually inherited from the message root)</li>\n   <li><b>{@code $trigger}</b> – Fully qualified class name of the message that triggered this one</li>\n   <li><b>{@code $triggerType}</b> – Type of the triggering message (e.g. COMMAND, QUERY, etc.)</li>\n   <li><b>{@code $invocation}</b> – ID of the current handler {@link Invocation}, if any</li>\n </ul>\n\n <p>\n Multiple providers can be composed using {@link #andThen(CorrelationDataProvider)} to combine metadata from multiple sources.\n\n @see io.fluxzero.sdk.tracking.handling.HandlerInterceptor\n @see io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#andThen",
+    "returnType" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Chains this provider with another, returning a composed provider that merges the metadata from both.\n <p>\n If keys overlap, the values from the second (next) provider will overwrite those from this provider.\n\n @param next the provider to apply after this one\n @return a composed {@code CorrelationDataProvider} that merges the results of both\n"
+  }, {
+    "name" : "getApplicationIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getApplicationIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key used to identify the application ID in correlation metadata.\n\n @return a string representing the application ID key\n"
+  }, {
+    "name" : "getBasicCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getBasicCorrelationData",
+    "returnType" : "java.util.HashMap<java.lang.String,java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getClientIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getClientIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key representing the client identifier in the correlation metadata.\n\n @return the key used to identify the client in correlation data\n"
+  }, {
+    "name" : "getClientNameKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getClientNameKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key associated with the client's name from the correlation metadata.\n\n @return a string representing the key for the client's name\n"
+  }, {
+    "name" : "getConsumerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getConsumerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the consumer key used to identify the consumer of a message.\n\n @return a string representing the consumer key\n"
+  }, {
+    "name" : "getCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns correlation metadata based on the current message being handled (if any).\n <p>\n Delegates to {@link #getCorrelationData(DeserializingMessage)} using the current thread-local\n {@link DeserializingMessage}.\n\n @return a map of correlation metadata entries\n"
+  }, {
+    "name" : "getCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns correlation metadata derived from the current deserializing message.\n\n @param currentMessage the message currently being handled (can be {@code null})\n @return a map of correlation metadata entries\n"
+  }, {
+    "name" : "getCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns correlation metadata derived from a serialized message and optional context.\n <p>\n This method may be invoked when publishing messages without a {@link DeserializingMessage} context, such as in\n asynchronous dispatch or system-level operations.\n\n @param client         the client instance performing the dispatch (can be {@code null})\n @param currentMessage the last serialized message in context (can be {@code null})\n @param messageType    the type of the outgoing message (e.g. {@code COMMAND}, {@code EVENT}, etc.)\n @return a map of correlation metadata entries\n"
+  }, {
+    "name" : "getCorrelationIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getCorrelationIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the key used for identifying the correlation ID within the metadata.\n\n @return a string representing the key for the correlation ID\n"
+  }, {
+    "name" : "getDelayKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getDelayKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key used to identify the delay metadata within correlation data.\n\n @return a string representing the delay metadata key\n"
+  }, {
+    "name" : "getInvocationKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getInvocationKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key associated with the invocation context within the correlation metadata.\n\n @return the invocation key as a string\n"
+  }, {
+    "name" : "getTraceIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getTraceIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the key used to identify the trace ID in correlation metadata.\n\n @return a string representing the trace ID key.\n"
+  }, {
+    "name" : "getTrackerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getTrackerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the key representing the tracker component in correlation metadata.\n\n @return the tracker key as a string\n"
+  }, {
+    "name" : "getTriggerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getTriggerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the trigger key used to identify the triggering context for correlation metadata.\n\n @return the trigger key as a string\n"
+  }, {
+    "name" : "getTriggerTypeKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider#getTriggerTypeKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the key associated with the trigger type in the correlation data.\n\n @return a string representing the trigger type key\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

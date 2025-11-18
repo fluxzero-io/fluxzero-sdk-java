@@ -1,0 +1,116 @@
+{
+  "name" : "RetryConfiguration",
+  "qualifiedName" : "io.fluxzero.common.RetryConfiguration",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "builderClassName" : "Builder"
+    }
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.\n <p>\n This class encapsulates options such as retry delay, maximum number of retries, error filtering, and\n logging callbacks to be invoked on success or failure.\n\n <h2>Usage Example</h2>\n <pre>{@code\n RetryConfiguration config = RetryConfiguration.builder()\n     .delay(Duration.ofSeconds(2))\n     .maxRetries(5)\n     .errorTest(e -> e instanceof IOException)\n     .build();\n }</pre>\n\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n @see RetryStatus\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "delay",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.delay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The delay between retry attempts.\n <p>\n Defaults to 1 second.\n",
+    "constantValue" : null
+  }, {
+    "name" : "errorMapper",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.errorMapper",
+    "type" : "java.util.function.Function<java.lang.Throwable,?>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " An optional mapper that can be used to convert a {@link Throwable} to a custom representation\n or response. This is not used by default in the retry mechanism but can be plugged into advanced\n error handling.\n",
+    "constantValue" : null
+  }, {
+    "name" : "errorTest",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.errorTest",
+    "type" : "java.util.function.Predicate<java.lang.Throwable>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " A predicate that determines whether a caught exception is eligible for retry.\n <p>\n If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest}\n is set to true).\n <p>\n Defaults to always returning true (retry any exception).\n",
+    "constantValue" : null
+  }, {
+    "name" : "exceptionLogger",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.exceptionLogger",
+    "type" : "java.util.function.Consumer<io.fluxzero.common.RetryStatus>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Callback invoked when a retryable exception is caught.\n <p>\n Logs the initial retry attempt and, if applicable, the permanent failure after exceeding\n {@link #maxRetries}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRetries",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.maxRetries",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The maximum number of retries allowed before failing permanently.\n <p>\n A value of {@code -1} means unlimited retries.\n",
+    "constantValue" : null
+  }, {
+    "name" : "successLogger",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.successLogger",
+    "type" : "java.util.function.Consumer<io.fluxzero.common.RetryStatus>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Callback invoked if the task eventually succeeds after one or more retries.\n <p>\n This can be used to log success, metrics, etc.\n",
+    "constantValue" : null
+  }, {
+    "name" : "throwOnFailingErrorTest",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.throwOnFailingErrorTest",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to throw the exception if it fails the {@link #errorTest}.\n <p>\n If {@code false}, the method will return {@code null} on ineligible exceptions.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RetryConfiguration",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration#RetryConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

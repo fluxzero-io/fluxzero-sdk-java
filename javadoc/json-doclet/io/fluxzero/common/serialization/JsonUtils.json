@@ -1,0 +1,939 @@
+{
+  "name" : "JsonUtils",
+  "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Utility class for JSON serialization, deserialization, and file-based JSON resource loading.\n <p>\n {@code JsonUtils} wraps around Jackson's {@link JsonMapper} to provide enhanced handling of JSON processing. It\n supports dynamic type handling, tree merging, custom file loading with `@extends` inheritance, and robust conversion\n between types and structures.\n\n <h2>Key Features</h2>\n <ul>\n   <li>Configurable {@link JsonMapper} for serialization ({@code writer}) and deserialization ({@code reader})</li>\n   <li>Convenience methods for reading from resource files, merging JSON trees, and converting between types</li>\n   <li>Support for deserializing JSON using a {@code @class} field containing fully qualified class or simple class name</li>\n   <li>Support for extending JSON files using a {@code @extends} field</li>\n   <li>Handles file and URI-based input</li>\n </ul>\n\n <h2>Example Usage</h2>\n <pre>{@code\n MyClass object = JsonUtils.fromFile(\"config.json\", MyClass.class);\n String json = JsonUtils.asJson(object);\n }</pre>\n\n <h2>Type Resolution via @class</h2>\n When deserializing JSON using generic methods like {@link #fromFile(String)} or {@link #fromJson(String)} that\n don't specify a target type, a {@code @class} attribute is required in the JSON to indicate the target Java type.\n This type can be either:\n <ul>\n     <li>A fully qualified class name (e.g. {@code com.myapp.model.DepositMoney})</li>\n     <li>A short or partially qualified name (e.g. {@code DepositMoney} or {@code myapp.DepositMoney})</li>\n </ul>\n When a short or partial name is used, it must be registered using {@link RegisterType @RegisterType}\n so that it can be resolved via the {@link TypeRegistry}.\n\n <p>\n The Fluxzero Runtime uses this resolution mechanism internally to support extensibility and polymorphic message\n deserialization.\n\n <h2>File Inheritance via @extends</h2>\n JSON files can extend other JSON files using the {@code @extends} attribute. This allows the reuse of base\n configurations or data structures with overridden values in the extending file.\n\n <p><b>Example:</b>\n <pre>{@code\n // deposit-to-userA.json\n {\n   \"@class\": \"DepositMoney\",\n   \"amount\": 23,\n   \"recipient\": \"userA\"\n }\n\n // deposit-to-userB.json\n {\n   \"@extends\": \"deposit-to-userA.json\",\n   \"recipient\": \"userB\"\n }\n }</pre>\n When {@code deposit-to-userB.json} is loaded, it will inherit all fields from {@code deposit-to-userA.json}\n and override the {@code recipient} field with \"userB\".\n <p>\n The inheritance is recursive and is applied before deserialization.\n\n @see ObjectMapper\n @see JsonNode\n @see FileUtils\n @see RegisterType\n @see TypeRegistry\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "extendsPattern",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.extendsPattern",
+    "type" : "java.util.regex.Pattern",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reader",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.reader",
+    "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Preconfigured JsonMapper for reading/deserializing objects from JSON, including type handling.\n\n <p>\n In advanced scenarios, users may replace this field with a custom {@link JsonMapper}. However, this is generally\n discouraged unless strictly necessary.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n",
+    "constantValue" : null
+  }, {
+    "name" : "writer",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils.writer",
+    "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Preconfigured JsonMapper for writing/serializing objects to JSON. By default, it is created using\n {@link #defaultWriterBuilder()}.\n <p>\n In advanced scenarios, users may replace this field with a custom {@link JsonMapper}. However, this is generally\n discouraged unless strictly necessary.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JsonUtils",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#JsonUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asBytes",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#asBytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to a JSON byte array.\n"
+  }, {
+    "name" : "asJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#asJson",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to a JSON string.\n"
+  }, {
+    "name" : "asPrettyJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#asPrettyJson",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to a formatted JSON string.\n"
+  }, {
+    "name" : "convertValue",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#convertValue",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fromValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeRef",
+      "type" : "com.fasterxml.jackson.core.type.TypeReference<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to an object of the given type.\n"
+  }, {
+    "name" : "convertValue",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#convertValue",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fromValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "toValueType",
+      "type" : "java.lang.Class<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to an object of the given class.\n"
+  }, {
+    "name" : "convertValue",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#convertValue",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fromValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "toValueType",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to an object of the given type which may be a {@link java.lang.reflect.ParameterizedType} or\n {@link Class}.\n"
+  }, {
+    "name" : "convertValue",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#convertValue",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fromValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFunction",
+      "type" : "java.util.function.Function<com.fasterxml.jackson.databind.type.TypeFactory,com.fasterxml.jackson.databind.JavaType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to an object of the given type.\n"
+  }, {
+    "name" : "defaultWriterBuilder",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#defaultWriterBuilder",
+    "returnType" : "com.fasterxml.jackson.databind.json.JsonMapper.Builder",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a preconfigured builder for a JsonMapper for writing/serializing objects to JSON.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n <p>\n <strong>Warning:</strong> This mapper is also used by the default serializer in Fluxzero applications,\n {@code JacksonSerializer}. Misconfiguration may result in inconsistencies in search indexing or data loss.\n"
+  }, {
+    "name" : "disableJsonIgnore",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#disableJsonIgnore",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables any Jackson @JsonIgnore behavior on the specified ObjectMapper.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the reference point into an object. Automatically supports\n {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "javaType",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the reference point into an object of the provided type.\n Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the reference point into an object of the provided type.\n Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFunction",
+      "type" : "java.util.function.Function<com.fasterxml.jackson.databind.type.TypeFactory,com.fasterxml.jackson.databind.JavaType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the referencePoint into an object of the type specified by\n the provided type function. Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class. Automatically supports {@code @extends}\n inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "javaType",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class to an object of the specified type.\n Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class to an object of the specified type.\n Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFunction",
+      "type" : "java.util.function.Function<com.fasterxml.jackson.databind.type.TypeFactory,com.fasterxml.jackson.databind.JavaType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class into an object of the type specified by\n the provided type function. Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFile",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFile",
+    "returnType" : "java.util.List<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileNames",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Loads and deserializes JSON files located relative to the calling class. Automatically supports {@code @extends}\n inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFileAs",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFileAs",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class and casts it to type {@link T}.\n Automatically supports {@code @extends} inheritance for configuration reuse.\n"
+  }, {
+    "name" : "fromFileWith",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFileWith",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "replaceValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and deserializes a JSON file located relative to the calling class, applies property replacements, and\n returns the resulting object. The method supports updating specific properties of the deserialized object using\n the provided replacement values.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a JSON byte array and casts the result to type {@link T}.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a JSON byte array into an instance of the specified type.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a JSON byte array into an instance of the specified class type.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a JSON string to an object of the given type, which may be a {@link java.lang.reflect.ParameterizedType}\n or {@link Class}.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFunction",
+      "type" : "java.util.function.Function<com.fasterxml.jackson.databind.type.TypeFactory,com.fasterxml.jackson.databind.JavaType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a JSON byte array into an object of the type specified by the provided type function.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a JSON string to an object of the given type.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a JSON string to an object of the given class type.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a JSON string to an object of the given type, which may be a {@link java.lang.reflect.ParameterizedType}\n or {@link Class}.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFunction",
+      "type" : "java.util.function.Function<com.fasterxml.jackson.databind.type.TypeFactory,com.fasterxml.jackson.databind.JavaType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a JSON string into an object of the type specified by the provided type function.\n"
+  }, {
+    "name" : "getContent",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#getContent",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getContent",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#getContent",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "merge",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#merge",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "base",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Merges a base object with a patch/update object, omitting null fields. Returns a new object of the same type with\n updated fields.\n"
+  }, {
+    "name" : "newObjectNode",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#newObjectNode",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyValues",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Constructs a new {@link ObjectNode} from alternating key-value arguments.\n"
+  }, {
+    "name" : "readTree",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#readTree",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jsonContent",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads a JSON structure as a {@link JsonNode} tree from a JSON byte array.\n"
+  }, {
+    "name" : "readTree",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#readTree",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jsonContent",
+      "type" : "java.io.InputStream",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads a JSON structure as a {@link JsonNode} tree from a JSON input stream.\n"
+  }, {
+    "name" : "readTree",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#readTree",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jsonContent",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads a JSON structure as a {@link JsonNode} tree from a JSON string.\n"
+  }, {
+    "name" : "selectMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#selectMapper",
+    "returnType" : "com.fasterxml.jackson.databind.json.JsonMapper",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryAddKotlinModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#tryAddKotlinModule",
+    "returnType" : "com.fasterxml.jackson.databind.json.JsonMapper.Builder",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "builder",
+      "type" : "com.fasterxml.jackson.databind.json.JsonMapper.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeFactory",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#typeFactory",
+    "returnType" : "com.fasterxml.jackson.databind.type.TypeFactory",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Provides access to the TypeFactory instance used by the writer.\n"
+  }, {
+    "name" : "valueToTree",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#valueToTree",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object to a {@link JsonNode} of type {@link T}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

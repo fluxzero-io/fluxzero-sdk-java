@@ -1,0 +1,28 @@
+{
+  "name" : "FilterContent",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.FilterContent",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Declares that a method should be invoked to filter the visibility of an object for a specific {@link User}.\n <p>\n Filtering allows objects to dynamically adjust their exposed content based on who is viewing them.\n This is especially useful in projections, document models, or search results that may be shared with different roles.\n\n <p><strong>Injection:</strong> The annotated method may accept the following parameters:\n <ul>\n   <li>{@link User} – the current user performing the access</li>\n   <li>Root object – the top-level object being filtered (useful for context when filtering nested values)</li>\n </ul>\n Any other arguments will be ignored.\n\n <p><strong>Return value:</strong> The method should return:\n <ul>\n   <li>{@code this} – if the value is fully visible</li>\n   <li>a modified copy – if only a subset of the value should be shown</li>\n   <li>{@code null} – if the value should be completely hidden</li>\n </ul>\n\n <p><strong>Recursive filtering:</strong> Filtering is automatically applied to nested objects, collections, and maps.\n When filtering results in {@code null} for an item inside a collection or map:\n <ul>\n   <li>The item is removed from a {@code List}</li>\n   <li>The key-value pair is removed from a {@code Map}</li>\n </ul>\n\n <p><strong>Example (filtering the object):</strong></p>\n <pre>{@code\n @FilterContent // Applied to type - filters all handler results\n public class Order {\n     public Order filter(User user) {\n         return user.hasRole(\"admin\") ? this : new Order(maskedFieldsOnly());\n     }\n }\n }</pre>\n\n <p><strong>Example (filtering a nested item with root injection):</strong></p>\n <pre>{@code\n @FilterContent\n public LineItem filter(User user, Order root) {\n     return root.isPublic() ? this : null;\n }\n }</pre>\n\n <p><strong>Invocation:</strong> Filtering can be applied in two ways:\n <ul>\n   <li>Explicitly by calling {@link Fluxzero#filterContent(Object, User)}</li>\n   <li>Automatically for request handler results when the handler, its class, or package is annotated with {@link FilterContent @FilterContent}</li>\n </ul>\n\n <p><strong>For automatic filtering:</strong> @FilterContent can be applied to a handler at three levels:\n <ul>\n   <li>Method level - filters specific method results</li>\n   <li>Type level - automatically filters all handler results in the class</li>\n   <li>Package level - automatically filters all handler results in the package or subpackage</li>\n </ul>\n\n @see Fluxzero#filterContent(Object, User)\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

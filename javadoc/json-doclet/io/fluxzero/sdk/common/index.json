@@ -1,0 +1,66 @@
+{
+  "package" : {
+    "name" : "common",
+    "qualifiedName" : "io.fluxzero.sdk.common",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ClientUtils.json",
+    "name" : "ClientUtils",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils",
+    "kind" : "class"
+  }, {
+    "file" : "Entry.json",
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.sdk.common.Entry",
+    "kind" : "interface"
+  }, {
+    "file" : "HasMessage.json",
+    "name" : "HasMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.HasMessage",
+    "kind" : "interface"
+  }, {
+    "file" : "IdentityProvider.json",
+    "name" : "IdentityProvider",
+    "qualifiedName" : "io.fluxzero.sdk.common.IdentityProvider",
+    "kind" : "interface"
+  }, {
+    "file" : "LazyId.json",
+    "name" : "LazyId",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId",
+    "kind" : "class"
+  }, {
+    "file" : "LazyId.CustomDeserializer.json",
+    "name" : "LazyId.CustomDeserializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomDeserializer",
+    "kind" : "class"
+  }, {
+    "file" : "LazyId.CustomSerializer.json",
+    "name" : "LazyId.CustomSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomSerializer",
+    "kind" : "class"
+  }, {
+    "file" : "Message.json",
+    "name" : "Message",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message",
+    "kind" : "class"
+  }, {
+    "file" : "UuidFactory.json",
+    "name" : "UuidFactory",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "exception",
+    "path" : "exception"
+  }, {
+    "name" : "logging",
+    "path" : "logging"
+  }, {
+    "name" : "serialization",
+    "path" : "serialization"
+  }, {
+    "name" : "websocket",
+    "path" : "websocket"
+  } ]
+}

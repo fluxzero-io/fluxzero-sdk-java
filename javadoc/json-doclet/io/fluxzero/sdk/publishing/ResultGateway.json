@@ -1,0 +1,80 @@
+{
+  "name" : "ResultGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.ResultGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gateway interface for sending result messages in response to a command or query.\n <p>\n The {@code ResultGateway} is used internally by Fluxzero to publish the result of a {@code request}, such as a\n command or query, back to the requester. Each response must specify the target (usually a client ID) and a request ID\n to correlate the result with the original request.\n\n <p>Responses can be sent as raw payloads or wrapped in a {@link Message}. Optionally, metadata and a\n {@link Guarantee} can be supplied to control how delivery is handled.\n\n <p><strong>Note:</strong> The results of handler methods—such as\n {@link HandleCommand} or {@link HandleQuery} methods—are automatically published to the {@code ResultGateway}. This\n interface is typically only used directly when you want to manually complete a request at a later time, such as after\n receiving a third-party callback or performing asynchronous processing unrelated to the original handler method.\n\n <p><strong>Example use case:</strong> Handling a payment gateway callback that matches a previously submitted\n command request.\n\n @see Message\n @see Guarantee\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "respond",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ResultGateway#respond",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a response with the specified payload, metadata, target, request ID, and delivery guarantee.\n <p>\n This method gives full control over how and when the response is delivered.\n\n @param payload   the payload of the response\n @param metadata  additional metadata to include\n @param target    the intended recipient of the response\n @param requestId the identifier of the original request\n @param guarantee delivery guarantee (e.g., {@link Guarantee#SENT} or {@link Guarantee#STORED})\n @return a {@link CompletableFuture} that completes when the response is dispatched (depending on the guarantee)\n"
+  }, {
+    "name" : "respond",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ResultGateway#respond",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a response message with default metadata and {@link Guarantee#NONE}.\n <p>\n If the provided response is a {@link Message}, its payload and metadata are extracted and used directly.\n Otherwise, the response is wrapped as a new {@link Message}.\n\n @param response  the response object or {@link Message} to be sent\n @param target    the recipient of the response (typically a client ID)\n @param requestId the unique ID of the original request\n @return a {@link CompletableFuture} that completes when the message is published (depending on the guarantee)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

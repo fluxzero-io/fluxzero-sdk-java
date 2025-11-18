@@ -1,0 +1,44 @@
+{
+  "name" : "CookieParam",
+  "qualifiedName" : "io.fluxzero.sdk.web.CookieParam",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "PARAMETER"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.web.WebParam",
+    "values" : {
+      "type" : "COOKIE"
+    }
+  } ],
+  "documentation" : " Injects the value of an HTTP cookie into a handler method parameter.\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/profile\")\n public User getProfile(@CookieParam(\"auth_token\") String token) { ... }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieParam#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Cookie parameter name. If left empty, it defaults to the method parameter's name;\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

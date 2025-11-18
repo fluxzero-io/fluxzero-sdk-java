@@ -1,0 +1,53 @@
+{
+  "name" : "HandleMessage",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "ANNOTATION_TYPE"
+    }
+  } ],
+  "documentation" : " Meta-annotation used to declare that an annotation marks a method as a message handler for a specific\n {@link MessageType}.\n <p>\n This annotation is not applied to handler methods directly, but is used as a meta-annotation on other handler\n annotations such as {@link HandleEvent}, {@link HandleCommand}, or {@link HandleQuery}. It defines the message\n semantics and optional constraints on the payload types that can be handled.\n </p>\n\n <p>\n The {@code value()} element specifies the {@link MessageType} this handler annotation corresponds to (e.g., EVENT,\n COMMAND, QUERY).\n </p>\n\n <p>\n The {@code allowedClasses()} element can be used to restrict which payload types are valid for handler methods\n annotated with the derived annotation. This is particularly useful when a single handler method is intended to handle\n multiple related message types (e.g., a common base class or interface).\n </p>\n\n @see MessageType\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "allowedClasses",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage#allowedClasses",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional list of payload types that are allowed for handler methods using this annotation.\n <p>\n If empty (default), any payload type is accepted. If one or more classes are specified, the handler method will\n only be considered for messages whose payload type is assignable to one of the specified classes.\n </p>\n\n <p>\n Note that handler methods may still filter the payload type of messages they handle using their method\n parameters. This allows fine-grained control even when {@code allowedClasses} is left broad or empty.\n </p>\n\n @return array of permitted payload classes for the handler. If empty, any payload type is accepted.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage#value",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The type of message this handler annotation is intended to process. This determines how the framework routes and\n dispatches the message to handlers.\n\n @return the message type (e.g., EVENT, COMMAND, QUERY)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

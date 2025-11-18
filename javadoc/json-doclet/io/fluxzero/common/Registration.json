@@ -1,0 +1,59 @@
+{
+  "name" : "Registration",
+  "qualifiedName" : "io.fluxzero.common.Registration",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a handle for a cancellable registration, such as a subscription, listener, or callback.\n <p>\n The {@code Registration} interface is widely used throughout Fluxzero to manage lifecycle-bound resources like\n message consumers, handler tracking, interceptors, and more. Calling {@link #cancel()} releases the associated resource.\n\n <h2>Usage</h2>\n <pre>{@code\n Registration registration = tracker.start();\n\n // Later\n registration.cancel(); // Stops tracking\n }</pre>\n\n <h2>Combining multiple registrations</h2>\n The {@link #merge(Registration)} method allows combining multiple registrations into a single handle.\n Cancelling the combined registration will cancel both underlying registrations:\n\n <pre>{@code\n Registration r1 = trackerA.start();\n Registration r2 = trackerB.start();\n Registration combined = r1.merge(r2);\n\n combined.cancel(); // Cancels both r1 and r2\n }</pre>\n\n <h2>No-op Registration</h2>\n Use {@link #noOp()} to obtain a dummy {@code Registration} that performs no action when cancelled.\n\n @see io.fluxzero.common.Registration\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "cancel",
+    "qualifiedName" : "io.fluxzero.common.Registration#cancel",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Cancels the resource or subscription associated with this registration.\n <p>\n Calling this method should be idempotent and safe to invoke multiple times.\n"
+  }, {
+    "name" : "merge",
+    "qualifiedName" : "io.fluxzero.common.Registration#merge",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "otherRegistration",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code Registration} that cancels both this and the given {@code otherRegistration}.\n <p>\n This is useful when managing multiple resources together:\n <pre>{@code\n Registration combined = reg1.merge(reg2);\n }</pre>\n\n @param otherRegistration another registration to combine with this one\n @return a composite registration\n"
+  }, {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.common.Registration#noOp",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a no-op {@code Registration} that does nothing on {@link #cancel()}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

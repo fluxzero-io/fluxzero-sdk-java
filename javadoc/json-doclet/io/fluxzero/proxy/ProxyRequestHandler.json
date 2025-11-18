@@ -1,0 +1,326 @@
+{
+  "name" : "ProxyRequestHandler",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.undertow.server.HttpHandler", "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.closed",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestGateway",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestGateway",
+    "type" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestHandler",
+    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.serializer",
+    "type" : "io.fluxzero.proxy.ProxySerializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "websocketEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketEndpoint",
+    "type" : "io.fluxzero.proxy.WebsocketEndpoint",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "websocketHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketHandler",
+    "type" : "io.undertow.server.HttpHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ProxyRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#ProxyRequestHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createWebRequest",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createWebsocketHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createWebsocketHandler",
+    "returnType" : "io.undertow.server.HttpHandler",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getWebsocketProtocols",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#getWebsocketProtocols",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headerValue",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleRequest",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResponse",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleResponse",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"resource\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareForSending",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#prepareForSending",
+    "returnType" : "io.undertow.server.HttpServerExchange",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "statusCode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendGatewayTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendGatewayTimeout",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendResponse",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendResponse",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendServerError",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendServerError",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendWebRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryUpgrade",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#tryUpgrade",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

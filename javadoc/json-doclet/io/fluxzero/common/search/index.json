@@ -1,0 +1,64 @@
+{
+  "package" : {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.common.search",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DefaultDocumentSerializer.json",
+    "name" : "DefaultDocumentSerializer",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer",
+    "kind" : "enum"
+  }, {
+    "file" : "Document.json",
+    "name" : "Document",
+    "qualifiedName" : "io.fluxzero.common.search.Document",
+    "kind" : "class"
+  }, {
+    "file" : "Document.Entry.json",
+    "name" : "Document.Entry",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry",
+    "kind" : "class"
+  }, {
+    "file" : "Document.EntryType.json",
+    "name" : "Document.EntryType",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType",
+    "kind" : "enum"
+  }, {
+    "file" : "Document.Path.json",
+    "name" : "Document.Path",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Path",
+    "kind" : "class"
+  }, {
+    "file" : "Facet.json",
+    "name" : "Facet",
+    "qualifiedName" : "io.fluxzero.common.search.Facet",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Inverter.json",
+    "name" : "Inverter",
+    "qualifiedName" : "io.fluxzero.common.search.Inverter",
+    "kind" : "interface"
+  }, {
+    "file" : "JacksonInverter.json",
+    "name" : "JacksonInverter",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter",
+    "kind" : "class"
+  }, {
+    "file" : "SearchExclude.json",
+    "name" : "SearchExclude",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclude",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "SearchInclude.json",
+    "name" : "SearchInclude",
+    "qualifiedName" : "io.fluxzero.common.search.SearchInclude",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Sortable.json",
+    "name" : "Sortable",
+    "qualifiedName" : "io.fluxzero.common.search.Sortable",
+    "kind" : "annotation_type"
+  } ],
+  "subdirectories" : [ ]
+}

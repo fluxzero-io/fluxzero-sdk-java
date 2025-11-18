@@ -1,0 +1,249 @@
+{
+  "name" : "BetweenConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A {@link Constraint} that filters documents based on whether a value in a specific path lies between two bounds.\n <p>\n The range is defined as:\n <ul>\n   <li>Inclusive of the lower bound (i.e. {@code >= min})</li>\n   <li>Exclusive of the upper bound (i.e. {@code < max})</li>\n </ul>\n Either bound may be omitted to create an open-ended constraint.\n <p>\n Values are compared lexically unless they are numeric (e.g. {@link Number}) or temporal (e.g. {@link java.time.Instant}),\n in which case they are normalized and compared accordingly.\n\n <h2>Examples</h2>\n\n <pre>{@code\n // Matches documents where \"price\" is between 100 (inclusive) and 200 (exclusive)\n Constraint c1 = BetweenConstraint.between(100, 200, \"price\");\n\n // Matches documents where \"age\" is at least 18\n Constraint c2 = BetweenConstraint.atLeast(18, \"age\");\n\n // Matches documents with timestamps before a certain date\n Constraint c3 = BetweenConstraint.below(Instant.now(), \"createdAt\");\n }</pre>\n <p>\n Note: to speed up {@link BetweenConstraint} matching, it is recommended to annotate fields with {@link Sortable}.\n\n @see Sortable\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.search.constraints.PathConstraint",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "matcher",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.matcher",
+    "type" : "java.util.function.Predicate<io.fluxzero.common.search.Document.Entry>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true",
+        "value" : "PROTECTED"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.max",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Represents the exclusive upper bound for a constraint in which values must be less than this maximum to meet the\n criteria.\n",
+    "constantValue" : null
+  }, {
+    "name" : "min",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.min",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Represents the inclusive lower bound for a constraint. This value defines the minimum value that must be matched\n by a given entity or document entry during the evaluation of the constraint.\n",
+    "constantValue" : null
+  }, {
+    "name" : "paths",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.paths",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " The paths in the document to which the constraint applies. Each path represents a specific location or key in the\n document structure, allowing the constraint to be evaluated at those locations.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "BetweenConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#BetweenConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asEntry",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#asEntry",
+    "returnType" : "io.fluxzero.common.search.Document.Entry",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "atLeast",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#atLeast",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "min",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a constraint that matches values in the given path that are greater than or equal to {@code min}.\n\n @param min  the inclusive lower bound\n @param path the path in the document to compare\n"
+  }, {
+    "name" : "below",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#below",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxExclusive",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a constraint that matches values in the given path that are less than {@code maxExclusive}.\n\n @param maxExclusive the exclusive upper bound\n @param path         the path in the document to compare\n"
+  }, {
+    "name" : "between",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#between",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "min",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxExclusive",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a constraint that matches values in the given path that are greater than or equal to {@code min} and less\n than {@code max}.\n\n @param min          the inclusive lower bound\n @param maxExclusive the exclusive upper bound\n @param path         the path in the document to compare\n"
+  }, {
+    "name" : "checkPathBeforeEntry",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#checkPathBeforeEntry",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeEntryPredicate",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#computeEntryPredicate",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.search.Document.Entry>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "formatConstraintValue",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#formatConstraintValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.search.Document.Entry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

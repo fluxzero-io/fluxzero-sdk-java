@@ -1,0 +1,223 @@
+{
+  "name" : "StatefulHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.FieldDefaults",
+    "values" : {
+      "level" : "PRIVATE",
+      "makeFinal" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link Handler} implementation for classes annotated with {@link Stateful}, responsible for resolving and invoking\n stateful handler instances based on {@link Association} metadata.\n <p>\n This handler enables long-lived, stateful components to participate in message processing. It ensures that:\n <ul>\n     <li>Messages are routed to the correct instance(s) based on matching association keys</li>\n     <li>Instances are automatically created, updated, or deleted depending on the result of handler methods</li>\n     <li>Static methods may initialize new handler instances (e.g., factory methods on creation events)</li>\n     <li>Association routing is supported via property-based or method-level annotations</li>\n </ul>\n\n <h2>Routing Logic</h2>\n The handler uses the following mechanisms to determine message dispatch:\n <ul>\n     <li>{@link Association} annotations on fields and methods define the routing keys used to match incoming messages to stateful instances.</li>\n     <li>{@link EntityId} defines the identity of the handler, used when persisting or retrieving state.</li>\n     <li>If no matching instances are found, static methods marked with {@code @Handle...} and {@code @Association(always = true)} may be invoked to initialize new instances.</li>\n     <li>Fallback routing via {@link RoutingKey} annotations or message metadata is also supported.</li>\n </ul>\n\n <h2>Persistence and Lifecycle</h2>\n <ul>\n     <li>The resolved handler instances are loaded and stored via a {@link HandlerRepository} (typically backed by the {@code DocumentStore}).</li>\n     <li>If a handler method returns a new instance, it replaces the current state.</li>\n     <li>If a handler method returns {@code null}, the instance is removed from storage.</li>\n </ul>\n\n <h2>Batch-Aware Behavior</h2>\n <ul>\n     <li>Routing decisions may respect the current {@link Tracker} context, segment ownership, and routing constraints.</li>\n     <li>Within a batch, state changes may be staged locally before committing (when {@code commitInBatch = true}).</li>\n </ul>\n\n <h2>Internal Mechanics</h2>\n <ul>\n     <li>Associations are lazily resolved and memoized for performance.</li>\n     <li>Handler invocation is delegated via {@link HandlerMatcher} and {@link HandlerInvoker} abstractions.</li>\n     <li>Support is provided for multiple matches and combined invocation across entries.</li>\n </ul>\n\n @see Stateful\n @see Association\n @see HandlerRepository\n @see HandlerInvoker\n @see DeserializingMessage\n @see io.fluxzero.sdk.tracking.Tracker\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ {
+    "name" : "alwaysAssociateMethods",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.alwaysAssociateMethods",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.lang.Boolean>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "associationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.associationProperties",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.handlerMatcher",
+    "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "methodAssociationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.methodAssociationProperties",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "repository",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.repository",
+    "type" : "io.fluxzero.sdk.modeling.HandlerRepository",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.targetClass",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "StatefulHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#StatefulHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "alreadyFiltered",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#alreadyFiltered",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "i",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "associations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#associations",
+    "returnType" : "java.util.Map<java.lang.Object,java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "canTrackerHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#canTrackerHandle",
+    "returnType" : "java.lang.Boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routingKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#getInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "includedPayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#includedPayload",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "association",
+      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "AssociationValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$AssociationValue",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {
+        "toBuilder" : "true"
+      }
+    } ]
+  }, {
+    "name" : "StatefulHandlerInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  } ]
+}

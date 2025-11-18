@@ -1,0 +1,449 @@
+{
+  "name" : "JacksonSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer",
+  "packageName" : "io.fluxzero.sdk.common.serialization.jackson",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A concrete {@link io.fluxzero.sdk.common.serialization.Serializer} implementation based on Jackson.\n <p>\n This is the default serializer used in Fluxzero, supporting:\n <ul>\n     <li>Serialization and deserialization using Jackson's {@link ObjectMapper}</li>\n     <li>Integration with upcasters/downcasters for versioned data evolution</li>\n     <li>Intermediate representation based on {@link JsonNode} for revision tracking</li>\n     <li>{@link DocumentSerializer} support for document store interoperability</li>\n     <li>Type caching and memoization for performance</li>\n </ul>\n\n <p>\n You can customize or replace this serializer entirely by subclassing or injecting your own implementation of\n {@code AbstractSerializer}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.serialization.AbstractSerializer<com.fasterxml.jackson.databind.JsonNode>",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.search.DocumentSerializer" ],
+  "fields" : [ {
+    "name" : "contentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.contentFilter",
+    "type" : "io.fluxzero.sdk.common.serialization.ContentFilter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.Delegate",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultObjectMapper",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.defaultObjectMapper",
+    "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default {@link JsonMapper} instance used for JSON serialization and deserialization.\n <p>\n In advanced scenarios, users may replace this field with a custom {@link JsonMapper}. However, this is generally\n discouraged unless strictly necessary.\n <p>\n A better approach for customizing Jackson behavior is to provide your own modules via the Jackson\n {@link com.fasterxml.jackson.databind.Module} SPI (ServiceLoader mechanism), which avoids overriding global\n configuration and ensures compatibility.\n <p>\n <strong>Warning:</strong> This mapper is also used to construct and parse search documents.\n Misconfiguration may result in inconsistencies in search indexing or data loss.\n",
+    "constantValue" : null
+  }, {
+    "name" : "inverter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.inverter",
+    "type" : "io.fluxzero.common.search.Inverter<com.fasterxml.jackson.databind.JsonNode>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "objectMapper",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.objectMapper",
+    "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.typeCache",
+    "type" : "java.util.function.Function<java.lang.String,com.fasterxml.jackson.databind.JavaType>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeStringCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.typeStringCache",
+    "type" : "java.util.function.Function<java.lang.reflect.Type,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#JacksonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a default JacksonSerializer with no up/downcasters.\n"
+  }, {
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#JacksonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a JacksonSerializer with a specific {@link JsonMapper} instance.\n"
+  }, {
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#JacksonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "casterCandidates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a JacksonSerializer with an object mapper and up/downcaster candidates.\n"
+  }, {
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#JacksonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "casterCandidates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inverter",
+      "type" : "io.fluxzero.common.search.JacksonInverter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Full constructor with object mapper, caster candidates and custom document inverter.\n"
+  }, {
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#JacksonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "casterCandidates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a JacksonSerializer with the given up/downcaster candidates.\n"
+  } ],
+  "methods" : [ {
+    "name" : "asIntermediateValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#asIntermediateValue",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts the given object into a {@link JsonNode} for use in revision downcasting.\n"
+  }, {
+    "name" : "asString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#asString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a canonical string name for the given type.\n"
+  }, {
+    "name" : "deserializeUnknownType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeUnknownType",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingObject<byte[],?>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "s",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fallback handler for deserialization of unknown types. Attempts best-effort conversion using Jackson.\n"
+  }, {
+    "name" : "doClone",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#doClone",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Performs a field-level clone by copying values from the original object into a new instance of the same type.\n This first converts the value to an {@link com.fasterxml.jackson.databind.node.ObjectNode}.\n"
+  }, {
+    "name" : "doConvert",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#doConvert",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts an object into another type using Jackson’s {@link ObjectMapper}.\n"
+  }, {
+    "name" : "doDeserialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#doDeserialize",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a {@link Data} instance into an object of the given type using the Jackson object mapper. Supports\n {@link JsonNode}, byte arrays and strings as serialized input.\n"
+  }, {
+    "name" : "doSerialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#doSerialize",
+    "returnType" : "byte[]",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Serializes the object to a JSON byte array.\n"
+  }, {
+    "name" : "fromDocument",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#fromDocument",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromDocument",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#fromDocument",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCanonicalType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#getCanonicalType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes the canonical string representation of a {@link Type}.\n"
+  }, {
+    "name" : "getJavaType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#getJavaType",
+    "returnType" : "com.fasterxml.jackson.databind.JavaType",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a canonical {@link JavaType} for the given string-based type name.\n"
+  }, {
+    "name" : "isKnownType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#isKnownType",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether the given type is known to the Jackson type system.\n"
+  }, {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

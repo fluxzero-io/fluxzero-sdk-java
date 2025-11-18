@@ -1,0 +1,103 @@
+{
+  "name" : "Association",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "io.fluxzero.common.search.SearchInclude",
+    "values" : {}
+  } ],
+  "documentation" : " Declares how a message should be routed to a stateful handler instance (typically annotated with {@link Stateful}).\n <p>\n {@code @Association} enables matching of incoming messages with persisted handler instances. Matching handlers are\n automatically loaded and the message is applied to them.\n\n <h2>Usage</h2>\n This annotation can be placed on:\n <ul>\n     <li>A <strong>field or getter</strong> in a stateful handler — this declares which part of the handler's state\n     is used for association.</li>\n     <li>A <strong>handler method</strong> — this declares which message field(s) should be matched against\n     handler state.</li>\n </ul>\n\n <h2>Matching Semantics</h2>\n A message is associated with a handler if:\n <ul>\n     <li>The value of the property in the message equals the value in the handler's state, and</li>\n     <li>The name of the message property matches the name (or explicitly declared {@link #value()}) of the handler field.</li>\n </ul>\n This dual condition prevents false positives when different fields share similar values.\n\n <h2>Multiple Handler Matches</h2>\n A single message may match multiple handlers. All matching handlers will be loaded and the message will be applied to each.\n\n <h3>Example: Associating by field</h3>\n <pre>{@code\n @Value\n @Stateful\n public class PaymentProcess {\n     @EntityId String id;\n\n     @Association\n     String pspReference;\n }\n }</pre>\n In this example, any message with a `pspReference` field matching the handler’s field will be routed to it.\n\n <h3>Example: Method-level association</h3>\n <pre>{@code\n @HandleEvent\n @Association(\"userId\")\n void on(UserDeleted event) {\n     ...\n }\n }</pre>\n Associates based on the `userId` field in the message payload.\n\n <h2>Advanced Configuration</h2>\n <ul>\n     <li>{@link #path()} can be used to match nested or computed properties in the handler state.</li>\n     <li>{@link #includedClasses()} and {@link #excludedClasses()} can restrict association to specific message types.</li>\n     <li>{@link #excludeMetadata()} disables metadata-based matching.</li>\n     <li>{@link #always()} applies the message to <em>all</em> persisted handlers regardless of association (use with care).</li>\n </ul>\n\n @see Stateful\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "always",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#always",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the message matched by this handler should always be applied to any stored handlers. All other\n configuration in this annotation will be ignored. This setting only has an effect if it is used in an annotation\n of a handler method. I.e. it has no effect if the association is on a field or getter of the handler.\n <p>\n Note: be very careful using this when there are many stored handlers, as each handler will be fetched and\n updated. In that case it is prudent to look for alternatives.\n"
+  }, {
+    "name" : "excludeMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#excludeMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether metadata properties of messages should be checked for possible association with a stored\n handler.\n"
+  }, {
+    "name" : "excludedClasses",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#excludedClasses",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns payload classes for which this association is active. If the payload of a message is assignable to any of\n these classes an association with the message is NOT attempted.\n"
+  }, {
+    "name" : "includedClasses",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#includedClasses",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns payload classes for which this association can be used. If this array is empty or the payload of a\n message is assignable to any of these classes, AND the class is not excluded via {@link #excludedClasses()}, an\n association with the message is attempted.\n"
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns path of the property to match on in the handler state. A message is only associated with a stored Handler\n if the associated value can be found in a stored Handler at the given path.\n <p>\n If this is left empty and the annotation is on a field or getter, the name of field is used to filter any\n matches. If this is left empty and the annotation is on a handler method, any Handler containing the associated\n value is matched, regardless of the path of the value in the matched Handler.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association#value",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns names of properties in the message payload to associate with. If the annotation is placed on a property\n of the Handler this may be left empty to associate using the name of the Handler property.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

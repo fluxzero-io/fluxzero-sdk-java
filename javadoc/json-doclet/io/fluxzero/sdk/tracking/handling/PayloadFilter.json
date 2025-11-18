@@ -1,0 +1,98 @@
+{
+  "name" : "PayloadFilter",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link MessageFilter} used to restrict message handling based on the payload type.\n\n <p>This filter determines whether a handler method should be invoked based on whether the incoming message's payload\n class is compatible with the types explicitly allowed in the method's handler annotation (e.g.,\n {@code @HandleCommand}, {@code @HandleQuery}, etc.) via the {@code allowedClasses} method.\n\n <p>The filtering logic checks if the method has a supported handler annotation and whether the annotation defines\n a non-empty set of allowed payload types. If so, the message's payload class must be assignable to at least one of\n those allowed classes for the handler to be eligible.\n\n <p>If no types are specified in the annotation, the handler is assumed to be permissive and accepts all types. In\n those cases a method is typically filtered by the {@link PayloadParameterResolver} instead.\n\n <h2>Example Usage</h2>\n Given a handler:\n <pre>{@code\n @HandleCommand(allowedClasses = {CommandA.class, CommandB.class})\n public void handle(DeserializingMessage message) { ... }\n }</pre>\n This filter ensures that only messages with a `CommandA` or `CommandB` payload (or their subtypes) are dispatched to\n the method.\n\n @see HasMessage#getPayloadClass()\n @see ReflectionUtils#getClassSpecificityComparator()\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
+  "fields" : [ {
+    "name" : "allowedClassProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter.allowedClassProvider",
+    "type" : "java.util.function.Function<java.lang.Class<? extends java.lang.annotation.Annotation>,java.util.function.Function<java.lang.reflect.Executable,io.fluxzero.sdk.tracking.handling.PayloadFilter.HandleAnnotation>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PayloadFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#PayloadFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getLeastSpecificAllowedClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#getLeastSpecificAllowedClass",
+    "returnType" : "java.util.Optional<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "HandleAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter$HandleAnnotation",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

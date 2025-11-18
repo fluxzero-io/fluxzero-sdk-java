@@ -1,0 +1,303 @@
+{
+  "name" : "TypeRegistryProcessor",
+  "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "javax.annotation.processing.SupportedAnnotationTypes",
+    "values" : {
+      "value" : "\"io.fluxzero.common.serialization.RegisterType\""
+    }
+  }, {
+    "annotationType" : "com.google.auto.service.AutoService",
+    "values" : {
+      "value" : "javax.annotation.processing.Processor.class"
+    }
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "javax.annotation.processing.AbstractProcessor",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ANNOTATION",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.ANNOTATION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.common.serialization.RegisterType"
+  }, {
+    "name" : "PREFIXES_FILE",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.PREFIXES_FILE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "META-INF/type-registry-prefixes"
+  }, {
+    "name" : "TYPES_FILE",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.TYPES_FILE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "prefixesResource",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.prefixesResource",
+    "type" : "javax.tools.FileObject",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "roundPrefixes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.roundPrefixes",
+    "type" : "java.util.Set<io.fluxzero.common.serialization.TypeRegistryProcessor.Prefix>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typesResource",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.typesResource",
+    "type" : "javax.tools.FileObject",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TypeRegistryProcessor",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#TypeRegistryProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getClasses",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#getClasses",
+    "returnType" : "java.util.stream.Stream<javax.lang.model.element.TypeElement>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getNewTypes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#getNewTypes",
+    "returnType" : "java.util.stream.Stream<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefixes",
+      "type" : "java.util.Set<io.fluxzero.common.serialization.TypeRegistryProcessor.Prefix>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPrefixes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#getPrefixes",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.common.serialization.TypeRegistryProcessor.Prefix>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getStoredTypes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#getStoredTypes",
+    "returnType" : "java.util.stream.Stream<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefixes",
+      "type" : "java.util.Set<io.fluxzero.common.serialization.TypeRegistryProcessor.Prefix>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSupportedSourceVersion",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#getSupportedSourceVersion",
+    "returnType" : "javax.lang.model.SourceVersion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "init",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#init",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "processingEnv",
+      "type" : "javax.annotation.processing.ProcessingEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isNewProcess",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#isNewProcess",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPackage",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#isPackage",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fqn",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isType",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#isType",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fqn",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "process",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#process",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.Set<? extends javax.lang.model.element.TypeElement>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundEnv",
+      "type" : "javax.annotation.processing.RoundEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeTypes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#storeTypes",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAndGetPrefixes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#updateAndGetPrefixes",
+    "returnType" : "java.util.Set<io.fluxzero.common.serialization.TypeRegistryProcessor.Prefix>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Prefix",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor$Prefix",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,37 @@
+{
+  "name" : "RepositoryProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Provides access to a singleton-style repository for a given class type.\n <p>\n This interface is commonly used to retrieve long-lived, in-memory or cache-backed data structures that are\n scoped to a {@link io.fluxzero.sdk.Fluxzero} instance. Repositories are typically used to\n model shared application state, pre-loaded caches, or instance-specific registries.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getRepository",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider#getRepository",
+    "returnType" : "java.util.Map<java.lang.Object,T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "repositoryClass",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a repository (typically a shared, type-scoped map) for the given class type.\n <p>\n The returned {@code Map<Object, T>} is expected to be a singleton per type and reused across calls.\n\n @param repositoryClass the class representing the repository entry type\n @param <T>             the type of objects stored in the repository\n @return a shared map representing the repository for the given type\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
