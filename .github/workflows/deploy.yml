@@ -63,10 +63,10 @@ jobs:
 
       - name: Set maven version
         run: |
-          mvn -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
+          ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
 
       - name: Deploy to Maven Central
-        run: mvn -P deploy -B deploy
+        run: ./mvnw -P deploy -B deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
@@ -75,7 +75,7 @@ jobs:
 
       - name: Generate javadoc html
         run: |
-          mvn -B site
+          ./mvnw -B site
           for module in sdk common proxy test-server; do
             mkdir -p target/site/$module
             mv $module/target/site/* target/site/$module/

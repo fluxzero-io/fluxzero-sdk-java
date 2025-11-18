@@ -22,4 +22,4 @@ jobs:
           cache: 'maven'
 
       - name: Run Maven build
-        run: mvn -B install
+        run: ./mvnw -B install
