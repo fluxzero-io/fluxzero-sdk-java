@@ -1,0 +1,77 @@
+name: Generate and Publish Javadoc
+
+on:
+  workflow_call:
+    inputs:
+      modules:
+        description: 'Space-separated list of modules to organize (e.g., "sdk common proxy test-server")'
+        required: false
+        type: string
+        default: 'sdk common proxy test-server'
+      maven-profiles:
+        description: 'Maven profiles to activate (e.g., "-Pjson-doclet")'
+        required: false
+        type: string
+        default: ''
+      include-json-doclet:
+        description: 'Whether to include json-doclet output'
+        required: false
+        type: boolean
+        default: false
+      destination-dir:
+        description: 'Destination directory on GitHub Pages'
+        required: false
+        type: string
+        default: 'javadoc'
+
+env:
+  BUILD_ENVIRONMENT: github
+
+jobs:
+  generate-javadoc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v5
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Generate documentation site
+        run: |
+          PROFILES=""
+          if [ -n "${{ inputs.maven-profiles }}" ]; then
+            PROFILES="${{ inputs.maven-profiles }}"
+          fi
+          ./mvnw -B site $PROFILES
+
+          # Organize modules
+          for module in ${{ inputs.modules }}; do
+            if [ -d "$module/target/site" ]; then
+              mkdir -p target/site/$module
+              mv $module/target/site/* target/site/$module/
+            fi
+          done
+
+          # Include json-doclet if requested
+          if [ "${{ inputs.include-json-doclet }}" = "true" ] && [ -d target/json-docs ]; then
+            mkdir -p target/site/json-doclet
+            cp -R target/json-docs/. target/site/json-doclet/
+          fi
+
+          # Add cache-busting meta tags to all HTML files
+          find target/site -name "*.html" -exec sed -i'' '/<head>/a\
+          <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\
+          <meta http-equiv="Pragma" content="no-cache" />\
+          <meta http-equiv="Expires" content="0" />' {} +
+
+      - name: Publish Javadoc to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/site
+          destination_dir: ${{ inputs.destination-dir }}

@@ -7,7 +7,7 @@ env:
   BUILD_ENVIRONMENT: github
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -30,8 +30,10 @@ jobs:
         run: |
           ./mvnw -B site -Pjson-doclet
           for module in sdk common proxy test-server; do
-            mkdir -p target/site/$module
-            mv $module/target/site/* target/site/$module/
+            if [ -d "$module/target/site" ]; then
+              mkdir -p target/site/$module
+              mv $module/target/site/* target/site/$module/
+            fi
           done
           if [ -d target/json-docs ]; then
             mkdir -p target/site/json-doclet
