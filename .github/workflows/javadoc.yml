@@ -8,16 +8,6 @@ on:
         required: false
         type: string
         default: 'sdk common proxy test-server'
-      maven-profiles:
-        description: 'Maven profiles to activate (e.g., "-Pjson-doclet")'
-        required: false
-        type: string
-        default: ''
-      include-json-doclet:
-        description: 'Whether to include json-doclet output'
-        required: false
-        type: boolean
-        default: false
       destination-dir:
         description: 'Destination directory on GitHub Pages'
         required: false
@@ -30,11 +20,6 @@ on:
         required: false
         type: string
         default: 'sdk common proxy test-server'
-      enable-json-doclet:
-        description: 'Generate JSON documentation (requires GitHub Packages auth)'
-        required: false
-        type: boolean
-        default: false
       destination-dir:
         description: 'Destination directory on GitHub Pages'
         required: false
@@ -51,32 +36,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v5
 
-      - name: Determine configuration
-        id: config
-        run: |
-          # Determine if json-doclet should be enabled
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "json-enabled=${{ inputs.enable-json-doclet }}" >> $GITHUB_OUTPUT
-            if [ "${{ inputs.enable-json-doclet }}" = "true" ]; then
-              echo "maven-profiles=-Pjson-doclet" >> $GITHUB_OUTPUT
-            else
-              echo "maven-profiles=" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "json-enabled=${{ inputs.include-json-doclet }}" >> $GITHUB_OUTPUT
-            echo "maven-profiles=${{ inputs.maven-profiles }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Install Java and Maven (standard)
-        if: steps.config.outputs.json-enabled != 'true'
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '25'
-          cache: 'maven'
-
-      - name: Install Java and Maven (with GitHub Packages auth for json-doclet)
-        if: steps.config.outputs.json-enabled == 'true'
+      - name: Install Java and Maven
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -87,13 +47,11 @@ jobs:
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Maven install (to fetch json-doclet from GitHub Packages)
-        if: steps.config.outputs.json-enabled == 'true'
         run: ./mvnw -B install -DskipTests
 
       - name: Generate documentation site
         run: |
-          PROFILES="${{ steps.config.outputs.maven-profiles }}"
-          ./mvnw -B site $PROFILES
+          ./mvnw -B site -Pjson-doclet
 
           # Organize modules
           for module in ${{ inputs.modules }}; do
@@ -103,8 +61,8 @@ jobs:
             fi
           done
 
-          # Include json-doclet if requested
-          if [ "${{ steps.config.outputs.json-enabled }}" = "true" ] && [ -d target/json-docs ]; then
+          # Include json-doclet output
+          if [ -d target/json-docs ]; then
             mkdir -p target/site/json-doclet
             cp -R target/json-docs/. target/site/json-doclet/
           fi
