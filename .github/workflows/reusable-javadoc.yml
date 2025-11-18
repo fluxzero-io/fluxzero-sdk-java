@@ -23,6 +23,23 @@ on:
         required: false
         type: string
         default: 'javadoc'
+  workflow_dispatch:
+    inputs:
+      modules:
+        description: 'Space-separated list of modules to organize'
+        required: false
+        type: string
+        default: 'sdk common proxy test-server'
+      enable-json-doclet:
+        description: 'Generate JSON documentation (requires GitHub Packages auth)'
+        required: false
+        type: boolean
+        default: false
+      destination-dir:
+        description: 'Destination directory on GitHub Pages'
+        required: false
+        type: string
+        default: 'javadoc'
 
 env:
   BUILD_ENVIRONMENT: github
@@ -34,19 +51,39 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v5
 
+      - name: Determine configuration
+        id: config
+        run: |
+          # Determine if json-doclet should be enabled
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "json-enabled=${{ inputs.enable-json-doclet }}" >> $GITHUB_OUTPUT
+            if [ "${{ inputs.enable-json-doclet }}" = "true" ]; then
+              echo "maven-profiles=-Pjson-doclet" >> $GITHUB_OUTPUT
+            else
+              echo "maven-profiles=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "json-enabled=${{ inputs.include-json-doclet }}" >> $GITHUB_OUTPUT
+            echo "maven-profiles=${{ inputs.maven-profiles }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Java and Maven
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '25'
           cache: 'maven'
+          server-id: ${{ steps.config.outputs.json-enabled == 'true' && 'github' || '' }}
+          server-username: ${{ steps.config.outputs.json-enabled == 'true' && github.actor || '' }}
+          server-password: ${{ steps.config.outputs.json-enabled == 'true' && secrets.GITHUB_TOKEN || '' }}
+
+      - name: Maven install (for json-doclet dependencies)
+        if: steps.config.outputs.json-enabled == 'true'
+        run: ./mvnw -B install -DskipTests
 
       - name: Generate documentation site
         run: |
-          PROFILES=""
-          if [ -n "${{ inputs.maven-profiles }}" ]; then
-            PROFILES="${{ inputs.maven-profiles }}"
-          fi
+          PROFILES="${{ steps.config.outputs.maven-profiles }}"
           ./mvnw -B site $PROFILES
 
           # Organize modules
@@ -58,7 +95,7 @@ jobs:
           done
 
           # Include json-doclet if requested
-          if [ "${{ inputs.include-json-doclet }}" = "true" ] && [ -d target/json-docs ]; then
+          if [ "${{ steps.config.outputs.json-enabled }}" = "true" ] && [ -d target/json-docs ]; then
             mkdir -p target/site/json-doclet
             cp -R target/json-docs/. target/site/json-doclet/
           fi
