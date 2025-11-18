@@ -1,13 +1,36 @@
-name: Publish javadoc
+name: Generate and Publish Javadoc
 
 on:
+  workflow_call:
+    inputs:
+      modules:
+        description: 'Space-separated list of modules to organize (e.g., "sdk common proxy test-server")'
+        required: false
+        type: string
+        default: 'sdk common proxy test-server'
+      destination-dir:
+        description: 'Destination directory on GitHub Pages'
+        required: false
+        type: string
+        default: 'javadoc'
   workflow_dispatch:
+    inputs:
+      modules:
+        description: 'Space-separated list of modules to organize'
+        required: false
+        type: string
+        default: 'sdk common proxy test-server'
+      destination-dir:
+        description: 'Destination directory on GitHub Pages'
+        required: false
+        type: string
+        default: 'javadoc'
 
 env:
   BUILD_ENVIRONMENT: github
 
 jobs:
-  deploy:
+  generate-javadoc:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -23,20 +46,28 @@ jobs:
           server-username: ${{ github.actor }}
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Maven install
+      - name: Maven install (to fetch json-doclet from GitHub Packages)
         run: ./mvnw -B install -DskipTests
 
       - name: Generate documentation site
         run: |
           ./mvnw -B site -Pjson-doclet
-          for module in sdk common proxy test-server; do
-            mkdir -p target/site/$module
-            mv $module/target/site/* target/site/$module/
+
+          # Organize modules
+          for module in ${{ inputs.modules }}; do
+            if [ -d "$module/target/site" ]; then
+              mkdir -p target/site/$module
+              mv $module/target/site/* target/site/$module/
+            fi
           done
+
+          # Include json-doclet output
           if [ -d target/json-docs ]; then
             mkdir -p target/site/json-doclet
             cp -R target/json-docs/. target/site/json-doclet/
           fi
+
+          # Add cache-busting meta tags to all HTML files
           find target/site -name "*.html" -exec sed -i'' '/<head>/a\
           <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\
           <meta http-equiv="Pragma" content="no-cache" />\
@@ -47,4 +78,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/site
-          destination_dir: javadoc
+          destination_dir: ${{ inputs.destination-dir }}

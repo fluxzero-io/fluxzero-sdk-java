@@ -16,7 +16,53 @@ env:
   BUILD_ENVIRONMENT: github
 
 jobs:
-  deploy:
+  # Job 1: Build and test (CRITICAL PATH - must succeed before anything else)
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag_version.outputs.new_version }}
+      version-tag: ${{ steps.tag_version.outputs.new_tag }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v5
+
+      - name: Install Java and Maven
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Bump version and push tag
+        uses: mathieudutour/github-tag-action@v6.2
+        id: tag_version
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: minor
+          tag_prefix: ""
+          custom_tag: ${{ github.event.inputs.version }}
+          custom_release_rules: "deps:patch:Dependency updates"
+
+      - name: Set maven version
+        run: |
+          ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Build and test
+        run: ./mvnw -B install
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-artifacts
+          path: |
+            **/target/*.jar
+            !**/target/*-sources.jar
+            !**/target/*-javadoc.jar
+          retention-days: 1
+
+  # Job 2: Deploy to Maven Central (runs in parallel after build)
+  maven-central:
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
@@ -32,17 +78,56 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
 
+      - name: Set maven version
+        run: |
+          ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: maven-artifacts
+
+      - name: Deploy to Maven Central
+        run: ./mvnw -P deploy -B deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+  # Job 3: Generate and publish javadoc (runs in parallel after build)
+  javadoc:
+    needs: build-and-test
+    uses: ./.github/workflows/javadoc.yml
+
+  # Job 4: Create GitHub release (runs in parallel after build)
+  github-release:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v5
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build-and-test.outputs.version }}
+          name: Fluxzero ${{ needs.build-and-test.outputs.version }}
+          generate_release_notes: true
+
+  # Job 5: Build and push test-server Docker image (runs in parallel after build)
+  docker-test-server:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v5
+
       - uses: sigstore/cosign-installer@v4.0.0
 
       - name: Verify docker base image signatures
         run: |
-          DIRS=("proxy" "test-server")
-          IMAGES=$(
-            for DIR in "${DIRS[@]}"; do
-              grep '^FROM ' "$DIR/Dockerfile" | awk '{print $2}'
-            done | sort -u
-          )
-          
+          IMAGES=$(grep '^FROM ' test-server/Dockerfile | awk '{print $2}' | sort -u)
           for IMG in $IMAGES; do
             echo "Verifying base image $IMG"
             cosign verify \
@@ -51,53 +136,62 @@ jobs:
               "$IMG"
           done
 
-      - name: Bump version and push tag
-        uses: mathieudutour/github-tag-action@v6.2
-        id: tag_version
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: minor
-          tag_prefix: ""
-          custom_tag: ${{ github.event.inputs.version }}
-          custom_release_rules: "deps:patch:Dependency updates"
+          name: maven-artifacts
 
-      - name: Set maven version
+      - name: Log in to Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for test-server
+        id: metadata-test-server
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            latest=true
+          tags: |
+            type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
+          images: |
+            ghcr.io/${{ github.repository }}/fluxzero-test
+
+      - name: Build and push test-server Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: test-server
+          push: true
+          tags: ${{ steps.metadata-test-server.outputs.tags }}
+          labels: ${{ steps.metadata-test-server.outputs.labels }}
+
+  # Job 6: Build and push proxy Docker image (runs in parallel after build)
+  docker-proxy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v5
+
+      - uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Verify docker base image signatures
         run: |
-          mvn -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
-
-      - name: Deploy to Maven Central
-        run: mvn -P deploy -B deploy
-        env:
-          MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
-          MAVEN_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-
-      - name: Generate javadoc html
-        run: |
-          mvn -B site
-          for module in sdk common proxy test-server; do
-            mkdir -p target/site/$module
-            mv $module/target/site/* target/site/$module/
+          IMAGES=$(grep '^FROM ' proxy/Dockerfile | awk '{print $2}' | sort -u)
+          for IMG in $IMAGES; do
+            echo "Verifying base image $IMG"
+            cosign verify \
+              --certificate-identity keyless@distroless.iam.gserviceaccount.com \
+              --certificate-oidc-issuer https://accounts.google.com \
+              "$IMG"
           done
-          find target/site -name "*.html" -exec sed -i'' '/<head>/a\
-          <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\
-          <meta http-equiv="Pragma" content="no-cache" />\
-          <meta http-equiv="Expires" content="0" />' {} +
 
-      - name: Publish Javadoc to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/site
-          destination_dir: javadoc
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag_version.outputs.new_version }}
-          name: Fluxzero ${{ steps.tag_version.outputs.new_version }}
-          body: ${{ steps.tag_version.outputs.changelog }}
+          name: maven-artifacts
 
       - name: Log in to Github Container Registry
         uses: docker/login-action@v3
@@ -119,25 +213,6 @@ jobs:
           username: ${{ steps.fluxzero-jwt.outputs.userId }}
           password: ${{ steps.fluxzero-jwt.outputs.token }}
 
-      - name: Extract metadata for test-server
-        id: metadata-test-server
-        uses: docker/metadata-action@v5
-        with:
-          flavor: |
-            latest=true
-          tags: |
-            type=raw,value=${{ steps.tag_version.outputs.new_version }}
-          images: |
-            ghcr.io/${{ github.repository }}/fluxzero-test
-
-      - name: Build and push test-server Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: test-server
-          push: true
-          tags: ${{ steps.metadata-test-server.outputs.tags }}
-          labels: ${{ steps.metadata-test-server.outputs.labels }}
-
       - name: Extract metadata for proxy
         id: metadata-proxy
         uses: docker/metadata-action@v5
@@ -145,7 +220,7 @@ jobs:
           flavor: |
             latest=true
           tags: |
-            type=raw,value=${{ steps.tag_version.outputs.new_version }}
+            type=raw,value=${{ needs.build-and-test.outputs.version-tag }}
           images: |
             ghcr.io/${{ github.repository }}/fluxzero-proxy
             registry.fluxzero.io/fluxzero-proxy
