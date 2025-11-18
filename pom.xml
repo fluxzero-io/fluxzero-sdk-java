@@ -303,6 +303,31 @@
                                 <goal>jar</goal>
                             </goals>
                         </execution>
+                        <execution>
+                            <id>json-docs</id>
+                            <phase>site</phase>
+                            <goals>
+                                <goal>aggregate</goal>
+                            </goals>
+                            <configuration>
+                                <doclet>io.fluxzero.jsondoclet.JsonDoclet</doclet>
+                                <docletArtifact>
+                                    <groupId>io.fluxzero.tools</groupId>
+                                    <artifactId>json-doclet</artifactId>
+                                    <version>${json.doclet.version}</version>
+                                </docletArtifact>
+                                <additionalOptions>
+                                    <additionalOption>--pretty</additionalOption>
+                                    <additionalOption>--include-private</additionalOption>
+                                    <additionalOption>-d</additionalOption>
+                                    <additionalOption>${project.build.directory}/json-docs</additionalOption>
+                                </additionalOptions>
+                                <useStandardDocletOptions>false</useStandardDocletOptions>
+                                <disableNoFonts>true</disableNoFonts>
+                                <show>protected</show>
+                                <failOnError>true</failOnError>
+                            </configuration>
+                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -450,69 +475,6 @@
                     </plugin>
                 </plugins>
             </build>
-        </profile>
-        <profile>
-            <id>json-doclet</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.12.0</version>
-                        <executions>
-                            <execution>
-                                <id>json-docs</id>
-                                <phase>site</phase>
-                                <goals>
-                                    <goal>aggregate</goal>
-                                </goals>
-                                <configuration>
-                                    <doclet>io.fluxzero.jsondoclet.JsonDoclet</doclet>
-                                    <docletArtifact>
-                                        <groupId>io.fluxzero</groupId>
-                                        <artifactId>json-doclet</artifactId>
-                                        <version>${json.doclet.version}</version>
-                                    </docletArtifact>
-                                    <additionalOptions>
-                                        <additionalOption>--pretty</additionalOption>
-                                        <additionalOption>--include-private</additionalOption>
-                                        <additionalOption>-d</additionalOption>
-                                        <additionalOption>${project.build.directory}/json-docs</additionalOption>
-                                    </additionalOptions>
-                                    <useStandardDocletOptions>false</useStandardDocletOptions>
-                                    <disableNoFonts>true</disableNoFonts>
-                                    <show>protected</show>
-                                    <failOnError>true</failOnError>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-            <repositories>
-                <repository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/fluxzero-io/json-doclet</url>
-                    <releases>
-                        <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                </repository>
-            </repositories>
-            <pluginRepositories>
-                <pluginRepository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/fluxzero-io/json-doclet</url>
-                    <releases>
-                        <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                </pluginRepository>
-            </pluginRepositories>
         </profile>
     </profiles>
 
