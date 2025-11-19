@@ -48,7 +48,7 @@ jobs:
           ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
 
       - name: Build and test
-        run: ./mvnw -B install
+        run: ./mvnw -B install -P deploy
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -56,6 +56,7 @@ jobs:
           name: maven-artifacts
           path: |
             **/target/*.jar
+            **/*.pom 
             !**/target/*-sources.jar
             !**/target/*-javadoc.jar
           retention-days: 1
