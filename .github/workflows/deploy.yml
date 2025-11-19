@@ -48,7 +48,7 @@ jobs:
           ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
 
       - name: Build and test
-        run: ./mvnw -B install -P deploy
+        run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
