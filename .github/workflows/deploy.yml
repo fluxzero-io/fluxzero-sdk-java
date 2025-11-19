@@ -48,7 +48,7 @@ jobs:
           ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
 
       - name: Build and test
-        run: ./mvnw -P deploy -B install
+        run: ./mvnw -B install
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -77,10 +77,6 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-
-      - name: Set maven version
-        run: |
-          ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }}
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
