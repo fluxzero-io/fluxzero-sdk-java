@@ -56,7 +56,6 @@ jobs:
           name: maven-artifacts
           path: |
             **/target/*.jar
-            **/*.pom 
             !**/target/*-sources.jar
             !**/target/*-javadoc.jar
           retention-days: 1
@@ -84,8 +83,14 @@ jobs:
         with:
           name: maven-artifacts
 
+      # setting versions again as we checked out the sources clean in this step
+      # the artifacts only contain the built jars
+      - name: Set maven version
+        run: |
+          ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }}
+
       - name: Deploy to Maven Central
-        run: ./mvnw -P deploy -B deploy
+        run: ./mvnw -P deploy -B deploy -DskipTests
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
