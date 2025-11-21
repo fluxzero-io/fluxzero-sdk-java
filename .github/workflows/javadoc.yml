@@ -51,7 +51,7 @@ jobs:
 
       - name: Generate documentation site
         run: |
-          ./mvnw -B site
+          ./mvnw -B site -Pjavadoc
 
           # Organize modules
           for module in ${{ inputs.modules }}; do
