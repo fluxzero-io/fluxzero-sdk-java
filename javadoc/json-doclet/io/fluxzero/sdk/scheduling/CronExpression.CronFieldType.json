@@ -1,0 +1,177 @@
+{
+  "name" : "CronFieldType",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "enum",
+  "modifiers" : [ "sealed", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.scheduling.CronExpression.CronFieldType>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.from",
+    "type" : "int",
+    "modifiers" : [ "final" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "names",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.names",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "to",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.to",
+    "type" : "int",
+    "modifiers" : [ "final" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CronFieldType",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#CronFieldType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "from",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "to",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getValue",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#getValue",
+    "returnType" : "int",
+    "modifiers" : [ "abstract" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "dateTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @param dateTime {@link ZonedDateTime} instance\n @return The field time or date value from {@code dateTime}\n"
+  }, {
+    "name" : "overflow",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#overflow",
+    "returnType" : "java.time.ZonedDateTime",
+    "modifiers" : [ "abstract" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "dateTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Handle when this field overflows and the next higher field should be incremented\n\n @param dateTime Initial {@link ZonedDateTime} instance to use\n @return {@link ZonedDateTime} with the next greater field incremented and all smaller fields cleared\n"
+  }, {
+    "name" : "setValue",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#setValue",
+    "returnType" : "java.time.ZonedDateTime",
+    "modifiers" : [ "abstract" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "dateTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @param dateTime Initial {@link ZonedDateTime} instance to use\n @param value    to set for this field in {@code dateTime}\n @return {@link ZonedDateTime} with {@code value} set for this field and all smaller fields cleared\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#valueOf",
+    "returnType" : "io.fluxzero.sdk.scheduling.CronExpression.CronFieldType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType#values",
+    "returnType" : "io.fluxzero.sdk.scheduling.CronExpression.CronFieldType[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "DAY_OF_MONTH",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.DAY_OF_MONTH",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "DAY_OF_WEEK",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.DAY_OF_WEEK",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "HOUR",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.HOUR",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "MINUTE",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.MINUTE",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "MONTH",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.MONTH",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "SECOND",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType.SECOND",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

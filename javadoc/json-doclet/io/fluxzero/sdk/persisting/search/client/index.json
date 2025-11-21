@@ -1,0 +1,34 @@
+{
+  "package" : {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CollectionMessageStore.json",
+    "name" : "CollectionMessageStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.CollectionMessageStore",
+    "kind" : "class"
+  }, {
+    "file" : "InMemorySearchStore.json",
+    "name" : "InMemorySearchStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore",
+    "kind" : "class"
+  }, {
+    "file" : "LocalDocumentHandlerRegistry.json",
+    "name" : "LocalDocumentHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "SearchClient.json",
+    "name" : "SearchClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+    "kind" : "interface"
+  }, {
+    "file" : "WebSocketSearchClient.json",
+    "name" : "WebSocketSearchClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

@@ -1,0 +1,85 @@
+{
+  "name" : "JacksonContentFilter",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter",
+  "packageName" : "io.fluxzero.sdk.common.serialization.jackson",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link ContentFilter} implementation that uses Jackson to filter content dynamically for a specific {@link User}.\n <p>\n This class enables context-aware filtering based on {@link FilterContent} annotated handler methods in the value’s\n class. These handlers can compute and return a filtered version of an object based on the current user context.\n <p>\n Filtering is performed via Jackson serialization, where a custom serializer is installed to intercept object\n serialization and invoke the appropriate content filtering logic.\n\n <h2>How it works</h2>\n <ul>\n   <li>A {@link FilteringSerializer} is registered with Jackson using a {@link BeanSerializerModifier}.</li>\n   <li>The serializer tries to invoke a {@link FilterContent}-annotated method using the {@link HandlerInspector}\n       and passes in the root object and current {@link User} (via parameter resolvers).</li>\n   <li>If filtering returns a different value, that value is serialized instead.</li>\n </ul>\n\n @see FilterContent\n @see User\n @see HandlerMatcher\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.serialization.ContentFilter" ],
+  "fields" : [ {
+    "name" : "mapper",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.mapper",
+    "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JacksonContentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#JacksonContentFilter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new content filter using the provided {@link ObjectMapper}.\n <p>\n The mapper will be configured with:\n <ul>\n     <li>ALWAYS inclusion policy (to serialize nulls)</li>\n     <li>A {@link FilteringSerializer} for applying {@link FilterContent} annotations</li>\n     <li>Disabled {@link JsonIgnore} handling, to ensure all fields are considered for filtering</li>\n </ul>\n\n @param mapper an ObjectMapper used for filtering and serialization\n"
+  } ],
+  "methods" : [ {
+    "name" : "filterContent",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#filterContent",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "viewer",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "FilteringSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.extern.slf4j.Slf4j",
+      "values" : {}
+    } ]
+  } ]
+}

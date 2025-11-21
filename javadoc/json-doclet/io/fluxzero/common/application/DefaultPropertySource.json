@@ -1,0 +1,71 @@
+{
+  "name" : "DefaultPropertySource",
+  "qualifiedName" : "io.fluxzero.common.application.DefaultPropertySource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A layered {@link PropertySource} implementation used as the default source for resolving application properties in a\n Fluxzero application.\n\n <p>This source provides a prioritized resolution order by chaining multiple individual sources:\n <ol>\n   <li>{@link EnvironmentVariablesSource} – highest precedence</li>\n   <li>{@link SystemPropertiesSource}</li>\n   <li>{@link ApplicationEnvironmentPropertiesSource} – e.g. application-dev.properties</li>\n   <li>{@link ApplicationPropertiesSource} – fallback base configuration</li>\n </ol>\n\n <p>Property values are resolved from the first source that defines them in this sequence.\n\n <p>This is used as the default property source in the {@code Fluxzero} client if no custom source is provided.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.application.DefaultPropertySource.delegate",
+    "type" : "io.fluxzero.common.application.PropertySource",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "instance",
+    "qualifiedName" : "io.fluxzero.common.application.DefaultPropertySource.instance",
+    "type" : "io.fluxzero.common.application.DefaultPropertySource",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultPropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.DefaultPropertySource#DefaultPropertySource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.application.DefaultPropertySource#get",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

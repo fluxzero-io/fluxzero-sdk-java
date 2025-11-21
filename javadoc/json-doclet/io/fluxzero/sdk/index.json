@@ -1,0 +1,38 @@
+{
+  "package" : {
+    "name" : "sdk",
+    "qualifiedName" : "io.fluxzero.sdk",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "Fluxzero.json",
+    "name" : "Fluxzero",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero",
+    "kind" : "interface"
+  } ],
+  "subdirectories" : [ {
+    "name" : "common",
+    "path" : "common"
+  }, {
+    "name" : "configuration",
+    "path" : "configuration"
+  }, {
+    "name" : "modeling",
+    "path" : "modeling"
+  }, {
+    "name" : "persisting",
+    "path" : "persisting"
+  }, {
+    "name" : "publishing",
+    "path" : "publishing"
+  }, {
+    "name" : "scheduling",
+    "path" : "scheduling"
+  }, {
+    "name" : "tracking",
+    "path" : "tracking"
+  }, {
+    "name" : "web",
+    "path" : "web"
+  } ]
+}

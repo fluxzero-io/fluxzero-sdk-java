@@ -1,0 +1,132 @@
+{
+  "name" : "WebRequestGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gateway for sending outbound web requests via Fluxzero’s proxy mechanism.\n <p>\n This gateway does not directly execute the request. Instead, it logs the request as a {@link WebRequest} message,\n which is then picked up by the Fluxzero Runtime's proxy. The proxy only executes the request if the request URL is\n <strong>absolute</strong> (e.g., starts with {@code http://} or {@code https://}).\n <p>\n <strong>Benefits of this approach include:</strong>\n <ul>\n     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Fluxzero message logs.</li>\n     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>\n     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>\n </ul>\n <p>\n This gateway also supports local request handlers, meaning that annotated methods (e.g., {@code @HandleWebRequest}) can respond to requests directly\n within the application if desired.\n\n @see WebRequest\n @see WebResponse\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ {
+    "name" : "defaultSettings",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway.defaultSettings",
+    "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default request settings used when none are specified explicitly.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gracefully shuts down the gateway and releases any associated resources.\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given web request using default request settings and returns a future that completes with the response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given web request using given request settings and returns a future that completes with the response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
+  }, {
+    "name" : "sendAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#sendAndForget",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requests",
+      "type" : "io.fluxzero.sdk.web.WebRequest[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends one or more web requests without waiting for a response.\n <p>\n Use this for fire-and-forget scenarios (e.g., async webhook posts).\n\n @param guarantee indicates whether to wait until the request is sent or stored\n @param requests  the web requests to send\n @return a future that completes once the requests have been sent or stored\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#sendAndWait",
+    "returnType" : "io.fluxzero.sdk.web.WebResponse",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given web request using default request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return the received {@link WebResponse}\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#sendAndWait",
+    "returnType" : "io.fluxzero.sdk.web.WebResponse",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given web request using the specified request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request  the web request to send\n @param settings configuration settings for this request (e.g., timeouts, accepted encodings)\n @return the received {@link WebResponse}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

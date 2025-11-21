@@ -1,0 +1,14 @@
+{
+  "package" : {
+    "name" : "internal",
+    "qualifiedName" : "io.fluxzero.sdk.web.internal",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "WebUtilsInternal.json",
+    "name" : "WebUtilsInternal",
+    "qualifiedName" : "io.fluxzero.sdk.web.internal.WebUtilsInternal",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

@@ -1,0 +1,101 @@
+{
+  "name" : "User",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonTypeInfo",
+    "values" : {
+      "use" : "CLASS"
+    }
+  } ],
+  "documentation" : " Represents an authenticated or system-level user identity within the Fluxzero Runtime.\n <p>\n A {@code User} provides role-based access information. User instances are propagated through message metadata and can\n be made available to business logic via {@link User#getCurrent()} or injection into handler methods.\n <p>\n To execute logic with a specific user bound to the current thread context, use {@link #apply(Callable)} or\n {@link #run(ThrowingRunnable)}.\n\n @see UserProvider\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.security.Principal" ],
+  "fields" : [ {
+    "name" : "current",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User.current",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.handling.authentication.User>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Thread-local reference to the current user. Typically managed by the Fluxzero Runtime and automatically\n injected for message handling.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#apply",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "f",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a callable task with this user set as the current thread-local user. Restores the previous user (if any)\n after execution.\n\n @param <T> the type of result returned by the callable\n @param f   the callable task to run\n @return the result of the callable\n"
+  }, {
+    "name" : "getCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#getCurrent",
+    "returnType" : "U",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the user currently associated with the executing thread.\n\n @param <U> the expected user subtype\n @return the current {@code User}, or {@code null} if none is set\n"
+  }, {
+    "name" : "hasRole",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#hasRole",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "role",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this user has the specified role.\n\n @param role a role string such as {@code \"admin\"} or {@code \"viewer\"}\n @return {@code true} if the user has the role, {@code false} otherwise\n"
+  }, {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#run",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "f",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a runnable task with this user set as the current thread-local user. Restores the previous user (if any)\n after execution.\n\n @param f the task to run\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

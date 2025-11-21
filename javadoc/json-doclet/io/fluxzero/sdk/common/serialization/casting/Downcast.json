@@ -1,0 +1,58 @@
+{
+  "name" : "Downcast",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Downcast",
+  "packageName" : "io.fluxzero.sdk.common.serialization.casting",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.common.serialization.casting.Cast",
+    "values" : {
+      "revisionDelta" : "-1"
+    }
+  } ],
+  "documentation" : " Declares a method that transforms an object from a newer revision to an older one.\n <p>\n Downcasters are used to emit legacy-compatible objects (e.g. for persistence or external systems).\n </p>\n\n <p>\n Like {@link Upcast}, this annotation applies to methods that take a single argument and return a transformed object\n of an earlier revision.\n </p>\n\n <p>\n <strong>Spring Integration:</strong> Any Spring bean containing methods annotated with {@code @Downcast}\n is automatically discovered and registered with the serializer at startup.\n </p>\n\n @see Cast\n @see Upcast\n @see Serializer#registerDowncasters(Object...)\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Downcast#revision",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The revision number of the input object this method handles.\n <p>\n This is the revision the method accepts and transforms from.\n"
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Downcast#type",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The fully qualified type name this downcaster applies to (e.g., the latest version's class name).\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,95 @@
+{
+  "name" : "ProcessBatchEvent",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "batchSize",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.batchSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.consumer",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.lastIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.messageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nanosecondDuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.nanosecondDuration",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.segment",
+    "type" : "int[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackerId",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent.trackerId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ProcessBatchEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent#ProcessBatchEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

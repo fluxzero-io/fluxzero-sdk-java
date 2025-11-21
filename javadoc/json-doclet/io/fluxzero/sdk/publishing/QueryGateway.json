@@ -1,0 +1,225 @@
+{
+  "name" : "QueryGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gateway interface for dispatching queries and receiving responses in Fluxzero.\n <p>\n The {@code QueryGateway} provides a high-level API for submitting queries and retrieving\n results, either asynchronously or synchronously. It supports rich metadata and integrates with\n both local and remote query handlers.\n <p>\n Queries can be sent as raw payloads, {@link Message} objects, or {@link Request} wrappers for typed responses.\n This interface also supports registration of local handlers via {@link #registerHandler(Object)}.\n <p>\n For message types that are queries, the {@link MessageType#QUERY} enum is typically used.\n\n @see HasLocalHandlers\n @see io.fluxzero.sdk.tracking.handling.HandleQuery\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gracefully shuts down this gateway and releases any held resources.\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a typed {@link Request} query and returns a future representing the result.\n\n @param query the {@link Request} query\n @param <R>   the expected result type\n @return a {@link CompletableFuture} containing the result\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a typed {@link Request} query with additional metadata and returns a future with the result.\n\n @param payload  the {@link Request} payload\n @param metadata metadata to attach to the request\n @param <R>      the expected result type\n @return a {@link CompletableFuture} with the result\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given query asynchronously and returns a future representing the result.\n <p>\n If the query is a {@link Message}, it is dispatched as-is. Otherwise, it is wrapped in a new message.\n\n @param query the query object\n @param <R>   the expected type of the result\n @return a {@link CompletableFuture} with the result\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given query along with metadata asynchronously and returns a future representing the result.\n\n @param payload  the query payload\n @param metadata additional metadata to attach to the message\n @param <R>      the expected result type\n @return a {@link CompletableFuture} containing the query result\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<R>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends multiple queries asynchronously and returns a list of futures, one for each result.\n\n @param messages one or more query objects or messages\n @param <R>      the expected result type for each query\n @return a list of {@link CompletableFuture}s for each query result\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a typed {@link Request} query and waits for the result.\n\n @param query the {@link Request} query\n @param <R>   the expected result type\n @return the result of the query\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a typed {@link Request} query with metadata and waits for the result.\n\n @param payload  the {@link Request} payload\n @param metadata additional metadata to attach to the query\n @param <R>      the expected result type\n @return the result of the query\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given query and waits for the result, blocking the current thread.\n\n @param query the query object\n @param <R>   the expected result type\n @return the result of the query\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given query and metadata, then waits for the result.\n\n @param payload  the query payload\n @param metadata additional metadata to attach to the query\n @param <R>      the expected result type\n @return the result of the query\n"
+  }, {
+    "name" : "sendForMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendForMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends the given {@link Message} and returns a future representing the resulting message.\n This method gives access to the full {@link Message} returned by the query handler.\n\n @param message the message representing the query\n @return a {@link CompletableFuture} with the response message\n"
+  }, {
+    "name" : "sendForMessages",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendForMessages",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends multiple query {@link Message}s and returns a list of futures for the raw responses.\n\n @param messages one or more messages representing queries\n @return a list of {@link CompletableFuture}s containing the result messages\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

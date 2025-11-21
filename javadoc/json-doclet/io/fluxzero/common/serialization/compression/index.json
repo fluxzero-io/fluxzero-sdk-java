@@ -1,0 +1,19 @@
+{
+  "package" : {
+    "name" : "compression",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CompressionAlgorithm.json",
+    "name" : "CompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
+    "kind" : "enum"
+  }, {
+    "file" : "CompressionUtils.json",
+    "name" : "CompressionUtils",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

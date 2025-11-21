@@ -1,0 +1,313 @@
+{
+  "name" : "SerializedDocument",
+  "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Represents a serialized form of a search document stored in a Fluxzero collection.\n <p>\n A {@code SerializedDocument} contains all metadata and content necessary to index, search, or retrieve a document.\n It may encapsulate the document in two interchangeable forms:\n <ul>\n     <li>A lazily evaluated {@link Data} blob for serialized storage and transmission</li>\n     <li>A lazily evaluated deserialized {@link Document} instance for programmatic access</li>\n </ul>\n Exactly one of {@code data} or {@code document} must be supplied during construction; the other will be lazily\n derived and memoized as needed.\n\n @see Document\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Name of the document collection to which this document belongs.\n",
+    "constantValue" : null
+  }, {
+    "name" : "data",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.data",
+    "type" : "java.util.function.Supplier<io.fluxzero.common.api.Data<byte[]>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.document",
+    "type" : "java.util.function.Supplier<io.fluxzero.common.search.Document>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.end",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " End timestamp (in epoch millis) representing when the document expires or ends.\n",
+    "constantValue" : null
+  }, {
+    "name" : "facets",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.facets",
+    "type" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Structured facet entries associated with this document, used for filtering or grouping in queries.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Unique identifier for this document within the collection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "indexes",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.indexes",
+    "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Structured sortable entries used for sorting or filtering.\n",
+    "constantValue" : null
+  }, {
+    "name" : "summary",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.summary",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional short summary of the document, e.g., for display or search previews.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.timestamp",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Start timestamp (in epoch millis) representing when the document becomes valid.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SerializedDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code SerializedDocument} from a deserialized {@link Document} representation.\n Automatically extracts and converts its metadata.\n"
+  }, {
+    "name" : "SerializedDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"id\",\"timestamp\",\"end\",\"collection\",\"document\",\"summary\",\"facets\",\"indexes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "summary",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "facets",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "indexes",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new instance of the SerializedDocument class with the specified parameters.\n\n @param id          the unique identifier of the document\n @param timestamp   the creation timestamp of the document, in milliseconds since epoch\n @param end         the end timestamp of the document, in milliseconds since epoch, or null if not applicable\n @param collection  the name of the collection to which the document belongs\n @param document    the serialized data representing the document\n @param summary     a brief summary or description of the document\n @param facets      a set of {@link FacetEntry} objects, representing facet fields and values for searchability\n @param indexes     a set of {@link SortableEntry} objects, representing fields for sorting and fast range querying\n"
+  }, {
+    "name" : "SerializedDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#SerializedDocument",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unused\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "data",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.api.Data<byte[]>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.search.Document>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "summary",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "facets",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "indexes",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#bytes",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the number of bytes in the serialized representation of the document.\n"
+  }, {
+    "name" : "deserializeDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#deserializeDocument",
+    "returnType" : "io.fluxzero.common.search.Document",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the deserialized document view.\n"
+  }, {
+    "name" : "getDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#getDocument",
+    "returnType" : "io.fluxzero.common.api.Data<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the serialized representation of the document.\n"
+  }, {
+    "name" : "getEnd",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#getEnd",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the adjusted end timestamp. If the end is null or invalid (i.e., before the start), the timestamp\n is returned instead.\n"
+  }, {
+    "name" : "withCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#withCollection",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new {@code SerializedDocument} instance with the specified collection name.\n Updates the collection field of the document and its serialized representation if present.\n\n @param collection the name of the collection to associate with this document\n @return a new {@code SerializedDocument} instance with the updated collection\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

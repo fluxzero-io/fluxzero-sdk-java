@@ -1,0 +1,178 @@
+{
+  "name" : "DefaultDocumentSerializer",
+  "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Default serializer for {@link Document} instances in the Fluxzero Runtime.\n <p>\n This serializer uses the <a href=\"https://msgpack.org/\">MessagePack</a> binary format to efficiently encode and decode documents\n for storage or transport. It supports compression and is version-aware, allowing for future extension of the format.\n\n <h2>Serialization Format</h2>\n The current (version 0) serialization includes:\n <ul>\n   <li>{@code int} format version (currently {@code 0})</li>\n   <li>{@code String} document ID</li>\n   <li>{@code Instant} timestamp (as epoch millis)</li>\n   <li>{@code Instant} end timestamp (as epoch millis)</li>\n   <li>{@code String} collection name</li>\n   <li>{@code List<Entry>} entries and their associated {@code List<Path>}</li>\n </ul>\n\n <p>\n Compression is applied to the final byte output using {@link CompressionUtils} and marked with the format {@code document}\n via {@link Data#DOCUMENT_FORMAT}.\n\n @see Document\n @see Data\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.search.DefaultDocumentSerializer>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "currentVersion",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer.currentVersion",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultDocumentSerializer",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#DefaultDocumentSerializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "canDeserialize",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#canDeserialize",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks whether the given {@link Data} object is in a format that this serializer can deserialize.\n\n @param data the data blob\n @return {@code true} if the format is {@code document}, {@code false} otherwise\n"
+  }, {
+    "name" : "deserialize",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#deserialize",
+    "returnType" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a {@link Data} blob containing a compressed, binary {@link Document}.\n The data must be in the correct format and contain a supported version.\n\n @param document the data to deserialize\n @return the reconstructed {@link Document} entries\n @throws IllegalArgumentException if the data cannot be parsed or is invalid\n"
+  }, {
+    "name" : "packTimestamp",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#packTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "packer",
+      "type" : "org.msgpack.core.MessagePacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Writes a timestamp into the MessagePack stream, using {@code packLong(epochMillis)} or {@code packNil()} if null.\n"
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#serialize",
+    "returnType" : "io.fluxzero.common.api.Data<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes the given {@link Document} into a compressed binary {@link Data} container.\n\n @param document the document to serialize\n @return the serialized form of the document\n @throws IllegalArgumentException if the document cannot be serialized\n"
+  }, {
+    "name" : "unpackLong",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#unpackLong",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads an optional long value from the MessagePack stream.\n\n @param unpacker the unpacker instance\n @return the unpacked long value, or {@code null} if the field is missing\n"
+  }, {
+    "name" : "unpackTimestamp",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#unpackTimestamp",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads an optional timestamp from the MessagePack stream.\n\n @param unpacker the unpacker instance\n @return the unpacked {@link Instant}, or {@code null} if the field is missing\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#valueOf",
+    "returnType" : "io.fluxzero.common.search.DefaultDocumentSerializer",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#values",
+    "returnType" : "io.fluxzero.common.search.DefaultDocumentSerializer[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

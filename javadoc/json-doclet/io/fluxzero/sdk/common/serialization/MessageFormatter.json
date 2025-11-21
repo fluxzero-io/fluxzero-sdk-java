@@ -1,0 +1,29 @@
+{
+  "name" : "MessageFormatter",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.MessageFormatter",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " A functional interface for formatting {@link DeserializingMessage} instances into human-readable strings.\n <p>\n This interface is typically used to customize how messages are represented in logs or UI displays. The formatter\n receives a {@link DeserializingMessage}, which may or may not have been fully deserialized at the time of\n formatting.\n\n <p>\n Implementations can decide whether to format based on metadata, payload class, or raw type information.\n\n <h2>Default Implementation</h2>\n The {@link #DEFAULT} formatter returns:\n <ul>\n   <li>The simple name of the payload class if the message is already deserialized</li>\n   <li>The type string (usually the fully qualified class name) otherwise</li>\n </ul>\n <p>\n Example usage:\n <pre>{@code\n String label = MessageFormatter.DEFAULT.apply(message);\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.String>" ],
+  "fields" : [ {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.MessageFormatter.DEFAULT",
+    "type" : "io.fluxzero.sdk.common.serialization.MessageFormatter",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " The default formatter that returns the simple name of the payload class if deserialized, or the raw type string\n if not.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

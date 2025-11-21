@@ -1,0 +1,86 @@
+{
+  "name" : "SerializedSchedule",
+  "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+  "packageName" : "io.fluxzero.common.api.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a scheduled message to be delivered at a specific {@link #timestamp}.\n <p>\n If a schedule with the same {@link #scheduleId} already exists:\n <ul>\n   <li>It will be replaced by this schedule if {@link #ifAbsent} is {@code false} (default behavior).</li>\n   <li>It will be preserved (this one ignored) if {@link #ifAbsent} is {@code true}.</li>\n </ul>\n\n @see io.fluxzero.common.api.scheduling.Schedule\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ifAbsent",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule.ifAbsent",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " If {@code true}, the message is only scheduled if no schedule with the same {@link #scheduleId} exists.\n",
+    "constantValue" : null
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule.message",
+    "type" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The message to be dispatched once the schedule triggers.\n",
+    "constantValue" : null
+  }, {
+    "name" : "scheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule.scheduleId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " A unique identifier for this scheduled message. Used for deduplication or replacement.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The absolute timestamp (epoch millis) at which this message should be delivered.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SerializedSchedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule#SerializedSchedule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule#toMetric",
+    "returnType" : "io.fluxzero.common.api.scheduling.SerializedSchedule.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a lightweight metric representation of this schedule for monitoring purposes.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,97 @@
+{
+  "package" : {
+    "name" : "scheduling",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CancelPeriodic.json",
+    "name" : "CancelPeriodic",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CancelPeriodic",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.json",
+    "name" : "CronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.BasicField.json",
+    "name" : "CronExpression.BasicField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$BasicField",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.CronFieldType.json",
+    "name" : "CronExpression.CronFieldType",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType",
+    "kind" : "enum"
+  }, {
+    "file" : "CronExpression.DayOfMonthField.json",
+    "name" : "CronExpression.DayOfMonthField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$DayOfMonthField",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.DayOfWeekField.json",
+    "name" : "CronExpression.DayOfWeekField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$DayOfWeekField",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.FieldPart.json",
+    "name" : "CronExpression.FieldPart",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$FieldPart",
+    "kind" : "class"
+  }, {
+    "file" : "CronExpression.SimpleField.json",
+    "name" : "CronExpression.SimpleField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$SimpleField",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMessageScheduler.json",
+    "name" : "DefaultMessageScheduler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler",
+    "kind" : "class"
+  }, {
+    "file" : "MessageScheduler.json",
+    "name" : "MessageScheduler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler",
+    "kind" : "interface"
+  }, {
+    "file" : "Periodic.json",
+    "name" : "Periodic",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Schedule.json",
+    "name" : "Schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule",
+    "kind" : "class"
+  }, {
+    "file" : "ScheduleId.json",
+    "name" : "ScheduleId",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduleId",
+    "kind" : "class"
+  }, {
+    "file" : "ScheduledCommand.json",
+    "name" : "ScheduledCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduledCommand",
+    "kind" : "class"
+  }, {
+    "file" : "ScheduledCommandHandler.json",
+    "name" : "ScheduledCommandHandler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduledCommandHandler",
+    "kind" : "class"
+  }, {
+    "file" : "SchedulerException.json",
+    "name" : "SchedulerException",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulerException",
+    "kind" : "class"
+  }, {
+    "file" : "SchedulingInterceptor.json",
+    "name" : "SchedulingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "client",
+    "path" : "client"
+  } ]
+}

@@ -1,0 +1,162 @@
+{
+  "name" : "DeserializingObject",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "exclude" : "\"objectFunction\""
+    }
+  } ],
+  "documentation" : " A wrapper around a {@link SerializedObject} that supports lazy deserialization of its payload.\n <p>\n This class defers the deserialization of the underlying object until it is first accessed via {@link #getPayload()}\n or {@link #getPayloadAs(Type)}. The result is then memoized to avoid repeated deserialization.\n\n <p>\n This is typically used for messages that may not require full deserialization (e.g. for routing or filtering). It is\n extended by {@link DeserializingMessage} which adds additional context and metadata.\n\n @param <T> The raw data type of the serialized object (e.g., String or byte[])\n @param <S> The specific {@link SerializedObject} type used to represent the serialized payload\n",
+  "typeParameters" : [ "T", "S" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "objectFunction",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.objectFunction",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.lang.reflect.Type,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializedObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.serializedObject",
+    "type" : "S",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : " Returns the underlying {@link SerializedObject}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeserializingObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#DeserializingObject",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "S",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "java.util.function.Function<java.lang.reflect.Type,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new {@code DeserializingObject} with the given serialized representation and deserializer function.\n\n @param serializedObject The raw serialized object\n @param payload          A function to deserialize the object when needed\n"
+  } ],
+  "methods" : [ {
+    "name" : "getObjectFunction",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getObjectFunction",
+    "returnType" : "io.fluxzero.common.MemoizingFunction<java.lang.reflect.Type,java.lang.Object>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized deserialization function used to deserialize the payload. This method is protected for use\n in subclasses.\n"
+  }, {
+    "name" : "getPayload",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getPayload",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the deserialized payload using the default target type ({@code Object.class}). The result is cached and\n reused on subsequent calls.\n"
+  }, {
+    "name" : "getPayloadAs",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getPayloadAs",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the deserialized payload using the specified target {@link Type}. Results are cached per type.\n\n @param type the desired target type\n @param <V>  the expected type of the deserialized object\n"
+  }, {
+    "name" : "getPayloadClass",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getPayloadClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unused\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to resolve the declared payload class using {@link ReflectionUtils#classForName(String)} and throws an\n exception if the class cannot be found.\n\n @return the {@link Class} corresponding to the declared type, or {@code null} if not resolvable\n"
+  }, {
+    "name" : "getRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getRevision",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the revision number of the serialized payload, if available.\n"
+  }, {
+    "name" : "getType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#getType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the declared type of the payload (e.g., fully qualified class name), or {@code null} if unknown.\n"
+  }, {
+    "name" : "isDeserialized",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject#isDeserialized",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns {@code true} if the payload has already been deserialized using the default type.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

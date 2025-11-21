@@ -1,0 +1,149 @@
+{
+  "name" : "SimpleInvoker",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A simple invoker backed by a {@link Callable}, typically used for test utilities or framework-internal logic. Not\n associated with any actual handler method.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerInvoker" ],
+  "fields" : [ {
+    "name" : "callable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.callable",
+    "type" : "java.util.concurrent.Callable<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.method",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "noOpInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.noOpInvoker",
+    "type" : "io.fluxzero.common.handling.HandlerInvoker.SimpleInvoker",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SimpleInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#SimpleInvoker",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "expectResult",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#expectResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#getMethod",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMethodAnnotation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#getMethodAnnotation",
+    "returnType" : "A",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTargetClass",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#getTargetClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPassive",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#isPassive",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

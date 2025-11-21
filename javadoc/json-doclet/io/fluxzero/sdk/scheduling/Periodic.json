@@ -1,0 +1,141 @@
+{
+  "name" : "Periodic",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Declares a message (typically a {@link Schedule}) or its handler method as part of a periodic schedule.\n <p>\n Periodic schedules are automatically rescheduled after each invocation using either a fixed delay or a cron\n expression. This enables use cases like polling APIs, triggering maintenance routines, or recurring status checks.\n <p>\n This annotation can be placed on either:\n <ul>\n     <li>The payload class of a {@link Schedule}, marking it as inherently periodic</li>\n     <li>A handler method annotated with {@link HandleSchedule}, overriding periodic behavior</li>\n </ul>\n\n <h2>Rescheduling Behavior</h2>\n <ul>\n     <li>If {@link #cron()} is specified, it defines when the schedule should run (overrides {@link #delay()})</li>\n     <li>If {@link #delay()} is used and {@code cron} is blank, the schedule runs with fixed delays</li>\n     <li>The {@link #initialDelay()} (if ≥ 0) applies once when the schedule is first started (only if {@link #autoStart()} is {@code true})</li>\n </ul>\n\n <h2>Automatic Start</h2>\n By default, the schedule is automatically started when the message is handled or the system starts. Set {@link #autoStart()} to {@code false} to disable this behavior.\n\n <h2>Error Handling</h2>\n If the schedule handler throws an exception:\n <ul>\n     <li>If {@link #continueOnError()} is {@code true} (default), the schedule continues</li>\n     <li>If {@link #delayAfterError()} is set (≥ 0), it overrides the normal delay after an error</li>\n     <li>If {@code continueOnError} is {@code false}, the schedule is stopped after an error</li>\n </ul>\n\n <h2>Stopping a Periodic Schedule</h2>\n To stop a periodic schedule explicitly from a handler, throw {@link io.fluxzero.sdk.scheduling.CancelPeriodic}.\n Returning {@code null} from the handler method does <strong>not</strong> stop the schedule — it simply continues with the default rescheduling.\n\n <h2>Interaction with {@link HandleSchedule}</h2>\n When used with a {@code @HandleSchedule} method, the return value influences scheduling:\n <ul>\n     <li><b>{@code null} or {@code void}</b>: continue scheduling using the {@link Periodic} settings.</li>\n     <li><b>{@link java.time.Duration} or {@link java.time.Instant}</b>: overrides the next schedule delay or time.</li>\n     <li><b>A new payload</b>: schedules the returned object as the next scheduled message. If this new payload is annotated\n         with {@link Periodic}, the periodic settings on that payload take precedence.</li>\n     <li>Returning a new {@link io.fluxzero.sdk.scheduling.Schedule} reschedules that message using the specified payload and deadline.</li>\n </ul>\n\n <h3>Example: Schedule Every 5 Minutes</h3>\n <pre>{@code\n @Value\n @Periodic(delay = 5, timeUnit = TimeUnit.MINUTES)\n public class RefreshData { ... }\n }</pre>\n\n <h3>Example: Weekly Schedule via Cron</h3>\n <pre>{@code\n @Periodic(cron = \"0 0 * * MON\", timeZone = \"Europe/Amsterdam\")\n @HandleSchedule\n void weeklySync(Schedule schedule) {\n     ...\n }\n }</pre>\n\n @see HandleSchedule\n @see Schedule\n @see io.fluxzero.sdk.scheduling.CancelPeriodic\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ {
+    "name" : "DISABLED",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic.DISABLED",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Special expression that can be used to disable automatic periodic scheduling if passed to {@link #cron()}. If the\n schedule was already running and is disabled later on using this expression, any previously scheduled messages\n will be ignored.\n",
+    "constantValue" : "-"
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "autoStart",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#autoStart",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns true if this periodic schedule should be automatically started if it's not already active. Defaults to\n {@code true}.\n"
+  }, {
+    "name" : "continueOnError",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#continueOnError",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns true if the schedule should continue after an error. Defaults to {@code true}.\n"
+  }, {
+    "name" : "cron",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#cron",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Define a unix-like cron expression. If a cron value is specified the {@link #delay()} in milliseconds is\n ignored.\n <p>\n The fields read from left to right are interpreted as follows.\n <ul>\n <li>minute</li>\n <li>hour</li>\n <li>day of month</li>\n <li>month</li>\n <li>day of week</li>\n </ul>\n <p>\n For example, {@code \"0 * * * MON-FRI\"} means at the start of every hour on weekdays.\n <p>\n It is possible to refer to an application property, e.g. by specifying `${someFetchSchedule}` as cron value. To\n disable the schedule altogether if the property is *not* set, specify `${someFetchSchedule:-}`.\n\n @see CronExpression for more info on how the string is parsed.\n"
+  }, {
+    "name" : "delay",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#delay",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the schedule delay in {@link #timeUnit()} units. Only used if {@link #cron()} is blank, in which case\n this value should be a positive number.\n"
+  }, {
+    "name" : "delayAfterError",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#delayAfterError",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the schedule delay in {@link #timeUnit()} units after handling of the last schedule gave rise to an\n exception.\n <p>\n If this value is smaller than 0 (the default) this setting is ignored and the schedule will continue as if the\n exception hadn't been triggered. If {@link #continueOnError()} is false, this setting is ignored as well.\n"
+  }, {
+    "name" : "initialDelay",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#initialDelay",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the initial schedule delay. Only relevant when {@link #autoStart()} is true. If initialDelay is negative,\n the initial schedule will fire after the default delay (configured either via {@link #cron()} or\n {@link #delay()}).\n"
+  }, {
+    "name" : "scheduleId",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#scheduleId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the id of the periodic schedule. Defaults to the fully qualified name of the schedule class.\n"
+  }, {
+    "name" : "timeUnit",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#timeUnit",
+    "returnType" : "java.util.concurrent.TimeUnit",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the unit for {@link #delay()} and {@link #initialDelay()}. Defaults to {@link TimeUnit#MILLISECONDS}.\n"
+  }, {
+    "name" : "timeZone",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Periodic#timeZone",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " A time zone id for which the cron expression will be resolved. Defaults to UTC.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

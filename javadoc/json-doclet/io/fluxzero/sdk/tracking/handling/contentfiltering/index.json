@@ -1,0 +1,14 @@
+{
+  "package" : {
+    "name" : "contentfiltering",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ContentFilterInterceptor.json",
+    "name" : "ContentFilterInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

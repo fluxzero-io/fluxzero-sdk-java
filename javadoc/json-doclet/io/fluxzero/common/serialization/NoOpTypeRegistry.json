@@ -1,0 +1,79 @@
+{
+  "name" : "NoOpTypeRegistry",
+  "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.serialization.NoOpTypeRegistry>",
+  "interfaces" : [ "io.fluxzero.common.serialization.TypeRegistry" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "NoOpTypeRegistry",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry#NoOpTypeRegistry",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getTypeName",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry#getTypeName",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "alias",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry#valueOf",
+    "returnType" : "io.fluxzero.common.serialization.NoOpTypeRegistry",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry#values",
+    "returnType" : "io.fluxzero.common.serialization.NoOpTypeRegistry[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

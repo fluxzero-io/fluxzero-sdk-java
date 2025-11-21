@@ -1,0 +1,267 @@
+{
+  "name" : "WebSocketEventStoreClient",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "jakarta.websocket.ClientEndpoint",
+    "values" : {}
+  } ],
+  "documentation" : " WebSocket-based implementation of the {@link EventStoreClient}, enabling interaction with the Fluxzero Runtime's event\n store via a persistent WebSocket connection.\n\n <p>This implementation supports:\n <ul>\n   <li>Storing events for event-sourced aggregates</li>\n   <li>Efficient, paginated retrieval of aggregate event streams</li>\n   <li>Deleting aggregate event streams</li>\n   <li>Maintaining aggregate/entity relationships</li>\n </ul>\n\n <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading\n an aggregate's event history. This ensures efficient memory usage while still supporting large aggregates.\n\n <p>End users rarely interact with this client directly. Instead, they typically use higher-level abstractions\n such as {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} or\n {@link io.fluxzero.sdk.persisting.repository.AggregateRepository}.\n\n @see EventStoreClient\n @see io.fluxzero.sdk.persisting.eventsourcing.EventStore\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient" ],
+  "fields" : [ {
+    "name" : "fetchBatchSize",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient.fetchBatchSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebSocketEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#WebSocketEventStoreClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endPointUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new {@code WebSocketEventStoreClient} with a default batch size of 8192.\n\n @param endPointUrl The URL to the Fluxzero Runtime event sourcing endpoint.\n @param client      The WebSocket client instance.\n"
+  }, {
+    "name" : "WebSocketEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#WebSocketEventStoreClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endPointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new {@code WebSocketEventStoreClient} with a specified batch size.\n\n @param endPointUri    The URI to the event store endpoint.\n @param fetchBatchSize Maximum number of events to retrieve per page.\n @param client         The WebSocket client.\n"
+  }, {
+    "name" : "WebSocketEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#WebSocketEventStoreClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endPointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sendMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the WebSocket client with full customization.\n\n @param endPointUri    URI of the event sourcing endpoint.\n @param fetchBatchSize The size of event batches fetched from the server.\n @param client         The WebSocket client.\n @param sendMetrics    Whether to send metrics to the Fluxzero Runtime.\n"
+  } ],
+  "methods" : [ {
+    "name" : "deleteEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#deleteEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a delete command for the event stream of the specified aggregate.\n"
+  }, {
+    "name" : "getAggregateIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getAggregateIds",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetAggregateIds",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves a map of aggregate IDs associated with a given entity, using a {@link GetAggregateIds} request.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves events for a specific aggregate starting after a given sequence number, optionally limiting the result\n size.\n"
+  }, {
+    "name" : "getRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getRelationships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves all relationships for a given entity, using a {@link GetRelationships} request.\n"
+  }, {
+    "name" : "repairRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#repairRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.RepairRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request to repair relationships for a specific entity.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "storeOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores events for a specific aggregate, with control over store-only mode and delivery guarantee.\n"
+  }, {
+    "name" : "updateRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#updateRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.UpdateRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request to update the relationships of an entity or aggregate.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

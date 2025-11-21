@@ -1,0 +1,155 @@
+{
+  "name" : "SocketEndpointHandler",
+  "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.FieldDefaults",
+    "values" : {
+      "level" : "PRIVATE",
+      "makeFinal" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A specialized {@link Handler} that manages lifecycle events and message dispatching for WebSocket endpoints annotated\n with {@link SocketEndpoint}.\n <p>\n This handler supports:\n <ul>\n     <li>Instantiating and caching per-session WebSocket handler instances</li>\n     <li>Delegating to the correct handler method (e.g., {@code @HandleSocketOpen}, {@code @HandleSocketMessage},\n     {@code @HandleSocketPong}, {@code @HandleSocketClose})</li>\n     <li>Managing handler lifecycle via {@link SocketEndpointWrapper}, including automatic cleanup and ping-based\n     connection health checks</li>\n </ul>\n <p>\n When a {@link DeserializingMessage} is received, the handler checks whether it represents a WebSocket request.\n If so, it resolves or initializes a {@link SocketEndpointWrapper} associated with the given session ID and delegates\n message handling to the appropriate method. For non-WebSocket messages, the handler behaves like a typical\n {@link Handler} by invoking any matching method on the target class or on cached wrappers.\n <p>\n This class is primarily intended for internal use by the Fluxzero dispatcher infrastructure.\n\n @see SocketEndpoint\n @see SocketSession\n @see Handler\n @see HandlerInvoker\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ {
+    "name" : "repository",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.repository",
+    "type" : "java.util.Map<java.lang.Object,io.fluxzero.sdk.web.SocketEndpointHandler.SocketEndpointWrapper>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "socketEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.socketEndpoint",
+    "type" : "io.fluxzero.sdk.web.SocketEndpoint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetClass",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.targetClass",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.targetMatcher",
+    "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "wrapperMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.wrapperMatcher",
+    "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SocketEndpointHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler#SocketEndpointHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "wrapperMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repositoryProvider",
+      "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler#getInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "SocketEndpointWrapper",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler$SocketEndpointWrapper",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.web.Path",
+      "values" : {
+        "value" : "*"
+      }
+    }, {
+      "annotationType" : "lombok.RequiredArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

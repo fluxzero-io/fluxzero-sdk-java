@@ -1,0 +1,31 @@
+{
+  "name" : "InterceptApply",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.InterceptApply",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD"
+    }
+  } ],
+  "documentation" : " Indicates that a method should intercept and potentially transform an update before it is applied to an entity.\n <p>\n This annotation is typically used to:\n <ul>\n     <li>Suppress updates that should be ignored</li>\n     <li>Rewrite or correct invalid updates</li>\n     <li>Split a single update into multiple updates</li>\n </ul>\n <p>\n Interceptors are invoked <strong>before</strong> any {@link Apply @Apply} or {@link AssertLegal @AssertLegal}\n methods. If multiple interceptors match, they are invoked recursively until the result stabilizes.\n\n <p>\n Interceptors can return:\n <ul>\n     <li>The original update (no change)</li>\n     <li>{@code null} or {@code void} to suppress the update</li>\n     <li>An {@link java.util.Optional}, {@link Collection}, or {@link java.util.stream.Stream} to emit zero or more updates</li>\n     <li>A different object to replace the update</li>\n </ul>\n\n <p>\n Method parameters are automatically injected and may include:\n <ul>\n     <li>The current entity (if it exists)</li>\n     <li>Any parent or ancestor entity in the aggregate</li>\n     <li>The update object (if defined on the entity side)</li>\n     <li>Context like {@link io.fluxzero.common.api.Metadata}, {@link io.fluxzero.sdk.common.Message}, or\n         {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>\n </ul>\n\n <p>\n Note that empty entities (where the value is {@code null}) are not injected unless the parameter is annotated with\n {@code @Nullable}.\n\n <h2>Examples</h2>\n\n <h3>1. Rewrite a duplicate create into an update (inside the update class)</h3>\n <pre>{@code\n @InterceptApply\n UpdateProject resolveDuplicateCreate(Project project) {\n     // If this method is invoked, the Project already exists\n     return new UpdateProject(projectId, details);\n }\n }</pre>\n\n <h3>2. Suppress a no-op update</h3>\n <pre>{@code\n @InterceptApply\n Object ignoreNoChange(Product product) {\n     if (product.getDetails().equals(details)) {\n         return null; // suppress update\n     }\n     return this;\n }\n }</pre>\n\n <p><strong>Note:</strong> You typically do <em>not</em> need to implement this kind of check manually if the\n enclosing {@link io.fluxzero.sdk.modeling.Aggregate @Aggregate} or specific\n {@link Apply @Apply} method is configured with\n {@link io.fluxzero.sdk.modeling.EventPublication#IF_MODIFIED IF_MODIFIED}.\n That configuration ensures that no event is stored or published if the entity is not modified.\n\n <h3>3. Expand a bulk update into individual operations</h3>\n <pre>{@code\n @InterceptApply\n List<CreateTask> explodeBulkCreate() {\n     return tasks;\n }\n }</pre>\n\n <h3>4. Recursive interception</h3>\n <p>\n If the result of one {@code @InterceptApply} method is a new update object, Fluxzero will look for matching\n interceptors for the new value as well — continuing recursively until no further changes occur.\n\n @see Apply\n @see AssertLegal\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

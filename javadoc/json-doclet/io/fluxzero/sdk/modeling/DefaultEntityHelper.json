@@ -1,0 +1,392 @@
+{
+  "name" : "DefaultEntityHelper",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " The {@code DefaultEntityHelper} provides the default implementation of the {@link EntityHelper} interface.\n <p>\n It is responsible for orchestrating the behavior of domain model entities with respect to: - Intercepting messages\n using {@code @InterceptApply} handlers - Applying updates or events via {@code @Apply} handlers - Validating updates\n and asserting legal state transitions using {@code @AssertLegal} handlers\n <p>\n This helper is heavily used during message handling and event sourcing to delegate message processing and validation\n logic to methods annotated on the entity class or its nested members.\n <p>\n The class supports efficient handler resolution through memoized lookups, enabling fast, repeatable application of\n complex domain behaviors.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.modeling.EntityHelper" ],
+  "fields" : [ {
+    "name" : "annotationCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.annotationCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.Aggregate>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Caches resolved @Aggregate annotations for faster repeated access.\n",
+    "constantValue" : null
+  }, {
+    "name" : "applyMatchers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.applyMatchers",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "assertLegalMatchers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.assertLegalMatchers",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.HasMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultAggregateAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.defaultAggregateAnnotation",
+    "type" : "io.fluxzero.sdk.modeling.Aggregate",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default aggregate annotation used when no explicit @Aggregate is found.\n",
+    "constantValue" : null
+  }, {
+    "name" : "disablePayloadValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.disablePayloadValidation",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "interceptMatchers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.interceptMatchers",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.HasMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unknownAggregateAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.unknownAggregateAnnotation",
+    "type" : "io.fluxzero.sdk.modeling.Aggregate",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default aggregate annotation used when the entity type is unknown. This is used to avoid caching (empty) aggregates of type Object.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultEntityHelper",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#DefaultEntityHelper",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "disablePayloadValidation",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new helper using the given parameter resolvers and configuration.\n\n @param parameterResolvers       Resolvers used to inject values into annotated handler methods\n @param disablePayloadValidation If true, disables bean validation of payloads\n"
+  } ],
+  "methods" : [ {
+    "name" : "applyInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#applyInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "searchChildren",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds a handler method annotated with {@code @Apply} and wraps it to preserve apply context flags.\n"
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegal",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : " Performs a validation check using {@code @AssertLegal} handlers for the provided payload. This method is called\n both before and after the handler completes, depending on the annotation's settings.\n"
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegal",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterHandler",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertLegalRecursive",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegalRecursive",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterHandler",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Performs recursive validation for the value and any nested properties or child entities.\n"
+  }, {
+    "name" : "assertLegalValue",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegalValue",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterHandler",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves and invokes @AssertLegal handlers for the given target.\n"
+  }, {
+    "name" : "checkLegality",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#checkLegality",
+    "returnType" : "java.util.Optional<E>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an exception if the value is illegal for the current entity, or {@code Optional.empty()} if legal.\n"
+  }, {
+    "name" : "getInterceptInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getInterceptInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.MessageWithEntity",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Recursively resolves the best-matching interceptor method, including nested members.\n"
+  }, {
+    "name" : "getRootAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getRootAnnotation",
+    "returnType" : "io.fluxzero.sdk.modeling.Aggregate",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the cached or default @Aggregate annotation for a given type.\n"
+  }, {
+    "name" : "intercept",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#intercept",
+    "returnType" : "java.util.stream.Stream<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts the given value using {@code @InterceptApply} methods defined on the entity. Interceptors may\n transform or replace the original message.\n"
+  }, {
+    "name" : "isLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#isLegal",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Convenience method that returns {@code true} if {@link #checkLegality} yields no error.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DefaultAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$DefaultAggregate",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.modeling.Aggregate",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "DeserializingMessageWithEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$DeserializingMessageWithEntity",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "MessageWithEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "UnknownAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$UnknownAggregate",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.modeling.Aggregate",
+      "values" : {
+        "cached" : "false"
+      }
+    } ]
+  } ]
+}

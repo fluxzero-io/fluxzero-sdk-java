@@ -1,0 +1,422 @@
+{
+  "name" : "ValidationUtils",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Utility class providing common validation and authorization routines for message payloads such as commands, queries,\n and web requests.\n <p>\n The {@code ValidationUtils} class supports two primary responsibilities:\n <ol>\n     <li><strong>Object validation</strong>: Validates message payloads using a {@link Validator}, optionally\n     applying validation groups specified via {@link ValidateWith} annotations.</li>\n     <li><strong>Authorization enforcement</strong>: Performs role-based access checks based on annotations such as\n     {@link RequiresAnyRole}, {@link ForbidsAnyRole}, and {@link NoUserRequired} declared on classes, methods, or packages.</li>\n </ol>\n\n <h2>Validation</h2>\n <p>\n Validation is typically executed automatically by the {@link ValidatingInterceptor} before invoking handler methods.\n The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code Jsr380Validator}).\n <p>\n Methods like {@link #assertValid(Object, Class[])} and {@link #checkValidity(Object, Validator, Class[])}\n support recursive validation of collections and custom validation groups.\n\n <h2>Authorization</h2>\n <p>\n The class also performs role-based security checks. Handler methods or message payloads can declare required roles,\n which are evaluated against the current {@link User}. If authorization fails, the utility throws either\n {@link UnauthenticatedException} or {@link UnauthorizedException}.\n\n <h2>Examples</h2>\n <pre>{@code\n ValidationUtils.assertValid(payload); // Validate a single object\n boolean isValid = ValidationUtils.isValid(payload, MyGroup.class); // Validate with a group\n\n User user = ...;\n ValidationUtils.assertAuthorized(MyCommand.class, user); // Authorization check\n }</pre>\n\n @see Validator\n @see ValidatingInterceptor\n @see RequiresAnyRole\n @see ForbidsAnyRole\n @see NoUserRequired\n @see ValidateWith\n @see UnauthenticatedException\n @see UnauthorizedException\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "defaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.defaultValidator",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Returns the default {@link Validator} used for message validation.\n <p>\n This is resolved via Java's {@link ServiceLoader} mechanism. If no custom {@link Validator} is found, a default\n JSR 380 (Bean Validation) implementation is used.\n",
+    "constantValue" : null
+  }, {
+    "name" : "noUserRequired",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.noUserRequired",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requiredRolesCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.requiredRolesCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requiredRolesForMethodCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.requiredRolesForMethodCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.reflect.Executable,io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "validateWithGroups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.validateWithGroups",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.lang.Class<?>[]>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ValidationUtils",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#ValidationUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "assertAuthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertAuthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ "io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException", "io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException" ],
+    "varArgs" : false,
+    "documentation" : " Verifies whether the given user is authorized to issue the given payload, based on roles declared via annotations\n on the payload's class or package.\n <p>\n Returns {@code true} if the user is authorized.\n <p>\n If the user is not authorized, either {@code false} is returned or an exception is thrown. Which happens depends\n on the detected annotation.\n\n @param payloadType the class of the payload\n @param user        the authenticated user (may be null)\n @return {@code true} if authorized, {@code false} if authorization should fail quietly\n @throws UnauthenticatedException if authentication is required but the user is {@code null}\n @throws UnauthorizedException    if the user lacks required roles\n"
+  }, {
+    "name" : "assertAuthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertAuthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the given user is authorized to invoke the given method on the given target.\n <p>\n Returns {@code true} if the user is authorized.\n <p>\n If the user is not authorized, either {@code false} is returned or an exception is thrown. Which happens depends\n on the detected annotation.\n <p>\n Role requirements may be defined via annotations on the method, class, or package.\n\n @param target the class declaring the method\n @param method the method to check\n @param user   the user to check\n @return {@code true} if authorized, {@code false} if authorization should fail quietly\n @throws UnauthenticatedException if authentication is required but the user is {@code null}\n @throws UnauthorizedException    if the user lacks required roles\n"
+  }, {
+    "name" : "assertAuthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertAuthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "action",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "requiredRoles",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertValid",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertValid",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Asserts that the object is valid using the given {@link Validator} and validation groups.\n <p>\n Throws a {@link ValidationException} if validation fails.\n\n @param object    the object to validate\n @param validator the validator to use\n @param groups    optional validation groups\n @throws ValidationException if validation fails\n"
+  }, {
+    "name" : "assertValid",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertValid",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Asserts that the given object is valid, using the default {@link Validator}.\n <p>\n Throws a {@link ValidationException} if the object fails validation.\n\n @param object the object to validate\n @param groups optional validation groups\n @throws ValidationException if validation fails\n"
+  }, {
+    "name" : "checkValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#checkValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Checks whether the provided object is valid using the given {@link Validator} and validation groups.\n\n @param object    the object to validate\n @param validator the validator to use\n @param groups    optional validation groups\n @return an {@link Optional} containing a {@link ValidationException} if invalid, or empty if valid\n"
+  }, {
+    "name" : "checkValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#checkValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Checks whether the provided object is valid, using the default {@link Validator} and validation groups.\n\n @param object the object to validate\n @param groups optional validation groups\n @return an {@link Optional} containing a {@link ValidationException} if validation fails, or empty if valid\n"
+  }, {
+    "name" : "getRequiredRoles",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getRequiredRoles",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRequiredRoles",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getRequiredRoles",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.Collection<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getValidationGroups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getValidationGroups",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "customGroups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ignoreSilently",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#ignoreSilently",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a particular operation on a payload type should be ignored without raising an exception.\n <p>\n <strong>Note: </strong>If the user is not authorized and an error occurs during the authorization check,\n the error is caught silently, and the method invocation is allowed to proceed.\n\n @param payloadType the class of the payload to be evaluated\n @param user        the user whose authorization is being evaluated; may be null for unauthenticated access\n @return {@code true} if the operation should be ignored silently, {@code false} otherwise\n"
+  }, {
+    "name" : "ignoreSilently",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#ignoreSilently",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a specific method invocation on a target class by a given user should be ignored without\n raising an exception, based on the user's authorization.\n <p>\n <strong>Note: </strong>If the user is not authorized and an error occurs during the authorization check,\n the error is caught silently, and the method invocation is allowed to proceed.\n\n @param target the class declaring the method to be checked\n @param method the executable method to be checked\n @param user   the user whose authorization is being evaluated\n @return {@code true} if the method invocation should be ignored without raising an exception, {@code false}\n otherwise\n"
+  }, {
+    "name" : "isValid",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#isValid",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns {@code true} if the object is valid, using the given {@link Validator} and validation groups.\n\n @param object    the object to validate\n @param validator the validator to use\n @param groups    optional validation groups\n @return {@code true} if valid, {@code false} otherwise\n"
+  }, {
+    "name" : "isValid",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#isValid",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns {@code true} if the given object is valid using the default {@link Validator} and validation groups.\n\n @param object the object to validate\n @param groups optional validation groups\n @return {@code true} if valid, {@code false} otherwise\n"
+  }, {
+    "name" : "throwIfUnauthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#throwIfUnauthorized",
+    "returnType" : "java.util.Optional<java.lang.Boolean>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "holder",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "RequiredRole",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils$RequiredRole",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
+  } ]
+}

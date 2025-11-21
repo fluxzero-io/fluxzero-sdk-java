@@ -1,0 +1,180 @@
+{
+  "name" : "EventStore",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " High-level abstraction for accessing and storing domain events in an event-sourced system.\n <p>\n This interface allows writing and reading event streams associated with aggregate instances. It is responsible for\n storing events produced by aggregates and retrieving event histories to rebuild aggregate state during rehydration.\n\n <p><strong>Usage Note:</strong> While this interface is public, it is rarely used directly. Applications typically\n use higher-level abstractions such as:\n <ul>\n     <li>{@link io.fluxzero.sdk.Fluxzero#loadAggregate}</li>\n     <li>{@link io.fluxzero.sdk.persisting.repository.AggregateRepository}</li>\n     <li>{@link io.fluxzero.sdk.modeling.Entity} instances</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n @see io.fluxzero.sdk.modeling.Entity\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the full event stream for an aggregate starting from the beginning.\n\n @param aggregateId The ID of the aggregate.\n @return A stream of deserialized messages representing the event history of the aggregate.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the event stream for an aggregate starting after the specified sequence number.\n\n @param aggregateId        The ID of the aggregate.\n @param lastSequenceNumber The last known sequence number to resume from.\n @return A stream of deserialized messages representing the event history of the aggregate.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the event stream for an aggregate starting after a given sequence number, with a maximum limit.\n\n @param aggregateId        The ID of the aggregate.\n @param lastSequenceNumber The last known sequence number to resume from.\n @param maxSize            The maximum number of events to return. A negative value means no limit.\n @return A stream of deserialized messages representing the event history of the aggregate.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreUnknownType",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the event stream for an aggregate with full control over behavior.\n\n @param aggregateId        The ID of the aggregate.\n @param lastSequenceNumber The last known sequence number to resume from.\n @param maxSize            The maximum number of events to return.\n @param ignoreUnknownType  Whether to ignore unknown payload types when deserializing events.\n @return A stream of deserialized messages representing the event history of the aggregate.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Stores one or more events for a given aggregate using the default strategy\n {@link EventPublicationStrategy#STORE_AND_PUBLISH}.\n\n @param aggregateId The ID of the aggregate.\n @param events      One or more events to store.\n @return A future that completes when the events have been successfully stored.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a list of events for a given aggregate using the default strategy\n {@link EventPublicationStrategy#STORE_AND_PUBLISH}.\n\n @param aggregateId The ID of the aggregate.\n @param events      The list of events to store.\n @return A future that completes when the events have been successfully stored.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "strategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a list of events for the given aggregate using a specified publication strategy.\n\n @param aggregateId The ID of the aggregate.\n @param events      The events to store.\n @param strategy    Whether to publish the events in addition to storing them.\n @return A future that completes once the operation is acknowledged.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "InMemoryKeyValueStore.json",
+    "name" : "InMemoryKeyValueStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore",
+    "kind" : "class"
+  }, {
+    "file" : "KeyValueClient.json",
+    "name" : "KeyValueClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketKeyValueClient.json",
+    "name" : "WebsocketKeyValueClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.WebsocketKeyValueClient",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

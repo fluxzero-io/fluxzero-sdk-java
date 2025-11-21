@@ -1,0 +1,56 @@
+{
+  "name" : "Member",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Member",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Indicates that the annotated field or getter represents a nested entity or collection of entities within an\n aggregate.\n <p>\n Entities marked with {@code @Member} participate in aggregate routing, event sourcing, and update application. When\n an update targets a nested entity, Fluxzero will use this annotation to traverse the aggregate structure and locate\n the correct entity (or entities) to apply the update to.\n\n <p>\n This annotation supports modeling complex aggregates composed of multiple entities, for example:\n <pre>{@code\n @Aggregate\n public class Project {\n     @EntityId\n     String projectId;\n\n     @Member\n     List<Task> tasks;\n }\n }</pre>\n Here, updates targeting {@code Task} entities will automatically be routed by matching {@code TaskId} (declared with\n {@link io.fluxzero.sdk.modeling.EntityId}) inside the {@code Task} class.\n\n <h2>Support for new entities</h2>\n <p>\n If no matching entity is found for a given update, Fluxzero will still evaluate the update against applicable\n {@code @Apply} and {@code @AssertLegal} methods. This allows new entity creation directly from the update payload\n when appropriate logic is defined.\n <br>For example:\n <pre>{@code\n @Apply\n Task create() {\n     return Task.builder().taskId(taskId).details(taskDetails).build();\n }\n }</pre>\n will be used to create a new {@code Task} if no matching task exists in the {@code tasks} member list.\n\n <h2>Immutability and parent updates</h2>\n <p>\n Fluxzero assumes immutability by default. When a nested entity is added, removed, or modified, Fluxzero will attempt\n to create a new version of the parent entity by copying and updating the annotated container field (list, map, etc.).\n The parent is not modified directly.\n <br>This behavior ensures safe update propagation and accurate change tracking, especially during event sourcing.\n <br>For example, if {@code ProductCategory} has a list of {@code Product}s:\n <pre>{@code\n @Member\n List<Product> products;\n }</pre>\n and one product is updated, Fluxzero will replace the {@code products} list with a new list containing the updated\n entity.\n\n <h2>Optional attributes</h2>\n <ul>\n     <li><strong>{@code idProperty}</strong> (default: empty):<br>\n         Use this to explicitly specify the identifier property name on the nested entity. By default,\n         Fluxzero locates the identifier via the {@link io.fluxzero.sdk.modeling.EntityId} annotation.</li>\n\n     <li><strong>{@code wither}</strong> (default: empty):<br>\n         Defines a method (by name) that should be invoked to update the container when the entity is added,\n         removed, or replaced. Normally, Fluxzero will update the container (e.g., list or map) automatically.\n         This setting is useful for immutable containers or cases requiring side effects during updates.\n     </li>\n </ul>\n\n <p>\n Supported container types:\n <ul>\n     <li>Single nested entities (e.g., {@code Product product})</li>\n     <li>Collections of entities (e.g., {@code List<Product>})</li>\n     <li>Maps of entities keyed by their identifier</li>\n </ul>\n\n @see io.fluxzero.sdk.modeling.EntityId\n @see io.fluxzero.sdk.modeling.Aggregate\n @see io.fluxzero.sdk.persisting.eventsourcing.Apply\n @see io.fluxzero.sdk.modeling.AssertLegal\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "idProperty",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Member#idProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Specifies the name of the identifier property on the nested entity, if different from the default detected one.\n"
+  }, {
+    "name" : "wither",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Member#wither",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optionally defines the name of a method that should be used to apply updates to the container of the nested\n entity.\n <p>\n Normally, Fluxzero automatically updates the container (for lists, maps, or singletons). This attribute is only\n necessary if a custom update method must be invoked instead.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

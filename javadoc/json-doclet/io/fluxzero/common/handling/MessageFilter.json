@@ -1,0 +1,87 @@
+{
+  "name" : "MessageFilter",
+  "qualifiedName" : "io.fluxzero.common.handling.MessageFilter",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Defines a predicate that determines whether a given message is applicable to a handler method.\n <p>\n This interface enables conditional dispatching of messages to handler methods based on runtime message properties,\n handler annotations, and method metadata.\n\n <p>\n {@code MessageFilter}s can be composed using {@code and()}, making them useful for defining cross-cutting message\n acceptance rules (e.g. for authentication, message type filtering, etc.).\n\n @param <M> the message type to evaluate\n @see HandlerMatcher\n @see HandlerInvoker\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "and",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#and",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "second",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull MessageFilter<? super M>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this filter with another using logical AND. The resulting filter passes only if both filters pass.\n\n @param second another {@code MessageFilter} to combine with\n @return a new {@code MessageFilter} that passes only if both this and the second filter pass\n"
+  }, {
+    "name" : "getLeastSpecificAllowedClass",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#getLeastSpecificAllowedClass",
+    "returnType" : "java.util.Optional<java.lang.Class<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Provides the least specific class type that is allowed to match this filter for a given method and annotation.\n <p>\n This can be used to restrict or optimize handler matching, especially when working with inheritance or interface\n hierarchies.\n\n @param executable        the candidate handler method\n @param handlerAnnotation the annotation present on the handler method\n @return an optional type indicating the base class that messages must extend or implement\n"
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Evaluates whether a message should be handled by a given method annotated with a specific handler annotation.\n\n @param message           the message instance to evaluate\n @param executable        the candidate handler method\n @param handlerAnnotation the annotation that marks the method as a handler (e.g. {@code @HandleCommand})\n @return {@code true} if the message is accepted by this filter for the given handler method\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

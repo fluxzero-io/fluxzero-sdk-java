@@ -1,0 +1,122 @@
+{
+  "name" : "Invocation",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Tracks the lifecycle and identity of a single message handler invocation.\n <p>\n This class enables consistent tagging and correlation of all side effects (e.g. metrics, queries, event sourcing,\n message publication) produced during the execution of a handler. Each invocation is assigned a unique\n {@link #getId() invocation ID} which is automatically added to metadata and logging contexts to trace functional and\n non-functional effects back to the triggering message.\n\n <h2>Automatic Invocation Wrapping</h2>\n The Fluxzero client automatically wraps all handler invocations using this class. This includes:\n <ul>\n     <li>Local handlers (i.e. message handling in the publishing thread)</li>\n     <li>Tracked handlers (i.e. message tracking via the Fluxzero Runtime)</li>\n </ul>\n <p>\n As a result, developers typically do not need to call {@link #performInvocation(Callable)} directly,\n unless they are manually invoking a handler outside of the Fluxzero infrastructure.\n\n <h2>Usage</h2>\n When used manually, wrap handler logic with {@link #performInvocation(Callable)} to activate an invocation context:\n\n <pre>{@code\n Invocation.performInvocation(() -> {\n     // handler logic\n     Fluxzero.publishEvent(new SomeEvent());\n     return result;\n });\n }</pre>\n <p>\n This ensures:\n <ul>\n     <li>A consistent invocation ID is available throughout the thread</li>\n     <li>Any emitted messages, metrics, or queries can include that ID as a correlation token</li>\n     <li>Callbacks can be registered via {@link #whenHandlerCompletes(BiConsumer)} to react to success/failure</li>\n </ul>\n\n @see #performInvocation(Callable)\n @see #getCurrent()\n @see #whenHandlerCompletes(BiConsumer)\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "callbacks",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.callbacks",
+    "type" : "java.util.List<java.util.function.BiConsumer<java.lang.Object,java.lang.Throwable>>",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "current",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.current",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.handling.Invocation>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Invocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#Invocation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getCurrent",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.Invocation",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the current {@code Invocation} bound to this thread, or {@code null} if none exists.\n"
+  }, {
+    "name" : "performInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Wraps the given {@link Callable} in an invocation context.\n <p>\n This method ensures that callbacks registered via {@link #whenHandlerCompletes(BiConsumer)} are executed\n upon completion of the callable.\n\n @param callable the task to run\n @return the callable result\n"
+  }, {
+    "name" : "registerCallback",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#registerCallback",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "whenHandlerCompletes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#whenHandlerCompletes",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a callback to be executed when the current handler invocation completes.\n <p>\n If no invocation is active, the callback is executed immediately with {@code null} values.\n\n @param callback the handler result/error consumer\n @return a {@link Registration} handle to cancel the callback\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

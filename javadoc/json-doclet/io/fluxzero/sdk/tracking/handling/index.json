@@ -1,0 +1,281 @@
+{
+  "package" : {
+    "name" : "handling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "Association.json",
+    "name" : "Association",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Association",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "DefaultHandlerFactory.json",
+    "name" : "DefaultHandlerFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultRepositoryProvider.json",
+    "name" : "DefaultRepositoryProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultRepositoryProvider",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultResponseMapper.json",
+    "name" : "DefaultResponseMapper",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultResponseMapper",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentHandlerDecorator.json",
+    "name" : "DocumentHandlerDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentHandlerDecorator.DocumentHandler.json",
+    "name" : "DocumentHandlerDecorator.DocumentHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentHandlerDecorator.DocumentHandler.DocumentHandlerInvoker.json",
+    "name" : "DocumentHandlerDecorator.DocumentHandler.DocumentHandlerInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$DocumentHandlerInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "HandleCommand.json",
+    "name" : "HandleCommand",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCommand",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleCustom.json",
+    "name" : "HandleCustom",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCustom",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleCustomFilter.json",
+    "name" : "HandleCustomFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCustomFilter",
+    "kind" : "class"
+  }, {
+    "file" : "HandleDocument.json",
+    "name" : "HandleDocument",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleDocumentFilter.json",
+    "name" : "HandleDocumentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocumentFilter",
+    "kind" : "class"
+  }, {
+    "file" : "HandleError.json",
+    "name" : "HandleError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleError",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleEvent.json",
+    "name" : "HandleEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleEvent",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleMessage.json",
+    "name" : "HandleMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMessage",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleMetrics.json",
+    "name" : "HandleMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleMetrics",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleNotification.json",
+    "name" : "HandleNotification",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleNotification",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleQuery.json",
+    "name" : "HandleQuery",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleQuery",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleResult.json",
+    "name" : "HandleResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleResult",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandleSchedule.json",
+    "name" : "HandleSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleSchedule",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "HandlerDecorator.json",
+    "name" : "HandlerDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerDecorator.MergedDecorator.json",
+    "name" : "HandlerDecorator.MergedDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator$MergedDecorator",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerFactory.json",
+    "name" : "HandlerFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInterceptor.json",
+    "name" : "HandlerInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerInterceptor.InterceptedHandler.json",
+    "name" : "HandlerInterceptor.InterceptedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$InterceptedHandler",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerRegistry.json",
+    "name" : "HandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerRegistry.MergedHandlerRegistry.json",
+    "name" : "HandlerRegistry.MergedHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$MergedHandlerRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerRegistry.NoOpHandlerRegistry.json",
+    "name" : "HandlerRegistry.NoOpHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$NoOpHandlerRegistry",
+    "kind" : "enum"
+  }, {
+    "file" : "HasLocalHandlers.json",
+    "name" : "HasLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+    "kind" : "interface"
+  }, {
+    "file" : "IllegalCommandException.json",
+    "name" : "IllegalCommandException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "kind" : "class"
+  }, {
+    "file" : "InputParameterResolver.json",
+    "name" : "InputParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.InputParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "Invocation.json",
+    "name" : "Invocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation",
+    "kind" : "class"
+  }, {
+    "file" : "JsonPayloadParameterResolver.json",
+    "name" : "JsonPayloadParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "LocalHandler.json",
+    "name" : "LocalHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandler",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "LocalHandlerRegistry.json",
+    "name" : "LocalHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "MessageParameterResolver.json",
+    "name" : "MessageParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "MetadataParameterResolver.json",
+    "name" : "MetadataParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MetadataParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "MutableHandler.json",
+    "name" : "MutableHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MutableHandler",
+    "kind" : "class"
+  }, {
+    "file" : "PayloadFilter.json",
+    "name" : "PayloadFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter",
+    "kind" : "class"
+  }, {
+    "file" : "PayloadFilter.HandleAnnotation.json",
+    "name" : "PayloadFilter.HandleAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter$HandleAnnotation",
+    "kind" : "class"
+  }, {
+    "file" : "PayloadParameterResolver.json",
+    "name" : "PayloadParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "RepositoryProvider.json",
+    "name" : "RepositoryProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+    "kind" : "interface"
+  }, {
+    "file" : "Request.json",
+    "name" : "Request",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Request",
+    "kind" : "interface"
+  }, {
+    "file" : "RequestAnnotationProcessor.json",
+    "name" : "RequestAnnotationProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor",
+    "kind" : "class"
+  }, {
+    "file" : "ResponseMapper.json",
+    "name" : "ResponseMapper",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.ResponseMapper",
+    "kind" : "interface"
+  }, {
+    "file" : "SegmentFilter.json",
+    "name" : "SegmentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter",
+    "kind" : "class"
+  }, {
+    "file" : "Stateful.json",
+    "name" : "Stateful",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Stateful",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "StatefulHandler.json",
+    "name" : "StatefulHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.AssociationValue.json",
+    "name" : "StatefulHandler.AssociationValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$AssociationValue",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulHandlerInvoker.json",
+    "name" : "StatefulHandler.StatefulHandlerInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "Trigger.json",
+    "name" : "Trigger",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "TriggerParameterResolver.json",
+    "name" : "TriggerParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "authentication",
+    "path" : "authentication"
+  }, {
+    "name" : "contentfiltering",
+    "path" : "contentfiltering"
+  }, {
+    "name" : "errorreporting",
+    "path" : "errorreporting"
+  }, {
+    "name" : "validation",
+    "path" : "validation"
+  } ]
+}

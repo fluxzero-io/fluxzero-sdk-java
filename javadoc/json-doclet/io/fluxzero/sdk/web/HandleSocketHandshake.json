@@ -1,0 +1,70 @@
+{
+  "name" : "HandleSocketHandshake",
+  "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketHandshake",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.web.HandleWeb",
+    "values" : {
+      "method" : "\"WS_HANDSHAKE\"",
+      "value" : "\"\""
+    }
+  } ],
+  "documentation" : " Handles a WebSocket handshake request, invoked when a client first attempts to connect using a specialised\n {@code GET} request.\n\n @see HandleWeb\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "disabled",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketHandshake#disabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, disables this handler during discovery.\n"
+  }, {
+    "name" : "passive",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketHandshake#passive",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, the handler will not publish a response to the {@code WebResponse} log.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleSocketHandshake#value",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/*}). If empty, the\n path is based on the {@link Path} annotation.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

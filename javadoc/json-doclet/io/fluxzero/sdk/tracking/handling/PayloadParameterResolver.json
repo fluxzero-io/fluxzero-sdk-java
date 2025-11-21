@@ -1,0 +1,119 @@
+{
+  "name" : "PayloadParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Resolves handler method parameters by injecting the message payload.\n\n <p>This resolver matches a parameter when its declared type is assignable from the actual payload class\n of the incoming message.\n\n <p>This resolver is typically used in conjunction with filters such as {@link PayloadFilter} to determine\n handler compatibility based on payload types.\n\n <p>Special care is taken to allow null payloads for parameters that are declared nullable,\n which can occur during upcasting or transformation pipelines.\n\n @see HasMessage#getPayload()\n @see HasMessage#getPayloadClass()\n @see ParameterResolver\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<io.fluxzero.sdk.common.HasMessage>" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "PayloadParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#PayloadParameterResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "determinesSpecificity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#determinesSpecificity",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates that this resolver contributes to disambiguating handler methods when multiple handlers are present in\n the same target class.\n\n <p>This is useful when more than one method matches a message, and the framework must\n decide which method is more specific. If this returns {@code true}, the resolver's presence and compatibility\n with the parameter may influence which handler is selected.\n\n @return true, signaling that this resolver helps determine method specificity\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.HasMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

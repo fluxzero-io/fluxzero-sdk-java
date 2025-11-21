@@ -1,0 +1,138 @@
+{
+  "name" : "HandlerConfiguration",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.experimental.Accessors",
+    "values" : {
+      "fluent" : "true"
+    }
+  } ],
+  "documentation" : " Configuration object used to define how message handler methods are selected and filtered for a given message type.\n <p>\n This configuration is passed to {@link HandlerInspector} and {@link HandlerMatcher} instances to determine:\n <ul>\n   <li>Which methods should be considered as valid message handlers,</li>\n   <li>Whether multiple methods on the same target are allowed to handle the same message,</li>\n   <li>And whether a particular message is eligible for handling by a given method.</li>\n </ul>\n\n <p>The generic type {@code M} represents the expected message wrapper type (e.g. {@code HasMessage} or a subclass).\n\n @param <M> the message wrapper type this configuration applies to\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "handlerFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.handlerFilter",
+    "type" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " A filter applied to candidate methods to determine if they are valid handlers for the given context.\n <p>\n The filter receives the owning class and the method as inputs. By default, all methods are accepted.\n",
+    "constantValue" : null
+  }, {
+    "name" : "invokeMultipleMethods",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.invokeMultipleMethods",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " If {@code true}, allows multiple methods in the same class to handle a single message.\n <p>\n If {@code false}, only the first matching handler (by inspection order) will be invoked.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageFilter",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.messageFilter",
+    "type" : "io.fluxzero.common.handling.MessageFilter<? super M>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " A filter applied at runtime to check if a given message should be routed to the specified method.\n <p>\n This is used after the handler method has been identified and may use logic such as payload class matching,\n topic filtering, or segment-based routing.\n",
+    "constantValue" : null
+  }, {
+    "name" : "methodAnnotation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.methodAnnotation",
+    "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The annotation type that marks a method as a handler (e.g. {@code @HandleCommand}, {@code @HandleQuery}).\n If {@code null}, all methods are considered eligible for inspection.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerConfiguration",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration#HandlerConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getAnnotation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration#getAnnotation",
+    "returnType" : "java.util.Optional<? extends java.lang.annotation.Annotation>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the configured method annotation on the given method, if present.\n\n @param e the method to inspect\n @return an optional containing the annotation if present, or empty otherwise\n"
+  }, {
+    "name" : "isEnabled",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration#isEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether the given method is \"enabled\" based on the presence of {@link #methodAnnotation}\n and whether the annotation declares a {@code disabled()} attribute.\n <p>\n If the annotation exists and its {@code disabled()} attribute evaluates to {@code true}, the method is skipped.\n\n @param e the method to evaluate\n @return {@code true} if the method is enabled and can be considered as a handler\n"
+  }, {
+    "name" : "methodMatches",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration#methodMatches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "c",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "e",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether the given method is eligible to handle messages according to this configuration.\n <p>\n This includes both:\n <ul>\n   <li>Checking that the method is annotated with {@link #methodAnnotation} (if applicable), and</li>\n   <li>That it passes the {@link #handlerFilter}.</li>\n </ul>\n\n @param c the class owning the method\n @param e the method to check\n @return {@code true} if the method should be included as a handler\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

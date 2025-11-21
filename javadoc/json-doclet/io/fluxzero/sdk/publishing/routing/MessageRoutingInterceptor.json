@@ -1,0 +1,97 @@
+{
+  "name" : "MessageRoutingInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor",
+  "packageName" : "io.fluxzero.sdk.publishing.routing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link DispatchInterceptor} that assigns a routing segment to messages prior to dispatch.\n\n <p>This interceptor computes a consistent hash-based segment index for each message using\n {@link ConsistentHashing#computeSegment(String)} and injects it into the serialized message if no segment has already\n been set.\n\n <p>Fluxzero Runtime uses the segment value for consistent message routing and load distribution.\n It ensures that all messages with the same routing key are handled by the same segment, preserving message affinity\n and ordering guarantees within that segment.\n\n <h2>Behavior</h2>\n <ul>\n   <li>If {@code SerializedMessage#getSegment()} is {@code null}, the interceptor computes the segment\n       from the message's routing key via {@link Message#computeRoutingKey()}.</li>\n   <li>If a segment is already assigned, the interceptor leaves it unchanged.</li>\n   <li>The message content itself is not modified; only the serialized representation is updated.</li>\n </ul>\n\n <p>This interceptor is typically enabled by default for most gateway clients (e.g., command, event, query, etc.),\n ensuring that routing behavior is applied uniformly before messages are published to Fluxzero Runtime.\n\n @see DispatchInterceptor\n @see ConsistentHashing\n @see SerializedMessage#setSegment(Integer)\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "MessageRoutingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#MessageRoutingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the unmodified {@link Message} as this interceptor only modifies the serialized form.\n"
+  }, {
+    "name" : "modifySerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#modifySerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "m",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes and sets the routing segment on the serialized message if not already present.\n\n @param serializedMessage the message to be sent\n @param m                 the original message object\n @param messageType       the type of message (e.g., command, event, query)\n @param topic             the topic to which the message will be published\n @return the same {@code SerializedMessage} instance, possibly updated with a segment\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,300 @@
+{
+  "name" : "SearchUtils",
+  "qualifiedName" : "io.fluxzero.common.SearchUtils",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Utility class for search-related functionality such as term normalization, path transformation, glob pattern\n matching, and primitive value extraction.\n <p>\n This class is used extensively during document indexing, querying, and filtering. It also includes utilities for path\n conversion between dot and slash notation, JSON normalization, and field escaping/unescaping.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ISO_FULL",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.ISO_FULL",
+    "type" : "java.time.format.DateTimeFormatter",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Date-time formatter used to serialize or deserialize full ISO-8601 instant values with millisecond precision.\n",
+    "constantValue" : null
+  }, {
+    "name" : "arrayIndices",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.arrayIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Integer>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Preloaded numeric strings mapped to their integer values, used for efficient parsing.\n",
+    "constantValue" : null
+  }, {
+    "name" : "dotPattern",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.dotPattern",
+    "type" : "java.util.regex.Pattern",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Regex pattern for splitting dot-separated paths (ignoring escaped dots).\n",
+    "constantValue" : null
+  }, {
+    "name" : "globPatternCache",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.globPatternCache",
+    "type" : "java.util.Map<java.lang.String,java.util.function.Predicate<java.lang.String>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Cache for compiled glob patterns.\n",
+    "constantValue" : null
+  }, {
+    "name" : "isValidTimestampProperty",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.isValidTimestampProperty",
+    "type" : "java.util.Map<java.util.Map.Entry<java.lang.Class<?>,java.lang.String>,java.lang.Boolean>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "letterOrNumber",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.letterOrNumber",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " A character class used in regex patterns that includes letters and digits.\n",
+    "constantValue" : "\\p{L}0-9"
+  }, {
+    "name" : "termPattern",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils.termPattern",
+    "type" : "java.util.regex.Pattern",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Pattern for extracting search terms and quoted phrases from a string.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchUtils",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#SearchUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asIntegerOrString",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#asIntegerOrString",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fieldName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to convert a numeric string to an Integer, falling back to the original string otherwise.\n"
+  }, {
+    "name" : "asPrimitive",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#asPrimitive",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts any non-primitive value to its string form.\n"
+  }, {
+    "name" : "escapeFieldName",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#escapeFieldName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fieldName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Escapes slashes and quotes in field names for safe indexing.\n"
+  }, {
+    "name" : "getGlobMatcher",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#getGlobMatcher",
+    "returnType" : "java.util.function.Predicate<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pattern",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a standard POSIX Shell globbing pattern into a regular expression pattern. The result can be used with\n the standard {@link java.util.regex} API to recognize strings which match the glob pattern.\n <p>\n From <a\n href=\"https://stackoverflow.com/questions/1247772/is-there-an-equivalent-of-java-util-regex-for-glob-type-patterns\">...</a>\n <p>\n See also, the POSIX Shell language: <a\n href=\"http://pubs.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html#tag_02_13_01\">...</a>\n\n @param pattern A glob pattern.\n @return A regex pattern to recognize the given glob pattern.\n"
+  }, {
+    "name" : "isInteger",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#isInteger",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fieldName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks whether the input string is a parseable integer.\n"
+  }, {
+    "name" : "normalize",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#normalize",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "text",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Normalizes a string to lowercase and removes diacritics and leading/trailing whitespace.\n"
+  }, {
+    "name" : "normalizeJson",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#normalizeJson",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Normalizes all string values in a JSON byte array by stripping accents and lowercasing.\n <p>\n This is typically used during document indexing to enable consistent full-text search.\n\n @param data a raw JSON-encoded byte array\n @return a normalized version of the input data\n"
+  }, {
+    "name" : "normalizePath",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#normalizePath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queryPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces unescaped dots in field paths with slashes.\n <p>\n This standardizes paths used in documents (e.g. {@code a.b.c} → {@code a/b/c}).\n"
+  }, {
+    "name" : "parseTimeProperty",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#parseTimeProperty",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "whenMissing",
+      "type" : "java.util.function.Supplier<java.time.Instant>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Parses a time-related property from an object based on the specified property path. The extracted property value\n can be of various types, such as LocalDate, LocalDateTime, TemporalAccessor, or String, and the method converts\n it to an Instant.\n <p>\n If the property is a LocalDate and the end flag is set to true, the result will represent the start of the next\n day; otherwise, it represents the start of the given day.\n"
+  }, {
+    "name" : "splitInTerms",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#splitInTerms",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts quoted phrases and standalone terms from a free-form query string.\n\n @param query the raw search string\n @return a list of normalized search terms\n"
+  }, {
+    "name" : "tryGetSimpleGlobMatcher",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#tryGetSimpleGlobMatcher",
+    "returnType" : "java.util.Optional<java.util.function.Predicate<java.lang.String>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pattern",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unescapeFieldName",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#unescapeFieldName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fieldName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Unescapes slashes and quotes in field names.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

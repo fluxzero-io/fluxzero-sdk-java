@@ -1,0 +1,85 @@
+{
+  "name" : "StorePosition",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command sent to the Fluxzero Runtime to update the tracked position for a specific consumer and segment range.\n <p>\n This is typically used after a {@code Tracker} has successfully processed a\n {@link io.fluxzero.common.api.tracking.MessageBatch}, allowing the system to record the latest confirmed index.\n <p>\n <strong>Important:</strong> The {@code lastIndex} can only move forward. Attempts to store a lower index than\n currently registered will be ignored. This ensures resilience against out-of-order or stale tracker activity (e.g.\n due to temporary disconnects), and helps prevent split-brain scenarios.\n <p>\n If you need to explicitly lower a segment’s index (e.g. for replay or recovery purposes), use the\n {@link io.fluxzero.common.api.tracking.ResetPosition} command instead.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.consumer",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The name of the consumer for which the position is being stored.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The delivery guarantee level to apply when storing the position. See {@link io.fluxzero.common.Guarantee}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "lastIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.lastIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The highest index that has been successfully processed by the tracker. Must be greater than or equal to the\n previously stored index for this segment range.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.messageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The type of message being tracked (e.g. {@code EVENT}, {@code COMMAND}, etc.).\n",
+    "constantValue" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.segment",
+    "type" : "int[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The segment range [start, end) that the tracker is responsible for.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "StorePosition",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#StorePosition",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a routing key based on the message type and consumer name. This key is used for load balancing and\n message partitioning in the Fluxzero Runtime.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

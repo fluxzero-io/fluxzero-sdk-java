@@ -1,0 +1,83 @@
+{
+  "name" : "SearchParameters",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " Represents configuration options extracted from the\n {@link io.fluxzero.sdk.persisting.search.Searchable @Searchable} annotation on a domain type. These\n parameters determine how the entity should be indexed and queried within the {@code DocumentStore} and related search\n infrastructure.\n\n <p>Instances of this class are typically created during reflective analysis of annotated classes and cached\n for repeated lookups. They encapsulate metadata relevant to how documents are indexed, timestamped, and grouped\n within collections.\n\n <h2>Fields:</h2>\n <ul>\n   <li>{@code searchable} – whether documents of this type should be indexed and searchable.</li>\n   <li>{@code collection} – name of the logical collection under which documents are grouped; if not\n       specified, the simple name of the class is used.</li>\n   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>\n   <li>{@code endPath} – expression to extract the end timestamp (for ranged entities) from the object.</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.search.Searchable\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " Optional name of the document collection to use. If not specified, the simple class name will be used as the\n default.\n",
+    "constantValue" : null
+  }, {
+    "name" : "defaultSearchParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.defaultSearchParameters",
+    "type" : "io.fluxzero.sdk.modeling.SearchParameters",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default instance with {@code searchable=true}, and no collection/timestamp configuration.\n",
+    "constantValue" : null
+  }, {
+    "name" : "endPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.endPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional property path expression that points to the document's end timestamp (e.g. {@code \"expiresAt\"}). If\n unspecified, the {@code timestampPath} is used as both start and end.\n",
+    "constantValue" : null
+  }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.searchable",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether instances of the annotated class are eligible for indexing and search. Defaults to {@code true}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestampPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.timestampPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional property path expression that points to the document's start timestamp (e.g. {@code \"createdAt\"}). Used\n to associate temporal metadata with the document.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters#SearchParameters",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

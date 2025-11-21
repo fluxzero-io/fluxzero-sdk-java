@@ -1,0 +1,58 @@
+{
+  "name" : "ConditionalOnBean",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "org.springframework.context.annotation.Conditional",
+    "values" : {
+      "value" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean.Condition.class"
+    }
+  } ],
+  "documentation" : " {@link Conditional} that only matches when a bean of the specified type is present in the application context.\n <p>\n Useful for conditionally registering configurations or beans when certain dependencies exist.\n\n <h2>Usage</h2>\n <pre>{@code\n @ConditionalOnBean(MyService.class)\n @Bean\n public MyBean conditionalBean() {\n     return new MyBean();\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean#value",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Condition",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnBean$Condition",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.core.annotation.Order",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"NullableProblems\",\"ConstantConditions\""
+      }
+    } ]
+  } ]
+}

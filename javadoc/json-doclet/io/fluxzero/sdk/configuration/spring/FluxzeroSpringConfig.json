@@ -1,0 +1,478 @@
+{
+  "name" : "FluxzeroSpringConfig",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "org.springframework.context.annotation.Configuration",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Spring configuration class for automatically wiring and initializing common Fluxzero components in a Spring\n application context.\n <p>\n This configuration simplifies the integration of Fluxzero by:\n <ul>\n     <li>Registering {@code @Handle...} annotated beans as handlers after the context is refreshed</li>\n     <li>Auto-detecting and registering upcasters and downcasters with the {@link Serializer}</li>\n     <li>Providing default implementations for core interfaces like {@link CommandGateway}, {@link Serializer}, and {@link MessageScheduler}</li>\n </ul>\n <p>\n Note that Fluxzero does not require Spring, and this class is entirely optional.\n It exists purely to reduce boilerplate in Spring-based applications.\n\n <p>The simplest way to enable this configuration in a Spring Boot application, is by annotating your main application\n class with:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n }</pre>\n\n @see Fluxzero\n @see FluxzeroBuilder\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "org.springframework.beans.factory.config.BeanPostProcessor" ],
+  "fields" : [ {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.context",
+    "type" : "org.springframework.context.ApplicationContext",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.handlerRegistration",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.common.Registration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "springBeans",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig.springBeans",
+    "type" : "java.util.Set<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FluxzeroSpringConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#FluxzeroSpringConfig",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.beans.factory.annotation.Autowired",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "org.springframework.context.ApplicationContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a reference to the Spring context and prepares for handler detection.\n"
+  } ],
+  "methods" : [ {
+    "name" : "aggregateRepository",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#aggregateRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commandGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#commandGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.CommandGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentStore",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#documentStore",
+    "returnType" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "errorGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#errorGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.ErrorGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eventGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#eventGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.EventGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fluxzero",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#fluxzero",
+    "returnType" : "io.fluxzero.sdk.Fluxzero",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "builder",
+      "type" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "customizers",
+      "type" : "java.util.List<io.fluxzero.sdk.configuration.spring.FluxzeroCustomizer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs the {@link Fluxzero} instance if no Fluxzero bean exists, preferring a user-provided\n {@link Client} or falling back to either a {@link WebSocketClient} or {@link LocalClient} depending on presence\n of configuration properties.\n"
+  }, {
+    "name" : "fluxzeroBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#fluxzeroBuilder",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"OptionalUsedAsFieldOrParameterType\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userProvider",
+      "type" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.authentication.UserProvider>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cache",
+      "type" : "java.util.Optional<io.fluxzero.sdk.persisting.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webResponseMapper",
+      "type" : "java.util.Optional<io.fluxzero.sdk.web.WebResponseMapper>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "environment",
+      "type" : "org.springframework.core.env.Environment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Provides a default {@link FluxzeroBuilder}, configured using Spring-provided components such as\n {@link UserProvider}, {@link Cache}, and {@link WebResponseMapper}. Automatically uses application properties via\n {@link SpringPropertySource}.\n"
+  }, {
+    "name" : "getBean",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#getBean",
+    "returnType" : "java.util.Optional<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#handle",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.event.EventListener",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "org.springframework.context.event.ContextRefreshedEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers all discovered Spring beans as Fluxzero handlers once the application context is refreshed. Also\n installs a default uncaught exception handler and starts the application context if needed.\n"
+  }, {
+    "name" : "keyValueStore",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#keyValueStore",
+    "returnType" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metricsGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#metricsGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.MetricsGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "postProcessAfterInitialization",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#postProcessAfterInitialization",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bean",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beanName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "org.springframework.beans.BeansException" ],
+    "varArgs" : false,
+    "documentation" : " Captures beans post-initialization to inspect later for handler registration. Prototype beans are handled\n specially.\n"
+  }, {
+    "name" : "queryGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#queryGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.QueryGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resultGateway",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#resultGateway",
+    "returnType" : "io.fluxzero.sdk.publishing.ResultGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduler",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#scheduler",
+    "returnType" : "io.fluxzero.sdk.scheduling.MessageScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#serializer",
+    "returnType" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingBean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optionally provides a default {@link Serializer} implementation based on Jackson, automatically detecting and\n registering upcasters and downcasters from Spring-managed beans.\n <p>\n This method is only invoked if no other {@link Serializer} bean is defined.\n <p>\n If a custom serializer is provided by the application, upcasters and downcasters must be registered explicitly.\n\n @return a {@link Serializer} configured with discovered casting logic\n"
+  }, {
+    "name" : "socketEndpointPostProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#socketEndpointPostProcessor",
+    "returnType" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers the {@link SocketEndpointPostProcessor}, used for handlers that manage WebSocket communication.\n\n @see io.fluxzero.sdk.web.SocketEndpoint\n"
+  }, {
+    "name" : "statefulPostProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#statefulPostProcessor",
+    "returnType" : "io.fluxzero.sdk.configuration.spring.StatefulPostProcessor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers the {@link StatefulPostProcessor}, enabling lifecycle and stateful behavior for beans.\n\n @see io.fluxzero.sdk.tracking.handling.Stateful\n"
+  }, {
+    "name" : "trackSelfPostProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#trackSelfPostProcessor",
+    "returnType" : "io.fluxzero.sdk.configuration.spring.TrackSelfPostProcessor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.context.annotation.Bean",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers the {@link TrackSelfPostProcessor}, which supports payload classes that track and handle their own\n type.\n\n @see io.fluxzero.sdk.tracking.TrackSelf\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

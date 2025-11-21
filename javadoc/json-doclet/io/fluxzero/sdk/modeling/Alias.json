@@ -1,0 +1,53 @@
+{
+  "name" : "Alias",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Alias",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Annotation used on properties of an entity value that provide an alternative identifier to find the entity.\n <p>\n Finding an entity by alias is used both when looking for a child entity via {@link Entity#getEntity}, and when\n loading an entity (or aggregate) by entity id, e.g. using {@link Fluxzero#loadAggregateFor}.\n <p>\n You can annotate fields and property methods. If a property value is a collection the members of the collection are\n all added as aliases of the entity. If the property value is {@code null} or an empty collection the alias is\n ignored.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "postfix",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Alias#postfix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds given string as a postfix to the alias (if the property value is non-null). Useful to prevent clashes with\n other entity ids.\n"
+  }, {
+    "name" : "prefix",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Alias#prefix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds given string as a prefix to the alias (if the property value is non-null). Useful to prevent clashes with\n other entity ids.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

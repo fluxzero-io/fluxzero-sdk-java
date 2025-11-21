@@ -1,0 +1,44 @@
+{
+  "package" : {
+    "name" : "metrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CompleteMessageEvent.json",
+    "name" : "CompleteMessageEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.CompleteMessageEvent",
+    "kind" : "class"
+  }, {
+    "file" : "DisableMetrics.json",
+    "name" : "DisableMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.DisableMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "HandleMessageEvent.json",
+    "name" : "HandleMessageEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandleMessageEvent",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerMonitor.json",
+    "name" : "HandlerMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandlerMonitor",
+    "kind" : "class"
+  }, {
+    "file" : "PauseTrackerEvent.json",
+    "name" : "PauseTrackerEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent",
+    "kind" : "class"
+  }, {
+    "file" : "ProcessBatchEvent.json",
+    "name" : "ProcessBatchEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent",
+    "kind" : "class"
+  }, {
+    "file" : "TrackerMonitor.json",
+    "name" : "TrackerMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.TrackerMonitor",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

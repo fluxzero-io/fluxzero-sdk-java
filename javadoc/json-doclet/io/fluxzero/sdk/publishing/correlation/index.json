@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "correlation",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CorrelatingInterceptor.json",
+    "name" : "CorrelatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor",
+    "kind" : "class"
+  }, {
+    "file" : "CorrelationDataProvider.json",
+    "name" : "CorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultCorrelationDataProvider.json",
+    "name" : "DefaultCorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
+    "kind" : "enum"
+  } ],
+  "subdirectories" : [ ]
+}

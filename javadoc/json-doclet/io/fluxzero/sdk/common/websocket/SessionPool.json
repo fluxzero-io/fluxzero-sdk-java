@@ -1,0 +1,154 @@
+{
+  "name" : "SessionPool",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A thread-safe pool of reusable WebSocket {@link Session} objects, supporting concurrent access and routing.\n <p>\n This class provides a mechanism to manage multiple active WebSocket sessions, either round-robin or keyed by a\n {@code routingKey}. It lazily initializes sessions on demand using a configurable {@link Supplier}, ensuring that\n each session slot is kept active unless the pool is shutting down or explicitly closed.\n <p>\n The session pool is particularly useful in high-throughput scenarios, where multiple sessions are used to distribute\n load, improve parallelism, or isolate message streams.\n\n <h2>Usage Modes:</h2>\n <ul>\n     <li><strong>Round-robin</strong>: Calling {@link #get()} will return the next available session, cycling through\n     the pool.</li>\n     <li><strong>Hash-based routing</strong>: Calling {@link #get(String)} with a routing key returns the session\n     consistently mapped to that key, based on consistent hashing.</li>\n </ul>\n\n <p>\n If a session is closed or unavailable, it is automatically replaced using the provided {@code sessionFactory}.\n All sessions are closed when {@link #close()} is called.\n\n <p><strong>Note:</strong> This class is used by Fluxzero WebSocket clients such as {@link AbstractWebsocketClient} to\n manage their underlying connections to the Fluxzero Runtime.\n\n @see AbstractWebsocketClient\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "counter",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.counter",
+    "type" : "java.util.concurrent.atomic.AtomicInteger",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sessionFactory",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionFactory",
+    "type" : "java.util.function.Supplier<jakarta.websocket.Session>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sessionMap",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionMap",
+    "type" : "java.util.Map<java.lang.Integer,jakarta.websocket.Session>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shuttingDown",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.shuttingDown",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.size",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SessionPool",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#SessionPool",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionFactory",
+      "type" : "java.util.function.Supplier<jakarta.websocket.Session>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
+    "returnType" : "jakarta.websocket.Session",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
+    "returnType" : "jakarta.websocket.Session",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
+    "returnType" : "jakarta.websocket.Session",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "routingKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isClosed",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#isClosed",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

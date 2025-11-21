@@ -1,0 +1,77 @@
+{
+  "name" : "CreateAuditTrail",
+  "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to configure to use a search collection as a searchable audit trail.\n <p>\n An audit trail ensures that changes to documents are retained for a minimum duration. This is\n particularly useful for compliance and debugging purposes, as it allows documents to be replayed\n or inspected after modification or deletion.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail.collection",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The collection to use as audit trail.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The guarantee to use when applying the audit trail configuration.\n",
+    "constantValue" : null
+  }, {
+    "name" : "retentionTimeInSeconds",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail.retentionTimeInSeconds",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The retention period for the audit trail, in seconds. If {@code null}, the default is used.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CreateAuditTrail",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail#CreateAuditTrail",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.search.CreateAuditTrail#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses the collection name as routing key to ensure consistent configuration.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

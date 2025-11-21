@@ -1,0 +1,69 @@
+{
+  "name" : "HardCacheReference",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference",
+  "packageName" : "io.fluxzero.sdk.persisting.caching",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference" ],
+  "fields" : [ {
+    "name" : "deadline",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.deadline",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.id",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.value",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HardCacheReference",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference#HardCacheReference",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference#get",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

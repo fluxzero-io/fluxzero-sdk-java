@@ -1,0 +1,14 @@
+{
+  "package" : {
+    "name" : "errorreporting",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ErrorReportingInterceptor.json",
+    "name" : "ErrorReportingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

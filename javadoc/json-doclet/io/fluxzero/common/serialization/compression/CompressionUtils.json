@@ -1,0 +1,130 @@
+{
+  "name" : "CompressionUtils",
+  "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils",
+  "packageName" : "io.fluxzero.common.serialization.compression",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Utility class for compressing and decompressing byte arrays using common compression algorithms.\n <p>\n Supports multiple algorithms including:\n <ul>\n   <li>{@link CompressionAlgorithm#LZ4} – fast compression optimized for speed</li>\n   <li>{@link CompressionAlgorithm#GZIP} – standard GZIP format for interoperability</li>\n   <li>{@link CompressionAlgorithm#NONE} – pass-through mode (no compression)</li>\n </ul>\n\n <h2>LZ4 Support</h2>\n When compressing with LZ4, the output includes a 4-byte prefix that encodes the length of the original\n (uncompressed) data. This prefix is required during decompression.\n\n <h2>GZIP Support</h2>\n GZIP compression and decompression are compatible with standard ZIP tools. If a {@link ZipException}\n is thrown during GZIP decompression (e.g. data is not compressed), the original input is returned as-is.\n\n <h2>Usage</h2>\n <pre>{@code\n byte[] input = ...;\n byte[] compressed = CompressionUtils.compress(input, CompressionAlgorithm.GZIP);\n byte[] restored = CompressionUtils.decompress(compressed, CompressionAlgorithm.GZIP);\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "lz4Compressor",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils.lz4Compressor",
+    "type" : "net.jpountz.lz4.LZ4Compressor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lz4Decompressor",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils.lz4Decompressor",
+    "type" : "net.jpountz.lz4.LZ4FastDecompressor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CompressionUtils",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#CompressionUtils",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "compress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#compress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uncompressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Compresses the given byte array using {@link CompressionAlgorithm#LZ4} by default.\n\n @param uncompressed the data to compress\n @return the compressed byte array\n"
+  }, {
+    "name" : "compress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#compress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uncompressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "algorithm",
+      "type" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Compresses the given byte array using the specified compression algorithm.\n\n @param uncompressed the data to compress\n @param algorithm the compression algorithm to use\n @return the compressed byte array\n"
+  }, {
+    "name" : "decompress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#decompress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decompresses the given byte array using {@link CompressionAlgorithm#LZ4} by default.\n\n @param compressed the compressed data\n @return the original (decompressed) byte array\n"
+  }, {
+    "name" : "decompress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#decompress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "algorithm",
+      "type" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decompresses the given byte array using the specified algorithm.\n\n @param compressed the compressed data\n @param algorithm the compression algorithm to apply\n @return the original (decompressed) byte array\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

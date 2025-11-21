@@ -1,0 +1,87 @@
+{
+  "name" : "DisconnectEvent",
+  "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " A runtime-generated event that indicates a client has disconnected from the Fluxzero Runtime.\n <p>\n Includes metadata about the reason and method of disconnection.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Detect ungraceful client shutdowns or connection drops</li>\n   <li>Monitor client session lifecycle and availability</li>\n </ul>\n\n @see ConnectEvent\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.client",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Logical client name that initiated the disconnection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "clientId",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.clientId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Unique client instance ID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "code",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.code",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Close code indicating the reason for disconnection. Often follows WebSocket close codes or internal custom\n codes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "reason",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.reason",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional reason string providing additional detail for the disconnect.\n",
+    "constantValue" : null
+  }, {
+    "name" : "service",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.service",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Name of the service the client was connected to (e.g., {@code event-sourcing-endpoint}).\n",
+    "constantValue" : null
+  }, {
+    "name" : "sessionId",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.sessionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Internal (websocket) session ID used during the connection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp when the disconnection occurred.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DisconnectEvent",
+    "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent#DisconnectEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

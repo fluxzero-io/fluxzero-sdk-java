@@ -1,0 +1,74 @@
+{
+  "name" : "AssertLegal",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,FIELD,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Annotation to mark methods or fields that assert whether a command or query is legal, given the current state of an\n aggregate.\n <p>\n Can be used in two ways:\n <ul>\n     <li>On methods inside a command or query class to perform legality checks directly</li>\n     <li>On properties of a command or query class to delegate legality checks to the annotated property’s class</li>\n </ul>\n\n <h2>Method-based usage</h2>\n Annotated methods are invoked after the aggregate and its entities are loaded using\n {@link io.fluxzero.sdk.modeling.Entity#assertLegal} or {@link io.fluxzero.sdk.modeling.Entity#assertAndApply}.\n <p>\n Parameters are injected automatically and may include:\n <ul>\n     <li>The command or query object itself</li>\n     <li>Any matching entity from the aggregate tree (including parent or grandparent entities)</li>\n     <li>Other framework-specific types like {@link io.fluxzero.sdk.common.Message} or {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>\n </ul>\n <p>\n Note that empty entities (i.e., those with {@code null} values) are not injected unless the parameter is annotated with {@code @Nullable}.\n\n <h3>Example: Validate entity does not exist yet</h3>\n <pre>{@code\n @AssertLegal\n void assertNew(Issue issue) {\n     throw new IllegalCommandException(\"Issue already exists\");\n }\n }</pre>\n\n <h3>Example: Validate entity does exist</h3>\n <pre>{@code\n @AssertLegal\n void assertExists(@Nullable Issue issue) {\n     if (issue == null) {\n         throw new IllegalCommandException(\"Issue not found\");\n     }\n }\n }</pre>\n\n <h2>Property-based usage</h2>\n When placed on a field of a command or query payload (e.g., {@code @AssertLegal UserDetails details}),\n the framework will look for {@code @AssertLegal} methods or fields within that field’s value.\n <p>\n This enables modular legality checks colocated with the data they validate.\n\n <h3>Example</h3>\n <pre>{@code\n public class UpdateUser {\n     UserId userId;\n\n     @AssertLegal\n     UserDetails details; // triggers @AssertLegal methods inside UserDetails\n }\n }</pre>\n\n <h2>Return value inspection</h2>\n If an {@code @AssertLegal} method returns a non-null object, Fluxzero will also inspect that return value for further\n {@code @AssertLegal} methods or properties. This allows for deep, composable validation logic.\n\n <h2>Ordering</h2>\n Multiple legality methods may be invoked. Their execution order is determined by {@link #priority()},\n with higher values taking precedence.\n\n <h2>Execution timing</h2>\n By default, checks run immediately during handler execution. You can defer them until after the handler completes\n (after any @Apply invocations but just before aggregate updates are committed) using {@link #afterHandler()}.\n\n @see io.fluxzero.sdk.modeling.Entity#assertLegal\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ {
+    "name" : "DEFAULT_PRIORITY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal.DEFAULT_PRIORITY",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  }, {
+    "name" : "HIGHEST_PRIORITY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal.HIGHEST_PRIORITY",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 2147483647
+  }, {
+    "name" : "LOWEST_PRIORITY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal.LOWEST_PRIORITY",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : -2147483648
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "afterHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal#afterHandler",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines if the legality check should be performed immediately (the default), or when the current handler is\n done, i.e.: after @Apply and just before the aggregate updates are committed.\n"
+  }, {
+    "name" : "priority",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AssertLegal#priority",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines the order of assertions if there are multiple annotated methods. A method with higher priority will be\n invoked before methods with a lower priority. Use {@link #HIGHEST_PRIORITY} to ensure that the check is performed\n first.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

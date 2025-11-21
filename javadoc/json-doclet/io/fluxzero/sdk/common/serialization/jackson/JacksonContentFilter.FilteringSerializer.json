@@ -1,0 +1,177 @@
+{
+  "name" : "FilteringSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer",
+  "packageName" : "io.fluxzero.sdk.common.serialization.jackson",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Custom Jackson serializer that attempts to invoke a {@link FilterContent} handler method during serialization.\n <p>\n It caches matchers by class and uses {@link HandlerInspector} to find the appropriate handler methods.\n <p>\n The serializer behaves gracefully:\n <ul>\n   <li>If the handler returns {@code null} and the object is not part of an array, {@code null} is written out.</li>\n   <li>If filtering fails, the original object is serialized as a fallback.</li>\n </ul>\n\n The root object (used for matching context) is tracked using a thread-local field {@link #rootValue}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.JsonSerializer<java.lang.Object>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "defaultSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer.defaultSerializer",
+    "type" : "com.fasterxml.jackson.databind.JsonSerializer<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "matcherCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer.matcherCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,java.lang.Object>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rootValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer.rootValue",
+    "type" : "java.lang.ThreadLocal<java.lang.Object>",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FilteringSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer#FilteringSerializer",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "isEmpty",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer#isEmpty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines if the value should be considered empty, based on whether filtering returns null.\n"
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer#serialize",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "jsonGenerator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializeAndThen",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer#serializeAndThen",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "jsonGenerator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "followUp",
+      "type" : "io.fluxzero.common.ThrowingConsumer<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes the content filter if available and serializes the filtered result.\n If filtering fails, it logs a warning and falls back to serializing the original object.\n\n @param input           the object to serialize\n @param jsonGenerator   the JSON generator\n @param followUp        logic to continue serialization with the possibly filtered result\n"
+  }, {
+    "name" : "serializeWithType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer#serializeWithType",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "jsonGenerator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeSerializer",
+      "type" : "com.fasterxml.jackson.databind.jsontype.TypeSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

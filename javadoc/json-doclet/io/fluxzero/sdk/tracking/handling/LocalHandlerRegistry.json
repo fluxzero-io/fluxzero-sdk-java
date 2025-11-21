@@ -1,0 +1,188 @@
+{
+  "name" : "LocalHandlerRegistry",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " In-memory implementation of {@link HandlerRegistry} that manages and dispatches local message handlers — i.e.,\n handlers that are invoked directly in the publishing thread without involving the Fluxzero Runtime.\n <p>\n The {@code LocalHandlerRegistry} only registers and invokes handlers that meet the criteria for local handling. These\n include:\n <ul>\n     <li>Methods explicitly annotated with {@link LocalHandler}</li>\n     <li>Handlers defined inside a message payload class (e.g., query or command) <b>not</b> annotated with {@link TrackSelf}</li>\n </ul>\n <p>\n This mechanism is useful for bypassing asynchronous tracking and Fluxzero Runtime involvement when\n immediate, in-process execution is preferred — such as for fast local queries, synchronous command handlers,\n or test scenarios.\n\n <h2>Self-Handlers</h2>\n <p>\n If a message's payload type defines a handler method (e.g., {@code @HandleQuery}) and is not marked\n with {@link TrackSelf}, then that handler is considered a \"self-handler\" and is treated as local. These handlers are\n lazily constructed by the {@link HandlerFactory} and automatically included during message dispatch.\n\n <h2>Fallback to Fluxzero Runtime</h2>\n If no local handlers are found for a given message, it will not be processed in the publishing thread. Instead:\n <ul>\n     <li>The message will be published to the Fluxzero Runtime using the appropriate gateway</li>\n     <li>It will be logged so that remote trackers or consumers can handle it asynchronously</li>\n </ul>\n <p>\n This ensures consistent delivery semantics while giving applications control over what is handled locally.\n\n <h2>Thread Safety</h2>\n Registered handlers are stored in a {@link java.util.concurrent.CopyOnWriteArrayList}, making the registry\n safe for concurrent usage and dynamic handler registration.\n\n @see LocalHandler\n @see TrackSelf\n @see HandlerRegistry\n @see HasLocalHandlers\n @see HandlerFactory\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerRegistry" ],
+  "fields" : [ {
+    "name" : "dispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.dispatchInterceptor",
+    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.handlerFactory",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "localHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.localHandlers",
+    "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "selfHandlerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.selfHandlerFilter",
+    "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Setter",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "selfHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.selfHandlers",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Optional<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#LocalHandlerRegistry",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getLocalHandlers",
+    "returnType" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the full list of handlers that should be used to process the given message.\n <p>\n This may include a self-handler if the message is a request type.\n"
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handle",
+    "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#hasLocalHandlers",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#logMessage",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a handler allows its message to be sent to the Fluxzero Runtime.\n"
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

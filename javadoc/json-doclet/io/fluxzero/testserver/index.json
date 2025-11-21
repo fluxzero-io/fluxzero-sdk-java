@@ -1,0 +1,33 @@
+{
+  "package" : {
+    "name" : "testserver",
+    "qualifiedName" : "io.fluxzero.testserver",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "TestServer.json",
+    "name" : "TestServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer",
+    "kind" : "class"
+  }, {
+    "file" : "TestServer.StoreIdentifier.json",
+    "name" : "TestServer.StoreIdentifier",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier",
+    "kind" : "class"
+  }, {
+    "file" : "TestServer.TestServerProject.json",
+    "name" : "TestServer.TestServerProject",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$TestServerProject",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "metrics",
+    "path" : "metrics"
+  }, {
+    "name" : "scheduling",
+    "path" : "scheduling"
+  }, {
+    "name" : "websocket",
+    "path" : "websocket"
+  } ]
+}

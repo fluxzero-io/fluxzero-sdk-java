@@ -1,0 +1,53 @@
+{
+  "name" : "UuidFactory",
+  "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Default implementation of {@link IdentityProvider} that generates random UUIDs.\n <p>\n Optionally removes dashes from the UUID to produce a more compact identifier.\n </p>\n\n <h2>Example Output</h2>\n <ul>\n   <li>{@code 61f3c6d26c9c42d3b56b4c0a7e34c939} (if {@code removeDashes = true})</li>\n   <li>{@code 61f3c6d2-6c9c-42d3-b56b-4c0a7e34c939} (if {@code removeDashes = false})</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.IdentityProvider" ],
+  "fields" : [ {
+    "name" : "removeDashes",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.removeDashes",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Whether to remove dashes from generated UUIDs.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "UuidFactory",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#UuidFactory",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@code UuidFactory} that removes dashes (default behavior).\n"
+  } ],
+  "methods" : [ {
+    "name" : "nextFunctionalId",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#nextFunctionalId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new UUID string, optionally stripped of dashes.\n\n @return a unique identifier string\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

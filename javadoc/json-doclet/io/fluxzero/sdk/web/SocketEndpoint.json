@@ -1,0 +1,59 @@
+{
+  "name" : "SocketEndpoint",
+  "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpoint",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "org.springframework.stereotype.Component",
+    "values" : {}
+  }, {
+    "annotationType" : "org.springframework.context.annotation.Scope",
+    "values" : {
+      "value" : "prototype"
+    }
+  } ],
+  "documentation" : " Declares a WebSocket endpoint that represents a single active client session.\n <p>\n This annotation is used on handler classes with annotations like {@link HandleSocketMessage} that manage WebSocket\n communication and lifecycle events (e.g. handshake, open, message, close).\n </p>\n\n <p>\n Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.\n </p>\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "aliveCheck",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpoint#aliveCheck",
+    "returnType" : "io.fluxzero.sdk.web.SocketEndpoint.AliveCheck",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures the WebSocket session keep-alive mechanism (ping/pong).\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "AliveCheck",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpoint$AliveCheck",
+    "kind" : "annotation_type",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

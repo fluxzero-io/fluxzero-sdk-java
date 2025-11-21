@@ -1,0 +1,82 @@
+{
+  "package" : {
+    "name" : "serialization",
+    "qualifiedName" : "io.fluxzero.common.serialization",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "AbstractConverter.json",
+    "name" : "AbstractConverter",
+    "qualifiedName" : "io.fluxzero.common.serialization.AbstractConverter",
+    "kind" : "class"
+  }, {
+    "file" : "Converter.json",
+    "name" : "Converter",
+    "qualifiedName" : "io.fluxzero.common.serialization.Converter",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultTypeRegistry.json",
+    "name" : "DefaultTypeRegistry",
+    "qualifiedName" : "io.fluxzero.common.serialization.DefaultTypeRegistry",
+    "kind" : "class"
+  }, {
+    "file" : "GlobalTypeIdResolver.json",
+    "name" : "GlobalTypeIdResolver",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver",
+    "kind" : "class"
+  }, {
+    "file" : "JsonUtils.json",
+    "name" : "JsonUtils",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils",
+    "kind" : "class"
+  }, {
+    "file" : "NoOpTypeRegistry.json",
+    "name" : "NoOpTypeRegistry",
+    "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry",
+    "kind" : "enum"
+  }, {
+    "file" : "NullCollectionsAsEmptyModule.json",
+    "name" : "NullCollectionsAsEmptyModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.NullCollectionsAsEmptyModule",
+    "kind" : "class"
+  }, {
+    "file" : "RegisterType.json",
+    "name" : "RegisterType",
+    "qualifiedName" : "io.fluxzero.common.serialization.RegisterType",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Revision.json",
+    "name" : "Revision",
+    "qualifiedName" : "io.fluxzero.common.serialization.Revision",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "StripStringsModule.json",
+    "name" : "StripStringsModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule",
+    "kind" : "class"
+  }, {
+    "file" : "StripStringsModule.BlankStringsToNullDeserializer.json",
+    "name" : "StripStringsModule.BlankStringsToNullDeserializer",
+    "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule$BlankStringsToNullDeserializer",
+    "kind" : "class"
+  }, {
+    "file" : "TypeRegistry.json",
+    "name" : "TypeRegistry",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistry",
+    "kind" : "interface"
+  }, {
+    "file" : "TypeRegistryProcessor.json",
+    "name" : "TypeRegistryProcessor",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor",
+    "kind" : "class"
+  }, {
+    "file" : "TypeRegistryProcessor.Prefix.json",
+    "name" : "TypeRegistryProcessor.Prefix",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor$Prefix",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "compression",
+    "path" : "compression"
+  } ]
+}

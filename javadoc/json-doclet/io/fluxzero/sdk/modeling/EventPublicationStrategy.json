@@ -1,0 +1,75 @@
+{
+  "name" : "EventPublicationStrategy",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Strategy for controlling how applied updates (typically from {@link Apply @Apply} methods)\n are handled in terms of storage and publication.\n <p>\n This strategy determines whether an update is published, stored in the event store, or both.\n It can be configured at the aggregate level, or overridden per update.\n\n @see Apply\n @see Aggregate\n @see EventPublication\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.EventPublicationStrategy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "EventPublicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy#EventPublicationStrategy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy#values",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublicationStrategy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Inherit the strategy from the enclosing aggregate or global default.\n <p>\n If not configured anywhere, the fallback is {@link #STORE_AND_PUBLISH}.\n"
+  }, {
+    "name" : "PUBLISH_ONLY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY",
+    "annotations" : [ ],
+    "documentation" : " Publish the update to event handlers but do not store it in the event store.\n <p>\n This disables event sourcing for the update and is typically used for transient projections or\n side-effect-only operations.\n"
+  }, {
+    "name" : "STORE_AND_PUBLISH",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_AND_PUBLISH",
+    "annotations" : [ ],
+    "documentation" : " Store the applied update in the event store and also publish it to event handlers.\n <p>\n This is the default behavior used for event-sourced aggregates.\n"
+  }, {
+    "name" : "STORE_ONLY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY",
+    "annotations" : [ ],
+    "documentation" : " Store the applied update in the event store but do not publish it to event handlers.\n <p>\n Useful when updates must be persisted but should not trigger side effects or listeners.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

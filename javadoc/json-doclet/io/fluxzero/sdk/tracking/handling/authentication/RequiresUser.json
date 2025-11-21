@@ -1,0 +1,48 @@
+{
+  "name" : "RequiresUser",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresUser",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,CONSTRUCTOR,METHOD,ANNOTATION_TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole",
+    "values" : {}
+  } ],
+  "documentation" : " Indicates that a handler or message requires the presence of an authenticated user.\n <p>\n This annotation ensures that:\n <ul>\n   <li>A message handler will only be invoked if {@link io.fluxzero.sdk.tracking.handling.authentication.User#getCurrent()}\n       is not {@code null}.</li>\n   <li>If placed on a message payload, a {@link io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException}\n       is thrown if the message is handled without a user context.</li>\n </ul>\n\n <p>\n This annotation is implemented as a <strong>meta-annotation</strong> over {@link RequiresAnyRole}, but without\n specifying any explicit roles. Its presence implies that <em>any</em> user, regardless of their role, is required.\n\n <h2>Usage Examples</h2>\n\n <h3>Handler requiring an authenticated user</h3>\n <pre>{@code\n @HandleQuery\n @RequiresUser\n public UserProfile handle(GetUserProfile query) {\n     return userService.getProfileFor(User.getCurrent());\n }\n }</pre>\n\n <h3>Payload requiring an authenticated user</h3>\n <pre>{@code\n @Value\n @RequiresUser\n public class UpdateAccountSettings {\n     AccountId accountId;\n     AccountSettings settings;\n }\n }</pre>\n In this case, if an anonymous user attempts to invoke a command with this payload,\n a {@code UnauthenticatedException} will be thrown.\n\n <h2>Notes</h2>\n <ul>\n   <li>This annotation can be used on types, methods, constructors, annotations, and packages.</li>\n   <li>Like {@link RequiresAnyRole}, it is composable and inherited, so it can be placed at a high level\n       (e.g., package or class) to apply broadly.</li>\n </ul>\n\n <p>\n This annotation may also be placed on a parent or root <strong>package</strong>, via a {@code package-info.java}\n file. When applied in this way, the rule is inherited by all message handlers,\n payloads, and classes within that package and its subpackages, unless explicitly overridden.\n This allows you to enforce authentication requirements across entire modules or layers of your application.\n </p>\n\n <p><strong>Example usage:</strong></p>\n <pre>{@code\n // In com/example/secure/package-info.java\n @RequiresUser\n package com.example.secure;\n }</pre>\n\n @see RequiresAnyRole\n @see io.fluxzero.sdk.tracking.handling.authentication.User\n @see io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "throwIfUnauthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RequiresUser#throwIfUnauthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether an exception should be thrown when the authorization check fails.\n <p>\n If {@code true} (the default), an UnauthenticatedException will be thrown if no user is present.\n <p>\n If {@code false}, the annotated handler or message will be silently skipped instead. This opt-out strategy is\n useful for conditionally invoked handlers where fallback behavior or a timeout is preferred.\n <p>\n Defaults to {@code true}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,92 @@
+{
+  "name" : "HandlerRegistry",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Interface for registering and invoking local message handlers.\n <p>\n A {@code HandlerRegistry} is responsible for managing one or more message handlers — including discovery,\n invocation, and filtering logic. It is a central abstraction in scenarios where handlers are registered\n programmatically (e.g. embedded services, tests, functional configurations).\n\n <h2>Responsibilities</h2>\n <ul>\n     <li>Registering local handler instances (e.g. beans, stateful components)</li>\n     <li>Dispatching messages to matching handlers</li>\n     <li>Composing multiple registries to form a combined resolution chain</li>\n     <li>Delegating filtering behavior via {@link HandlerFilter}</li>\n </ul>\n\n <h2>Usage</h2>\n Handlers can be registered using {@link #registerHandler(Object)} or {@link #registerHandler(Object, HandlerFilter)}.\n Message handling can be triggered manually via {@link #handle(DeserializingMessage)}.\n\n <pre>{@code\n HandlerRegistry registry = ...;\n registry.registerHandler(new MyCommandHandler());\n\n registry.handle(myMessage).ifPresent(resultFuture -> {\n     Object result = resultFuture.join();\n     ...\n });\n }</pre>\n\n <h2>Composing Registries</h2>\n Use {@link #andThen(HandlerRegistry)} or {@link #orThen(HandlerRegistry)} to chain multiple registries:\n <ul>\n     <li>{@code andThen}: invokes both registries and merges results (e.g. for broadcasting)</li>\n     <li>{@code orThen}: invokes the second only if the first produces no result</li>\n </ul>\n\n <pre>{@code\n HandlerRegistry composite = registry1.orThen(registry2);\n }</pre>\n\n <h2>Built-in Implementations</h2>\n <ul>\n     <li>{@link NoOpHandlerRegistry} — a stub that does nothing, always returns empty</li>\n     <li>{@link MergedHandlerRegistry} — combines two registries into one</li>\n </ul>\n\n @see HasLocalHandlers\n @see HandlerFilter\n @see DeserializingMessage\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#andThen",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a composite registry that invokes both this and the given registry.\n <p>\n Results are merged via {@code thenCombine()} if both registries handle the message.\n\n @param next the registry to invoke second\n @return a combined registry\n"
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handle",
+    "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to handle the given message using local handlers.\n\n @param message the deserialized message to dispatch\n @return an optional future containing the result, or empty if no handler was found\n"
+  }, {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#noOp",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " A no-op registry that does not register or invoke any handlers.\n"
+  }, {
+    "name" : "orThen",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#orThen",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a fallback registry that only invokes the given registry if this one yields no result.\n\n @param next the fallback registry\n @return a combined registry with short-circuiting behavior\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "MergedHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$MergedHandlerRegistry",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "NoOpHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$NoOpHandlerRegistry",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

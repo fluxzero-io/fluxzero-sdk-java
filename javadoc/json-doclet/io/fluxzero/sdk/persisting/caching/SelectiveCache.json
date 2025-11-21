@@ -1,0 +1,338 @@
+{
+  "name" : "SelectiveCache",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache",
+  "packageName" : "io.fluxzero.sdk.persisting.caching",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link Cache} implementation that partitions values across two internal caches based on a provided\n {@link Predicate}.\n <p>\n If a value matches the {@code selector}, it is stored in the delegate cache; otherwise, it is stored in the\n {@code nextCache}. This is particularly useful when certain types of objects (e.g., aggregates, projections) require\n specialized caching behavior while others do not.\n\n <p><strong>Chaining:</strong> {@code SelectiveCache} instances can be chained by using another\n {@code SelectiveCache} as the {@code nextCache}. This enables complex multi-level cache routing logic, where each\n level applies a different selector to direct objects to a different backing cache.\n\n <p><strong>Example use case:</strong> Route aggregates to one cache and all other entities to a fallback cache:\n <pre>{@code\n Predicate<Object> aggregateSelector = SelectiveCache.aggregateSelector(MyAggregate.class);\n Cache aggregateCache = new DefaultCache();\n Cache fallbackCache = new DefaultCache();\n Cache selectiveCache = new SelectiveCache(aggregateCache, aggregateSelector, fallbackCache);\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache.delegate",
+    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nextCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache.nextCache",
+    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "selector",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache.selector",
+    "type" : "java.util.function.Predicate<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SelectiveCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#SelectiveCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nextCache",
+      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selector",
+      "type" : "java.util.function.Predicate<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code SelectiveCache} with a default in-memory delegate cache.\n\n @param nextCache The fallback cache used when {@code selector} does not match a value\n @param selector  A predicate to decide which cache a value should go into\n"
+  } ],
+  "methods" : [ {
+    "name" : "aggregateSelector",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#aggregateSelector",
+    "returnType" : "java.util.function.Predicate<java.lang.Object>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Utility predicate to match aggregates of a given root type. This checks the type of the value inside an\n {@link Entity}, or the declared type if the value is null.\n"
+  }, {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compute",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#compute",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#computeIfAbsent",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.Function<? super java.lang.Object,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeIfPresent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#computeIfPresent",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "containsKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#containsKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#get",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modifyEach",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#modifyEach",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modifierFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#put",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#putIfAbsent",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerEvictionListener",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#registerEvictionListener",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#remove",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#size",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

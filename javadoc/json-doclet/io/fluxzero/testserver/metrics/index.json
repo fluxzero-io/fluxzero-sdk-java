@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "metrics",
+    "qualifiedName" : "io.fluxzero.testserver.metrics",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DefaultMetricsLog.json",
+    "name" : "DefaultMetricsLog",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.DefaultMetricsLog",
+    "kind" : "class"
+  }, {
+    "file" : "MetricsLog.json",
+    "name" : "MetricsLog",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.MetricsLog",
+    "kind" : "interface"
+  }, {
+    "file" : "NoOpMetricsLog.json",
+    "name" : "NoOpMetricsLog",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.NoOpMetricsLog",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

@@ -1,0 +1,55 @@
+{
+  "name" : "GetPositionResult",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Response to a {@link GetPosition} request, containing the current tracked position for a specific consumer and\n {@link io.fluxzero.common.MessageType}.\n <p>\n This result provides insight into how far a consumer has progressed in processing messages. The {@link Position}\n includes one or more segment-index pairs that together describe the consumption state of a consumer.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Monitor consumer lag across distributed segments</li>\n   <li>Confirm the effects of a {@link ResetPosition} or {@link StorePosition}</li>\n   <li>Diagnose stuck or lagging consumers by examining last processed indexes</li>\n </ul>\n\n @see GetPosition\n @see Position\n @see ResetPosition\n @see StorePosition\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "position",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult.position",
+    "type" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The reported position of the consumer across message segments.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The unique identifier of the original {@link GetPosition} request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The system timestamp at which this response was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetPositionResult",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult#GetPositionResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

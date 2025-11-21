@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "jackson",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "JacksonContentFilter.json",
+    "name" : "JacksonContentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonContentFilter.FilteringSerializer.json",
+    "name" : "JacksonContentFilter.FilteringSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonSerializer.json",
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

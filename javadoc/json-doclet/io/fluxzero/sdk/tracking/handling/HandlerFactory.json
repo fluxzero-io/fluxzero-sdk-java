@@ -1,0 +1,44 @@
+{
+  "name" : "HandlerFactory",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Factory interface for creating {@link Handler} instances that process {@link DeserializingMessage}s.\n <p>\n A {@code HandlerFactory} is responsible for:\n <ul>\n     <li>Inspecting the target object for handler methods (e.g. {@code @HandleCommand}, {@code @HandleEvent}, etc.)</li>\n     <li>Applying the provided {@link HandlerFilter} to include or exclude individual methods</li>\n     <li>Wrapping the invocation logic with any additional {@link HandlerInterceptor}s</li>\n     <li>Returning a fully prepared {@link Handler} instance if any suitable methods are found</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerFactory#createHandler",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "extraInterceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerInterceptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to create a message handler for the given {@code target} object.\n <p>\n This method analyzes the given object (or class) to discover message-handling methods (e.g.\n {@code @HandleCommand}, {@code @HandleQuery}, {@code @HandleEvent}, etc.) that match the provided\n {@link HandlerFilter}. If any matching handler methods are found, a new {@link Handler} instance is constructed\n to wrap them.\n <p>\n This is a central mechanism in Fluxzero used to support:\n <ul>\n     <li>Tracking handlers for stateful components</li>\n     <li>Mutable, dynamic, or self-handling types</li>\n     <li>In-memory {@code @LocalHandler}s</li>\n </ul>\n\n @param target            The handler target object or class. Can be a class (e.g. {@code MyHandler.class}) or an\n                          instantiated object.\n @param handlerFilter     A filter to determine which methods are valid handler methods. Only methods that pass\n                          this filter are included.\n @param extraInterceptors A list of additional {@link HandlerInterceptor}s to apply around message dispatch. These\n                          can be used to customize behavior with logging, retry logic, etc.\n @return An {@link Optional} containing a {@link Handler} if any suitable methods were found; otherwise, an empty\n {@code Optional}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

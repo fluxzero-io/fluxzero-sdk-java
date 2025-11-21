@@ -1,0 +1,266 @@
+{
+  "name" : "RequestAnnotationProcessor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "javax.annotation.processing.SupportedAnnotationTypes",
+    "values" : {
+      "value" : "\"io.fluxzero.sdk.tracking.handling.HandleQuery\",\"io.fluxzero.sdk.tracking.handling.HandleCommand\",\"io.fluxzero.sdk.tracking.handling.HandleCustom\""
+    }
+  }, {
+    "annotationType" : "com.google.auto.service.AutoService",
+    "values" : {
+      "value" : "javax.annotation.processing.Processor.class"
+    }
+  } ],
+  "documentation" : " Annotation processor that validates whether handler methods annotated with {@link HandleCommand}, {@link HandleQuery}\n or {@link HandleCustom} correctly match the response type declared by a {@link Request} payload.\n <p>\n The processor enforces compile-time consistency between:\n <ul>\n     <li>The generic type {@code R} in {@code Request<R>}</li>\n     <li>The actual return type of the handler method (or {@code Future<R>})</li>\n </ul>\n\n <h2>Validation Rules</h2>\n <ul>\n     <li>If a handler method accepts a {@code Request<R>} as a parameter, its return type must match {@code R}</li>\n     <li>Asynchronous handlers that return {@code Future<R>} are also supported</li>\n     <li>Handlers marked as {@code passive=true} are skipped</li>\n     <li>Errors are reported at compile time with descriptive messages</li>\n </ul>\n\n <h3>Example</h3>\n <pre>{@code\n @HandleQuery\n UserProfile handle(GetUser query) {\n     return Fluxzero.search(UserProfile.class).match(query.getUserId()).fetchFirstOrNull();\n }\n }</pre>\n\n <p>\n If the method were to return e.g. {@code String} instead of {@code UserProfile}, a compile-time error would be raised.\n\n <h3>Supported Annotations</h3>\n <ul>\n     <li>{@link HandleCommand}</li>\n     <li>{@link HandleQuery}</li>\n     <li>{@link HandleCustom}</li>\n </ul>\n\n <p>\n This processor is automatically registered via {@code @AutoService(Processor.class)} and does not require manual configuration.\n",
+  "typeParameters" : [ ],
+  "superClass" : "javax.annotation.processing.AbstractProcessor",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "RequestAnnotationProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#RequestAnnotationProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "findSuperType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#findSuperType",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findSuperType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#findSuperType",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeVarMap",
+      "type" : "java.util.Map<javax.lang.model.type.TypeVariable,javax.lang.model.type.TypeMirror>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getElementUtils",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#getElementUtils",
+    "returnType" : "javax.lang.model.util.Elements",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getObjectType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#getObjectType",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSupportedSourceVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#getSupportedSourceVersion",
+    "returnType" : "javax.lang.model.SourceVersion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTypeUtils",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#getTypeUtils",
+    "returnType" : "javax.lang.model.util.Types",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPassive",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#isPassive",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"RedundantIfStatement\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "process",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#process",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.Set<? extends javax.lang.model.element.TypeElement>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundEnv",
+      "type" : "javax.annotation.processing.RoundEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reifyType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#reifyType",
+    "returnType" : "javax.lang.model.type.DeclaredType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.DeclaredType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "map",
+      "type" : "java.util.Map<javax.lang.model.type.TypeVariable,javax.lang.model.type.TypeMirror>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveTypeVar",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#resolveTypeVar",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "map",
+      "type" : "java.util.Map<javax.lang.model.type.TypeVariable,javax.lang.model.type.TypeMirror>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateMethod",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#validateMethod",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateReturnType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#validateReturnType",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

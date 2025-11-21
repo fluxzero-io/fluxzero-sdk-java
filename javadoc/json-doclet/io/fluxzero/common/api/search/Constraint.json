@@ -1,0 +1,99 @@
+{
+  "name" : "Constraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.Constraint",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonTypeInfo",
+    "values" : {
+      "defaultImpl" : "io.fluxzero.common.api.search.NoOpConstraint",
+      "use" : "DEDUCTION"
+    }
+  }, {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonSubTypes",
+    "values" : {
+      "value" : "@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.AllConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.AnyConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.ContainsConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.BetweenConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.ExistsConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.QueryConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.MatchConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.NotConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.LookAheadConstraint.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.constraints.FacetConstraint.class)"
+    }
+  } ],
+  "documentation" : " Base interface for defining filter conditions (constraints) used in document search queries.\n <p>\n Constraints determine whether a given {@link io.fluxzero.common.search.Document} matches\n specific criteria. Implementations of this interface can target paths, values, metadata,\n or structural characteristics of the document.\n\n <h2>Serialization</h2>\n This interface uses Jackson’s {@code @JsonTypeInfo} with deduction, enabling automatic deserialization\n of concrete types based on structure. If no recognizable subtype is matched, {@link NoOpConstraint} is used.\n <p>\n Subtypes include:\n <ul>\n     <li>{@link AllConstraint} – Logical AND of multiple constraints</li>\n     <li>{@link AnyConstraint} – Logical OR of multiple constraints</li>\n     <li>{@link MatchConstraint} – Matches exact phrases or terms</li>\n     <li>{@link ContainsConstraint} – Substring matching on field values</li>\n     <li>{@link BetweenConstraint} – Numeric or date range filtering</li>\n     <li>{@link ExistsConstraint} – Matches documents with a non-null value at a path</li>\n     <li>{@link QueryConstraint} – Full-text search syntax supporting wildcards and advanced logic</li>\n     <li>{@link NotConstraint} – Negates a constraint</li>\n     <li>{@link LookAheadConstraint} – Predictive phrase/word matching based on user typing, commonly used for user-facing document search</li>\n     <li>{@link FacetConstraint} – Filters based on field facets (used for drilldown/aggregation)</li>\n </ul>\n\n <h2>Composability</h2>\n Constraints can be composed into larger expressions using {@link #and(Constraint)} and {@link #or(Constraint)}:\n <pre>{@code\n Constraint c = MatchConstraint.match(\"value\", \"path1\")\n     .and(ExistsConstraint.exists(\"path2\"))\n     .or(ContainsConstraint.contains(\"fragment\", \"description\"));\n }</pre>\n\n @see io.fluxzero.common.search.Document\n @see PathConstraint\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "and",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint#and",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.api.search.Constraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this constraint with another using logical AND.\n\n @param other the other constraint\n @return a new {@link AllConstraint} combining both\n"
+  }, {
+    "name" : "decompose",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint#decompose",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a version of this constraint with all composite constraints decomposed into their atomic elements.\n <p>\n Useful for precomputing optimized structures (e.g. via {@link AllConstraint} or {@link AnyConstraint}).\n\n @return a simplified version of the constraint\n"
+  }, {
+    "name" : "hasPathConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint#hasPathConstraint",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this constraint targets specific paths in the document.\n\n @return {@code true} if path-based filtering is involved\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Evaluates whether this constraint applies to the given document.\n\n @param document the document to test\n @return {@code true} if the constraint matches the document\n"
+  }, {
+    "name" : "or",
+    "qualifiedName" : "io.fluxzero.common.api.search.Constraint#or",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.api.search.Constraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this constraint with another using logical OR.\n\n @param other the other constraint\n @return a new {@link AnyConstraint} combining both\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,39 @@
+{
+  "name" : "SearchInclude",
+  "qualifiedName" : "io.fluxzero.common.search.SearchInclude",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "ANNOTATION_TYPE,METHOD,FIELD,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "io.fluxzero.common.search.SearchExclude",
+    "values" : {
+      "value" : "false"
+    }
+  } ],
+  "documentation" : " Marker annotation that indicates that a property is to be included when indexing a document for search. When a\n property is included, the document can be matched using this property. Note that inclusion is the default for\n properties, so this annotation is only useful to override the effects of {@link SearchExclude}(true) on a parent or\n ancestor.\n <p>\n When this annotation is present on a type, all properties of the class will be included when indexing, unless they\n are individually annotated with {@link SearchExclude}(true).\n <p>\n Note that this annotation is an alias for {@link SearchExclude}(false) and has the same effect.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

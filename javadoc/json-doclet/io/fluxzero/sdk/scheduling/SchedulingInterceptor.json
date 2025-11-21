@@ -1,0 +1,302 @@
+{
+  "name" : "SchedulingInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Intercepts scheduled messages to handle periodic scheduling logic.\n <p>\n This interceptor enables powerful scheduling features such as:\n <ul>\n     <li><strong>Initial scheduling of @Periodic types:</strong> When a handler method or its parameter type is annotated\n     with {@link io.fluxzero.sdk.scheduling.Periodic}, this interceptor will automatically initialize the\n     schedule at startup if {@code autoStart=true}.</li>\n     <li><strong>Rescheduling on success or failure:</strong> Upon successful or failed invocation of a scheduled handler,\n     this interceptor can reschedule the next invocation based on the result or according to cron/delay rules.</li>\n     <li><strong>Metadata injection:</strong> Adds the {@code scheduleId} metadata to outgoing scheduled messages to\n     support correlation and rescheduling.</li>\n     <li><strong>Dynamic behavior based on handler return value:</strong> Supports dynamic rescheduling based on return\n     types like {@link TemporalAmount}, {@link TemporalAccessor}, {@link Schedule}, or even a replacement payload object.</li>\n </ul>\n\n <p>\n Additionally, if the scheduled handler throws a {@link io.fluxzero.sdk.scheduling.CancelPeriodic} exception,\n the schedule is permanently cancelled without logging an error.\n\n <p>\n This interceptor is registered automatically with {@link Fluxzero}.\n\n @see io.fluxzero.sdk.scheduling.Periodic\n @see io.fluxzero.sdk.scheduling.CancelPeriodic\n @see io.fluxzero.sdk.scheduling.Schedule\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor", "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
+  "fields" : [ {
+    "name" : "cronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor.cronExpression",
+    "type" : "java.util.function.Function<java.lang.String,java.util.Optional<io.fluxzero.sdk.scheduling.CronExpression>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SchedulingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#SchedulingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "firstDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#firstDeadline",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "now",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleExceptionalResult",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#handleExceptionalResult",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "now",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResult",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#handleResult",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "now",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initializePeriodicSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#initializePeriodicSchedule",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#interceptHandling",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#nextDeadline",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "now",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "instant",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "instant",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "wrap",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#wrap",
+    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

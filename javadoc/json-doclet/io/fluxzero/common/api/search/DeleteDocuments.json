@@ -1,0 +1,52 @@
+{
+  "name" : "DeleteDocuments",
+  "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocuments",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to delete documents from the search store based on a search query.\n <p>\n This command allows for bulk deletion of documents that match a specified {@link SearchQuery},\n across one or more collections. The deletion respects the provided {@link Guarantee}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocuments.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The delivery/storage guarantee to apply for this deletion operation.\n",
+    "constantValue" : null
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocuments.query",
+    "type" : "io.fluxzero.common.api.search.SearchQuery",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The query describing which documents should be deleted.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeleteDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocuments#DeleteDocuments",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

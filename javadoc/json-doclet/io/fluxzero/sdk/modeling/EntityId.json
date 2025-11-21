@@ -1,0 +1,34 @@
+{
+  "name" : "EntityId",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityId",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Marks a property (field or getter) as the unique identifier of an entity within an aggregate structure.\n <p>\n The presence of this annotation enables automatic routing of updates to the correct entity instance inside an\n aggregate, based on identifier matching.\n <p>\n This is particularly important in aggregates that consist of nested entities, e.g.: a {@code Project}\n containing a list of {@code Task} entities. The framework uses the {@code @EntityId}-annotated property to match\n update messages with their corresponding entity.\n <p>\n You can annotate either a field or its getter method.\n\n @see Aggregate for how to define aggregates and their structure.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
