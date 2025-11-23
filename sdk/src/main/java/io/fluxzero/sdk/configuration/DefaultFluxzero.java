@@ -141,11 +141,12 @@ import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
-import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -263,7 +264,8 @@ public class DefaultFluxzero implements Fluxzero {
         private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
                 "FluxzeroTaskScheduler", clock,
-                newThreadPerTaskExecutor(newVirtualThreadFactory("FluxzeroTaskScheduler-worker")));
+                newThreadPerTaskExecutor("FluxzeroTaskScheduler-worker",
+                                         name -> newFixedThreadPool(8, newPlatformThreadFactory(name))));
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache = new DefaultCache();
         private Cache relationshipsCache = new DefaultCache(100_000);
@@ -772,7 +774,9 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             ThrowingRunnable shutdownHandler = () -> {
-                var shutdownPool = newThreadPerTaskExecutor(newVirtualThreadFactory("fluxzero-shutdown-pool"));
+                var shutdownPool = newThreadPerTaskExecutor(
+                        "fluxzero-shutdown-pool",
+                        name -> newFixedThreadPool(8, newPlatformThreadFactory(name)));
                 Optional.ofNullable(forwardingWebConsumer).ifPresent(ForwardingWebConsumer::close);
                 shutdownPool.invokeAll(
                         trackingMap.values().stream()

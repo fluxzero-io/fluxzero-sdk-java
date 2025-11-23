@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.tracking;
@@ -35,14 +36,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
-import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.common.api.tracking.Position.MAX_SEGMENT;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedMap;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Streaming strategy that allows multiple clients to concurrently consume a message stream. Messages are routed to
@@ -72,8 +74,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private volatile boolean stopped;
 
     public DefaultTrackingStrategy(MessageStore source) {
-        this(source, new InMemoryTaskScheduler("tracking-scheduler-%s".formatted(source), newThreadPerTaskExecutor(
-                newVirtualThreadFactory("tracking-worker-%s".formatted(source)))));
+        this(source, new InMemoryTaskScheduler(
+                "tracking-scheduler-%s".formatted(source),
+                newThreadPerTaskExecutor("tracking-worker-%s".formatted(source),
+                                         name -> newFixedThreadPool(8, newPlatformThreadFactory(name)))));
     }
 
     public DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler) {

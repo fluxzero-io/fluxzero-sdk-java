@@ -36,6 +36,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -158,7 +160,8 @@ public class ObjectUtils {
      * Returns a consumer that runs the task only if {@code check} is true.
      */
     public static Consumer<Runnable> ifTrue(boolean check) {
-        return check ? Runnable::run : (r -> {});
+        return check ? Runnable::run : (r -> {
+        });
     }
 
     /**
@@ -299,11 +302,29 @@ public class ObjectUtils {
     }
 
     public static <K, V> MemoizingFunction<K, V> memoize(Function<K, V> supplier) {
-        return supplier instanceof MemoizingFunction<K, V> existing ? existing : new DefaultMemoizingFunction<>(supplier);
+        return supplier instanceof MemoizingFunction<K, V> existing ? existing :
+                new DefaultMemoizingFunction<>(supplier);
     }
 
     public static <T, U, R> MemoizingBiFunction<T, U, R> memoize(BiFunction<T, U, R> supplier) {
-        return supplier instanceof MemoizingBiFunction<T, U, R> existing ? existing : new DefaultMemoizingBiFunction<>(supplier);
+        return supplier instanceof MemoizingBiFunction<T, U, R> existing ? existing :
+                new DefaultMemoizingBiFunction<>(supplier);
+    }
+
+    /**
+     * Creates and returns a virtual thread-based {@link ExecutorService}. If the runtime does not fully support
+     * virtual threads (Java version is below 24), a fallback {@link ExecutorService} is provided.
+     *
+     * @param prefix   the name prefix for virtual threads created by the executor
+     * @param fallback a supplier that provides a fallback {@link ExecutorService} to be used when virtual threads are
+     *                 not fully supported
+     * @return an {@link ExecutorService} backed by virtual threads if supported, or the fallback executor otherwise
+     */
+    public static ExecutorService newThreadPerTaskExecutor(String prefix, Function<String, ExecutorService> fallback) {
+        if (Runtime.version().feature() >= 24) {
+            return Executors.newThreadPerTaskExecutor(newVirtualThreadFactory(prefix));
+        }
+        return fallback.apply(prefix);
     }
 
     /**
@@ -360,7 +381,8 @@ public class ObjectUtils {
         private final String namePrefix;
 
         public PrefixedThreadFactory(String poolPrefix) {
-            namePrefix = poolPrefix + "-pool-" + poolCount.computeIfAbsent(poolPrefix, k -> new AtomicInteger(1)).getAndIncrement() + "-thread-";
+            namePrefix = poolPrefix + "-pool-" + poolCount.computeIfAbsent(poolPrefix, k -> new AtomicInteger(1))
+                    .getAndIncrement() + "-thread-";
         }
 
         @SuppressWarnings("NullableProblems")

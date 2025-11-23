@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -41,11 +42,12 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
-import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Default implementation of the {@link RequestHandler} interface.
@@ -121,7 +123,8 @@ public class DefaultRequestHandler implements RequestHandler {
      */
     public DefaultRequestHandler(Client client, MessageType resultType, Duration timeout, String responseConsumerName) {
         this(client, resultType, timeout, responseConsumerName,
-             newThreadPerTaskExecutor(newVirtualThreadFactory(format("%s_%s", "request-handler", client.name()))));
+             newThreadPerTaskExecutor(format("%s_%s", "request-handler", client.name()),
+                                      name -> newFixedThreadPool(8, newPlatformThreadFactory(name))));
     }
 
     /**
