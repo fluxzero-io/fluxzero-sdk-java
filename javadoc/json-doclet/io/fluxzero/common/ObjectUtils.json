@@ -502,6 +502,27 @@
     "varArgs" : false,
     "documentation" : " Creates a new {@link ThreadFactory} with a named prefix.\n"
   }, {
+    "name" : "newThreadPerTaskExecutor",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#newThreadPerTaskExecutor",
+    "returnType" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallback",
+      "type" : "java.util.function.Function<java.lang.String,java.util.concurrent.ExecutorService>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates and returns a virtual thread-based {@link ExecutorService}. If the runtime does not fully support\n virtual threads (Java version is below 24), a fallback {@link ExecutorService} is provided.\n\n @param prefix   the name prefix for virtual threads created by the executor\n @param fallback a supplier that provides a fallback {@link ExecutorService} to be used when virtual threads are\n                 not fully supported\n @return an {@link ExecutorService} backed by virtual threads if supported, or the fallback executor otherwise\n"
+  }, {
     "name" : "newVirtualThreadFactory",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#newVirtualThreadFactory",
     "returnType" : "java.util.concurrent.ThreadFactory",
