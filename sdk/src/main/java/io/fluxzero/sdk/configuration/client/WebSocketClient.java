@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.client;
@@ -41,11 +42,13 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.gatewayUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.keyValueUrl;
@@ -79,11 +82,29 @@ import static java.util.stream.Collectors.toMap;
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public class WebSocketClient extends AbstractClient {
 
+    private final Function<String, Client> clientSupplier = memoize(
+            namespace -> {
+                if (Objects.equals(getClientConfig().getProjectId(), namespace)) {
+                    return this;
+                }
+                var defaultClient = getDefaultClient();
+                if (defaultClient != null) {
+                    return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
+                }
+                if (namespace == null) {
+                    return this;
+                }
+                return new WebSocketClient(getClientConfig().toBuilder().projectId(namespace).build(), this);
+            });
+
     @Getter
     private final ClientConfig clientConfig;
 
+    @Getter(AccessLevel.PRIVATE)
+    private final WebSocketClient defaultClient;
+
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
-        return new WebSocketClient(clientConfig);
+        return new WebSocketClient(clientConfig, null);
     }
 
     @Override
@@ -99,6 +120,16 @@ public class WebSocketClient extends AbstractClient {
     @Override
     public String applicationId() {
         return clientConfig.getApplicationId();
+    }
+
+    @Override
+    public String namespace() {
+        return clientConfig.getProjectId();
+    }
+
+    @Override
+    public Client forNamespace(String namespace) {
+        return clientSupplier.apply(namespace);
     }
 
     @Override

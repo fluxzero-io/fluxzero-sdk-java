@@ -38,9 +38,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
@@ -90,6 +92,14 @@ public class DefaultRequestHandler implements RequestHandler {
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
 
+    private final Function<String, RequestHandler> handlerSupplier = memoize(this::supplyRequestHandler);
+
+    private RequestHandler supplyRequestHandler(String namespace) {
+        var clientForNamespace = client.forNamespace(namespace);
+        return clientForNamespace == client
+                ? this : new DefaultRequestHandler(clientForNamespace, resultType, timeout, responseConsumerName);
+    }
+
     /**
      * Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200
      * seconds.
@@ -134,6 +144,11 @@ public class DefaultRequestHandler implements RequestHandler {
         CompletableFuture<SerializedMessage> future = prepareRequest(request, timeout, intermediateCallback);
         requestSender.accept(request);
         return future;
+    }
+
+    @Override
+    public RequestHandler forNamespace(String namespace) {
+        return handlerSupplier.apply(namespace);
     }
 
     @Override

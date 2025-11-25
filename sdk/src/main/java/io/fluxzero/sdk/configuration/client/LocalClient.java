@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.client;
@@ -28,11 +29,15 @@ import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.client.LocalTrackingClient;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
+import java.util.function.Function;
+
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
  * An in-memory {@link Client} implementation used for local development, testing, or isolated environments where no
@@ -68,9 +73,29 @@ import java.time.Duration;
  */
 public class LocalClient extends AbstractClient {
 
+    @Getter
     private final Duration messageExpiration;
     private final LocalEventStoreClient eventStore;
     private final LocalSchedulingClient scheduleStore;
+    @Getter @Accessors(fluent = true)
+    private final String namespace;
+    @Getter(AccessLevel.PRIVATE)
+    private final LocalClient defaultClient;
+
+    private final Function<String, Client> clientSupplier = memoize(
+            namespace -> {
+                var defaultClient = getDefaultClient();
+                if (defaultClient != null) {
+                    if (namespace == null) {
+                        return defaultClient;
+                    }
+                    return defaultClient.forNamespace(namespace);
+                }
+                if (namespace == null) {
+                    return this;
+                }
+                return new LocalClient(getMessageExpiration(), namespace, this);
+            });
 
     @Getter(lazy = true)
     @Accessors(fluent = true)
@@ -88,9 +113,15 @@ public class LocalClient extends AbstractClient {
     }
 
     protected LocalClient(Duration messageExpiration) {
+        this(messageExpiration, null, null);
+    }
+
+    protected LocalClient(Duration messageExpiration, String namespace, LocalClient defaultClient) {
         this.messageExpiration = messageExpiration;
         this.eventStore = new LocalEventStoreClient(messageExpiration);
         this.scheduleStore = new LocalSchedulingClient(messageExpiration);
+        this.namespace = namespace;
+        this.defaultClient = defaultClient;
     }
 
     @Override
@@ -103,6 +134,11 @@ public class LocalClient extends AbstractClient {
     public String applicationId() {
         return DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_ID",
                         DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID"));
+    }
+
+    @Override
+    public Client forNamespace(String namespace) {
+        return clientSupplier.apply(namespace);
     }
 
     @Override

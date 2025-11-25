@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,14 +10,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
-package io.fluxzero.sdk.publishing;
+package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.sdk.web.WebRequest;
-import io.fluxzero.sdk.web.WebRequestSettings;
-import io.fluxzero.sdk.web.WebResponse;
+import io.fluxzero.sdk.publishing.GatewayException;
+import io.fluxzero.sdk.publishing.GenericGateway;
+import io.fluxzero.sdk.publishing.TimeoutException;
+import io.fluxzero.sdk.publishing.WebRequestGateway;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.experimental.Delegate;

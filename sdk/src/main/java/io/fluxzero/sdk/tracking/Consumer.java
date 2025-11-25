@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.lang.annotation.Documented;
@@ -139,8 +141,8 @@ public @interface Consumer {
      * </p>
      *
      * <p>
-     * Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their own
-     * logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom
+     * Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their
+     * own logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom
      * property:
      * </p>
      *
@@ -178,8 +180,8 @@ public @interface Consumer {
     boolean singleTracker() default false;
 
     /**
-     * If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application itself is
-     * responsible for determining which messages to process.
+     * If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application
+     * itself is responsible for determining which messages to process.
      * <p>
      * This is typically used in combination with {@link #ignoreSegment()} set to {@code true} to ensure that all
      * application instances receive every message—rather than a sharded subset.
@@ -209,16 +211,17 @@ public @interface Consumer {
      * ensuring progress is recorded and avoiding reprocessing on restart.
      * <p>
      * Note: Even with manual position tracking enabled, the consumer will continue to receive "new" messages as long as
-     * the tracking process remains active. However, its persisted position will not be updated unless explicitly stored.
+     * the tracking process remains active. However, its persisted position will not be updated unless explicitly
+     * stored.
      */
     boolean storePositionManually() default false;
 
     /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.
      * <p>
-     * If {@code true} (default), a handler will only be active in this consumer.
-     * If {@code false}, the same handler may be active in multiple consumers simultaneously.
-     * This enables advanced scenarios such as parallel replays alongside live processing.
+     * If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may
+     * be active in multiple consumers simultaneously. This enables advanced scenarios such as parallel replays
+     * alongside live processing.
      * </p>
      */
     boolean exclusive() default true;
@@ -268,4 +271,16 @@ public @interface Consumer {
      * </p>
      */
     String typeFilter() default "";
+
+    /**
+     * Specifies the namespace under which the consumer tracks messages.
+     * <p>
+     * If left empty, the default namespace of the client application is used.
+     *
+     * @return The namespace under which the consumer tracks messages, or an empty string if the default client
+     * namespace should be used.
+     *
+     * @see Client#forNamespace(String)
+     */
+    String namespace() default "";
 }

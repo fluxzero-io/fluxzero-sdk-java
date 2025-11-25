@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
@@ -165,7 +165,8 @@ public class ConsumerConfiguration {
      * ensuring progress is recorded and avoiding reprocessing on restart.
      * <p>
      * Note: Even with manual position tracking enabled, the consumer will continue to receive "new" messages as long as
-     * the tracking process remains active. However, its persisted position will not be updated unless explicitly stored.
+     * the tracking process remains active. However, its persisted position will not be updated unless explicitly
+     * stored.
      */
     @Default
     @Accessors(fluent = true)
@@ -220,6 +221,16 @@ public class ConsumerConfiguration {
     @Default
     FlowRegulator flowRegulator = NoOpFlowRegulator.getInstance();
 
+    /**
+     * Specifies the namespace under which the consumer tracks messages.
+     * <p>
+     * If set to {@code null}, the default namespace of the client application is used.
+     *
+     * @see Client#forNamespace(String)
+     */
+    @Default
+    String namespace = null;
+
     /* ---------- Utilities for deriving configuration from annotations ---------- */
 
     /**
@@ -272,6 +283,7 @@ public class ConsumerConfiguration {
                 .exclusive(consumer.exclusive())
                 .passive(consumer.passive())
                 .typeFilter(consumer.typeFilter().isBlank() ? null : consumer.typeFilter())
+                .namespace(consumer.namespace().isBlank() ? null : consumer.namespace())
                 .build();
     }
 }
