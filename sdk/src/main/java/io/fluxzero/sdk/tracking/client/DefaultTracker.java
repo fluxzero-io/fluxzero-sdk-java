@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.client;
@@ -153,7 +154,8 @@ public class DefaultTracker implements Runnable, Registration {
         List<DefaultTracker> trackers = IntStream.range(0, config.getThreads())
                 .mapToObj(i -> new DefaultTracker(consumer, config, new Tracker(
                         config.getTrackerIdFactory().apply(client), messageType, topic, config, null),
-                                                  client.getTrackingClient(messageType, topic))).toList();
+                                                  client.forNamespace(config.getNamespace())
+                                                          .getTrackingClient(messageType, topic))).toList();
         for (int i = 0; i < trackers.size(); i++) {
             new Thread(threadGroup, trackers.get(i),
                        format("%s%s-%d", config.getName(),

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,13 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
-import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -72,6 +72,28 @@ public interface Client {
      * Returns the application ID under which this client instance is registered.
      */
     String applicationId();
+
+    /**
+     * Returns the namespace associated with this client instance.
+     */
+    String namespace();
+
+    /**
+     * Returns a {@code Client} instance scoped to the default namespace.
+     *
+     * @return a {@code Client} instance associated with the default namespace
+     */
+    default Client forDefaultNamespace() {
+        return forNamespace(null);
+    }
+
+    /**
+     * Creates and returns a new {@code Client} instance scoped to the specified namespace.
+     *
+     * @param namespace the namespace to which the returned client is scoped
+     * @return a {@code Client} instance associated with the specified namespace
+     */
+    Client forNamespace(String namespace);
 
     /**
      * Returns a {@link GatewayClient} for the given message type using the default topic (typically {@code null}).

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,13 +10,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.sdk.common.Message.asMessage;
@@ -114,6 +116,15 @@ public interface GenericGateway extends HasLocalHandlers {
      * Sends multiple {@link Message} objects with a guarantee.
      */
     CompletableFuture<Void> sendAndForget(Guarantee guarantee, Message... messages);
+
+    /**
+     * Sends multiple {@link Message} objects with a guarantee.
+     * <p>
+     * Before the messages are appended to the message log in Fluxzero, they can be inspected, blocked or modified using
+     * the given interceptor.
+     */
+    CompletableFuture<Void> sendAndForget(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
+                                          Message... messages);
 
     /**
      * Sends a {@link Message} and returns a future that completes with its response payload.
@@ -232,7 +243,7 @@ public interface GenericGateway extends HasLocalHandlers {
      * The retention setting determines how long messages in this log are retained by the system, after which they may
      * be evicted or deleted depending on the platform policy.
      *
-     * @param duration  the new retention duration
+     * @param duration the new retention duration
      */
     default void setRetentionTime(Duration duration) {
         setRetentionTime(duration, Guarantee.NONE);
@@ -249,6 +260,23 @@ public interface GenericGateway extends HasLocalHandlers {
      * @return a {@link CompletableFuture} that completes once the retention setting is updated
      */
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
+
+    /**
+     * Returns a {@code GenericGateway} instance scoped to the default namespace.
+     *
+     * @return a {@code GenericGateway} instance associated with the default namespace
+     */
+    default GenericGateway forDefaultNamespace() {
+        return forNamespace(null);
+    }
+
+    /**
+     * Creates and returns a new {@code GenericGateway} instance scoped to the specified namespace.
+     *
+     * @param namespace the namespace to which the returned gateway is scoped
+     * @return a {@code GenericGateway} instance associated with the specified namespace
+     */
+    GenericGateway forNamespace(String namespace);
 
     /**
      * Closes this gateway and releases any underlying resources.

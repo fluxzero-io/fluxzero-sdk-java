@@ -55,7 +55,25 @@ import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
-import io.fluxzero.sdk.publishing.*;
+import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
+import io.fluxzero.sdk.publishing.CommandGateway;
+import io.fluxzero.sdk.publishing.DefaultCommandGateway;
+import io.fluxzero.sdk.publishing.DefaultErrorGateway;
+import io.fluxzero.sdk.publishing.DefaultEventGateway;
+import io.fluxzero.sdk.publishing.DefaultGenericGateway;
+import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
+import io.fluxzero.sdk.publishing.DefaultQueryGateway;
+import io.fluxzero.sdk.publishing.DefaultRequestHandler;
+import io.fluxzero.sdk.publishing.DefaultResultGateway;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.ErrorGateway;
+import io.fluxzero.sdk.publishing.EventGateway;
+import io.fluxzero.sdk.publishing.GenericGateway;
+import io.fluxzero.sdk.publishing.MetricsGateway;
+import io.fluxzero.sdk.publishing.QueryGateway;
+import io.fluxzero.sdk.publishing.RequestHandler;
+import io.fluxzero.sdk.publishing.ResultGateway;
+import io.fluxzero.sdk.publishing.WebRequestGateway;
 import io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
@@ -92,6 +110,7 @@ import io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingIntercepto
 import io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor;
 import io.fluxzero.sdk.tracking.metrics.HandlerMonitor;
 import io.fluxzero.sdk.tracking.metrics.TrackerMonitor;
+import io.fluxzero.sdk.web.DefaultWebRequestGateway;
 import io.fluxzero.sdk.web.DefaultWebResponseMapper;
 import io.fluxzero.sdk.web.ForwardingWebConsumer;
 import io.fluxzero.sdk.web.LocalServerConfig;
@@ -876,7 +895,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                       Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                                       RepositoryProvider repositoryProvider,
                                                       ResponseMapper responseMapper) {
-            return new DefaultGenericGateway(client.getGatewayClient(messageType, topic), requestHandler,
+            return new DefaultGenericGateway(client, client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,
                                              topic, localHandlerRegistry(messageType, handlerDecorators,
                                                                          parameterResolvers, dispatchInterceptors,

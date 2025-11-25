@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -20,11 +21,14 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
@@ -38,15 +42,22 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.Guarantee.SENT;
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static java.lang.String.format;
+import static java.util.stream.Stream.ofNullable;
 
 @AllArgsConstructor
 @Slf4j
 public class DefaultGenericGateway implements GenericGateway {
+
+    @Getter(AccessLevel.PRIVATE)
+    private final Client client;
     private final GatewayClient gatewayClient;
     private final RequestHandler requestHandler;
     private final Serializer serializer;
@@ -59,9 +70,26 @@ public class DefaultGenericGateway implements GenericGateway {
 
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
 
+    private final Function<String, GenericGateway> gatewaySupplier = memoize(this::supplyGenericGateway);
+
+    GenericGateway supplyGenericGateway(String namespace) {
+        Client clientForNamespace = client.forNamespace(namespace);
+        RequestHandler requestHandlerForNamespace = requestHandler.forNamespace(namespace);
+        return client == clientForNamespace ? this
+                : new DefaultGenericGateway(clientForNamespace, clientForNamespace.getGatewayClient(messageType, topic),
+                                            requestHandlerForNamespace, serializer, dispatchInterceptor,
+                                            messageType, topic, localHandlerRegistry, responseMapper);
+    }
+
     @Override
     @SneakyThrows
     public CompletableFuture<Void> sendAndForget(Guarantee guarantee, Message... messages) {
+        return sendAndForget(guarantee, UnaryOperator.identity(), messages);
+    }
+
+    @Override
+    public CompletableFuture<Void> sendAndForget(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
+                                                 Message... messages) {
         List<SerializedMessage> serializedMessages = new ArrayList<>();
         for (Message message : messages) {
             message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
@@ -74,8 +102,8 @@ public class DefaultGenericGateway implements GenericGateway {
             if (localResult.isEmpty()) {
                 SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                         message.serialize(serializer), message, messageType, topic);
-                    if (serializedMessage == null) {
-                        continue;
+                if (serializedMessage == null) {
+                    continue;
                 }
                 serializedMessages.add(serializedMessage);
             } else {
@@ -91,7 +119,11 @@ public class DefaultGenericGateway implements GenericGateway {
         }
         if (!serializedMessages.isEmpty()) {
             try {
-                return gatewayClient.append(guarantee, serializedMessages.toArray(new SerializedMessage[0]));
+                SerializedMessage[] finalMessages = serializedMessages.stream().flatMap(
+                        m -> ofNullable(interceptor.apply(m))).toArray(SerializedMessage[]::new);
+                if (finalMessages.length > 0) {
+                    return gatewayClient.append(guarantee, finalMessages);
+                }
             } catch (Exception e) {
                 throw new GatewayException(format("Failed to send and forget %s messages", messages.length), e);
             }
@@ -166,6 +198,11 @@ public class DefaultGenericGateway implements GenericGateway {
     @Override
     public CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee) {
         return gatewayClient.setRetentionTime(duration, guarantee);
+    }
+
+    @Override
+    public GenericGateway forNamespace(String namespace) {
+        return gatewaySupplier.apply(namespace);
     }
 
     protected CompletableFuture<Message> emptyReturnMessage() {
