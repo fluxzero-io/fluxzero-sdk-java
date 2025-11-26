@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,12 +41,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Default implementation of the {@link RequestHandler} interface.
@@ -88,7 +84,6 @@ public class DefaultRequestHandler implements RequestHandler {
     private final MessageType resultType;
     private final Duration timeout;
     private final String responseConsumerName;
-    private final ExecutorService responseExecutor;
 
     private final Map<Integer, ResponseCallback> callbacks = new ConcurrentHashMap<>();
     private final AtomicInteger nextId = new AtomicInteger();
@@ -100,31 +95,12 @@ public class DefaultRequestHandler implements RequestHandler {
      * seconds.
      * <p>
      * Uses a default name for the result consumer based on the application name.
-     * <p>
-     * Uses an unbounded virtual thread pool to complete requests.
      *
      * @param client     the client responsible for sending and receiving messages
      * @param resultType the type of message expected as a result
      */
     public DefaultRequestHandler(Client client, MessageType resultType) {
         this(client, resultType, Duration.ofSeconds(200), format("%s_%s", client.name(), "$request-handler"));
-    }
-
-    /**
-     * Constructs a DefaultRequestHandler instance, which manages request dispatching and response handling for a
-     * specified client and message type. Allows specifying a custom timeout duration and a response consumer name.
-     * <p>
-     * Uses an unbounded virtual thread pool to complete requests.
-     *
-     * @param client               the client responsible for sending and receiving messages
-     * @param resultType           the type of message expected as a result
-     * @param timeout              the duration to wait before the request times out
-     * @param responseConsumerName the name of the response consumer for managing response processing
-     */
-    public DefaultRequestHandler(Client client, MessageType resultType, Duration timeout, String responseConsumerName) {
-        this(client, resultType, timeout, responseConsumerName,
-             newThreadPerTaskExecutor(format("%s_%s", "request-handler", client.name()),
-                                      name -> newFixedThreadPool(8, newPlatformThreadFactory(name))));
     }
 
     /**
@@ -230,7 +206,7 @@ public class DefaultRequestHandler implements RequestHandler {
                 return;
             }
             if (response.lastChunk()) {
-                callback.finalCallback().completeAsync(() -> response, responseExecutor);
+                callback.finalCallback().complete(response);
             } else {
                 callback.intermediateCallback().accept(response);
             }

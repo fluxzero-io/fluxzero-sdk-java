@@ -142,7 +142,6 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
@@ -264,8 +263,7 @@ public class DefaultFluxzero implements Fluxzero {
         private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
                 "FluxzeroTaskScheduler", clock,
-                newThreadPerTaskExecutor("FluxzeroTaskScheduler-worker",
-                                         name -> newFixedThreadPool(8, newPlatformThreadFactory(name))));
+                newFixedThreadPool(8, newPlatformThreadFactory("FluxzeroTaskScheduler-worker")));
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache = new DefaultCache();
         private Cache relationshipsCache = new DefaultCache(100_000);
@@ -774,9 +772,7 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             ThrowingRunnable shutdownHandler = () -> {
-                var shutdownPool = newThreadPerTaskExecutor(
-                        "fluxzero-shutdown-pool",
-                        name -> newFixedThreadPool(8, newPlatformThreadFactory(name)));
+                var shutdownPool = newFixedThreadPool(8, newPlatformThreadFactory("fluxzero-shutdown-pool"));
                 Optional.ofNullable(forwardingWebConsumer).ifPresent(ForwardingWebConsumer::close);
                 shutdownPool.invokeAll(
                         trackingMap.values().stream()
@@ -821,7 +817,7 @@ public class DefaultFluxzero implements Fluxzero {
 
             //perform a controlled shutdown when the vm exits
             if (!disableShutdownHook) {
-                getRuntime().addShutdownHook(Thread.ofVirtual().name("fluxzero-shutdown").unstarted(fluxzero::close));
+                getRuntime().addShutdownHook(Thread.ofPlatform().name("fluxzero-shutdown").unstarted(fluxzero::close));
             }
 
             if (!disableKeepalive) {

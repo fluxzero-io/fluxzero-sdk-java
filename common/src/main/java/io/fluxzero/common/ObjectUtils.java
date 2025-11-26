@@ -36,8 +36,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -312,33 +310,10 @@ public class ObjectUtils {
     }
 
     /**
-     * Creates and returns a virtual thread-based {@link ExecutorService}. If the runtime does not fully support
-     * virtual threads (Java version is below 24), a fallback {@link ExecutorService} is provided.
-     *
-     * @param prefix   the name prefix for virtual threads created by the executor
-     * @param fallback a supplier that provides a fallback {@link ExecutorService} to be used when virtual threads are
-     *                 not fully supported
-     * @return an {@link ExecutorService} backed by virtual threads if supported, or the fallback executor otherwise
-     */
-    public static ExecutorService newThreadPerTaskExecutor(String prefix, Function<String, ExecutorService> fallback) {
-        if (Runtime.version().feature() >= 24) {
-            return Executors.newThreadPerTaskExecutor(newVirtualThreadFactory(prefix));
-        }
-        return fallback.apply(prefix);
-    }
-
-    /**
      * Creates a new {@link ThreadFactory} with a named prefix.
      */
     public static ThreadFactory newPlatformThreadFactory(String prefix) {
         return Thread.ofPlatform().name(prefix, 0L).factory();
-    }
-
-    /**
-     * Creates a new {@link ThreadFactory} with a named prefix.
-     */
-    public static ThreadFactory newVirtualThreadFactory(String prefix) {
-        return Thread.ofVirtual().name(prefix, 0L).factory();
     }
 
     /**

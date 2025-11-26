@@ -74,7 +74,6 @@ import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
@@ -199,8 +198,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
-        this.resultExecutor = newThreadPerTaskExecutor(this + "-onMessage",
-                                                       name -> newFixedThreadPool(8, newPlatformThreadFactory(name)));
+        this.resultExecutor = newFixedThreadPool(8, newPlatformThreadFactory(this + "-onMessage"));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
                 () -> container.connectToServer(this, endpointUri),
                 RetryConfiguration.builder()

@@ -106,7 +106,6 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.common.ObjectUtils.run;
 import static io.fluxzero.common.ObjectUtils.tryCatch;
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
@@ -343,8 +342,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
     private static final Executor shutdownExecutor =
-            newThreadPerTaskExecutor("TestFixture-shutdown",
-                                     name -> newFixedThreadPool(8, newPlatformThreadFactory(name)));
+            newFixedThreadPool(8, newPlatformThreadFactory("TestFixture-shutdown"));
 
     public static void shutDownActiveFixtures() {
         var fixtures = activeFixtures.get();

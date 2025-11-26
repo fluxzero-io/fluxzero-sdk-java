@@ -74,7 +74,6 @@ import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static jakarta.websocket.CloseReason.CloseCodes.NO_STATUS_CODE;
@@ -106,17 +105,16 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     protected WebsocketEndpoint() {
         this.objectMapper = defaultObjectMapper;
-        this.requestExecutor = newThreadPerTaskExecutor(getClass().getSimpleName(),
-                                                        name -> newFixedThreadPool(8, newPlatformThreadFactory(name)));
+        this.requestExecutor = newFixedThreadPool(64, newPlatformThreadFactory(getClass().getSimpleName()));
         getRuntime().addShutdownHook(
-                Thread.ofVirtual().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
+                Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     protected WebsocketEndpoint(@Nullable Executor requestExecutor) {
         this.objectMapper = defaultObjectMapper;
         this.requestExecutor = Optional.ofNullable(requestExecutor).orElse(SameThreadExecutor.INSTANCE);
         getRuntime().addShutdownHook(
-                Thread.ofVirtual().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
+                Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     private final Handler<ClientMessage> handler =

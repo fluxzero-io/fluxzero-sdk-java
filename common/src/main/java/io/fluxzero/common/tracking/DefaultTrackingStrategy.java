@@ -37,7 +37,6 @@ import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.ObjectUtils.newThreadPerTaskExecutor;
 import static io.fluxzero.common.api.tracking.Position.MAX_SEGMENT;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static java.lang.System.currentTimeMillis;
@@ -76,8 +75,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     public DefaultTrackingStrategy(MessageStore source) {
         this(source, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
-                newThreadPerTaskExecutor("tracking-worker-%s".formatted(source),
-                                         name -> newFixedThreadPool(8, newPlatformThreadFactory(name)))));
+                newFixedThreadPool(8, newPlatformThreadFactory("tracking-worker-%s".formatted(source)))));
     }
 
     public DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler) {
