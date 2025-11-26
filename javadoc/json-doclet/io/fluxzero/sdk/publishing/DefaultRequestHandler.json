@@ -56,14 +56,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "responseExecutor",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.responseExecutor",
-    "type" : "java.util.concurrent.ExecutorService",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "resultType",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.resultType",
     "type" : "io.fluxzero.common.MessageType",
@@ -107,37 +99,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200\n seconds.\n <p>\n Uses a default name for the result consumer based on the application name.\n <p>\n Uses an unbounded virtual thread pool to complete requests.\n\n @param client     the client responsible for sending and receiving messages\n @param resultType the type of message expected as a result\n"
-  }, {
-    "name" : "DefaultRequestHandler",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#DefaultRequestHandler",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "resultType",
-      "type" : "io.fluxzero.common.MessageType",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "timeout",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "responseConsumerName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Constructs a DefaultRequestHandler instance, which manages request dispatching and response handling for a\n specified client and message type. Allows specifying a custom timeout duration and a response consumer name.\n <p>\n Uses an unbounded virtual thread pool to complete requests.\n\n @param client               the client responsible for sending and receiving messages\n @param resultType           the type of message expected as a result\n @param timeout              the duration to wait before the request times out\n @param responseConsumerName the name of the response consumer for managing response processing\n"
+    "documentation" : " Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200\n seconds.\n <p>\n Uses a default name for the result consumer based on the application name.\n\n @param client     the client responsible for sending and receiving messages\n @param resultType the type of message expected as a result\n"
   } ],
   "methods" : [ {
     "name" : "close",
