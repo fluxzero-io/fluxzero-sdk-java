@@ -92,6 +92,8 @@ import io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingIntercepto
 import io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor;
 import io.fluxzero.sdk.tracking.metrics.HandlerMonitor;
 import io.fluxzero.sdk.tracking.metrics.TrackerMonitor;
+import io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector;
+import io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration;
 import io.fluxzero.sdk.web.DefaultWebResponseMapper;
 import io.fluxzero.sdk.web.ForwardingWebConsumer;
 import io.fluxzero.sdk.web.LocalServerConfig;
@@ -285,6 +287,7 @@ public class DefaultFluxzero implements Fluxzero {
         private UserProvider userProvider = UserProvider.defaultUserProvider;
         private IdentityProvider identityProvider = IdentityProvider.defaultIdentityProvider;
         private PropertySource propertySource = DefaultPropertySource.getInstance();
+        private HostMetricsConfiguration hostMetricsConfiguration;
 
         @Override
         public Builder replaceSerializer(@NonNull Serializer serializer) {
@@ -521,6 +524,25 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder disableKeepalive() {
             this.disableKeepalive = true;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder enableHostMetrics() {
+            this.hostMetricsConfiguration = HostMetricsConfiguration.builder().build();
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder enableHostMetrics(HostMetricsConfiguration configuration) {
+            this.hostMetricsConfiguration = configuration;
+            return this;
+        }
+
+        @Override
+        public FluxzeroBuilder enableHostMetrics(
+                UnaryOperator<HostMetricsConfiguration.HostMetricsConfigurationBuilder> configurer) {
+            this.hostMetricsConfiguration = configurer.apply(HostMetricsConfiguration.builder()).build();
             return this;
         }
 
@@ -813,6 +835,14 @@ public class DefaultFluxzero implements Fluxzero {
 
             if (!disableScheduledCommandHandler) {
                 fluxzero.registerHandlers(new ScheduledCommandHandler());
+            }
+
+            //start host metrics collection if enabled
+            if (hostMetricsConfiguration != null) {
+                var hostMetricsCollector = new HostMetricsCollector(
+                        hostMetricsConfiguration, metricsGateway, taskScheduler);
+                hostMetricsCollector.start();
+                fluxzero.beforeShutdown(hostMetricsCollector::stop);
             }
 
             //perform a controlled shutdown when the vm exits
