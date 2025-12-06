@@ -554,6 +554,25 @@
     "varArgs" : false,
     "documentation" : " Returns a new Metadata instance that includes all the current entries and the mappings provided in the given map.\n If a key in the given map already exists in the current entries, its value will be overwritten.\n\n @param values a map containing the key-value pairs to be added or updated in the metadata\n @return a new Metadata instance with the updated entries\n"
   }, {
+    "name" : "withNull",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#withNull",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code Metadata} instance with an explicit null value associated with the given key.\n\n @param key   the key to add or update in the metadata entries\n @return a new {@code Metadata} instance with the updated entries\n"
+  }, {
     "name" : "withTrace",
     "qualifiedName" : "io.fluxzero.common.api.Metadata#withTrace",
     "returnType" : "io.fluxzero.common.api.Metadata",
