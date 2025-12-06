@@ -32,5 +32,8 @@ build/
 .vscode/
 /.idea/
 
+### shade plugin ###
+**/dependency-reduced-pom.xml
+
 ### Mac OS ###
 .DS_Store
