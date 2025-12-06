@@ -29,7 +29,6 @@ import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
-import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 
 import java.time.Duration;
@@ -254,9 +253,7 @@ public interface When {
     /**
      * Executes the specified {@link WebRequest} and returns expectations for side effects or response.
      */
-    default Then<Object> whenWebRequest(WebRequest request) {
-        return whenWebRequestByUser(null, request);
-    }
+    Then<Object> whenWebRequest(WebRequest request);
 
     /**
      * Executes the specified {@link WebRequest} and returns expectations for side effects or response.
@@ -270,7 +267,7 @@ public interface When {
      * Simulates a POST request to the specified path with the given payload.
      */
     default Then<Object> whenPost(String path, Object payload) {
-        return whenPostByUser(null, path, payload);
+        return whenWebRequest(WebRequest.post(path).payload(payload).build());
     }
 
     /**
@@ -287,15 +284,14 @@ public interface When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Then<Object> whenPostByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload)
-                .build());
+        return whenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
     }
 
     /**
      * Simulates a PUT request to the specified path with the given payload.
      */
     default Then<Object> whenPut(String path, Object payload) {
-        return whenPutByUser(null, path, payload);
+        return whenWebRequest(WebRequest.put(path).payload(payload).build());
     }
 
     /**
@@ -305,14 +301,14 @@ public interface When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Then<Object> whenPutByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
+        return whenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
     }
 
     /**
      * Simulates a PATCH request to the specified path with the given payload.
      */
     default Then<Object> whenPatch(String path, Object payload) {
-        return whenPatchByUser(null, path, payload);
+        return whenWebRequest(WebRequest.patch(path).payload(payload).build());
     }
 
     /**
@@ -322,14 +318,14 @@ public interface When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Then<Object> whenPatchByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
+        return whenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
     }
 
     /**
      * Simulates a DELETE request to the specified path.
      */
     default Then<Object> whenDelete(String path) {
-        return whenDeleteByUser(null, path);
+        return whenWebRequest(WebRequest.delete(path).build());
     }
 
     /**
@@ -339,14 +335,14 @@ public interface When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Then<Object> whenDeleteByUser(Object user, String path) {
-        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
+        return whenWebRequestByUser(user, WebRequest.delete(path).build());
     }
 
     /**
      * Simulates a GET request to the specified path.
      */
     default Then<Object> whenGet(String path) {
-        return whenGetByUser(null, path);
+        return whenWebRequest(WebRequest.get(path).build());
     }
 
     /**
@@ -356,7 +352,7 @@ public interface When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Then<Object> whenGetByUser(Object user, String path) {
-        return whenWebRequestByUser(user, WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
+        return whenWebRequestByUser(user, WebRequest.get(path).build());
     }
 
     /**

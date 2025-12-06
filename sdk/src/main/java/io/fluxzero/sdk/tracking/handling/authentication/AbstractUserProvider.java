@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling.authentication;
@@ -105,6 +106,7 @@ public abstract class AbstractUserProvider implements UserProvider {
      */
     @Override
     public Metadata addToMetadata(Metadata metadata, User user, boolean ifAbsent) {
-        return ifAbsent ? metadata.addIfAbsent(metadataKey, user) : metadata.with(metadataKey, user);
+        return ifAbsent ? metadata.addIfAbsent(metadataKey, user)
+                : user == null ? metadata.withNull(metadataKey) : metadata.with(metadataKey, user);
     }
 }

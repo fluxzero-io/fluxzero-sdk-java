@@ -27,7 +27,6 @@ import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
-import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 
 import java.net.HttpCookie;
@@ -244,9 +243,7 @@ public interface Given<Self extends Given<Self>> extends When {
     /**
      * Simulates a web request that was issued before the behavior under test.
      */
-    default Self givenWebRequest(WebRequest webRequest) {
-        return givenWebRequestByUser(null, webRequest);
-    }
+    Self givenWebRequest(WebRequest webRequest);
 
     /**
      * Simulates a web request that was issued by the given user before the behavior under test.
@@ -260,7 +257,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * Simulates a POST request to the specified {@code path} with the given {@code payload}.
      */
     default Self givenPost(String path, Object payload) {
-        return givenPostByUser(null, path, payload);
+        return givenWebRequest(WebRequest.post(path).payload(payload).build());
     }
 
     /**
@@ -270,15 +267,14 @@ public interface Given<Self extends Given<Self>> extends When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Self givenPostByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(
-                user, WebRequest.builder().method(HttpRequestMethod.POST).url(path).payload(payload).build());
+        return givenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
     }
 
     /**
      * Simulates a PUT request to the specified {@code path} with the given {@code payload}.
      */
     default Self givenPut(String path, Object payload) {
-        return givenPutByUser(null, path, payload);
+        return givenWebRequest(WebRequest.put(path).payload(payload).build());
     }
 
     /**
@@ -288,15 +284,14 @@ public interface Given<Self extends Given<Self>> extends When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Self givenPutByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(
-                user, WebRequest.builder().method(HttpRequestMethod.PUT).url(path).payload(payload).build());
+        return givenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
     }
 
     /**
      * Simulates a PATCH request to the specified {@code path} with the given {@code payload}.
      */
     default Self givenPatch(String path, Object payload) {
-        return givenPatchByUser(null, path, payload);
+        return givenWebRequest(WebRequest.patch(path).payload(payload).build());
     }
 
     /**
@@ -306,15 +301,14 @@ public interface Given<Self extends Given<Self>> extends When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Self givenPatchByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(
-                user, WebRequest.builder().method(HttpRequestMethod.PATCH).url(path).payload(payload).build());
+        return givenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
     }
 
     /**
      * Simulates a DELETE request to the specified {@code path}.
      */
     default Self givenDelete(String path) {
-        return givenDeleteByUser(null, path);
+        return givenWebRequest(WebRequest.delete(path).build());
     }
 
     /**
@@ -324,15 +318,14 @@ public interface Given<Self extends Given<Self>> extends When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Self givenDeleteByUser(Object user, String path) {
-        return givenWebRequestByUser(
-                user, WebRequest.builder().method(HttpRequestMethod.DELETE).url(path).build());
+        return givenWebRequestByUser(user, WebRequest.delete(path).build());
     }
 
     /**
      * Simulates a GET request to the specified {@code path}.
      */
     default Self givenGet(String path) {
-        return givenGetByUser(null, path);
+        return givenWebRequest(WebRequest.get(path).build());
     }
 
     /**
@@ -342,8 +335,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * {@link UserProvider} will resolve it to a {@code User}.
      */
     default Self givenGetByUser(Object user, String path) {
-        return givenWebRequestByUser(
-                user, WebRequest.builder().method(HttpRequestMethod.GET).url(path).build());
+        return givenWebRequestByUser(user, WebRequest.get(path).build());
     }
 
     /**

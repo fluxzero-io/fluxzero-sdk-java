@@ -206,9 +206,6 @@ public class Message implements HasMessage {
      * Attaches a user object to the metadata using the configured {@link UserProvider}.
      */
     public Message addUser(User user) {
-        if (user == null) {
-            return this;
-        }
         return addMetadata(Fluxzero.getOptionally().map(Fluxzero::userProvider)
                                    .or(() -> Optional.ofNullable(UserProvider.defaultUserProvider))
                                    .orElseThrow(() -> new IllegalStateException("User provider is not set"))

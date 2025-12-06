@@ -201,6 +201,13 @@ public class GivenWhenThenAuthenticationTest {
     }
 
     @Test
+    void testWhenPostByNullUser() {
+        testFixture.withProductionUserProvider()
+                .whenPostByUser(null, "/update", new Update())
+                .expectExceptionalResult(UnauthenticatedException.class);
+    }
+
+    @Test
     void testAuthorizedModifyAsSystem() {
         user = new MockUser("modify", "system");
         testFixture.whenCommand(new Update()).expectSuccessfulResult();

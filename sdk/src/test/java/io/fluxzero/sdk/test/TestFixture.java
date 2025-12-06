@@ -734,13 +734,6 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
-    public TestFixture givenWebRequestByUser(Object user, WebRequest webRequest) {
-        Class<?> callerClass = getCallerClass();
-        return givenModification(fixture -> fixture.executeWebRequest(
-                fixture.addUser(getUser(user), fixture.parseObject(webRequest, callerClass))));
-    }
-
-    @Override
     public TestFixture withCookie(HttpCookie cookie) {
         return addCookie(cookie);
     }
@@ -763,6 +756,19 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public TestFixture givenElapsedTime(Duration duration) {
         return givenModification(fixture -> fixture.advanceTimeBy(duration));
+    }
+
+    @Override
+    public TestFixture givenWebRequest(WebRequest webRequest) {
+        Class<?> callerClass = getCallerClass();
+        return givenModification(fixture -> fixture.executeWebRequest(fixture.parseObject(webRequest, callerClass)));
+    }
+
+    @Override
+    public TestFixture givenWebRequestByUser(Object user, WebRequest webRequest) {
+        Class<?> callerClass = getCallerClass();
+        return givenModification(fixture -> fixture.executeWebRequest(
+                fixture.addUser(getUser(user), fixture.parseObject(webRequest, callerClass))));
     }
 
     @Override
@@ -853,19 +859,29 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public Then<Object> whenWebRequest(WebRequest request) {
+        WebRequest message = trace(request);
+        return doWhenWebRequest(message);
+    }
+
+    @Override
     public Then<Object> whenWebRequestByUser(Object user, WebRequest request) {
         WebRequest message = addUser(getUser(user), trace(request));
+        return doWhenWebRequest(message);
+    }
+
+    Then<Object> doWhenWebRequest(WebRequest message) {
         return whenApplying(fc -> {
             try {
                 var response = executeWebRequest(message);
                 if (response != null && synchronous
-                    && (response.getPayload() != null || !isWebsocket(request.getMethod()))) {
+                    && (response.getPayload() != null || !isWebsocket(message.getMethod()))) {
                     registerWebResponse(response);
                 }
                 return response;
             } catch (Throwable e) {
                 try {
-                    if (synchronous && !isWebsocket(request.getMethod())) {
+                    if (synchronous && !isWebsocket(message.getMethod())) {
                         registerWebResponse(fluxzero.configuration().webResponseMapper().map(e));
                     }
                 } catch (Throwable ignored) {

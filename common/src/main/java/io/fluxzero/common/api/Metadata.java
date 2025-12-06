@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api;
@@ -218,6 +219,19 @@ public class Metadata {
     @SneakyThrows
     public Metadata with(Object key, Object value) {
         return new Metadata(with(key, value, new HashMap<>(entries)));
+    }
+
+    /**
+     * Returns a new {@code Metadata} instance with an explicit null value associated with the given key.
+     *
+     * @param key   the key to add or update in the metadata entries
+     * @return a new {@code Metadata} instance with the updated entries
+     */
+    @SneakyThrows
+    public Metadata withNull(Object key) {
+        var map = new HashMap<>(entries);
+        map.put(key.toString(), objectMapper.writeValueAsString(null));
+        return new Metadata(map);
     }
 
     /**
