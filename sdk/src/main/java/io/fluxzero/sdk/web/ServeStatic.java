@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -46,6 +47,13 @@ public @interface ServeStatic {
      * @return Web path patterns for serving static content.
      */
     String[] value() default {};
+
+    /**
+     * One or more web path patterns this handler will ignore. Defaults to {@code "/api/*"}.
+     *
+     * @return Web path patterns for serving static content.
+     */
+    String[] ignorePaths() default "/api/*";
 
     /**
      * The base resource path from which to serve static files.

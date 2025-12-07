@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -17,6 +18,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import jakarta.annotation.Nullable;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.ToString;
@@ -46,11 +48,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 @Slf4j
 @EqualsAndHashCode
 @ToString
+@Getter
 public class StaticFileHandler implements Closeable {
 
     private static final Map<URI, FileSystem> jarFileSystemCache = new ConcurrentHashMap<>();
@@ -73,11 +77,12 @@ public class StaticFileHandler implements Closeable {
                     () -> new IllegalStateException("@ServeStatic's value should be present on " + targetClass.getName()
                                                     + " or @Path should be present on the target class or its package."));
         }
+        var ignorePaths = Arrays.stream(serveStatic.ignorePaths()).collect(toSet());
+        var immutableFileExtensions = Arrays.stream(serveStatic.immutableCandidateExtensions()).collect(toSet());
         return webPaths.stream()
-                .map(webPath -> new StaticFileHandler(webPath, serveStatic.resourcePath(), serveStatic.fallbackFile(),
-                                                      Arrays.stream(serveStatic.immutableCandidateExtensions())
-                                                              .collect(Collectors.toSet()),
-                                                      serveStatic.maxAgeSeconds())).toList();
+                .map(webPath -> new StaticFileHandler(
+                        webPath, serveStatic.resourcePath(), serveStatic.fallbackFile(), ignorePaths,
+                        immutableFileExtensions, serveStatic.maxAgeSeconds())).toList();
     }
 
     public static boolean isHandler(Class<?> targetClass) {
@@ -93,6 +98,7 @@ public class StaticFileHandler implements Closeable {
     private final @Nullable Path fsBaseDirectory;
     private final @Nullable URI resourceBaseUri;
     private final @Nullable String fallbackFile;
+    private final Set<String> ignorePaths;
     private final Set<String> immutableCandidateExtensions;
     private final long maxAgeSeconds;
 
@@ -114,17 +120,19 @@ public class StaticFileHandler implements Closeable {
 
     public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
                              Set<String> immutableCandidateExtensions) {
-        this(webRoot, resourceBasePath, fallbackFile, immutableCandidateExtensions, 86400L);
+        this(webRoot, resourceBasePath, fallbackFile, Set.of(), immutableCandidateExtensions, 86400L);
     }
 
     public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
-                             Set<String> immutableCandidateExtensions, long maxAgeSeconds) {
+                             Set<String> ignorePaths, Set<String> immutableCandidateExtensions, long maxAgeSeconds) {
         this(webRoot, Optional.ofNullable(getFileSystemUri(resourceBasePath)).map(Paths::get).orElse(null),
-             getResourceBaseUri(resourceBasePath), fallbackFile, immutableCandidateExtensions, maxAgeSeconds);
+             getResourceBaseUri(resourceBasePath), fallbackFile, ignorePaths, immutableCandidateExtensions,
+             maxAgeSeconds);
     }
 
     public StaticFileHandler(@NonNull String webRoot, @Nullable Path fsBaseDirectory, @Nullable URI resourceBaseUri,
-                             @Nullable String fallbackFile, Set<String> immutableCandidateExtensions,
+                             @Nullable String fallbackFile, Set<String> ignorePaths,
+                             Set<String> immutableCandidateExtensions,
                              long maxAgeSeconds) {
         if (fallbackFile != null) {
             if (fallbackFile.isBlank()) {
@@ -144,6 +152,7 @@ public class StaticFileHandler implements Closeable {
         this.fsBaseDirectory = fsBaseDirectory;
         this.resourceBaseUri = resourceBaseUri;
         this.fallbackFile = fallbackFile;
+        this.ignorePaths = ignorePaths;
         this.immutableCandidateExtensions = immutableCandidateExtensions;
         this.maxAgeSeconds = maxAgeSeconds;
     }

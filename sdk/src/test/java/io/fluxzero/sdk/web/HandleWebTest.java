@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -25,7 +26,6 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
-import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -488,8 +488,14 @@ public class HandleWebTest {
 
         @Test
         void serveFallback() {
-            testFixture.whenGet("/static/whatever")
+            testFixture.whenGet("/static/whatever/bla")
                     .expectResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void dontServeFallbackIfIgnorePath() {
+            testFixture.whenGet("/static/api/whatever")
+                    .expectExceptionalResult(TimeoutException.class);
         }
 
         @Test
@@ -508,7 +514,7 @@ public class HandleWebTest {
         }
 
         @Path
-        @ServeStatic(value = "/static", resourcePath = "classpath:/web/static")
+        @ServeStatic(value = "/static", ignorePaths = "/static/api/*", resourcePath = "classpath:/web/static")
         static class ClasspathHandler {
             @HandleGet("/get")
             String get() {

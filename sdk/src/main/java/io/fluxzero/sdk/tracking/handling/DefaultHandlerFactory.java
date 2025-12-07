@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.web.DefaultWebRequestContext;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HandleWebResponse;
 import io.fluxzero.sdk.web.SocketEndpoint;
@@ -201,7 +202,15 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (messageType == MessageType.WEBREQUEST) {
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
-                    handler = handler.or(createDefaultHandler(h, m -> h, config));
+                    var messageFilter = config.messageFilter().and((m, e, a )-> {
+                        if (m instanceof DeserializingMessage dm) {
+                            var context = DefaultWebRequestContext.getWebRequestContext(dm);
+                            return context != null && !context.matchesAny(h.getIgnorePaths());
+                        }
+                        return true;
+                    });
+                    var staticHandlerConfig = config.toBuilder().messageFilter(messageFilter).build();
+                    handler = handler.or(createDefaultHandler(h, m -> h, staticHandlerConfig));
                 }
             }
         }
