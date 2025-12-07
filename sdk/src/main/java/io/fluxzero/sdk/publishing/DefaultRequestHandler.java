@@ -199,7 +199,7 @@ public class DefaultRequestHandler implements RequestHandler {
 
     protected void handleResults(List<SerializedMessage> messages) {
         messages.stream().filter(m -> m.getRequestId() != null).forEach(response -> {
-            var callback = callbacks.remove(response.getRequestId());
+            var callback = callbacks.get(response.getRequestId());
             if (callback == null) {
                 log.warn("Received response with index {} for unknown request {}", response.getIndex(),
                          response.getRequestId());

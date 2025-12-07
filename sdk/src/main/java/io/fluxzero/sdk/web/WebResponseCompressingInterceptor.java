@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -22,6 +23,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 
@@ -86,7 +88,7 @@ public class WebResponseCompressingInterceptor implements DispatchInterceptor {
     @Override
     public SerializedMessage modifySerializedMessage(SerializedMessage response, Message message, MessageType type,
                                                      String topic) {
-        return acceptCompression() && shouldCompress(response) ? compress(response) : response;
+        return acceptCompression() && shouldCompress(response, (WebResponse) message) ? compress(response) : response;
     }
 
     /**
@@ -120,13 +122,16 @@ public class WebResponseCompressingInterceptor implements DispatchInterceptor {
      *   <li>The size of the message's payload is below the predefined threshold.</li>
      * </ul>
      */
-    protected boolean shouldCompress(SerializedMessage response) {
-        String compressionHint = WebUtils.getHeader(response.getMetadata(), "X-Compression")
+    protected boolean shouldCompress(SerializedMessage serializedMessage, WebResponse response) {
+        if (response.getPayload() instanceof InputStream) {
+            return false;
+        }
+        String compressionHint = WebUtils.getHeader(serializedMessage.getMetadata(), "X-Compression")
                 .orElse("").toLowerCase();
         if ("disabled".equals(compressionHint)) {
             return false;
         }
-        String contentType = WebUtils.getHeader(response.getMetadata(), "Content-Type")
+        String contentType = WebUtils.getHeader(serializedMessage.getMetadata(), "Content-Type")
                 .orElse("").toLowerCase();
         if (contentType.startsWith("image/")
             || contentType.startsWith("video/")
@@ -134,13 +139,13 @@ public class WebResponseCompressingInterceptor implements DispatchInterceptor {
             || contentType.equals("application/octet-stream")) {
             return false;
         }
-        if (WebResponse.getHeaders(response.getMetadata()).containsKey("Content-Encoding")) {
+        if (WebResponse.getHeaders(serializedMessage.getMetadata()).containsKey("Content-Encoding")) {
             return false;
         }
-        if (WebResponse.getStatusCode(response.getMetadata()) != 200) {
+        if (WebResponse.getStatusCode(serializedMessage.getMetadata()) != 200) {
             return false;
         }
-        return response.getData().getValue().length >= minimumLength;
+        return serializedMessage.getData().getValue().length >= minimumLength;
     }
 
     /**
