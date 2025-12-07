@@ -13,6 +13,9 @@
   }, {
     "annotationType" : "lombok.ToString",
     "values" : {}
+  }, {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
@@ -54,6 +57,14 @@
       "annotationType" : "jakarta.annotation.Nullable",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ignorePaths",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.ignorePaths",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -158,6 +169,11 @@
         "annotationType" : "jakarta.annotation.Nullable",
         "values" : {}
       } ]
+    }, {
+      "name" : "ignorePaths",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
       "name" : "immutableCandidateExtensions",
       "type" : "java.util.Set<java.lang.String>",
@@ -292,6 +308,11 @@
         "annotationType" : "jakarta.annotation.Nullable",
         "values" : {}
       } ]
+    }, {
+      "name" : "ignorePaths",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
       "name" : "immutableCandidateExtensions",
       "type" : "java.util.Set<java.lang.String>",

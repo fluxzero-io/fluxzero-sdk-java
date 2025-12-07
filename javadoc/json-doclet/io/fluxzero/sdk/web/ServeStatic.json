@@ -36,6 +36,17 @@
     "varArgs" : false,
     "documentation" : " Optional fallback file to serve if a requested resource is not found.\n <p>\n This is useful for single-page applications (SPAs) where all unknown routes should fall back to {@code index.html}.\n <p>\n To disable this behavior, return an empty string.\n\n @return Relative path to the fallback file, e.g., {@code index.html}.\n"
   }, {
+    "name" : "ignorePaths",
+    "qualifiedName" : "io.fluxzero.sdk.web.ServeStatic#ignorePaths",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " One or more web path patterns this handler will ignore. Defaults to {@code \"/api/*\"}.\n\n @return Web path patterns for serving static content.\n"
+  }, {
     "name" : "immutableCandidateExtensions",
     "qualifiedName" : "io.fluxzero.sdk.web.ServeStatic#immutableCandidateExtensions",
     "returnType" : "java.lang.String[]",

@@ -142,8 +142,13 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "response",
+      "name" : "serializedMessage",
       "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "response",
+      "type" : "io.fluxzero.sdk.web.WebResponse",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
