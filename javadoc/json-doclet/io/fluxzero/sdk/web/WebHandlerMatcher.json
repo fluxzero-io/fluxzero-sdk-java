@@ -171,12 +171,7 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#methodMatcher",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
     "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "message",
@@ -190,5 +185,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "WebMethodMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -1,0 +1,124 @@
+{
+  "name" : "WebMethodMatcher",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "matcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher.matcher",
+    "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher.pattern",
+    "type" : "io.fluxzero.sdk.web.WebPattern",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebMethodMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#WebMethodMatcher",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "matcher",
+      "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pattern",
+      "type" : "io.fluxzero.sdk.web.WebPattern",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#matcher",
+    "returnType" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#pattern",
+    "returnType" : "io.fluxzero.sdk.web.WebPattern",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "matcher",
+    "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "pattern",
+    "type" : "io.fluxzero.sdk.web.WebPattern",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

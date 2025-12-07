@@ -240,6 +240,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher",
     "kind" : "class"
   }, {
+    "file" : "WebHandlerMatcher.WebMethodMatcher.json",
+    "name" : "WebHandlerMatcher.WebMethodMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher",
+    "kind" : "record"
+  }, {
     "file" : "WebParam.json",
     "name" : "WebParam",
     "qualifiedName" : "io.fluxzero.sdk.web.WebParam",
