@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -107,7 +108,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
                 if (HttpRequestMethod.ANY.equals(pattern.getMethod())) {
                     hasAnyHandlers = true;
                 }
-                router.route(pattern.getMethod(), pattern.getPath(), ctx -> m);
+                router.route(pattern.getMethod(), pattern.getPath(), ctx -> new WebMethodMatcher(m, pattern));
             }
         }
         subRouters.forEach((origin, subRouter) -> this.router.mount(ctx -> {
@@ -134,7 +135,6 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         return methodMatcher(message).flatMap(m -> m.getInvoker(target, message));
     }
 
-    @SuppressWarnings("unchecked")
     protected Optional<MethodHandlerMatcher<DeserializingMessage>> methodMatcher(DeserializingMessage message) {
         if (message.getMessageType() != MessageType.WEBREQUEST) {
             return Optional.empty();
@@ -144,7 +144,11 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         if (match.isEmpty() && hasAnyHandlers) {
             match = Optional.of(router.match(context.withMethod(HttpRequestMethod.ANY))).filter(Router.Match::matches);
         }
-        return match.map(m -> (MethodHandlerMatcher<DeserializingMessage>) m.execute(context));
+        return match.map(m -> (WebMethodMatcher) m.execute(context))
+                .filter(hm -> Objects.equals(context.getOrigin(), hm.pattern().getOrigin()))
+                .map(WebMethodMatcher::matcher);
     }
+
+    record WebMethodMatcher(MethodHandlerMatcher<DeserializingMessage> matcher, WebPattern pattern) { }
 
 }

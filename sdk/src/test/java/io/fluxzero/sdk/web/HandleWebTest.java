@@ -382,6 +382,11 @@ public class HandleWebTest {
         }
 
         @Test
+        void testGetWithOrigin() {
+            testFixture.whenWebRequest(WebRequest.builder().method(GET).url("http://localhost:8080/get").build()).expectResult("getWithOrigin");
+        }
+
+        @Test
         void testPutOrPost() {
             testFixture
                     .whenWebRequest(WebRequest.builder().method(POST).url("/string").payload("payload").build())
@@ -428,6 +433,11 @@ public class HandleWebTest {
             @HandleGet("get")
             String get() {
                 return "get";
+            }
+
+            @HandleGet("http://localhost:8080/get")
+            String getWithOrigin() {
+                return "getWithOrigin";
             }
 
             @HandleWeb(value = "/string", method = {PUT, POST})
@@ -511,6 +521,13 @@ public class HandleWebTest {
                     .andThen()
                     .whenGet("/file/")
                     .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void serveWithOrigin() {
+            testFixture
+                    .whenGet("http://localhost:8080/static")
+                    .expectExceptionalResult(TimeoutException.class);
         }
 
         @Path
