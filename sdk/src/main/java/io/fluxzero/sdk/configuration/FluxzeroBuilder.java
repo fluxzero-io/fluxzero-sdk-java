@@ -36,6 +36,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
+import io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration;
 import io.fluxzero.sdk.web.LocalServerConfig;
 import io.fluxzero.sdk.web.WebResponseMapper;
 
@@ -297,6 +298,44 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * thread finishes.
      */
     FluxzeroBuilder disableKeepalive();
+
+    /**
+     * Enables host metrics collection with default configuration.
+     * <p>
+     * Host metrics include JVM memory, GC, threads, CPU usage, file descriptors, and more.
+     * Metrics are collected periodically (default: every 30 seconds) and published via
+     * {@link io.fluxzero.sdk.publishing.MetricsGateway}.
+     *
+     * @return this builder instance
+     * @see HostMetricsConfiguration
+     */
+    FluxzeroBuilder enableHostMetrics();
+
+    /**
+     * Enables host metrics collection with a custom configuration.
+     *
+     * @param configuration the host metrics configuration
+     * @return this builder instance
+     * @see HostMetricsConfiguration
+     */
+    FluxzeroBuilder enableHostMetrics(HostMetricsConfiguration configuration);
+
+    /**
+     * Enables host metrics collection with a configuration customizer.
+     * <p>
+     * Example usage:
+     * <pre>{@code
+     * builder.enableHostMetrics(config -> config
+     *     .collectionInterval(Duration.ofSeconds(60))
+     *     .applicationName("my-app")
+     *     .collectDisk(true));
+     * }</pre>
+     *
+     * @param configurer a function to customize the configuration builder
+     * @return this builder instance
+     * @see HostMetricsConfiguration
+     */
+    FluxzeroBuilder enableHostMetrics(UnaryOperator<HostMetricsConfiguration.HostMetricsConfigurationBuilder> configurer);
 
     /**
      * Builds the Fluxzero instance using the provided low-level {@link Client}.
