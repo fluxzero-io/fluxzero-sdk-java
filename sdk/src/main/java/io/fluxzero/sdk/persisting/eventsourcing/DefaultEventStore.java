@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.eventsourcing;
@@ -22,20 +23,25 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.With;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 
@@ -49,12 +55,24 @@ import static java.util.stream.Collectors.toList;
 @AllArgsConstructor
 @Slf4j
 public class DefaultEventStore implements EventStore {
-    private final EventStoreClient client;
-    private final GatewayClient eventGateway;
+    @With
+    private final Client client;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
+
+    @Getter(lazy = true)
+    private final GatewayClient eventGateway = client.getGatewayClient(EVENT);
+
+    @Getter(lazy = true)
+    private final EventStoreClient storeClient = client.getEventStoreClient();
+
+    private final Function<String, EventStore> namespaceSwitcher = memoize(this::createForNamespace);
+
+    EventStore createForNamespace(String namespace) {
+        return withClient(client.forNamespace(namespace));
+    }
 
     @Override
     public CompletableFuture<Void> storeEvents(Object aggregateId, List<?> events, EventPublicationStrategy strategy) {
@@ -86,15 +104,15 @@ public class DefaultEventStore implements EventStore {
             switch (strategy) {
                 case DEFAULT, STORE_AND_PUBLISH, PUBLISH_ONLY -> {
                     for (DeserializingMessage message : messages) {
-                        dispatchInterceptor.monitorDispatch(message.toMessage(), EVENT, null);
+                        dispatchInterceptor.monitorDispatch(message.toMessage(), EVENT, null, client.namespace());
                     }
                 }
             }
             result = switch (strategy) {
-                case DEFAULT, STORE_AND_PUBLISH -> client.storeEvents(aggregateId.toString(), serializedEvents, false);
+                case DEFAULT, STORE_AND_PUBLISH -> getStoreClient().storeEvents(aggregateId.toString(), serializedEvents, false);
                 case PUBLISH_ONLY ->
-                        eventGateway.append(Guarantee.STORED, serializedEvents.toArray(SerializedMessage[]::new));
-                case STORE_ONLY -> client.storeEvents(aggregateId.toString(), serializedEvents, true);
+                        getEventGateway().append(Guarantee.STORED, serializedEvents.toArray(SerializedMessage[]::new));
+                case STORE_ONLY -> getStoreClient().storeEvents(aggregateId.toString(), serializedEvents, true);
             };
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to store events %s for aggregate %s", events.stream().map(
@@ -125,11 +143,16 @@ public class DefaultEventStore implements EventStore {
                                                                 int maxSize, boolean ignoreUnknownType) {
         try {
             AggregateEventStream<SerializedMessage> serializedEvents =
-                    client.getEvents(aggregateId.toString(), lastSequenceNumber, maxSize);
+                    getStoreClient().getEvents(aggregateId.toString(), lastSequenceNumber, maxSize);
             return serializedEvents.convert(stream -> serializer.deserializeMessages(stream, EVENT, ignoreUnknownType
                     ? UnknownTypeStrategy.IGNORE : UnknownTypeStrategy.FAIL));
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to obtain events for aggregate %s", aggregateId), e);
         }
+    }
+
+    @Override
+    public EventStore forNamespace(String namespace) {
+        return namespaceSwitcher.apply(namespace);
     }
 }

@@ -13,23 +13,25 @@
  *
  */
 
-package io.fluxzero.sdk.publishing;
+package io.fluxzero.sdk.common;
 
-public interface Gateway<G extends Gateway<G>> {
+public interface Namespaced<T> {
+
     /**
-     * Returns a gateway instance scoped to the default namespace.
+     * Returns the resource scoped to the default namespace.
      *
-     * @return a gateway instance associated with the default namespace
+     * @return the resource which is associated with the default namespace
      */
-    default G forDefaultNamespace() {
+    default T forDefaultNamespace() {
         return forNamespace(null);
     }
 
     /**
-     * Creates and returns a new gateway instance scoped to the specified namespace.
+     * Creates and returns the resource scoped to the specified namespace.
      *
-     * @param namespace the namespace to which the returned gateway is scoped
-     * @return a gateway instance associated with the specified namespace
+     * @param namespace the namespace to which the returned resource is scoped
+     * @return the resource associated with the specified namespace
      */
-    G forNamespace(String namespace);
+    T forNamespace(String namespace);
+
 }

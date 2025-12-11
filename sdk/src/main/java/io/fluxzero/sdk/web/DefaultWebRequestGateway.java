@@ -22,6 +22,7 @@ import io.fluxzero.sdk.publishing.TimeoutException;
 import io.fluxzero.sdk.publishing.WebRequestGateway;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.With;
 import lombok.experimental.Delegate;
 
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +46,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 @AllArgsConstructor
 public class DefaultWebRequestGateway implements WebRequestGateway {
     @Delegate
+    @With
     private final GenericGateway delegate;
 
     @Override
@@ -75,5 +77,15 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
         } catch (ExecutionException e) {
             throw e.getCause();
         }
+    }
+
+    @Override
+    public DefaultWebRequestGateway forDefaultNamespace() {
+        return forNamespace(null);
+    }
+
+    @Override
+    public DefaultWebRequestGateway forNamespace(String namespace) {
+        return withDelegate(delegate.forNamespace(namespace));
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.websocket;
@@ -134,8 +135,8 @@ public class ServiceUrlBuilder {
                                       clientConfig.getRuntimeBaseUrl(), path,
                                       URLEncoder.encode(clientConfig.getId(), UTF_8),
                                       URLEncoder.encode(clientConfig.getName(), UTF_8));
-        if (clientConfig.getProjectId() != null) {
-            result = String.format("%s&projectId=%s", result, URLEncoder.encode(clientConfig.getProjectId(), UTF_8));
+        if (clientConfig.getNamespace() != null) {
+            result = String.format("%s&projectId=%s", result, URLEncoder.encode(clientConfig.getNamespace(), UTF_8));
         }
         result = String.format("%s&compression=%s", result, clientConfig.getCompression());
         return result;

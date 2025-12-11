@@ -17,6 +17,7 @@ package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -56,7 +57,7 @@ import io.fluxzero.sdk.tracking.client.TrackingClient;
  * Fluxzero fluxzero = FluxzeroBuilder.newInstance().build(client);
  * }</pre>
  */
-public interface Client {
+public interface Client extends Namespaced<Client> {
 
     /**
      * Returns the name of this client as defined in its configuration.
@@ -77,23 +78,6 @@ public interface Client {
      * Returns the namespace associated with this client instance.
      */
     String namespace();
-
-    /**
-     * Returns a {@code Client} instance scoped to the default namespace.
-     *
-     * @return a {@code Client} instance associated with the default namespace
-     */
-    default Client forDefaultNamespace() {
-        return forNamespace(null);
-    }
-
-    /**
-     * Creates and returns a new {@code Client} instance scoped to the specified namespace.
-     *
-     * @param namespace the namespace to which the returned client is scoped
-     * @return a {@code Client} instance associated with the specified namespace
-     */
-    Client forNamespace(String namespace);
 
     /**
      * Returns a {@link GatewayClient} for the given message type using the default topic (typically {@code null}).

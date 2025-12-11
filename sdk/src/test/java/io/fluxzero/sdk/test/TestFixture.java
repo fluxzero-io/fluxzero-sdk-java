@@ -1255,7 +1255,7 @@ public class TestFixture implements Given<TestFixture>, When {
         private final Set<String> interceptedMessageIds = new CopyOnWriteArraySet<>();
 
         protected void interceptClientDispatch(MessageType messageType, String topic,
-                                               List<SerializedMessage> messages) {
+                                               String namespace, List<SerializedMessage> messages) {
             if (testFixture.fixtureResult.isCollectingResults()) {
                 try {
                     testFixture.fluxzero.serializer()
@@ -1264,7 +1264,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                                                  m.getMessageId())),
                                                  messageType)
                             .map(DeserializingMessage::toMessage)
-                            .forEach(m -> monitorDispatch(m, messageType, topic));
+                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace));
                 } catch (Exception ignored) {
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
@@ -1277,7 +1277,7 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         @Override
-        public void monitorDispatch(Message message, MessageType messageType, String topic) {
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
             if (testFixture.fixtureResult.isCollectingResults()) {
                 interceptedMessageIds.add(message.getMessageId());
             }
@@ -1290,12 +1290,24 @@ public class TestFixture implements Given<TestFixture>, When {
                 testFixture.consumers.entrySet().stream()
                         .filter(t -> {
                             var consumer = t.getKey();
-                            return (((consumer.getMessageType() == messageType && Objects.equals(consumer.getTopic(),
-                                                                                                 topic))
+                            String consumerNamespace = ofNullable(consumer.getConfiguration().getNamespace()).orElseGet(
+                                    () -> testFixture.getFluxzero().client().namespace());
+                            return (
+
+                                    //message type and topic match
+                                    ((consumer.getMessageType() == messageType
+                                      && Objects.equals(consumer.getTopic(), topic))
                                      || (consumer.getMessageType() == NOTIFICATION && messageType == EVENT))
+
+                                    //type filter matches
                                     && ofNullable(consumer.getConfiguration().getTypeFilter())
                                             .map(f -> message.getPayload().getClass().getName().matches(f))
-                                            .orElse(true));
+                                            .orElse(true)
+
+                                    //namespace matches
+                                    && Objects.equals(consumerNamespace, namespace)
+
+                            );
                         }).forEach(e -> addMessage(e.getValue(), message));
             }
 

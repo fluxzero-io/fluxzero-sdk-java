@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import jakarta.annotation.Nullable;
 
@@ -53,7 +54,7 @@ import java.util.function.Consumer;
  * A {@code RequestHandler} implementation must ensure lifecycle management, including resource cleanup
  * and deregistration when {@link #close()} is invoked.
  */
-public interface RequestHandler extends AutoCloseable {
+public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseable {
 
     /**
      * Sends a single request and returns a future that completes when the corresponding response is received.
@@ -118,23 +119,6 @@ public interface RequestHandler extends AutoCloseable {
             SerializedMessage request,
             Consumer<SerializedMessage> requestSender, Duration timeout,
             Consumer<SerializedMessage> intermediateCallback);
-
-    /**
-     * Returns a request handler instance scoped to the default namespace.
-     *
-     * @return a request handler instance associated with the default namespace
-     */
-    default RequestHandler forDefaultNamespace() {
-        return forNamespace(null);
-    }
-
-    /**
-     * Creates and returns a new request handler instance scoped to the specified namespace.
-     *
-     * @param namespace the namespace to which the returned gateway is scoped
-     * @return a request handler instance associated with the specified namespace
-     */
-    RequestHandler forNamespace(String namespace);
 
     /**
      * Releases all resources associated with this handler.

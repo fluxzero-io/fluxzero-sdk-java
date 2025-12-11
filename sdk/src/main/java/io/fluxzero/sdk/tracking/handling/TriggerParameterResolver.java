@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
+import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
@@ -219,6 +220,8 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     }
 
     protected Optional<DeserializingMessage> getTriggerMessage(long index, Class<?> type, MessageType messageType) {
+        var client = Tracker.current().map(tracker -> tracker.getConfiguration().getNamespace()).map(
+                this.client::forNamespace).orElse(this.client);
         return client.getTrackingClient(messageType).readFromIndex(index, 1).stream()
                 .flatMap(s -> serializer.deserializeMessages(Stream.of(s), messageType))
                 .filter(d -> type.isAssignableFrom(d.getPayloadClass()))

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -17,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.sdk.common.Message;
 import lombok.AllArgsConstructor;
+import lombok.With;
 import lombok.experimental.Delegate;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 @AllArgsConstructor
 public class DefaultEventGateway implements EventGateway {
     @Delegate
+    @With
     private final GenericGateway delegate;
 
     @Override
@@ -48,5 +51,15 @@ public class DefaultEventGateway implements EventGateway {
     @Override
     public CompletableFuture<Void> publish(Guarantee guarantee, Object... messages) {
         return sendAndForget(guarantee, messages);
+    }
+
+    @Override
+    public DefaultEventGateway forDefaultNamespace() {
+        return forNamespace(null);
+    }
+
+    @Override
+    public DefaultEventGateway forNamespace(String namespace) {
+        return withDelegate(delegate.forNamespace(namespace));
     }
 }

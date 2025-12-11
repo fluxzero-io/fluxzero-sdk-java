@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -19,12 +20,16 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.With;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -46,14 +51,23 @@ import static io.fluxzero.common.MessageType.WEBRESPONSE;
  * @see ResultGateway
  */
 @AllArgsConstructor
-public class WebResponseGateway implements ResultGateway {
+public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implements ResultGateway {
 
     public static final int MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
 
-    private final GatewayClient client;
+    @With
+    private final Client client;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final WebResponseMapper webResponseMapper;
+
+    @Getter(lazy = true)
+    private final GatewayClient gatewayClient = client.getGatewayClient(WEBRESPONSE);
+
+    @Override
+    protected WebResponseGateway createForNamespace(String namespace) {
+        return withClient(client.forNamespace(namespace));
+    }
 
     @Override
     public CompletableFuture<Void> respond(Object payload, Metadata metadata, String target, Integer requestId,
@@ -73,10 +87,10 @@ public class WebResponseGateway implements ResultGateway {
                 SerializedMessage serializedMessage =
                         dispatchInterceptor.modifySerializedMessage(input, response, WEBRESPONSE, null);
                 if (serializedMessage != null) {
-                    dispatchInterceptor.monitorDispatch(response, WEBRESPONSE, null);
+                    dispatchInterceptor.monitorDispatch(response, WEBRESPONSE, null, client.namespace());
                     serializedMessage.setTarget(target);
                     serializedMessage.setRequestId(requestId);
-                    return client.append(guarantee, serializedMessage);
+                    return getGatewayClient().append(guarantee, serializedMessage);
                 }
                 return CompletableFuture.completedFuture(null);
             } catch (Exception e) {

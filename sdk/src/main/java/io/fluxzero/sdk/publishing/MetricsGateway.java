@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -17,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import lombok.SneakyThrows;
 
@@ -41,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  * @see Guarantee
  * @see HasLocalHandlers
  */
-public interface MetricsGateway extends HasLocalHandlers {
+public interface MetricsGateway extends Namespaced<MetricsGateway>, HasLocalHandlers {
 
     /**
      * Publishes a metrics message using default metadata and {@link Guarantee#NONE}.

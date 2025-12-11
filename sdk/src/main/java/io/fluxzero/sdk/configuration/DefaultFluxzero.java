@@ -653,9 +653,8 @@ public class DefaultFluxzero implements Fluxzero {
                 Create components
              */
 
-            ResultGateway webResponseGateway = new WebResponseGateway(client.getGatewayClient(WEBRESPONSE),
-                                                                      serializer, dispatchInterceptors.get(WEBRESPONSE),
-                                                                      webResponseMapper);
+            ResultGateway webResponseGateway = new WebResponseGateway(
+                    client, serializer, dispatchInterceptors.get(WEBRESPONSE), webResponseMapper);
 
             //add websocket request handler decorator
             var websocketHandlerDecorator =
@@ -683,7 +682,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                                                documentSerializer);
 
             documentStore.set(new DefaultDocumentStore(
-                    client.getSearchClient(), documentSerializer,
+                    client, documentSerializer,
                     client.getSearchClient() instanceof InMemorySearchStore searchStore
                             ? new LocalDocumentHandlerRegistry(searchStore, localHandlerRegistry(
                             DOCUMENT, handlerDecorators, parameterResolvers, dispatchInterceptors,
@@ -693,8 +692,7 @@ public class DefaultFluxzero implements Fluxzero {
 
             //event sourcing
             var entityMatcher = new DefaultEntityHelper(parameterResolvers, disablePayloadValidation);
-            EventStore eventStore = new DefaultEventStore(client.getEventStoreClient(), client.getGatewayClient(EVENT),
-                                                          serializer, dispatchInterceptors.get(EVENT),
+            EventStore eventStore = new DefaultEventStore(client, serializer, dispatchInterceptors.get(EVENT),
                                                           localHandlerRegistry(EVENT, handlerDecorators,
                                                                                parameterResolvers,
                                                                                dispatchInterceptors,
@@ -729,7 +727,7 @@ public class DefaultFluxzero implements Fluxzero {
                         .forEach(type -> handlerDecorators.compute(type, (t, i) -> interceptor.andThen(i)));
             }
 
-            ResultGateway resultGateway = new DefaultResultGateway(client.getGatewayClient(RESULT),
+            ResultGateway resultGateway = new DefaultResultGateway(client,
                                                                    serializer, dispatchInterceptors.get(RESULT),
                                                                    defaultResponseMapper);
             CommandGateway commandGateway =
@@ -775,7 +773,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                       repositorySupplier))));
 
             //misc
-            MessageScheduler messageScheduler = new DefaultMessageScheduler(client.getSchedulingClient(),
+            MessageScheduler messageScheduler = new DefaultMessageScheduler(client,
                                                                             serializer,
                                                                             dispatchInterceptors.get(SCHEDULE),
                                                                             dispatchInterceptors.get(COMMAND),

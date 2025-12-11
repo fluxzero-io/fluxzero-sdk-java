@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.publishing;
 
 import lombok.AllArgsConstructor;
+import lombok.With;
 import lombok.experimental.Delegate;
 
 /**
@@ -30,6 +31,7 @@ import lombok.experimental.Delegate;
 @AllArgsConstructor
 public class DefaultCommandGateway implements CommandGateway {
     @Delegate
+    @With
     private final GenericGateway delegate;
 
     @Override
@@ -39,7 +41,6 @@ public class DefaultCommandGateway implements CommandGateway {
 
     @Override
     public DefaultCommandGateway forNamespace(String namespace) {
-        GenericGateway newDelegate = delegate.forNamespace(namespace);
-        return newDelegate == delegate ? this : new DefaultCommandGateway(newDelegate);
+        return withDelegate(delegate.forNamespace(namespace));
     }
 }

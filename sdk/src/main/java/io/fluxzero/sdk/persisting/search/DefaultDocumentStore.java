@@ -34,6 +34,8 @@ import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
+import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -41,6 +43,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.With;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
@@ -64,12 +67,17 @@ import static java.util.stream.Collectors.toMap;
 
 @AllArgsConstructor
 @Slf4j
-public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
-    private final SearchClient client;
+public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> implements DocumentStore, HasLocalHandlers {
+
+    @With
+    private final Client client;
     @Getter
     private final DocumentSerializer serializer;
     @Delegate
     private final HasLocalHandlers handlerRegistry;
+
+    @Getter(lazy = true)
+    private final SearchClient searchClient = client.getSearchClient();
 
     @Override
     public CompletableFuture<Void> index(@NonNull Object object, @NonNull Object id, @NonNull Object collection,
@@ -77,9 +85,9 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                                          boolean ifNotExists) {
         try {
             object = object instanceof Entity<?> e ? e.get() : object;
-            return client.index(List.of(serializer.toDocument(object, id.toString(),
-                                                              determineCollection(collection), begin, end, metadata)),
-                                guarantee, ifNotExists);
+            return getSearchClient().index(List.of(serializer.toDocument(object, id.toString(),
+                                                                    determineCollection(collection), begin, end, metadata)),
+                                      guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Failed to store a document %s to collection %s", id, collection), e);
@@ -94,7 +102,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                         this, v, collection, idPath, beginPath, endPath)
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
-            return client.index(documents, guarantee, ifNotExists);
+            return getSearchClient().index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -113,7 +121,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
                         (Function) idFunction, (Function) beginFunction, (Function) endFunction)
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
-            return client.index(documents, guarantee, ifNotExists);
+            return getSearchClient().index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -123,10 +131,10 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public CompletableFuture<Void> bulkUpdate(Collection<? extends BulkUpdate> updates, Guarantee guarantee) {
         try {
-            return client.bulkUpdate(updates.stream().map(this::serializeAction)
+            return getSearchClient().bulkUpdate(updates.stream().map(this::serializeAction)
                                              .collect(toMap(a -> format("%s_%s", a.getCollection(), a.getId()),
                                                             identity(), (a, b) -> b)).values(),
-                                     guarantee);
+                                           guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException("Could not apply batch of search actions", e);
         }
@@ -156,13 +164,13 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
 
     @Override
     public boolean hasDocument(Object id, Object collection) {
-        return client.documentExists(new HasDocument(id.toString(), determineCollection(collection)));
+        return getSearchClient().documentExists(new HasDocument(id.toString(), determineCollection(collection)));
     }
 
     @Override
     public <T> Optional<T> fetchDocument(Object id, Object collection) {
         try {
-            return client.fetch(new GetDocument(id.toString(), determineCollection(collection)))
+            return getSearchClient().fetch(new GetDocument(id.toString(), determineCollection(collection)))
                     .map(serializer::fromDocument);
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get document %s from collection %s", id, collection), e);
@@ -172,7 +180,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public <T> Optional<T> fetchDocument(Object id, Object collection, Class<T> type) {
         try {
-            return client.fetch(new GetDocument(id.toString(), determineCollection(collection)))
+            return getSearchClient().fetch(new GetDocument(id.toString(), determineCollection(collection)))
                     .map(d -> serializer.fromDocument(d, type));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get document %s from collection %s", id, collection), e);
@@ -182,8 +190,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public <T> Collection<T> fetchDocuments(Collection<?> ids, Object collection) {
         try {
-            return client.fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
-                                                 determineCollection(collection)))
+            return getSearchClient().fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
+                                                       determineCollection(collection)))
                     .stream().map(serializer::<T>fromDocument).toList();
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
@@ -194,8 +202,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public <T> Collection<T> fetchDocuments(Collection<?> ids, Object collection, Class<T> type) {
         try {
-            return client.fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
-                                                 determineCollection(collection)))
+            return getSearchClient().fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
+                                                       determineCollection(collection)))
                     .stream().map(d -> serializer.fromDocument(d, type)).toList();
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
@@ -206,7 +214,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public CompletableFuture<Void> deleteDocument(Object id, Object collection, Guarantee guarantee) {
         try {
-            return client.delete(id.toString(), determineCollection(collection), guarantee);
+            return getSearchClient().delete(id.toString(), determineCollection(collection), guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete document %s from collection %s", id, collection),
                                              e);
@@ -216,8 +224,8 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection, Guarantee guarantee) {
         try {
-            return client.move(id.toString(), determineCollection(collection), determineCollection(targetCollection),
-                               guarantee);
+            return getSearchClient().move(id.toString(), determineCollection(collection), determineCollection(targetCollection),
+                                     guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Could not move document %s from collection %s to collection %s", id, collection, targetCollection),
@@ -228,7 +236,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public CompletableFuture<Void> deleteCollection(Object collection) {
         try {
-            return client.deleteCollection(determineCollection(collection));
+            return getSearchClient().deleteCollection(determineCollection(collection));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete collection %s", collection), e);
         }
@@ -237,11 +245,16 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
     @Override
     public CompletableFuture<Void> createAuditTrail(Object collection, Duration retentionTime) {
         try {
-            return client.createAuditTrail(new CreateAuditTrail(determineCollection(collection), Optional.ofNullable(
+            return getSearchClient().createAuditTrail(new CreateAuditTrail(determineCollection(collection), Optional.ofNullable(
                     retentionTime).map(Duration::getSeconds).orElse(null), Guarantee.STORED));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not create audit trail %s", collection), e);
         }
+    }
+
+    @Override
+    protected DocumentStore createForNamespace(String namespace) {
+        return withClient(client.forNamespace(namespace));
     }
 
     @RequiredArgsConstructor
@@ -364,7 +377,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
         @SuppressWarnings({"unchecked", "rawtypes"})
         protected <T> Stream<SearchHit<T>> fetchHitStream(Integer maxSize, Class<T> type, int fetchSize) {
             SearchQuery query = queryBuilder.build();
-            Stream<SearchHit<SerializedDocument>> hitStream = client.search(
+            Stream<SearchHit<SerializedDocument>> hitStream = getSearchClient().search(
                     SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
                             .pathFilters(pathFilters).skip(skip).build(), fetchSize);
             if (SerializedDocument.class.equals(type)) {
@@ -377,7 +390,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
 
         @Override
         public SearchHistogram fetchHistogram(int resolution, int maxSize) {
-            return client.fetchHistogram(new GetSearchHistogram(queryBuilder.build(), resolution, maxSize));
+            return getSearchClient().fetchHistogram(new GetSearchHistogram(queryBuilder.build(), resolution, maxSize));
         }
 
         @Override
@@ -387,18 +400,18 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
 
         @Override
         public List<FacetStats> facetStats() {
-            return client.fetchFacetStats(queryBuilder.build())
+            return getSearchClient().fetchFacetStats(queryBuilder.build())
                     .stream().filter(s -> !s.getName().startsWith("$metadata/")).toList();
         }
 
         @Override
         public CompletableFuture<Void> delete() {
-            return client.delete(queryBuilder.build(), Guarantee.STORED);
+            return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED);
         }
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
-            return client.move(queryBuilder.build(), determineCollection(targetCollection), Guarantee.STORED);
+            return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection), Guarantee.STORED);
         }
 
         @AllArgsConstructor
@@ -407,7 +420,7 @@ public class DefaultDocumentStore implements DocumentStore, HasLocalHandlers {
 
             @Override
             public Map<Group, Map<String, DocumentStats.FieldStats>> aggregate(String... fields) {
-                return client.fetchStatistics(queryBuilder.build(), Arrays.asList(fields), groupBy).stream()
+                return getSearchClient().fetchStatistics(queryBuilder.build(), Arrays.asList(fields), groupBy).stream()
                         .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
             }
         }

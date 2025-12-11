@@ -18,11 +18,15 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.With;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -42,12 +46,21 @@ import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
  * @see ResultGateway
  */
 @AllArgsConstructor
-public class DefaultResultGateway implements ResultGateway {
+public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> implements ResultGateway {
 
-    private final GatewayClient client;
+    @With
+    private final Client client;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
+
+    @Getter(lazy = true)
+    private final GatewayClient gatewayClient = client.getGatewayClient(RESULT);
+
+    @Override
+    protected ResultGateway createForNamespace(String namespace) {
+        return withClient(client.forNamespace(namespace));
+    }
 
     @Override
     public CompletableFuture<Void> respond(Object payload, Metadata metadata, String target, Integer requestId,
@@ -59,7 +72,7 @@ public class DefaultResultGateway implements ResultGateway {
             }
             serializedMessage.setTarget(target);
             serializedMessage.setRequestId(requestId);
-            return client.append(guarantee, serializedMessage);
+            return getGatewayClient().append(guarantee, serializedMessage);
         } catch (Exception e) {
             throw new GatewayException(String.format("Failed to send response %s",
                                                      payload != null && ifClass(payload) == null
@@ -72,7 +85,7 @@ public class DefaultResultGateway implements ResultGateway {
         SerializedMessage serializedMessage = message == null ? null
                 : dispatchInterceptor.modifySerializedMessage(message.serialize(serializer), message, RESULT, null);
         if (serializedMessage != null) {
-            dispatchInterceptor.monitorDispatch(message, RESULT, null);
+            dispatchInterceptor.monitorDispatch(message, RESULT, null, client.namespace());
         }
         return serializedMessage;
     }

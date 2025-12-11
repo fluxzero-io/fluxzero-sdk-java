@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.Request;
 
@@ -40,7 +41,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @see io.fluxzero.sdk.tracking.handling.HandleCommand
  */
-public interface CommandGateway extends Gateway<CommandGateway>, HasLocalHandlers {
+public interface CommandGateway extends Namespaced<CommandGateway>, HasLocalHandlers {
 
     /**
      * Sends a command without waiting for a result.
