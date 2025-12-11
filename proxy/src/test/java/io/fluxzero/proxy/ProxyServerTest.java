@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,14 +10,20 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.proxy;
 
+import com.sun.net.httpserver.HttpServer;
+import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.HandlePost;
 import io.fluxzero.sdk.web.HandleSocketClose;
@@ -32,6 +38,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -44,6 +51,8 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
+import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 
@@ -97,6 +106,70 @@ class ProxyServerTest {
                     .whenApplying(fc -> httpClient.send(newRequest().POST(BodyPublishers.ofString("Fluxzero")).build(),
                                                         BodyHandlers.ofString()).body())
                     .expectResult("Hello Fluxzero");
+        }
+
+        private HttpRequest.Builder newRequest() {
+            return newBuilder(baseUri());
+        }
+
+        private URI baseUri() {
+            return URI.create(format("http://0.0.0.0:%s/", proxyPort));
+        }
+    }
+
+    @Nested
+    class namespaceSwitching {
+
+
+        @Test
+        void getNamespaced() {
+            testFixture.registerHandlers(new NamespacedHandler())
+                    .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                                        BodyHandlers.ofString()).body())
+                    .expectResult("Hello test");
+        }
+
+        @Test
+        void getNamespacedWithJwt() {
+            var pair = TestJwtUtil.create("test", "test_kid");
+            String jwt = pair.getKey();
+            String jwksResponse = pair.getValue();
+            withJwksServer(jwksResponse, url ->
+                    testFixture
+                            .registerHandlers(new NamespacedHandler())
+                            .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                                        BodyHandlers.ofString()).body())
+                            .expectResult("Hello test"));
+
+
+        }
+
+        @SneakyThrows
+        private synchronized static void withJwksServer(String jwksResponse, ThrowingConsumer<String> task) {
+            int port = TestUtils.getAvailablePort();
+            var server = HttpServer.create(new InetSocketAddress(port), 0);
+            server.createContext("/jwks", exchange -> {
+                exchange.sendResponseHeaders(200, jwksResponse.length());
+                exchange.getResponseBody().write(jwksResponse.getBytes());
+                exchange.close();
+            });
+            String url = format("http://0.0.0.0:%s/jwks", port);
+            server.start();
+            try {
+                System.setProperty(JWKS_URL_PROPERTY, url);
+                task.accept(url);
+            } finally {
+                System.clearProperty(JWKS_URL_PROPERTY);
+                server.stop(0);
+            }
+        }
+
+        @Consumer(name = "namespaced", namespace = "test")
+        static class NamespacedHandler {
+            @HandleGet("/")
+            String hello() {
+                return "Hello " + Tracker.current().map(Tracker::getConfiguration).map(ConsumerConfiguration::getNamespace).orElse(null);
+            }
         }
 
         private HttpRequest.Builder newRequest() {
