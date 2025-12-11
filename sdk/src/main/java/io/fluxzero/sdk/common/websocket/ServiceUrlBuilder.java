@@ -116,15 +116,7 @@ public class ServiceUrlBuilder {
     }
 
     /**
-     * Constructs a base URL for a given service path, including query parameters derived from the given client config.
-     * <p>
-     * This method is used by the service-specific builders above and includes fields such as:
-     * <ul>
-     *     <li>{@code clientId}</li>
-     *     <li>{@code clientName}</li>
-     *     <li>{@code projectId} (optional)</li>
-     *     <li>{@code compression} algorithm</li>
-     * </ul>
+     * Constructs a base URL for a Fluxzero client for a given service path.
      *
      * @param clientConfig the WebSocket client configuration
      * @param path         the service-specific path from {@link ServicePathBuilder}
