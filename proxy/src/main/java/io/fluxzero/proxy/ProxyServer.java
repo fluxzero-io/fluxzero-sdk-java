@@ -44,7 +44,7 @@ public class ProxyServer implements Registration {
                         WebSocketClient.ClientConfig.builder()
                                 .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
                                 .runtimeBaseUrl(url)
-                                .projectId(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID", "PROJECT_ID")).build()))
+                                .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID", "PROJECT_ID")).build()))
                 .orElseThrow(() -> new IllegalStateException("FLUXZERO_BASE_URL environment variable is not set"));
         Registration registration = start(port, new ProxyRequestHandler(client))
                 .merge(ForwardProxyConsumer.start(client));

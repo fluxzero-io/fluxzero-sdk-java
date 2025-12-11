@@ -208,6 +208,7 @@ public class DefaultRequestHandler implements RequestHandler {
                     .filterMessageTarget(true)
                     .minIndex(IndexUtils.indexFromTimestamp(
                             Fluxzero.currentTime().minusSeconds(2)))
+                    .namespace(client.namespace())
                     .build(), client);
         }
     }

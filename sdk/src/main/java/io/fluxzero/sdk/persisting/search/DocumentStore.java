@@ -21,6 +21,7 @@ import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
@@ -59,7 +60,7 @@ import static java.util.Collections.singletonList;
  * @see Search
  * @see Fluxzero#search(Object)
  */
-public interface DocumentStore {
+public interface DocumentStore extends Namespaced<DocumentStore> {
 
     /**
      * Begins an index operation for the given object. Use the returned {@link IndexOperation} to set additional

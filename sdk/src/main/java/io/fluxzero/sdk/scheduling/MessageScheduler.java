@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.scheduling;
@@ -20,6 +21,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
@@ -78,7 +80,7 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
  * @see io.fluxzero.sdk.tracking.handling.HandleSchedule
  * @see ScheduledCommandHandler
  */
-public interface MessageScheduler {
+public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#SENT}

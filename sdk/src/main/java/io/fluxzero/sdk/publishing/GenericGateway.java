@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.Request;
 import lombok.SneakyThrows;
@@ -65,7 +66,7 @@ import static java.util.Arrays.stream;
  * @see io.fluxzero.sdk.publishing.QueryGateway
  * @see io.fluxzero.sdk.publishing.EventGateway
  */
-public interface GenericGateway extends HasLocalHandlers {
+public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHandlers {
 
     /**
      * Sends a message asynchronously without waiting for a result or acknowledgement.
@@ -260,23 +261,6 @@ public interface GenericGateway extends HasLocalHandlers {
      * @return a {@link CompletableFuture} that completes once the retention setting is updated
      */
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
-
-    /**
-     * Returns a {@code GenericGateway} instance scoped to the default namespace.
-     *
-     * @return a {@code GenericGateway} instance associated with the default namespace
-     */
-    default GenericGateway forDefaultNamespace() {
-        return forNamespace(null);
-    }
-
-    /**
-     * Creates and returns a new {@code GenericGateway} instance scoped to the specified namespace.
-     *
-     * @param namespace the namespace to which the returned gateway is scoped
-     * @return a {@code GenericGateway} instance associated with the specified namespace
-     */
-    GenericGateway forNamespace(String namespace);
 
     /**
      * Closes this gateway and releases any underlying resources.

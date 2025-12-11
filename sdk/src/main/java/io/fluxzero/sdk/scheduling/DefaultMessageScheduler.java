@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.scheduling;
@@ -18,16 +19,20 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.With;
 import lombok.experimental.Delegate;
 
 import java.time.Instant;
@@ -47,14 +52,23 @@ import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
  * used by {@code TestFixtures}.
  */
 @AllArgsConstructor
-public class DefaultMessageScheduler implements MessageScheduler, HasLocalHandlers {
+public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler> implements MessageScheduler, HasLocalHandlers {
 
-    private final SchedulingClient client;
+    @With
+    private final Client client;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final DispatchInterceptor commandDispatchInterceptor;
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
+    
+    @Getter(lazy = true)
+    private final SchedulingClient schedulingClient = client.getSchedulingClient();
+
+    @Override
+    protected MessageScheduler createForNamespace(String namespace) {
+        return withClient(client.forNamespace(namespace));
+    }
 
     @Override
     public CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee) {
@@ -70,10 +84,10 @@ public class DefaultMessageScheduler implements MessageScheduler, HasLocalHandle
         if (serializedMessage == null) {
             return CompletableFuture.completedFuture(null);
         }
-        dispatchInterceptor.monitorDispatch(message, SCHEDULE, null);
-        return client.schedule(guarantee, new SerializedSchedule(message.getScheduleId(),
-                                                                 message.getDeadline().toEpochMilli(),
-                                                                 serializedMessage, ifAbsent));
+        dispatchInterceptor.monitorDispatch(message, SCHEDULE, null, client.namespace());
+        return getSchedulingClient().schedule(guarantee, new SerializedSchedule(message.getScheduleId(),
+                                                                           message.getDeadline().toEpochMilli(),
+                                                                           serializedMessage, ifAbsent));
     }
 
     @Override
@@ -103,7 +117,7 @@ public class DefaultMessageScheduler implements MessageScheduler, HasLocalHandle
             if (Entity.isLoading()) {
                 return;
             }
-            client.cancelSchedule(scheduleId.toString()).get();
+            getSchedulingClient().cancelSchedule(scheduleId.toString()).get();
         } catch (Exception e) {
             throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
         }
@@ -111,7 +125,7 @@ public class DefaultMessageScheduler implements MessageScheduler, HasLocalHandle
 
     @Override
     public Optional<Schedule> getSchedule(@NonNull Object scheduleId) {
-        return Optional.ofNullable(client.getSchedule(scheduleId.toString())).flatMap(
+        return Optional.ofNullable(getSchedulingClient().getSchedule(scheduleId.toString())).flatMap(
                 s -> serializer.deserializeMessages(Stream.of(s.getMessage()), SCHEDULE).findFirst()
                         .map(DeserializingMessage::toMessage).map(
                                 m -> new Schedule(m.getPayload(), m.getMetadata(), m.getMessageId(), m.getTimestamp(),

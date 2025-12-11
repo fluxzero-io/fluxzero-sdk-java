@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -18,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.Message;
 import lombok.AllArgsConstructor;
+import lombok.With;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,10 +39,21 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class DefaultErrorGateway implements ErrorGateway {
     @Delegate
+    @With
     private final GenericGateway delegate;
 
     @Override
     public CompletableFuture<Void> report(Object payload, Metadata metadata, Guarantee guarantee) {
         return delegate.sendAndForget(new Message(payload, metadata), guarantee);
+    }
+
+    @Override
+    public DefaultErrorGateway forDefaultNamespace() {
+        return forNamespace(null);
+    }
+
+    @Override
+    public DefaultErrorGateway forNamespace(String namespace) {
+        return withDelegate(delegate.forNamespace(namespace));
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.givenwhenthen;
@@ -176,6 +177,38 @@ class GivenWhenThenAsyncTest {
                                 })
                 .whenCommand("test")
                 .expectNoErrors().expectEvents("test");
+    }
+
+    @Nested
+    class NamespaceTests {
+
+        private final TestFixture testFixture = TestFixture.createAsync(new DefaultNameSpaceHandler(),
+                                                                        new FooNameSpaceHandler());
+
+        @Test
+        void sendToOtherNameSpace() {
+            testFixture.whenApplying(fz -> fz.commandGateway().forNamespace("foo").send(new YieldsEventAndResult()))
+                    .expectNoResultLike("default")
+                    .expectResult("foo");
+        }
+
+        @Consumer(name = "DefaultNameSpaceHandler")
+        private static class DefaultNameSpaceHandler {
+            @HandleCommand
+            public String handle(YieldsEventAndResult command) {
+                Fluxzero.publishEvent(command);
+                return "default";
+            }
+        }
+
+        @Consumer(name = "FooNameSpaceHandler", namespace = "foo")
+        private static class FooNameSpaceHandler {
+            @HandleCommand
+            public String handle(YieldsEventAndResult command) {
+                Fluxzero.publishEvent(command);
+                return "foo";
+            }
+        }
     }
 
     @Consumer(name = "MixedHandler", errorHandler = IgnoringErrorHandler.class)

@@ -84,7 +84,7 @@ public class WebSocketClient extends AbstractClient {
 
     private final Function<String, Client> clientSupplier = memoize(
             namespace -> {
-                if (Objects.equals(getClientConfig().getProjectId(), namespace)) {
+                if (Objects.equals(namespace(), namespace)) {
                     return this;
                 }
                 var defaultClient = getDefaultClient();
@@ -94,7 +94,7 @@ public class WebSocketClient extends AbstractClient {
                 if (namespace == null) {
                     return this;
                 }
-                return new WebSocketClient(getClientConfig().toBuilder().projectId(namespace).build(), this);
+                return new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this);
             });
 
     @Getter
@@ -124,7 +124,7 @@ public class WebSocketClient extends AbstractClient {
 
     @Override
     public String namespace() {
-        return clientConfig.getProjectId();
+        return clientConfig.getNamespace();
     }
 
     @Override
@@ -187,69 +187,85 @@ public class WebSocketClient extends AbstractClient {
     public static class ClientConfig {
 
         /**
-         * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to
-         * property {@code FLUXZERO_BASE_URL}.
+         * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property
+         * {@code FLUXZERO_BASE_URL}.
          */
-        @Default @NonNull String runtimeBaseUrl = getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL");
+        @Default
+        @NonNull
+        String runtimeBaseUrl = getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL");
 
         /**
          * The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.
          */
-        @Default @NonNull String name = getFirstAvailableProperty("FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME");
+        @Default
+        @NonNull
+        String name = getFirstAvailableProperty("FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME");
 
         /**
-         * The application identifier. May be {@code null} if not explicitly configured. Defaults to
-         * property {@code FLUXZERO_APPLICATION_ID}.
+         * The application identifier. May be {@code null} if not explicitly configured. Defaults to property
+         * {@code FLUXZERO_APPLICATION_ID}.
          */
-        @Default String applicationId = getFirstAvailableProperty("FLUXZERO_APPLICATION_ID", "FLUX_APPLICATION_ID");
+        @Default
+        String applicationId = getFirstAvailableProperty("FLUXZERO_APPLICATION_ID", "FLUX_APPLICATION_ID");
 
         /**
          * A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.
          */
-        @NonNull @Default String id = Optional.ofNullable(getFirstAvailableProperty(
+        @NonNull
+        @Default
+        String id = Optional.ofNullable(getFirstAvailableProperty(
                 "FLUXZERO_TASK_ID", "FLUX_TASK_ID")).orElseGet(UUID.randomUUID()::toString);
 
         /**
          * The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.
          */
-        @NonNull @Default CompressionAlgorithm compression = LZ4;
+        @NonNull
+        @Default
+        CompressionAlgorithm compression = LZ4;
 
         /**
          * Number of WebSocket sessions allocated for the event sourcing subsystem. Defaults to {@code 2}.
          */
-        @Default int eventSourcingSessions = 2;
+        @Default
+        int eventSourcingSessions = 2;
 
         /**
          * Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.
          */
-        @Default int keyValueSessions = 2;
+        @Default
+        int keyValueSessions = 2;
 
         /**
          * Number of WebSocket sessions allocated for the search subsystem. Defaults to {@code 2}.
          */
-        @Default int searchSessions = 2;
+        @Default
+        int searchSessions = 2;
 
         /**
-         * Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}.
-         * Defaults to {@link #defaultGatewaySessions()}.
+         * Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}. Defaults to
+         * {@link #defaultGatewaySessions()}.
          */
-        @Default Map<MessageType, Integer> gatewaySessions = defaultGatewaySessions();
+        @Default
+        Map<MessageType, Integer> gatewaySessions = defaultGatewaySessions();
 
         /**
-         * Configuration map for tracking clients per {@link MessageType}.
-         * Defaults to {@link #defaultTrackingSessions()}.
+         * Configuration map for tracking clients per {@link MessageType}. Defaults to
+         * {@link #defaultTrackingSessions()}.
          */
-        @Default Map<MessageType, TrackingClientConfig> trackingConfigs = defaultTrackingSessions();
+        @Default
+        Map<MessageType, TrackingClientConfig> trackingConfigs = defaultTrackingSessions();
 
         /**
          * How long to wait for a ping response before timing out. Defaults to {@code 5 seconds}.
          */
-        @Default Duration pingTimeout = Duration.ofSeconds(5);
+        @Default
+        Duration pingTimeout = Duration.ofSeconds(5);
 
         /**
          * The delay between automatic ping messages. Defaults to {@code 10 seconds}.
          */
-        @Default Duration pingDelay = Duration.ofSeconds(10);
+        @Default
+        Duration pingDelay = Duration.ofSeconds(10);
 
         /**
          * Whether to disable sending metrics from this client.
@@ -258,8 +274,11 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * Optional project identifier. If set, it will be included in all communication with the Runtime.
+         * <p>
+         * If not set, the default namespace will be used.
          */
-        @Default String projectId = getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID");
+        @Default
+        String namespace = getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID");
 
         /**
          * Optional type filter that restricts the types of messages tracked by this client.
@@ -309,20 +328,22 @@ public class WebSocketClient extends AbstractClient {
          * Number of parallel tracking sessions to open for the associated message type. Each session can be used to
          * track a different consumer or topic in parallel. Defaults to 1.
          */
-        @Default int sessions = 1;
+        @Default
+        int sessions = 1;
 
         /**
          * The size of the local message cache, used to improve tracking efficiency when multiple trackers are active on
          * the same message type and topic.
          * <p>
          * When {@code cacheSize > 0}, a single central tracker will be responsible for reading the latest messages from
-         * the Fluxzero Runtime for a given topic. These messages are cached locally and can be reused by other trackers,
-         * significantly reducing round-trips and load on the Fluxzero Runtime.
+         * the Fluxzero Runtime for a given topic. These messages are cached locally and can be reused by other
+         * trackers, significantly reducing round-trips and load on the Fluxzero Runtime.
          * <p>
          * If set to 0, each tracker reads directly from the Fluxzero Runtime independently.
          * <p>
          * This setting is especially useful when many handlers are listening to the same topic concurrently.
          */
-        @Default int cacheSize = 0;
+        @Default
+        int cacheSize = 0;
     }
 }

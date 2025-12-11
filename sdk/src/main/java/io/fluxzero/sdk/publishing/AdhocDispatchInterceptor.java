@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing;
@@ -17,7 +18,6 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
-import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import lombok.SneakyThrows;
 
@@ -153,7 +153,7 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      * Optionally monitors a dispatched message using any registered ad hoc interceptor for the current thread.
      */
     @Override
-    public void monitorDispatch(Message message, MessageType messageType, String topic) {
-        getAdhocInterceptor(messageType).ifPresent(i -> i.monitorDispatch(message, messageType, topic));
+    public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        getAdhocInterceptor(messageType).ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace));
     }
 }

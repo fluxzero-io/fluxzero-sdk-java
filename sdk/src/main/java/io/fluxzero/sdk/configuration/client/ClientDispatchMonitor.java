@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.client;
@@ -52,5 +53,5 @@ public interface ClientDispatchMonitor {
      * @param topic       the topic they were dispatched to, or {@code null} if not applicable
      * @param messages    the messages that were dispatched
      */
-    void accept(MessageType messageType, String topic, List<SerializedMessage> messages);
+    void accept(MessageType messageType, String topic, String namespace, List<SerializedMessage> messages);
 }

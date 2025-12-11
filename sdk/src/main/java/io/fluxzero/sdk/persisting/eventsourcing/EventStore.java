@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,11 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
-import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -41,7 +42,7 @@ import static java.util.Arrays.asList;
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  * @see io.fluxzero.sdk.modeling.Entity
  */
-public interface EventStore extends HasLocalHandlers {
+public interface EventStore extends Namespaced<EventStore>, HasLocalHandlers {
 
     /**
      * Stores one or more events for a given aggregate using the default strategy

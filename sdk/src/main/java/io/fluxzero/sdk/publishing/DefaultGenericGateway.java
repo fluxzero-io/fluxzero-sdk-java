@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -42,19 +43,17 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.Guarantee.SENT;
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static java.lang.String.format;
 import static java.util.stream.Stream.ofNullable;
 
 @AllArgsConstructor
 @Slf4j
-public class DefaultGenericGateway implements GenericGateway {
+public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> implements GenericGateway {
 
     @Getter(AccessLevel.PRIVATE)
     private final Client client;
@@ -70,9 +69,8 @@ public class DefaultGenericGateway implements GenericGateway {
 
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
 
-    private final Function<String, GenericGateway> gatewaySupplier = memoize(this::supplyGenericGateway);
-
-    GenericGateway supplyGenericGateway(String namespace) {
+    @Override
+    protected GenericGateway createForNamespace(String namespace) {
         Client clientForNamespace = client.forNamespace(namespace);
         RequestHandler requestHandlerForNamespace = requestHandler.forNamespace(namespace);
         return client == clientForNamespace ? this
@@ -96,7 +94,7 @@ public class DefaultGenericGateway implements GenericGateway {
             if (message == null) {
                 continue;
             }
-            dispatchInterceptor.monitorDispatch(message, messageType, topic);
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
             Optional<CompletableFuture<Object>> localResult
                     = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
             if (localResult.isEmpty()) {
@@ -141,7 +139,7 @@ public class DefaultGenericGateway implements GenericGateway {
                 results.add(emptyReturnMessage());
                 continue;
             }
-            dispatchInterceptor.monitorDispatch(message, messageType, topic);
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
             Optional<CompletableFuture<Object>> localResult
                     = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
             if (localResult.isPresent()) {
@@ -200,11 +198,6 @@ public class DefaultGenericGateway implements GenericGateway {
         return gatewayClient.setRetentionTime(duration, guarantee);
     }
 
-    @Override
-    public GenericGateway forNamespace(String namespace) {
-        return gatewaySupplier.apply(namespace);
-    }
-
     protected CompletableFuture<Message> emptyReturnMessage() {
         CompletableFuture<Message> c = CompletableFuture.completedFuture(Message.asMessage(null));
         if (messageType == MessageType.WEBREQUEST) {
@@ -216,5 +209,6 @@ public class DefaultGenericGateway implements GenericGateway {
     @Override
     public void close() {
         waitForResults(Duration.ofSeconds(2), callbacks.values());
+        super.close();
     }
 }
