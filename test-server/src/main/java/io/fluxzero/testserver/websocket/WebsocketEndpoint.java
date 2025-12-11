@@ -312,7 +312,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
         return CompressionAlgorithm.valueOf(compression.getFirst());
     }
 
-    protected String getProjectId(Session session) {
+    protected String getNamespace(Session session) {
         return Optional.ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst)
                 .orElse("public");
     }

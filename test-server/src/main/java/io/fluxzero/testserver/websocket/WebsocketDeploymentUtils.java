@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.testserver.websocket;
@@ -44,7 +45,7 @@ public class WebsocketDeploymentUtils {
             new DefaultByteBufferPool(false, 1024, 100, 12);
 
     public static PathHandler deploy(Function<String, Endpoint> endpointSupplier, String path, PathHandler pathHandler) {
-        return deployFromSession(memoize(endpointSupplier).compose(WebsocketDeploymentUtils::getProjectId),
+        return deployFromSession(memoize(endpointSupplier).compose(WebsocketDeploymentUtils::getNamespace),
                                  path, pathHandler);
     }
 
@@ -80,7 +81,7 @@ public class WebsocketDeploymentUtils {
         return new WebSocketDeploymentInfo().setBuffers(bufferPool).setWorker(createWorker());
     }
 
-    public static String getProjectId(Session session) {
+    public static String getNamespace(Session session) {
         return ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst).orElse("public");
     }
 
