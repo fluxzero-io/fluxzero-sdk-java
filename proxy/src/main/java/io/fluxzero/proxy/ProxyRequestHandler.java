@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.publishing.RequestHandler;
@@ -40,6 +41,7 @@ import jakarta.servlet.DispatcherType;
 import jakarta.websocket.HandshakeResponse;
 import jakarta.websocket.server.HandshakeRequest;
 import jakarta.websocket.server.ServerEndpointConfig;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.xnio.OptionMap;
@@ -54,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,20 +66,38 @@ import static io.undertow.servlet.Servlets.deployment;
 import static java.lang.String.format;
 
 @Slf4j
-public class ProxyRequestHandler implements HttpHandler, AutoCloseable {
+public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
+
+    @Getter
+    private final Client client;
+
     private final ProxySerializer serializer = new ProxySerializer();
     private final GatewayClient requestGateway;
     private final RequestHandler requestHandler;
     private final WebsocketEndpoint websocketEndpoint;
     private final HttpHandler websocketHandler;
+    private final NamespaceSelector namespaceSelector;
+
     private final AtomicBoolean closed = new AtomicBoolean();
 
     public ProxyRequestHandler(Client client) {
+        this(client, new NamespaceSelector());
+    }
+
+    private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {
+        this.client = client;
         requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
         requestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE, Duration.ofSeconds(200),
                                                    format("%s_%s", client.name(), "$proxy-request-handler"));
         websocketEndpoint = new WebsocketEndpoint(client);
         websocketHandler = createWebsocketHandler();
+        this.namespaceSelector = namespaceSelector;
+    }
+
+    @Override
+    protected ProxyRequestHandler createForNamespace(String namespace) {
+        return Objects.equals(client.namespace(), namespace)
+                ? this : new ProxyRequestHandler(client.forNamespace(namespace));
     }
 
     @Override
@@ -146,6 +167,22 @@ public class ProxyRequestHandler implements HttpHandler, AutoCloseable {
     }
 
     protected void sendWebRequest(HttpServerExchange se, WebRequest webRequest) {
+        String namespace;
+        try {
+            namespace = namespaceSelector.select(webRequest);
+        } catch (SecurityException e) {
+            se.setStatusCode(401);
+            se.getResponseSender().send(e.getMessage());
+            return;
+        }
+        if (namespace != null) {
+            forNamespace(namespace).doSendWebRequest(se, webRequest);
+            return;
+        }
+        doSendWebRequest(se, webRequest);
+    }
+
+    protected void doSendWebRequest(HttpServerExchange se, WebRequest webRequest) {
         SerializedMessage requestMessage = webRequest.serialize(serializer);
         requestHandler.sendRequest(
                         requestMessage, m -> requestGateway.append(Guarantee.SENT, m),
@@ -240,6 +277,7 @@ public class ProxyRequestHandler implements HttpHandler, AutoCloseable {
             websocketEndpoint.shutDown();
             requestHandler.close();
             requestGateway.close();
+            super.close();
         }
     }
 
@@ -280,5 +318,4 @@ public class ProxyRequestHandler implements HttpHandler, AutoCloseable {
         deploymentManager.deploy();
         return deploymentManager.start();
     }
-
 }
