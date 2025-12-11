@@ -32,6 +32,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "handlerSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.handlerSupplier",
+    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.publishing.RequestHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "nextId",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.nextId",
     "type" : "java.util.concurrent.atomic.AtomicInteger",
@@ -123,6 +131,25 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#forNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -278,6 +305,22 @@
     }, {
       "name" : "timeout",
       "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supplyRequestHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#supplyRequestHandler",
+    "returnType" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -8,7 +8,7 @@
   "documentation" : " Gateway for sending outbound web requests via Fluxzero’s proxy mechanism.\n <p>\n This gateway does not directly execute the request. Instead, it logs the request as a {@link WebRequest} message,\n which is then picked up by the Fluxzero Runtime's proxy. The proxy only executes the request if the request URL is\n <strong>absolute</strong> (e.g., starts with {@code http://} or {@code https://}).\n <p>\n <strong>Benefits of this approach include:</strong>\n <ul>\n     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Fluxzero message logs.</li>\n     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>\n     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>\n </ul>\n <p>\n This gateway also supports local request handlers, meaning that annotated methods (e.g., {@code @HandleWebRequest}) can respond to requests directly\n within the application if desired.\n\n @see WebRequest\n @see WebResponse\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.WebRequestGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ {
     "name" : "defaultSettings",
     "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway.defaultSettings",

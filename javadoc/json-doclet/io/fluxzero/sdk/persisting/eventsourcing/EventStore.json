@@ -8,7 +8,7 @@
   "documentation" : " High-level abstraction for accessing and storing domain events in an event-sourced system.\n <p>\n This interface allows writing and reading event streams associated with aggregate instances. It is responsible for\n storing events produced by aggregates and retrieving event histories to rebuild aggregate state during rehydration.\n\n <p><strong>Usage Note:</strong> While this interface is public, it is rarely used directly. Applications typically\n use higher-level abstractions such as:\n <ul>\n     <li>{@link io.fluxzero.sdk.Fluxzero#loadAggregate}</li>\n     <li>{@link io.fluxzero.sdk.persisting.repository.AggregateRepository}</li>\n     <li>{@link io.fluxzero.sdk.modeling.Entity} instances</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n @see io.fluxzero.sdk.modeling.Entity\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.eventsourcing.EventStore>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

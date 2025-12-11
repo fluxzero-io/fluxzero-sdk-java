@@ -8,7 +8,7 @@
   "documentation" : " Gateway interface for dispatching queries and receiving responses in Fluxzero.\n <p>\n The {@code QueryGateway} provides a high-level API for submitting queries and retrieving\n results, either asynchronously or synchronously. It supports rich metadata and integrates with\n both local and remote query handlers.\n <p>\n Queries can be sent as raw payloads, {@link Message} objects, or {@link Request} wrappers for typed responses.\n This interface also supports registration of local handlers via {@link #registerHandler(Object)}.\n <p>\n For message types that are queries, the {@link MessageType#QUERY} enum is typically used.\n\n @see HasLocalHandlers\n @see io.fluxzero.sdk.tracking.handling.HandleQuery\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.QueryGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

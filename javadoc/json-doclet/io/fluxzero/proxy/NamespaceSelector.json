@@ -1,0 +1,76 @@
+{
+  "name" : "NamespaceSelector",
+  "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " The NamespaceSelector class is responsible for determining and decoding a namespace value from an HTTP web request.\n It utilizes a JWT-based verification mechanism to decode and validate the namespace value.\n <p>\n This class includes a memoized {@link JwtVerifier} for managing JWT verification and a memoized namespace decoding\n function that decodes and validates the provided namespace JWT token.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "FLUXZERO_NAMESPACE_HEADER",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Namespace"
+  }, {
+    "name" : "JWKS_URL_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_JWKS_URL"
+  }, {
+    "name" : "jwtVerifier",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.jwtVerifier",
+    "type" : "java.util.function.Supplier<io.fluxzero.proxy.JwtVerifier>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespaceDecoder",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.namespaceDecoder",
+    "type" : "java.util.function.Function<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "NamespaceSelector",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#NamespaceSelector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "select",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#select",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the\n header identified by {@code FLUXZERO_NAMESPACE_HEADER} and is processed using the {@code namespaceDecoder}\n function to decode it.\n\n @param webRequest the incoming HTTP web request containing the namespace header\n @return the decoded namespace string, or {@code null} if the header is not present or the decoding fails\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

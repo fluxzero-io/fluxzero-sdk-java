@@ -8,7 +8,7 @@
   "documentation" : " Gateway for publishing event messages to Fluxzero.\n <p>\n Events represent facts that have occurred and are typically used for downstream processing, projections, or\n integration with other systems. Unlike commands and queries, events are not expected to produce a response.\n <p>\n This gateway supports both local and remote event publishing. If local handlers are registered (via\n {@link #registerHandler(Object)}), those will be invoked in-process. Otherwise, or in addition, the events are\n published to the Fluxzero Runtime for delivery to interested consumers.\n <p>\n Note that publishing an event via this gateway does <em>not</em> associate it with an aggregate. If you're\n implementing an event-sourced aggregate, use {@link io.fluxzero.sdk.modeling.Entity#apply} instead to\n apply domain events to the aggregate and persist them in the event store.\n\n @see HasLocalHandlers for registering local event handlers\n @see io.fluxzero.sdk.modeling.Entity for applying events to aggregates\n @see io.fluxzero.sdk.tracking.handling.HandleEvent for handling events\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.EventGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

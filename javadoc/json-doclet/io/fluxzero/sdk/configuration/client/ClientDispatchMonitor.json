@@ -32,6 +32,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "messages",
       "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
       "varArgs" : false,

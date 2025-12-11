@@ -8,7 +8,7 @@
   "documentation" : " Defines the low-level client contract used by {@link FluxzeroBuilder} to construct a\n {@link io.fluxzero.sdk.Fluxzero} instance.\n <p>\n Application developers must provide an implementation of this interface to the\n {@link FluxzeroBuilder#build(Client)} method. This allows for flexible configuration, enabling either an\n in-memory setup (useful for testing and local development) or a connected (WebSocket-based) client that integrates\n with the Fluxzero Runtime.\n\n <h2>Client Implementations</h2>\n Common implementations include:\n <ul>\n   <li>{@link LocalClient} — for local, standalone use</li>\n   <li>{@link WebSocketClient} — connects to the Fluxzero Runtime using WebSockets</li>\n </ul>\n\n <h2>Responsibilities</h2>\n A {@code Client} implementation is responsible for:\n <ul>\n   <li>Providing access to gateway and tracking subsystems via {@link GatewayClient} and {@link TrackingClient}</li>\n   <li>Managing subsystems for event storage, scheduling, key-value access, and search</li>\n   <li>Handling client shutdown via {@link #shutDown()} and shutdown hooks</li>\n   <li>Optionally monitoring dispatches via {@link #monitorDispatch(ClientDispatchMonitor, MessageType...)}</li>\n </ul>\n\n <h2>Usage</h2>\n <pre>{@code\n Client client = LocalClient.newInstance();\n Fluxzero fluxzero = FluxzeroBuilder.newInstance().build(client);\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.configuration.client.Client>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -199,6 +199,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the name of this client as defined in its configuration.\n"
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.Client#namespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the namespace associated with this client instance.\n"
   }, {
     "name" : "shutDown",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.Client#shutDown",

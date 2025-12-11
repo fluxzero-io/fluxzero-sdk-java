@@ -8,7 +8,7 @@
   "documentation" : " Interface for storing, updating, and querying documents in the Fluxzero Runtime.\n <p>\n This API allows objects to be indexed into searchable document collections, with support for metadata, timestamps,\n audit trails, conditional indexing, and deletion. It also supports typed or faceted full-text search queries via\n {@link Search}.\n <p>\n The interface provides various convenience methods for indexing single objects, collections, and for bulk update\n operations. Indexing behavior can be configured by annotating model classes or customizing indexing strategies\n manually.\n\n <p>Note that collection names are resolved using {@link #determineCollection(Object)} in many of this API's methods.\n\n @see Search\n @see Fluxzero#search(Object)\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.search.DocumentStore>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

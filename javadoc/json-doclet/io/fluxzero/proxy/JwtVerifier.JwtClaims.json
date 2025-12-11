@@ -1,0 +1,55 @@
+{
+  "name" : "JwtClaims",
+  "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents the claims contained in a decoded JWT (JSON Web Token).\n <p>\n This class encapsulates the JSON structure of the claims within the JWT and provides helper methods to retrieve\n specific claim values.\n <p>\n Thread-safe and immutable, as enforced by the `@Value` annotation.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "json",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims.json",
+    "type" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JwtClaims",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims#JwtClaims",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getString",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims#getString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the string value associated with the specified claim name from the JSON structure.\n\n @param name the name of the claim whose value needs to be retrieved\n @return the string value of the specified claim, or null if the claim does not exist or is not a string\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

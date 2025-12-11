@@ -1,7 +1,7 @@
 {
   "name" : "DefaultWebRequestGateway",
-  "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway",
-  "packageName" : "io.fluxzero.sdk.publishing",
+  "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
+  "packageName" : "io.fluxzero.sdk.web",
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
@@ -14,11 +14,14 @@
   "interfaces" : [ "io.fluxzero.sdk.publishing.WebRequestGateway" ],
   "fields" : [ {
     "name" : "delegate",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway.delegate",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway.delegate",
     "type" : "io.fluxzero.sdk.publishing.GenericGateway",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ {
       "annotationType" : "lombok.experimental.Delegate",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.With",
       "values" : {}
     } ],
     "documentation" : null,
@@ -26,7 +29,7 @@
   } ],
   "constructors" : [ {
     "name" : "DefaultWebRequestGateway",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#DefaultWebRequestGateway",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#DefaultWebRequestGateway",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -36,8 +39,41 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forDefaultNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#forDefaultNamespace",
+    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#forNamespace",
+    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "send",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#send",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#send",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -66,7 +102,7 @@
     "documentation" : null
   }, {
     "name" : "sendAndForget",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#sendAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#sendAndForget",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -90,7 +126,7 @@
     "documentation" : null
   }, {
     "name" : "sendAndWait",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway#sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#sendAndWait",
     "returnType" : "io.fluxzero.sdk.web.WebResponse",
     "modifiers" : [ "public" ],
     "annotations" : [ {

@@ -133,6 +133,11 @@
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

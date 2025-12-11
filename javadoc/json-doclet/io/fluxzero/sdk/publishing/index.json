@@ -60,11 +60,6 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway",
     "kind" : "class"
   }, {
-    "file" : "DefaultWebRequestGateway.json",
-    "name" : "DefaultWebRequestGateway",
-    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultWebRequestGateway",
-    "kind" : "class"
-  }, {
     "file" : "DispatchInterceptor.json",
     "name" : "DispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor",

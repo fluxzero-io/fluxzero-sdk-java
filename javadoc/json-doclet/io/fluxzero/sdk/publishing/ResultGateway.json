@@ -8,7 +8,7 @@
   "documentation" : " Gateway interface for sending result messages in response to a command or query.\n <p>\n The {@code ResultGateway} is used internally by Fluxzero to publish the result of a {@code request}, such as a\n command or query, back to the requester. Each response must specify the target (usually a client ID) and a request ID\n to correlate the result with the original request.\n\n <p>Responses can be sent as raw payloads or wrapped in a {@link Message}. Optionally, metadata and a\n {@link Guarantee} can be supplied to control how delivery is handled.\n\n <p><strong>Note:</strong> The results of handler methods—such as\n {@link HandleCommand} or {@link HandleQuery} methods—are automatically published to the {@code ResultGateway}. This\n interface is typically only used directly when you want to manually complete a request at a later time, such as after\n receiving a third-party callback or performing asynchronous processing unrelated to the original handler method.\n\n <p><strong>Example use case:</strong> Handling a payment gateway callback that matches a previously submitted\n command request.\n\n @see Message\n @see Guarantee\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.ResultGateway>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

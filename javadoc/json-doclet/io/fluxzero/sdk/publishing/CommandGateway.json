@@ -8,7 +8,7 @@
   "documentation" : " Gateway interface for publishing command messages in Fluxzero.\n <p>\n Commands represent intent—typically something that should change state in the application. They are handled by\n command handlers (annotated with {@link io.fluxzero.sdk.tracking.handling.HandleCommand}) and may yield\n results or raise validation errors.\n <p>\n This gateway supports fire-and-forget invocation as well as synchronous and asynchronous sending of commands with or\n without results. Commands may be published as raw payloads or wrapped\n {@link io.fluxzero.sdk.common.Message} objects.\n <p>\n Implementations of this interface may also invoke local handlers when available, as exposed via\n {@link HasLocalHandlers}.\n\n @see io.fluxzero.sdk.tracking.handling.HandleCommand\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.CommandGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

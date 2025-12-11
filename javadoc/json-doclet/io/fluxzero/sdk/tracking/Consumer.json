@@ -48,7 +48,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application itself is\n responsible for determining which messages to process.\n <p>\n This is typically used in combination with {@link #ignoreSegment()} set to {@code true} to ensure that all\n application instances receive every message—rather than a sharded subset.\n </p>\n\n <p>\n This mode is useful for scenarios where message delivery must be broadcast to all instances. For example, a\n WebSocket endpoint that pushes updates to connected clients may need to observe the full message stream, ensuring\n that each client sees every relevant update.\n </p>\n\n <p>\n When {@code false} (the default), Fluxzero tracks message indices and distributes segments to consumer trackers\n for balanced parallel processing.\n </p>\n"
+    "documentation" : " If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application\n itself is responsible for determining which messages to process.\n <p>\n This is typically used in combination with {@link #ignoreSegment()} set to {@code true} to ensure that all\n application instances receive every message—rather than a sharded subset.\n </p>\n\n <p>\n This mode is useful for scenarios where message delivery must be broadcast to all instances. For example, a\n WebSocket endpoint that pushes updates to connected clients may need to observe the full message stream, ensuring\n that each client sees every relevant update.\n </p>\n\n <p>\n When {@code false} (the default), Fluxzero tracks message indices and distributes segments to consumer trackers\n for balanced parallel processing.\n </p>\n"
   }, {
     "name" : "durationUnit",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#durationUnit",
@@ -81,7 +81,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Determines whether handlers assigned to this consumer are excluded from other consumers.\n <p>\n If {@code true} (default), a handler will only be active in this consumer.\n If {@code false}, the same handler may be active in multiple consumers simultaneously.\n This enables advanced scenarios such as parallel replays alongside live processing.\n </p>\n"
+    "documentation" : " Determines whether handlers assigned to this consumer are excluded from other consumers.\n <p>\n If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may\n be active in multiple consumers simultaneously. This enables advanced scenarios such as parallel replays\n alongside live processing.\n </p>\n"
   }, {
     "name" : "filterMessageTarget",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#filterMessageTarget",
@@ -125,7 +125,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " If {@code true}, this consumer will bypass the default segment-based sharding applied by the Fluxzero Runtime and\n attempt to process all message segments.\n <p>\n By default, Fluxzero shards messages across consumers using a routing key present in the message payload, or the\n message ID if no routing key is specified. However, some handlers may require a custom sharding strategy— for\n instance, sharding based on a different property in the payload.\n </p>\n\n <p>\n Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their own\n logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom\n property:\n </p>\n\n <pre>{@code\n @HandleEvent\n @RoutingKey(\"organisationId\")\n void handle(CreateUser event) {\n     // process based on organisationId instead of the default routing key\n }\n }</pre>\n"
+    "documentation" : " If {@code true}, this consumer will bypass the default segment-based sharding applied by the Fluxzero Runtime and\n attempt to process all message segments.\n <p>\n By default, Fluxzero shards messages across consumers using a routing key present in the message payload, or the\n message ID if no routing key is specified. However, some handlers may require a custom sharding strategy— for\n instance, sharding based on a different property in the payload.\n </p>\n\n <p>\n Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their\n own logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom\n property:\n </p>\n\n <pre>{@code\n @HandleEvent\n @RoutingKey(\"organisationId\")\n void handle(CreateUser event) {\n     // process based on organisationId instead of the default routing key\n }\n }</pre>\n"
   }, {
     "name" : "maxFetchSize",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#maxFetchSize",
@@ -182,6 +182,17 @@
     "varArgs" : false,
     "documentation" : " The unique name of the consumer. Required. This isolates its tracking tokens from other consumers.\n"
   }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#namespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Specifies the namespace under which the consumer tracks messages.\n <p>\n If left empty, the default namespace of the client application is used.\n\n @return The namespace under which the consumer tracks messages, or an empty string if the default client\n namespace should be used.\n\n @see Client#forNamespace(String)\n"
+  }, {
     "name" : "passive",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#passive",
     "returnType" : "boolean",
@@ -213,7 +224,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Whether this consumer is taking manual control over storing its position in the log.\n <p>\n When {@code true}, the consumer is responsible for explicitly storing its position after processing one or more\n message batches. This allows for greater control — for example, when handling long-running workflows that span\n multiple batches, or when committing position should be deferred until post-processing is complete.\n <p>\n When {@code false} (the default), the position is automatically updated after each message batch is processed,\n ensuring progress is recorded and avoiding reprocessing on restart.\n <p>\n Note: Even with manual position tracking enabled, the consumer will continue to receive \"new\" messages as long as\n the tracking process remains active. However, its persisted position will not be updated unless explicitly stored.\n"
+    "documentation" : " Whether this consumer is taking manual control over storing its position in the log.\n <p>\n When {@code true}, the consumer is responsible for explicitly storing its position after processing one or more\n message batches. This allows for greater control — for example, when handling long-running workflows that span\n multiple batches, or when committing position should be deferred until post-processing is complete.\n <p>\n When {@code false} (the default), the position is automatically updated after each message batch is processed,\n ensuring progress is recorded and avoiding reprocessing on restart.\n <p>\n Note: Even with manual position tracking enabled, the consumer will continue to receive \"new\" messages as long as\n the tracking process remains active. However, its persisted position will not be updated unless explicitly\n stored.\n"
   }, {
     "name" : "threads",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#threads",

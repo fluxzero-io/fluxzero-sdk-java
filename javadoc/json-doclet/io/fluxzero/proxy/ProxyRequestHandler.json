@@ -10,12 +10,31 @@
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.undertow.server.HttpHandler", "java.lang.AutoCloseable" ],
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.proxy.ProxyRequestHandler>",
+  "interfaces" : [ "io.undertow.server.HttpHandler" ],
   "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "closed",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.closed",
     "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespaceSelector",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.namespaceSelector",
+    "type" : "io.fluxzero.proxy.NamespaceSelector",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -76,6 +95,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "ProxyRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#ProxyRequestHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespaceSelector",
+      "type" : "io.fluxzero.proxy.NamespaceSelector",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "close",
@@ -88,6 +127,25 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createForNamespace",
+    "returnType" : "io.fluxzero.proxy.ProxyRequestHandler",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -123,6 +181,27 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "doSendWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#doSendWebRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

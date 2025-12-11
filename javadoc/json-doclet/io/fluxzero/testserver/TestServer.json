@@ -48,7 +48,7 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "projectId",
+      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -69,7 +69,7 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "projectId",
+      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]

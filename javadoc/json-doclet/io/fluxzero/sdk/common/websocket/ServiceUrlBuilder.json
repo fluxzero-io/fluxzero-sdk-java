@@ -41,7 +41,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a base URL for a given service path, including query parameters derived from the given client config.\n <p>\n This method is used by the service-specific builders above and includes fields such as:\n <ul>\n     <li>{@code clientId}</li>\n     <li>{@code clientName}</li>\n     <li>{@code projectId} (optional)</li>\n     <li>{@code compression} algorithm</li>\n </ul>\n\n @param clientConfig the WebSocket client configuration\n @param path         the service-specific path from {@link ServicePathBuilder}\n @return the constructed base URL with encoded query parameters\n"
+    "documentation" : " Constructs a base URL for a Fluxzero client for a given service path.\n\n @param clientConfig the WebSocket client configuration\n @param path         the service-specific path from {@link ServicePathBuilder}\n @return the constructed base URL with encoded query parameters\n"
   }, {
     "name" : "eventSourcingUrl",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.ServiceUrlBuilder#eventSourcingUrl",

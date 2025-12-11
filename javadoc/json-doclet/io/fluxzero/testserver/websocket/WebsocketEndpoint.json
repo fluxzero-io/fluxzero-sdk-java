@@ -251,8 +251,8 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "getProjectId",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getProjectId",
+    "name" : "getNamespace",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getNamespace",
     "returnType" : "java.lang.String",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],

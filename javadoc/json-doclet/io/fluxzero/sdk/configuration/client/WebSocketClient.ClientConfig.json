@@ -26,7 +26,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to\n property {@code FLUXZERO_APPLICATION_ID}.\n",
+    "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to property\n {@code FLUXZERO_APPLICATION_ID}.\n",
     "constantValue" : null
   }, {
     "name" : "compression",
@@ -70,7 +70,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}.\n Defaults to {@link #defaultGatewaySessions()}.\n",
+    "documentation" : " Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}. Defaults to\n {@link #defaultGatewaySessions()}.\n",
     "constantValue" : null
   }, {
     "name" : "id",
@@ -112,6 +112,17 @@
     "documentation" : " The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.\n",
     "constantValue" : null
   }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n <p>\n If not set, the default namespace will be used.\n",
+    "constantValue" : null
+  }, {
     "name" : "pingDelay",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.pingDelay",
     "type" : "java.time.Duration",
@@ -134,17 +145,6 @@
     "documentation" : " How long to wait for a ping response before timing out. Defaults to {@code 5 seconds}.\n",
     "constantValue" : null
   }, {
-    "name" : "projectId",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.projectId",
-    "type" : "java.lang.String",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
-    } ],
-    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n",
-    "constantValue" : null
-  }, {
     "name" : "runtimeBaseUrl",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.runtimeBaseUrl",
     "type" : "java.lang.@lombok.NonNull String",
@@ -156,7 +156,7 @@
       "annotationType" : "lombok.NonNull",
       "values" : {}
     } ],
-    "documentation" : " The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to\n property {@code FLUXZERO_BASE_URL}.\n",
+    "documentation" : " The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property\n {@code FLUXZERO_BASE_URL}.\n",
     "constantValue" : null
   }, {
     "name" : "searchSessions",
@@ -178,7 +178,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Configuration map for tracking clients per {@link MessageType}.\n Defaults to {@link #defaultTrackingSessions()}.\n",
+    "documentation" : " Configuration map for tracking clients per {@link MessageType}. Defaults to\n {@link #defaultTrackingSessions()}.\n",
     "constantValue" : null
   }, {
     "name" : "typeFilter",

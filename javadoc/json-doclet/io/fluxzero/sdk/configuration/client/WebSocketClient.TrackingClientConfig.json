@@ -26,7 +26,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " The size of the local message cache, used to improve tracking efficiency when multiple trackers are active on\n the same message type and topic.\n <p>\n When {@code cacheSize > 0}, a single central tracker will be responsible for reading the latest messages from\n the Fluxzero Runtime for a given topic. These messages are cached locally and can be reused by other trackers,\n significantly reducing round-trips and load on the Fluxzero Runtime.\n <p>\n If set to 0, each tracker reads directly from the Fluxzero Runtime independently.\n <p>\n This setting is especially useful when many handlers are listening to the same topic concurrently.\n",
+    "documentation" : " The size of the local message cache, used to improve tracking efficiency when multiple trackers are active on\n the same message type and topic.\n <p>\n When {@code cacheSize > 0}, a single central tracker will be responsible for reading the latest messages from\n the Fluxzero Runtime for a given topic. These messages are cached locally and can be reused by other\n trackers, significantly reducing round-trips and load on the Fluxzero Runtime.\n <p>\n If set to 0, each tracker reads directly from the Fluxzero Runtime independently.\n <p>\n This setting is especially useful when many handlers are listening to the same topic concurrently.\n",
     "constantValue" : null
   }, {
     "name" : "sessions",

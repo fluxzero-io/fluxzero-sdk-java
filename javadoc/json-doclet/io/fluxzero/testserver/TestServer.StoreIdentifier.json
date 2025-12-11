@@ -24,8 +24,8 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "projectId",
-    "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier.projectId",
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier.namespace",
     "type" : "java.lang.String",
     "modifiers" : [ ],
     "annotations" : [ ],

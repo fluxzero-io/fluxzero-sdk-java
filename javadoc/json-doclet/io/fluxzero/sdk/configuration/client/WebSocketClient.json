@@ -25,6 +25,27 @@
     } ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "clientSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.clientSupplier",
+    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.defaultClient",
+    "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "PRIVATE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebSocketClient",
@@ -156,6 +177,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#forNamespace",
+    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "id",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#id",
     "returnType" : "java.lang.String",
@@ -172,6 +212,20 @@
   }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#name",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#namespace",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {

@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$Wrapper",
     "kind" : "class"
   }, {
+    "file" : "DefaultWebRequestGateway.json",
+    "name" : "DefaultWebRequestGateway",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
+    "kind" : "class"
+  }, {
     "file" : "DefaultWebResponseMapper.json",
     "name" : "DefaultWebResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebResponseMapper",

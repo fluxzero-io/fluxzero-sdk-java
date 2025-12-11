@@ -5,6 +5,11 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "AbstractNamespaced.json",
+    "name" : "AbstractNamespaced",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced",
+    "kind" : "class"
+  }, {
     "file" : "ClientUtils.json",
     "name" : "ClientUtils",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils",
@@ -44,6 +49,11 @@
     "name" : "Message",
     "qualifiedName" : "io.fluxzero.sdk.common.Message",
     "kind" : "class"
+  }, {
+    "file" : "Namespaced.json",
+    "name" : "Namespaced",
+    "qualifiedName" : "io.fluxzero.sdk.common.Namespaced",
+    "kind" : "interface"
   }, {
     "file" : "UuidFactory.json",
     "name" : "UuidFactory",

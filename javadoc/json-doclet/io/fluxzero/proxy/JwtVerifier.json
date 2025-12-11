@@ -1,0 +1,166 @@
+{
+  "name" : "JwtVerifier",
+  "qualifiedName" : "io.fluxzero.proxy.JwtVerifier",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " JwtVerifier provides functionality to verify the cryptographic signature of a JSON Web Token (JWT) and validate its\n claims.\n <p>\n This class relies on a JWKS (JSON Web Key Set) endpoint to resolve public keys used to verify the JWT signature. It\n supports the RS256 algorithm for signature verification.\n <p>\n The public keys are cached after being fetched from the JWKS endpoint to reduce network calls.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "http",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.http",
+    "type" : "java.net.http.HttpClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "jwksUrl",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.jwksUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "keyCache",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.keyCache",
+    "type" : "java.util.Map<java.lang.String,java.security.PublicKey>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "mapper",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.mapper",
+    "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JwtVerifier",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#JwtVerifier",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "base64UrlDecode",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#base64UrlDecode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "s",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "buildRsaKey",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#buildRsaKey",
+    "returnType" : "java.security.PublicKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyNode",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchJwks",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#fetchJwks",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveKey",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#resolveKey",
+    "returnType" : "java.security.PublicKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "kid",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "verify",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#verify",
+    "returnType" : "io.fluxzero.proxy.JwtVerifier.JwtClaims",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jwt",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Verifies the provided JWT (JSON Web Token) for its signature, expiration, and not-before validity.\n <p>\n This method checks the JWT's structure and signature to ensure it has not been tampered with. It also validates\n the optional \"exp\" (expiration time) and \"nbf\" (not-before time) claims to confirm the token is within its valid\n usage time frame.\n\n @param jwt the JSON Web Token to be verified\n @return a {@link JwtClaims} object containing the claims from the valid JWT\n"
+  }, {
+    "name" : "verifySignature",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#verifySignature",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jwt",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "JwtClaims",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

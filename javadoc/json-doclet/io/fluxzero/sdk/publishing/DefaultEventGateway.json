@@ -20,6 +20,9 @@
     "annotations" : [ {
       "annotationType" : "lombok.experimental.Delegate",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.With",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -36,6 +39,39 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forDefaultNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultEventGateway#forDefaultNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultEventGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultEventGateway#forNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultEventGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "publish",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultEventGateway#publish",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

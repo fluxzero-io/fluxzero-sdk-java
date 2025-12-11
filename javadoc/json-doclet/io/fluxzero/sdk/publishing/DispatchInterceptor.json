@@ -117,10 +117,15 @@
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Hook to observe the dispatch of a message. This method is called after all interceptors have had a chance to\n block or modify the message.\n <p>\n Use this for logging or metrics, but <em>not</em> to alter or block the message.\n\n @param message     the final message about to be handled or published\n @param messageType the type of the message\n @param topic       the topic to which the message is dispatched (can be null)\n"
+    "documentation" : " Hook to observe the dispatch of a message. This method is called after all interceptors have had a chance to\n block or modify the message.\n <p>\n Use this for logging or metrics, but <em>not</em> to alter or block the message.\n\n @param message     the final message about to be handled or published\n @param messageType the type of the message\n @param topic       the topic to which the message is dispatched (can be null)\n @param namespace   the namespace to which the message is dispatched (can be null)\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

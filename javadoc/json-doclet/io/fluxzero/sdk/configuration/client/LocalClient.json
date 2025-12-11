@@ -10,6 +10,27 @@
   "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "clientSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.clientSupplier",
+    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.defaultClient",
+    "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "PRIVATE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "eventStore",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.eventStore",
     "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient",
@@ -40,7 +61,26 @@
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.messageExpiration",
     "type" : "java.time.Duration",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -61,6 +101,31 @@
     "parameters" : [ {
       "name" : "messageExpiration",
       "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "LocalClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#LocalClient",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultClient",
+      "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -179,6 +244,25 @@
       "annotations" : [ ]
     }, {
       "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#forNamespace",
+    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]

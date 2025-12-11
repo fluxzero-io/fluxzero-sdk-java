@@ -10,6 +10,21 @@
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer",
     "kind" : "class"
   }, {
+    "file" : "JwtVerifier.json",
+    "name" : "JwtVerifier",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier",
+    "kind" : "class"
+  }, {
+    "file" : "JwtVerifier.JwtClaims.json",
+    "name" : "JwtVerifier.JwtClaims",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims",
+    "kind" : "class"
+  }, {
+    "file" : "NamespaceSelector.json",
+    "name" : "NamespaceSelector",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector",
+    "kind" : "class"
+  }, {
     "file" : "ProxyRequestHandler.json",
     "name" : "ProxyRequestHandler",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",

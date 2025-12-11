@@ -10,14 +10,17 @@
   } ],
   "documentation" : " Default implementation of the {@link MessageScheduler} interface.\n <p>\n This implementation uses a {@link SchedulingClient} to schedule and cancel scheduled messages,\n and implements the {@link HasLocalHandlers} interface to allow for local handling of scheduled messages,\n used by {@code TestFixtures}.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.scheduling.MessageScheduler>",
   "interfaces" : [ "io.fluxzero.sdk.scheduling.MessageScheduler", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.client",
-    "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -44,6 +47,19 @@
     "annotations" : [ {
       "annotationType" : "lombok.experimental.Delegate",
       "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "schedulingClient",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.schedulingClient",
+    "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -85,6 +101,25 @@
         "annotationType" : "lombok.NonNull",
         "values" : {}
       } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.scheduling.MessageScheduler",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

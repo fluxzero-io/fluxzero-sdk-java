@@ -23,6 +23,9 @@
     "annotations" : [ {
       "annotationType" : "lombok.experimental.Delegate",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.With",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -39,6 +42,39 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forDefaultNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultErrorGateway#forDefaultNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultErrorGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultErrorGateway#forNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultErrorGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "report",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultErrorGateway#report",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

@@ -8,7 +8,7 @@
   "documentation" : " A generic message gateway for publication of messages in Fluxzero.\n <p>\n The {@code GenericGateway} provides a uniform interface to send and receive messages over any standard or\n user-defined topic, enabling extensibility beyond the default types such as commands, queries, events, and errors.\n <p>\n This interface supports asynchronous and synchronous message dispatching, both with and without awaiting a result. It\n also includes support for delivery guarantees and local handler registration.\n <p>\n Typical usage includes:\n <ul>\n     <li>Custom message flows that don’t fit standard message types</li>\n     <li>Internal APIs that benefit from topic-based routing</li>\n     <li>Feature-specific messaging with isolated topics</li>\n </ul>\n\n <h2>Obtaining a Gateway</h2>\n Use {@link io.fluxzero.sdk.Fluxzero#customGateway(String)} to create or retrieve a\n {@code GenericGateway} for a given topic:\n <pre>{@code\n GenericGateway myGateway = Fluxzero.customGateway(\"myTopic\");\n }</pre>\n\n @see HasLocalHandlers\n @see io.fluxzero.sdk.publishing.CommandGateway\n @see io.fluxzero.sdk.publishing.QueryGateway\n @see io.fluxzero.sdk.publishing.EventGateway\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.GenericGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
@@ -170,6 +170,32 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : " Sends multiple messages asynchronously with a specified delivery guarantee.\n"
+  }, {
+    "name" : "sendAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendAndForget",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptor",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends multiple {@link Message} objects with a guarantee.\n <p>\n Before the messages are appended to the message log in Fluxzero, they can be inspected, blocked or modified using\n the given interceptor.\n"
   }, {
     "name" : "sendAndForget",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendAndForget",
@@ -422,7 +448,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n"
+    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration the new retention duration\n"
   }, {
     "name" : "setRetentionTime",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#setRetentionTime",
