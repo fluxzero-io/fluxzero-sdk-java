@@ -783,8 +783,10 @@ public interface Fluxzero extends AutoCloseable {
     private static <T> Entity<T> playbackToHandledMessage(Entity<T> entity) {
         DeserializingMessage message = DeserializingMessage.getCurrent();
         if (message != null && (message.getMessageType() == EVENT || message.getMessageType() == NOTIFICATION)
+            && !Entity.isApplying()
             && entity.id().toString().equals(Entity.getAggregateId(message))
-            && !Entity.isApplying() && entity.rootAnnotation().eventSourced() && entity.sequenceNumber() >= 0L) {
+            && entity.rootAnnotation().eventSourced()
+            && entity.sequenceNumber() >= 0L) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Could not load entity %s of type %s for event %s. Entity (%s) started at event %s"
