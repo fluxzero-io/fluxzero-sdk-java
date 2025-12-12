@@ -265,6 +265,16 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disableScheduledCommandHandler();
 
     /**
+     * Helper method that disables all processes that contain automatic trackers. Useful for low-level applications
+     * that want to run as lean as possible.
+     * <p>
+     * E.g., this disables the scheduled command handler and automatic entity caching.
+     */
+    default FluxzeroBuilder disableAutomaticTracking() {
+        return disableAutomaticAggregateCaching().disableScheduledCommandHandler();
+    }
+
+    /**
      * Disables tracking of processing metrics.
      */
     FluxzeroBuilder disableTrackingMetrics();

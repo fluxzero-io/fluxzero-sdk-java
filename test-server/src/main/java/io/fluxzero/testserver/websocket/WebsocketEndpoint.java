@@ -24,6 +24,7 @@ import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ConnectEvent;
 import io.fluxzero.common.api.DisconnectEvent;
 import io.fluxzero.common.api.JsonType;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
@@ -168,7 +169,8 @@ public abstract class WebsocketEndpoint extends Endpoint {
             };
             requestExecutor.execute(task);
         });
-        registerMetrics(new ConnectEvent(getClientName(session), getClientId(session), session.getId(), toString()));
+        registerMetrics(new ConnectEvent(getClientName(session), getClientId(session), session.getId(), toString()),
+                        session);
     }
 
     @SneakyThrows
@@ -269,7 +271,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
             }
             registerMetrics(new DisconnectEvent(
                     getClientName(session), getClientId(session), session.getId(), toString(),
-                    closeReason.getCloseCode().getCode(), closeReason.getReasonPhrase()));
+                    closeReason.getCloseCode().getCode(), closeReason.getReasonPhrase()), session);
         }
     }
 
@@ -325,8 +327,12 @@ public abstract class WebsocketEndpoint extends Endpoint {
         return session.getRequestParameterMap().get("clientName").getFirst();
     }
 
-    protected void registerMetrics(JsonType event) {
-        metricsLog.registerMetrics(event);
+    protected void registerMetrics(JsonType event, Session session) {
+        metricsLog.registerMetrics(event, sessionMetadata(session));
+    }
+
+    protected Metadata sessionMetadata(Session session) {
+        return Metadata.of("$clientId", getClientId(session), "$clientName", getClientName(session));
     }
 
     @Value

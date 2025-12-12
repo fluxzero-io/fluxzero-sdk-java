@@ -39,16 +39,42 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.undertow.servlet.Servlets.deployment;
 import static java.util.Optional.ofNullable;
 
+/**
+ * Utility class for deploying WebSocket server endpoints using Undertow or similar frameworks. Provides methods for
+ * setting up WebSocket endpoints, maintaining endpoint configurations, and managing namespace extraction from WebSocket
+ * sessions.
+ */
 public class WebsocketDeploymentUtils {
 
     private static final ByteBufferPool bufferPool =
             new DefaultByteBufferPool(false, 1024, 100, 12);
 
-    public static PathHandler deploy(Function<String, Endpoint> endpointSupplier, String path, PathHandler pathHandler) {
+    /**
+     * Deploys a WebSocket server endpoint for the specified path using an endpoint supplier and a path handler. The
+     * method relies on a memoized session-to-namespace mapping function and integrates the deployment into the provided
+     * path handler.
+     *
+     * @param endpointSupplier a function mapping WebSocket session identifiers to their corresponding endpoints
+     * @param path             the URL path under which the WebSocket endpoint will be made accessible
+     * @param pathHandler      the handler managing path mappings for deployment
+     * @return a {@link PathHandler} that includes the new WebSocket endpoint's path configuration
+     */
+    public static PathHandler deploy(Function<String, Endpoint> endpointSupplier, String path,
+                                     PathHandler pathHandler) {
         return deployFromSession(memoize(endpointSupplier).compose(WebsocketDeploymentUtils::getNamespace),
                                  path, pathHandler);
     }
 
+    /**
+     * Deploys a WebSocket server endpoint using a specified session-to-endpoint mapping function, path, and handler.
+     * The method sets up a deployment configuration for the provided path and registers the WebSocket endpoint to
+     * handle requests at the specified path.
+     *
+     * @param endpointSupplier a memoizing function mapping WebSocket sessions to their respective endpoints
+     * @param path             the URL path under which the WebSocket endpoint is made available
+     * @param pathHandler      the handler that manages path mappings for deployment
+     * @return a {@link PathHandler} with the WebSocket path mapping added to it
+     */
     @SneakyThrows
     public static PathHandler deployFromSession(MemoizingFunction<Session, Endpoint> endpointSupplier, String path,
                                                 PathHandler pathHandler) {
@@ -77,12 +103,29 @@ public class WebsocketDeploymentUtils {
         return pathHandler.addPrefixPath(path, deploymentManager.start());
     }
 
+    /**
+     * Creates and configures a {@link WebSocketDeploymentInfo} instance, setting up the buffer pool and worker for
+     * handling WebSocket connections.
+     *
+     * @return a configured {@link WebSocketDeploymentInfo} instance
+     */
     public static WebSocketDeploymentInfo createWebsocketDeploymentInfo() {
         return new WebSocketDeploymentInfo().setBuffers(bufferPool).setWorker(createWorker());
     }
 
+    /**
+     * Extracts the namespace from the given WebSocket session, using the {@code namespace} parameter.
+     * <p>
+     * If the parameter is not present, the legacy {@code projectId} parameter is used instead. If no {@code namespace}
+     * or {@code projectsId} parameter is present in the session, the method defaults to {@code "public"}.
+     *
+     * @param session the WebSocket session
+     * @return the resolved namespace (never {@code null})
+     */
     public static String getNamespace(Session session) {
-        return ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst).orElse("public");
+        return ofNullable(session.getRequestParameterMap().get("namespace")).map(List::getFirst)
+                .or(() -> ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst))
+                .orElse("public");
     }
 
     @SneakyThrows

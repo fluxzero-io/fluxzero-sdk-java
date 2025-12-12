@@ -16,6 +16,8 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
@@ -46,14 +48,20 @@ public class ProxyServer implements Registration {
                                 .runtimeBaseUrl(url)
                                 .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID", "PROJECT_ID")).build()))
                 .orElseThrow(() -> new IllegalStateException("FLUXZERO_BASE_URL environment variable is not set"));
+
+        Fluxzero fluxzero = DefaultFluxzero.builder()
+                .disableAutomaticTracking()
+                .makeApplicationInstance(true)
+                .build(client);
+
         Registration registration = start(port, new ProxyRequestHandler(client))
                 .merge(ForwardProxyConsumer.start(client));
         log.info("Fluxzero proxy server running on port {}", port);
 
-        Runtime.getRuntime().addShutdownHook(Thread.ofPlatform().name("ProxyServer-shutdown").unstarted(() -> {
+        fluxzero.beforeShutdown(() -> {
             log.info("Stopping Fluxzero proxy server");
             registration.cancel();
-        }));
+        });
     }
 
     /**
