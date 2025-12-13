@@ -286,6 +286,17 @@
     "varArgs" : false,
     "documentation" : " Disables automatic caching of aggregates.\n"
   }, {
+    "name" : "disableAutomaticTracking",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAutomaticTracking",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Helper method that disables all processes that contain automatic trackers. Useful for low-level applications\n that want to run as lean as possible.\n <p>\n E.g., this disables the scheduled command handler and automatic entity caching.\n"
+  }, {
     "name" : "disableCacheEvictionMetrics",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableCacheEvictionMetrics",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

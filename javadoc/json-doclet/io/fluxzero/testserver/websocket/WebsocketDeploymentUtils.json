@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : null,
+  "documentation" : " Utility class for deploying WebSocket server endpoints using Undertow or similar frameworks. Provides methods for\n setting up WebSocket endpoints, maintaining endpoint configurations, and managing namespace extraction from WebSocket\n sessions.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -39,7 +39,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates and configures a {@link WebSocketDeploymentInfo} instance, setting up the buffer pool and worker for\n handling WebSocket connections.\n\n @return a configured {@link WebSocketDeploymentInfo} instance\n"
   }, {
     "name" : "createWorker",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWorker",
@@ -79,7 +79,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Deploys a WebSocket server endpoint for the specified path using an endpoint supplier and a path handler. The\n method relies on a memoized session-to-namespace mapping function and integrates the deployment into the provided\n path handler.\n\n @param endpointSupplier a function mapping WebSocket session identifiers to their corresponding endpoints\n @param path             the URL path under which the WebSocket endpoint will be made accessible\n @param pathHandler      the handler managing path mappings for deployment\n @return a {@link PathHandler} that includes the new WebSocket endpoint's path configuration\n"
   }, {
     "name" : "deployFromSession",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#deployFromSession",
@@ -108,7 +108,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Deploys a WebSocket server endpoint using a specified session-to-endpoint mapping function, path, and handler.\n The method sets up a deployment configuration for the provided path and registers the WebSocket endpoint to\n handle requests at the specified path.\n\n @param endpointSupplier a memoizing function mapping WebSocket sessions to their respective endpoints\n @param path             the URL path under which the WebSocket endpoint is made available\n @param pathHandler      the handler that manages path mappings for deployment\n @return a {@link PathHandler} with the WebSocket path mapping added to it\n"
   }, {
     "name" : "getNamespace",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#getNamespace",
@@ -124,7 +124,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Extracts the namespace from the given WebSocket session, using the {@code namespace} parameter.\n <p>\n If the parameter is not present, the legacy {@code projectId} parameter is used instead. If no {@code namespace}\n or {@code projectsId} parameter is present in the session, the method defaults to {@code \"public\"}.\n\n @param session the WebSocket session\n @return the resolved namespace (never {@code null})\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

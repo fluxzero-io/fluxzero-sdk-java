@@ -371,6 +371,11 @@
       "type" : "io.fluxzero.common.api.JsonType",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -390,6 +395,22 @@
     }, {
       "name" : "results",
       "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sessionMetadata",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#sessionMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
