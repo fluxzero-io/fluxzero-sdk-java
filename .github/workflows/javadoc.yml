@@ -3,6 +3,11 @@ name: Generate and Publish Javadoc
 on:
   workflow_call:
     inputs:
+      version:
+        description: 'Version to set (e.g., "1.0.0"). If empty, uses pom.xml version.'
+        required: false
+        type: string
+        default: ''
       modules:
         description: 'Space-separated list of modules to organize (e.g., "sdk common proxy test-server")'
         required: false
@@ -45,6 +50,10 @@ jobs:
           server-id: github
           server-username: ${{ github.actor }}
           server-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set maven version
+        if: ${{ inputs.version != '' }}
+        run: ./mvnw -B versions:set -DnewVersion=${{ inputs.version }}
 
       - name: Maven install (to fetch json-doclet from GitHub Packages)
         run: ./mvnw -B install -DskipTests

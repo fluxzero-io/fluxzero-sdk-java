@@ -101,6 +101,8 @@ jobs:
   javadoc:
     needs: build-and-test
     uses: ./.github/workflows/javadoc.yml
+    with:
+      version: ${{ needs.build-and-test.outputs.version-tag }}
 
   # Job 4: Create GitHub release (runs in parallel after build)
   github-release:
