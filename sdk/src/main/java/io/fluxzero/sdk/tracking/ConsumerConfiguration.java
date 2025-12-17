@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
@@ -55,7 +57,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
  */
 @Value
 @Builder(builderClassName = "Builder", toBuilder = true)
-public class ConsumerConfiguration {
+public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
 
     /**
      * Unique name for the consumer. Used for tracking and identifying its state.
@@ -230,6 +232,15 @@ public class ConsumerConfiguration {
      */
     @Default
     String namespace = null;
+
+    @Override
+    public ConsumerConfiguration substituteProperties() {
+        return toBuilder()
+                .name(ApplicationProperties.substituteProperties(name))
+                .namespace(ApplicationProperties.substituteProperties(namespace))
+                .typeFilter(ApplicationProperties.substituteProperties(typeFilter))
+                .build();
+    }
 
     /* ---------- Utilities for deriving configuration from annotations ---------- */
 

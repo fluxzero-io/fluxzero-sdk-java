@@ -22,6 +22,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AppliedEvent;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
@@ -260,7 +261,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
                     ? DefaultAggregateRepository.this.snapshotStore : NoOpSnapshotStore.INSTANCE;
             this.searchable = annotation.searchable();
             this.collection = Optional.of(annotation).map(Aggregate::collection)
-                    .filter(s -> !s.isEmpty()).orElse(type.getSimpleName());
+                    .filter(s -> !s.isEmpty()).map(ApplicationProperties::substituteProperties)
+                    .orElse(type.getSimpleName());
             this.idProperty = getAnnotatedProperty(type, EntityId.class).map(ReflectionUtils::getName).orElse(null);
             String timestampPath = Optional.of(annotation)
                     .map(Aggregate::timestampPath)

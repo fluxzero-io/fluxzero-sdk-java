@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.configuration.Substitutable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
@@ -43,8 +46,8 @@ import lombok.With;
  */
 @Value
 @AllArgsConstructor
-@Builder
-public class SearchParameters {
+@Builder(toBuilder = true)
+public class SearchParameters implements Substitutable<SearchParameters> {
     /**
      * Default instance with {@code searchable=true}, and no collection/timestamp configuration.
      */
@@ -74,4 +77,11 @@ public class SearchParameters {
      * unspecified, the {@code timestampPath} is used as both start and end.
      */
     String endPath;
+
+    @Override
+    public SearchParameters substituteProperties() {
+        return toBuilder()
+                .collection(ApplicationProperties.substituteProperties(collection))
+                .build();
+    }
 }

@@ -178,6 +178,7 @@ public class DefaultTracking implements Tracking {
                         this.configurations.stream())
                 .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
                 .map(config -> config.toBuilder().batchInterceptors(generalBatchInterceptors).build())
+                .map(ConsumerConfiguration::substituteProperties)
                 .collect(toMap(ConsumerConfiguration::getName, Function.identity(), (a, b) -> {
                     if (a.equals(b)) {
                         return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();

@@ -25,6 +25,7 @@ import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ForeverRetryingErrorHandler;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
@@ -206,6 +207,41 @@ class GivenWhenThenAsyncTest {
             @HandleCommand
             public String handle(YieldsEventAndResult command) {
                 Fluxzero.publishEvent(command);
+                return "foo";
+            }
+        }
+    }
+
+    @Nested
+    class PropertySubstitutionTests {
+
+        private final TestFixture testFixture = TestFixture.createAsync()
+                .withProperty("defaultConsumer", "DefaultNameSpaceHandler")
+                .withProperty("fooNamespace", "foo")
+                .registerHandlers(new DefaultNameSpaceHandler(), new FooNameSpaceHandler());
+
+        @Test
+        void sendToOtherNameSpace() {
+            testFixture.whenApplying(fz -> fz.commandGateway().forNamespace("foo").send(new YieldsEventAndResult()))
+                    .expectNoResultLike("default")
+                    .expectResult("foo");
+        }
+
+        @Consumer(name = "${defaultConsumer}")
+        private static class DefaultNameSpaceHandler {
+            @HandleCommand
+            public String handle(YieldsEventAndResult command) {
+                Fluxzero.publishEvent(command);
+                return "default";
+            }
+        }
+
+        @Consumer(name = "${fooConsumer:FooNameSpaceHandler}", namespace = "${fooNamespace}")
+        private static class FooNameSpaceHandler {
+            @HandleCommand
+            public String handle(YieldsEventAndResult command) {
+                Fluxzero.publishEvent(command);
+                assert Tracker.current().orElseThrow().getName().equals("FooNameSpaceHandler");
                 return "foo";
             }
         }
