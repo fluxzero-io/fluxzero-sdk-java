@@ -12,12 +12,14 @@
     "values" : {}
   }, {
     "annotationType" : "lombok.Builder",
-    "values" : {}
+    "values" : {
+      "toBuilder" : "true"
+    }
   } ],
   "documentation" : " Represents configuration options extracted from the\n {@link io.fluxzero.sdk.persisting.search.Searchable @Searchable} annotation on a domain type. These\n parameters determine how the entity should be indexed and queried within the {@code DocumentStore} and related search\n infrastructure.\n\n <p>Instances of this class are typically created during reflective analysis of annotated classes and cached\n for repeated lookups. They encapsulate metadata relevant to how documents are indexed, timestamped, and grouped\n within collections.\n\n <h2>Fields:</h2>\n <ul>\n   <li>{@code searchable} – whether documents of this type should be indexed and searchable.</li>\n   <li>{@code collection} – name of the logical collection under which documents are grouped; if not\n       specified, the simple name of the class is used.</li>\n   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>\n   <li>{@code endPath} – expression to extract the end timestamp (for ranged entities) from the object.</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.search.Searchable\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.configuration.Substitutable<io.fluxzero.sdk.modeling.SearchParameters>" ],
   "fields" : [ {
     "name" : "collection",
     "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters.collection",
@@ -76,7 +78,21 @@
     "varArgs" : false,
     "documentation" : null
   } ],
-  "methods" : [ ],
+  "methods" : [ {
+    "name" : "substituteProperties",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters#substituteProperties",
+    "returnType" : "io.fluxzero.sdk.modeling.SearchParameters",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

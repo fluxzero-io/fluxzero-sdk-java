@@ -29,6 +29,11 @@
     "name" : "FluxzeroConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration",
     "kind" : "interface"
+  }, {
+    "file" : "Substitutable.json",
+    "name" : "Substitutable",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.Substitutable",
+    "kind" : "interface"
   } ],
   "subdirectories" : [ {
     "name" : "client",

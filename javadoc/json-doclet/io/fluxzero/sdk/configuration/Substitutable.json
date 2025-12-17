@@ -1,0 +1,32 @@
+{
+  "name" : "Substitutable",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.Substitutable",
+  "packageName" : "io.fluxzero.sdk.configuration",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " A functional interface representing a resource with substitutable properties. This interface is designed to provide a\n mechanism for substituting placeholders in the properties of a resource with resolved values. The resource\n implementing this interface is expected to produce a new instance with all necessary substitutions applied.\n <p>\n Implementing classes should define the logic for resolving and substituting placeholder values from the application's\n configuration or environment.\n\n @param <T> the type of the resource implementing this interface\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "substituteProperties",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.Substitutable#substituteProperties",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces placeholders in the properties of the current resource with resolved values from application properties\n and returns a new instance of type {@link T}.\n\n @return a new instance of the resource with substituted properties.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -17,7 +17,7 @@
   "documentation" : " Configuration class that defines how a message consumer behaves during message tracking and handler invocation.\n <p>\n {@code ConsumerConfiguration} is used to fine-tune the behavior of message consumers beyond what is possible with the\n {@link Consumer} annotation. It supports handler filtering, tracking concurrency, custom interceptors, and more.\n\n <p><strong>Usage:</strong> Consumers can be declared programmatically using this configuration object, or generated\n automatically from {@code @Consumer} annotations on handler classes or packages.\n\n @see Consumer\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.configuration.Substitutable<io.fluxzero.sdk.tracking.ConsumerConfiguration>" ],
   "fields" : [ {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.batchInterceptors",
@@ -391,6 +391,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "substituteProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#substituteProperties",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
