@@ -507,22 +507,6 @@
     "varArgs" : false,
     "documentation" : " Retrieves the name of the property that serves as the unique identifier for the entity.\n\n @return the name of the identification property as a string\n"
   }, {
-    "name" : "ifPresent",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#ifPresent",
-    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
-    "modifiers" : [ "default", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "action",
-      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.modeling.Entity<T>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Applies the specified action to this entity if it is present, returning the result of the action. If this entity\n is not present (i.e., its value is null), the entity itself is returned unchanged.\n\n @param action the action to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts\n               and returns an {@code Entity<T>}\n @return the result of applying the action to this entity if it is present, or this entity itself if it is not\n present\n"
-  }, {
     "name" : "isApplying",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#isApplying",
     "returnType" : "boolean",
@@ -630,21 +614,80 @@
     "varArgs" : false,
     "documentation" : " Retrieves the index of the last event applied to this entity hierarchy.\n\n @return the index of the last event as a {@code Long}, or null if no events have been recorded for the entity's\n aggregate\n"
   }, {
-    "name" : "mapIfPresent",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#mapIfPresent",
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#map",
     "returnType" : "java.util.Optional<U>",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ "U" ],
     "parameters" : [ {
       "name" : "action",
-      "type" : "java.util.function.Function<io.fluxzero.sdk.modeling.Entity<T>,U>",
+      "type" : "java.util.function.Function<T,U>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Maps the entity to a new value if the entity is present. This method applies the provided mapping function to the\n entity if it is initialized and returns an {@link Optional} containing the result or an empty {@link Optional} if\n the entity is not present.\n\n @param <U>    the type of the result of applying the mapping function\n @param action the mapping function to apply to the entity if present\n @return an {@link Optional} containing the result of the mapping function, or an empty {@link Optional} if the\n entity is not present\n"
+    "documentation" : " Applies the provided mapping function to the entity value if it is present,\n and returns an {@link Optional} describing the result.\n\n @param <U> the type of the result produced by the mapping function\n @param action a mapping function to apply to the value, if present\n @return an {@link Optional} describing the result of applying the mapping function,\n         or an empty {@link Optional} if no value is present\n"
+  }, {
+    "name" : "orElse",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#orElse",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the value if present; otherwise, returns the provided default value.\n\n @param other the value to return if no value is present\n @return the value if present, otherwise the provided default value\n"
+  }, {
+    "name" : "orElseGet",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#orElseGet",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "supplier",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the current value if it is present, otherwise returns the result\n produced by the provided {@code Supplier}.\n\n @param supplier a {@code Supplier} whose result is returned if no value is present\n @return the current value if present, otherwise the result produced by the supplied {@code Supplier}\n"
+  }, {
+    "name" : "orElseThrow",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#orElseThrow",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the value if present; otherwise, throws a {@code NoSuchElementException}.\n\n @return the non-null value present\n @throws NoSuchElementException if no value is present\n"
+  }, {
+    "name" : "orElseThrow",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#orElseThrow",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "X" ],
+    "parameters" : [ {
+      "name" : "exceptionSupplier",
+      "type" : "java.util.function.Supplier<? extends X>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "X" ],
+    "varArgs" : false,
+    "documentation" : " Returns the value if present, otherwise throws an exception provided by the given {@code exceptionSupplier}.\n\n @param <X> the type of exception to be thrown\n @param exceptionSupplier the supplier which will provide the exception to be thrown if no value is present\n @return the non-null value held by this instance\n @throws X if no value is present in this instance\n"
   }, {
     "name" : "parent",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#parent",
