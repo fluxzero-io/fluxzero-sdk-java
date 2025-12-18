@@ -32,11 +32,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -193,36 +195,59 @@ public interface Entity<T> {
     }
 
     /**
-     * Applies the specified action to this entity if it is present, returning the result of the action. If this entity
-     * is not present (i.e., its value is null), the entity itself is returned unchanged.
+     * Applies the provided mapping function to the entity value if it is present,
+     * and returns an {@link Optional} describing the result.
      *
-     * @param action the action to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
-     *               and returns an {@code Entity<T>}
-     * @return the result of applying the action to this entity if it is present, or this entity itself if it is not
-     * present
+     * @param <U> the type of the result produced by the mapping function
+     * @param action a mapping function to apply to the value, if present
+     * @return an {@link Optional} describing the result of applying the mapping function,
+     *         or an empty {@link Optional} if no value is present
      */
-    default Entity<T> ifPresent(UnaryOperator<Entity<T>> action) {
-        if (get() == null) {
-            return this;
-        }
-        return action.apply(this);
+    default <U> Optional<U> map(Function<T, U> action) {
+        return Optional.ofNullable(get()).map(action);
     }
 
     /**
-     * Maps the entity to a new value if the entity is present. This method applies the provided mapping function to the
-     * entity if it is initialized and returns an {@link Optional} containing the result or an empty {@link Optional} if
-     * the entity is not present.
+     * Returns the value if present; otherwise, returns the provided default value.
      *
-     * @param <U>    the type of the result of applying the mapping function
-     * @param action the mapping function to apply to the entity if present
-     * @return an {@link Optional} containing the result of the mapping function, or an empty {@link Optional} if the
-     * entity is not present
+     * @param other the value to return if no value is present
+     * @return the value if present, otherwise the provided default value
      */
-    default <U> Optional<U> mapIfPresent(Function<Entity<T>, U> action) {
-        if (get() == null) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(action.apply(this));
+    default T orElse(T other) {
+        return Optional.ofNullable(get()).orElse(other);
+    }
+
+    /**
+     * Returns the current value if it is present, otherwise returns the result
+     * produced by the provided {@code Supplier}.
+     *
+     * @param supplier a {@code Supplier} whose result is returned if no value is present
+     * @return the current value if present, otherwise the result produced by the supplied {@code Supplier}
+     */
+    default T orElseGet(Supplier<T> supplier) {
+        return Optional.ofNullable(get()).orElseGet(supplier);
+    }
+
+    /**
+     * Returns the value if present; otherwise, throws a {@code NoSuchElementException}.
+     *
+     * @return the non-null value present
+     * @throws NoSuchElementException if no value is present
+     */
+    default T orElseThrow() {
+        return Optional.ofNullable(get()).orElseThrow();
+    }
+
+    /**
+     * Returns the value if present, otherwise throws an exception provided by the given {@code exceptionSupplier}.
+     *
+     * @param <X> the type of exception to be thrown
+     * @param exceptionSupplier the supplier which will provide the exception to be thrown if no value is present
+     * @return the non-null value held by this instance
+     * @throws X if no value is present in this instance
+     */
+    default <X extends Throwable> T orElseThrow(Supplier<? extends X> exceptionSupplier) throws X {
+        return Optional.ofNullable(get()).orElseThrow(exceptionSupplier);
     }
 
     /**
