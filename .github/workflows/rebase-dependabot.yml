@@ -14,10 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main
+      - name: Checkout main using PAT
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ secrets.DEPENDABOT_SYNC_TOKEN }}
 
       - name: Configure Git
         run: |
@@ -27,9 +28,9 @@ jobs:
       - name: Fetch or create dependabot staging branch
         run: |
           if git fetch origin dependabot-staging:dependabot-staging; then
-            echo "Fetched existing dependabot branch."
+            echo "Fetched existing dependabot-staging branch."
           else
-            echo "Dependabot branch not found, creating from main..."
+            echo "Creating dependabot-staging from main..."
             git checkout -b dependabot-staging origin/main
             git push -u origin dependabot-staging
           fi
@@ -38,7 +39,6 @@ jobs:
         run: |
           git checkout dependabot-staging
           if git rebase origin/main; then
-            echo "Rebase successful. Pushing..."
             git push --force-with-lease origin dependabot-staging
           else
             echo "Conflict detected. Resetting dependabot to main..."
