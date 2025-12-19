@@ -15,7 +15,11 @@
 
 package io.fluxzero.common.reflection;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.serialization.DefaultTypeRegistry;
 import io.fluxzero.common.serialization.JsonUtils;
@@ -521,7 +525,15 @@ public class ReflectionUtils {
     @SneakyThrows
     private static Function<Object, Object> computeGetter(@NonNull Class<?> type, @NonNull String propertyName) {
         if (ObjectNode.class.isAssignableFrom(type)) {
-            return target -> ((ObjectNode) target).get(propertyName);
+            return target -> {
+                JsonNode path = ((ObjectNode) target).path(propertyName);
+                return switch (path) {
+                    case TextNode n -> n.asText();
+                    case NumericNode n -> n.numberValue();
+                    case BooleanNode b -> b.booleanValue();
+                    default -> path;
+                };
+            };
         }
         if (Map.class.isAssignableFrom(type)) {
             return target -> ((Map<?, ?>) target).get(propertyName);

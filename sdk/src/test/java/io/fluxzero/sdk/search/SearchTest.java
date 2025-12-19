@@ -829,6 +829,36 @@ public class SearchTest {
             testFixture.whenSearching("test", contains("some", ""))
                     .expectResult(list -> list.size() == 1);
         }
+
+        @Test
+        void storeJsonDocs() {
+            TestFixture testFixture = TestFixture.create();
+            var jsonContent = """
+                    {
+                      "@class" : "com.fasterxml.jackson.databind.node.ObjectNode",
+                      "code" : "G7050",
+                      "organisationShortName" : null,
+                      "portCode" : "NLRTM",
+                      "terminalName" : "MISSISSIPPIH IMPALA PLAATS V2-3-4",
+                      "organisationName" : null,
+                      "buoy" : true,
+                      "berthGroupCode" : "MISSISSIPPIH HHTT PLAATS V2-3-4",
+                      "municipalityUnlocode" : "NLRTM",
+                      "name" : "MISSISSIPPIH IMPALA PLAATS V2-3-4",
+                      "id" : "b159833a-2a81-46c1-ac60-a8edfd4e761d",
+                      "terminalCode" : "3485",
+                      "harbourDuesArea" : true
+                    }""";
+            var entity = JsonUtils.readTree(jsonContent);
+            testFixture.given(fluxzero -> {
+                        fluxzero.documentStore().index(List.of(entity), "myIndex", "id", "timestamp");
+                        Fluxzero.index(entity, entity.get("id").asText(), "myIndex");
+                    }).whenSearching("myIndex")
+                    .expectResult(result -> {
+                        assertEquals(1, result.size());
+                        return true;
+                    });
+        }
     }
 
     @Nested
