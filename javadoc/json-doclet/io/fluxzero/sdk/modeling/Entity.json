@@ -34,6 +34,22 @@
     "documentation" : " A constant key used for identifying the aggregate type in metadata of events. The value associated with this key\n represents the type of aggregate to which the event was applied.\n",
     "constantValue" : "$aggregateType"
   }, {
+    "name" : "ALREADY_EXISTS_EXCEPTION",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity.ALREADY_EXISTS_EXCEPTION",
+    "type" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " A predefined instance of {@link IllegalCommandException} that indicates an operation failed because the target\n entity already exists.\n <p>\n This exception is initialized with a message retrieved from the application properties file. If the property\n \"fluxzero.assert.apply-compatibility.exception.already-exists\" is not found, the default message \"Already exists.\"\n is used.\n",
+    "constantValue" : null
+  }, {
+    "name" : "NOT_FOUND_EXCEPTION",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity.NOT_FOUND_EXCEPTION",
+    "type" : "io.fluxzero.sdk.tracking.handling.IllegalCommandException",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " A predefined instance of {@link IllegalCommandException} that indicates an operation failed because the target\n entity was not found.\n <p>\n This exception is initialized with a message retrieved from the application properties file. If the property\n \"fluxzero.assert.apply-compatibility.exception.not-found\" is not found, the default message \"Not found.\"\n is used.\n",
+    "constantValue" : null
+  }, {
     "name" : "applying",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity.applying",
     "type" : "java.lang.ThreadLocal<java.lang.Boolean>",

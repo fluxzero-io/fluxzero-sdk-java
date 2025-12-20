@@ -34,12 +34,12 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indicates that this resolver contributes to disambiguating handler methods when multiple\n handlers are present in the same target class.\n\n <p>This is useful when more than one method matches a message, and the framework must\n decide which method is more specific. If this returns {@code true}, the resolver's presence\n and compatibility with the parameter may influence which handler is selected.\n\n @return true, signaling that this resolver helps determine method specificity\n"
+    "documentation" : " Indicates that this resolver contributes to disambiguating handler methods when multiple handlers are present in\n the same target class.\n\n <p>This is useful when more than one method matches a message, and the framework must\n decide which method is more specific. If this returns {@code true}, the resolver's presence and compatibility\n with the parameter may influence which handler is selected.\n\n @return true, signaling that this resolver helps determine method specificity\n"
   }, {
     "name" : "getEntityParameterType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#getEntityParameterType",
     "returnType" : "java.lang.Class<?>",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -71,12 +71,12 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Attempts to retrieve an {@link Entity} instance matching the given method parameter.\n <p>\n The search is performed on:\n <ul>\n   <li>{@link HasEntity} input types (directly returning the contained entity)</li>\n   <li>{@link HasMessage} input types (by extracting aggregate metadata and loading the entity)</li>\n </ul>\n\n @param input the message or entity context\n @param parameter the method parameter being resolved\n @return the matching {@link Entity} or {@code null} if not resolvable\n"
+    "documentation" : " Attempts to retrieve an {@link Entity} instance matching the given method parameter.\n <p>\n The search is performed on:\n <ul>\n   <li>{@link HasEntity} input types (directly returning the contained entity)</li>\n   <li>{@link HasMessage} input types (by extracting aggregate metadata and loading the entity)</li>\n </ul>\n\n @param input     the message or entity context\n @param parameter the method parameter being resolved\n @return the matching {@link Entity} or {@code null} if not resolvable\n"
   }, {
     "name" : "isAssignable",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#isAssignable",
     "returnType" : "boolean",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -89,15 +89,20 @@
       "type" : "io.fluxzero.sdk.modeling.Entity<?>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "ignoreNullable",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type.\n"
+    "documentation" : null
   }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
     "returnType" : "boolean",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "protected", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -113,7 +118,33 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type.\n"
+    "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type, respecting nullable\n flags on parameters.\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreNullable",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type.\n <p>\n If {@code ignoreNullable} is {@code true}, nullable flags on parameters are ignored, meaning that a parameter is\n matched only if it is assignable from the entity type, ignoring the empty state of the entity.\n"
   }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
@@ -142,7 +173,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Determines whether the parameter can be resolved from the given input.\n The match succeeds if a suitable entity or value can be found in the message or entity context.\n\n @param parameter the method parameter\n @param methodAnnotation the annotation on the handler method (unused here)\n @param input the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})\n @return true if the parameter can be resolved from the input, false otherwise\n"
+    "documentation" : " Determines whether the parameter can be resolved from the given input. The match succeeds if a suitable entity or\n value can be found in the message or entity context.\n\n @param parameter        the method parameter\n @param methodAnnotation the annotation on the handler method (unused here)\n @param input            the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})\n @return true if the parameter can be resolved from the input, false otherwise\n"
   }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolve",
@@ -163,7 +194,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns a {@link Supplier} that returns the entity if the entity or any of its parents match the expected parameter type.\n"
+    "documentation" : " Returns a {@link Supplier} that returns the entity if the entity or any of its parents match the expected\n parameter type.\n"
   }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolve",
@@ -187,7 +218,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Provides a {@link Supplier} that returns the matching entity or its value for the given parameter.\n Will recursively traverse parent entities if needed.\n\n @param parameter the parameter for which a value must be injected\n @param methodAnnotation the annotation on the handler method (unused here)\n @return a function that supplies the resolved value\n"
+    "documentation" : " Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will\n recursively traverse parent entities if needed.\n\n @param parameter        the parameter for which a value must be injected\n @param methodAnnotation the annotation on the handler method (unused here)\n @return a function that supplies the resolved value\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

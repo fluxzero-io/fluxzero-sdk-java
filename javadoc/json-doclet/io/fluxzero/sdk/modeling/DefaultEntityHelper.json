@@ -63,7 +63,7 @@
     "type" : "io.fluxzero.sdk.modeling.Aggregate",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
-    "documentation" : " Default aggregate annotation used when the entity type is unknown. This is used to avoid caching (empty) aggregates of type Object.\n",
+    "documentation" : " Default aggregate annotation used when the entity type is unknown. This is used to avoid caching (empty)\n aggregates of type Object.\n",
     "constantValue" : null
   } ],
   "constructors" : [ {

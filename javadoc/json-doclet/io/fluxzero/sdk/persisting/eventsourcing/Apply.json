@@ -25,6 +25,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "disableCompatibilityCheck",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.Apply#disableCompatibilityCheck",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables apply-compatibility checking for this method.\n <p>\n Unless property {@code fluxzero.assert.legal.apply-compatibility} is explicitly set to {@code false}, Fluxzero\n verifies that at least one {@code @Apply} method is compatible with the current entity state.\n <p>\n Setting this flag to {@code true} exempts this method from that check.\n"
+  }, {
     "name" : "eventPublication",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.Apply#eventPublication",
     "returnType" : "io.fluxzero.sdk.modeling.EventPublication",

@@ -24,7 +24,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Immutable implementation of the {@link Entity} interface, representing a snapshot of a domain entity.\n <p>\n Unlike mutable entities, an {@code ImmutableEntity} is never changed in-place. Instead, updates such as event\n applications or transformations return a new, updated instance, preserving immutability and making it suitable\n for event-sourced state transitions, testing, and functional-style programming models.\n <p>\n This entity is typically wrapped by higher-level mutable structures such as {@code ModifiableAggregateRoot},\n which manage lifecycle and mutation tracking.\n\n <h2>Key Features</h2>\n <ul>\n     <li>Supports event application via methods annotated with {@code @Apply}</li>\n     <li>Supports recursive validation using {@code @AssertLegal}</li>\n     <li>Automatically resolves child entities and aliases using {@code @Member} and {@code @Alias} annotations</li>\n     <li>Preserves immutability by returning a new instance after each update</li>\n </ul>\n\n <h2>Common Usage</h2>\n <pre>{@code\n ImmutableEntity<Order> orderEntity = ImmutableEntity.<Order>builder()\n     .id(\"order123\")\n     .type(Order.class)\n     .value(order)\n     .entityHelper(entityHelper)\n     .serializer(serializer)\n     .build();\n\n // Apply an event and receive a new version of the entity\n orderEntity = orderEntity.apply(eventMessage);\n }</pre>\n\n <p>\n The {@link #update(UnaryOperator)} method applies a transformation to the entity value and automatically\n updates parent references when nested.\n <p>\n Event application is handled via the {@link EntityHelper} which dynamically locates appropriate handlers.\n If no direct handler is found, the event is propagated recursively to nested child entities.\n\n @param <T> the type of the underlying domain object represented by this entity\n @see Entity\n @see Apply\n @see Alias\n @see Member\n",
+  "documentation" : " Immutable implementation of the {@link Entity} interface, representing a snapshot of a domain entity.\n <p>\n Unlike mutable entities, an {@code ImmutableEntity} is never changed in-place. Instead, updates such as event\n applications or transformations return a new, updated instance, preserving immutability and making it suitable for\n event-sourced state transitions, testing, and functional-style programming models.\n <p>\n This entity is typically wrapped by higher-level mutable structures such as {@code ModifiableAggregateRoot}, which\n manage lifecycle and mutation tracking.\n\n <h2>Key Features</h2>\n <ul>\n     <li>Supports event application via methods annotated with {@code @Apply}</li>\n     <li>Supports recursive validation using {@code @AssertLegal}</li>\n     <li>Automatically resolves child entities and aliases using {@code @Member} and {@code @Alias} annotations</li>\n     <li>Preserves immutability by returning a new instance after each update</li>\n </ul>\n\n <h2>Common Usage</h2>\n <pre>{@code\n ImmutableEntity<Order> orderEntity = ImmutableEntity.<Order>builder()\n     .id(\"order123\")\n     .type(Order.class)\n     .value(order)\n     .entityHelper(entityHelper)\n     .serializer(serializer)\n     .build();\n\n // Apply an event and receive a new version of the entity\n orderEntity = orderEntity.apply(eventMessage);\n }</pre>\n\n <p>\n The {@link #update(UnaryOperator)} method applies a transformation to the entity value and automatically\n updates parent references when nested.\n <p>\n Event application is handled via the {@link EntityHelper} which dynamically locates appropriate handlers.\n If no direct handler is found, the event is propagated recursively to nested child entities.\n\n @param <T> the type of the underlying domain object represented by this entity\n @see Entity\n @see Apply\n @see Alias\n @see Member\n",
   "typeParameters" : [ "T" ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.modeling.Entity<T>" ],
@@ -245,6 +245,27 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertApplyFeasibility",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyFeasibility",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
     "varArgs" : false,
     "documentation" : null
   }, {
