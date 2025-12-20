@@ -195,13 +195,78 @@ public interface Entity<T> {
     }
 
     /**
-     * Applies the provided mapping function to the entity value if it is present,
-     * and returns an {@link Optional} describing the result.
+     * Applies the provided mapping function to the entity and returns an {@link Optional} describing the result. The
+     * function will be applied even if the entity is empty.
      *
-     * @param <U> the type of the result produced by the mapping function
+     * @param <U>    the type of the result produced by the mapping function
+     * @param action a mapping function to apply to the entity, if present
+     * @return an {@link Optional} describing the result of applying the mapping function, or an empty {@link Optional}
+     * if no value is present
+     */
+    default <U> Optional<U> mapEntity(Function<Entity<T>, U> action) {
+        return Optional.of(this).map(action);
+    }
+
+    /**
+     * Filters the current entity based on the provided predicate.
+     *
+     * @param predicate the condition to be tested against the current entity
+     * @return an {@code Optional} containing the entity if it matches the predicate, or an empty {@code Optional} if it does not
+     */
+    default Optional<Entity<T>> filterEntity(Predicate<? super Entity<T>> predicate) {
+        return Optional.of(this).filter(predicate);
+    }
+
+    /**
+     * Filters the entity based on its presence status.
+     *
+     * @return an optional containing the entity if it is present, otherwise an empty optional
+     */
+    default Optional<Entity<T>> filterPresent() {
+        return filterEntity(Entity::isPresent);
+    }
+
+    /**
+     * Maps the entity to a new value if the entity is present. This method applies the provided mapping function to the
+     * entity if it is initialized and returns an {@link Optional} containing the result or an empty {@link Optional} if
+     * the entity is not present.
+     *
+     * @param <U>    the type of the result of applying the mapping function
+     * @param action the mapping function to apply to the entity if present
+     * @return an {@link Optional} containing the result of the mapping function, or an empty {@link Optional} if the
+     * entity is not present
+     */
+    default <U> Optional<U> mapIfPresent(Function<Entity<T>, U> action) {
+        if (get() == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(action.apply(this));
+    }
+
+    /**
+     * Applies the specified action to this entity if it is present, returning the result of the action. If this entity
+     * is not present (i.e., its value is null), the entity itself is returned unchanged.
+     *
+     * @param action the action to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
+     *               and returns an {@code Entity<T>}
+     * @return the result of applying the action to this entity if it is present, or this entity itself if it is not
+     * present
+     */
+    default Entity<T> ifPresent(UnaryOperator<Entity<T>> action) {
+        if (get() == null) {
+            return this;
+        }
+        return action.apply(this);
+    }
+
+    /**
+     * Applies the provided mapping function to the entity value if it is present, and returns an {@link Optional}
+     * describing the result.
+     *
+     * @param <U>    the type of the result produced by the mapping function
      * @param action a mapping function to apply to the value, if present
-     * @return an {@link Optional} describing the result of applying the mapping function,
-     *         or an empty {@link Optional} if no value is present
+     * @return an {@link Optional} describing the result of applying the mapping function, or an empty {@link Optional}
+     * if no value is present
      */
     default <U> Optional<U> map(Function<T, U> action) {
         return Optional.ofNullable(get()).map(action);
@@ -218,8 +283,8 @@ public interface Entity<T> {
     }
 
     /**
-     * Returns the current value if it is present, otherwise returns the result
-     * produced by the provided {@code Supplier}.
+     * Returns the current value if it is present, otherwise returns the result produced by the provided
+     * {@code Supplier}.
      *
      * @param supplier a {@code Supplier} whose result is returned if no value is present
      * @return the current value if present, otherwise the result produced by the supplied {@code Supplier}
