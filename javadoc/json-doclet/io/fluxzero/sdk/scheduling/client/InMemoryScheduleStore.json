@@ -15,8 +15,8 @@
   "fields" : [ {
     "name" : "clock",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.clock",
-    "type" : "java.time.Clock",
-    "modifiers" : [ "private", "volatile" ],
+    "type" : "io.fluxzero.common.DelegatingClock",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
