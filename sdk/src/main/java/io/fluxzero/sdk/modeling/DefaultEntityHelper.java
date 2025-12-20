@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -31,6 +32,7 @@ import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import lombok.Value;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -67,7 +69,8 @@ public class DefaultEntityHelper implements EntityHelper {
     private static final Aggregate defaultAggregateAnnotation = DefaultAggregate.class.getAnnotation(Aggregate.class);
 
     /**
-     * Default aggregate annotation used when the entity type is unknown. This is used to avoid caching (empty) aggregates of type Object.
+     * Default aggregate annotation used when the entity type is unknown. This is used to avoid caching (empty)
+     * aggregates of type Object.
      */
     private static final Aggregate unknownAggregateAnnotation = UnknownAggregate.class.getAnnotation(Aggregate.class);
 
@@ -76,7 +79,7 @@ public class DefaultEntityHelper implements EntityHelper {
      */
     private static final Function<Class<?>, Aggregate> annotationCache = memoize(
             type -> Object.class.equals(type) ? unknownAggregateAnnotation : Optional.<Aggregate>ofNullable(
-            ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation));
+                    ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation));
 
     /**
      * Returns the cached or default @Aggregate annotation for a given type.
@@ -161,8 +164,13 @@ public class DefaultEntityHelper implements EntityHelper {
         Optional<HandlerInvoker> result = applyMatchers.apply(entityType).getInvoker(entity.get(), message)
                 .or(() -> applyMatchers.apply(message.getPayloadClass()).getInvoker(message.getPayload(), message)
                         .filter(i -> {
-                            if (i.getMethod() instanceof Method) {
-                                Class<?> returnType = ((Method) i.getMethod()).getReturnType();
+                            if (i.getMethod() instanceof Method m) {
+                                //@Apply methods without matching entity parameters should be ignored if the entity is present
+                                if (entity.isPresent() && Arrays.stream(m.getParameters()).noneMatch(
+                                        p -> EntityParameterResolver.matches(p, entity, false))) {
+                                    return false;
+                                }
+                                Class<?> returnType = m.getReturnType();
                                 return entityType.isAssignableFrom(returnType)
                                        || returnType.isAssignableFrom(entityType) || returnType.equals(void.class);
                             }

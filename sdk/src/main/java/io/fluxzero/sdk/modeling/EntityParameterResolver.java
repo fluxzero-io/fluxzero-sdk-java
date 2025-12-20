@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -55,10 +56,10 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
 public class EntityParameterResolver implements ParameterResolver<Object> {
 
     /**
-     * Provides a {@link Supplier} that returns the matching entity or its value for the given parameter.
-     * Will recursively traverse parent entities if needed.
+     * Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will
+     * recursively traverse parent entities if needed.
      *
-     * @param parameter the parameter for which a value must be injected
+     * @param parameter        the parameter for which a value must be injected
      * @param methodAnnotation the annotation on the handler method (unused here)
      * @return a function that supplies the resolved value
      */
@@ -68,12 +69,12 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
     }
 
     /**
-     * Determines whether the parameter can be resolved from the given input.
-     * The match succeeds if a suitable entity or value can be found in the message or entity context.
+     * Determines whether the parameter can be resolved from the given input. The match succeeds if a suitable entity or
+     * value can be found in the message or entity context.
      *
-     * @param parameter the method parameter
+     * @param parameter        the method parameter
      * @param methodAnnotation the annotation on the handler method (unused here)
-     * @param input the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})
+     * @param input            the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})
      * @return true if the parameter can be resolved from the input, false otherwise
      */
     @Override
@@ -90,7 +91,7 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
      *   <li>{@link HasMessage} input types (by extracting aggregate metadata and loading the entity)</li>
      * </ul>
      *
-     * @param input the message or entity context
+     * @param input     the message or entity context
      * @param parameter the method parameter being resolved
      * @return the matching {@link Entity} or {@code null} if not resolvable
      */
@@ -104,11 +105,11 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
             }
             if (Entity.class.isAssignableFrom(parameter.getType())
                 || Optional.of(type).map(
-                        t -> parameter.getType().isAssignableFrom(t)).orElse(false)) {
+                    t -> parameter.getType().isAssignableFrom(t)).orElse(false)) {
                 return Optional.ofNullable(Entity.getAggregateId(message)).or(message::computeRoutingKey)
                         .flatMap(possibleEntityId -> Fluxzero.getOptionally()
                                 .map(fc -> Fluxzero.loadEntity(possibleEntityId)))
-                        .filter(e -> isAssignable(parameter, e))
+                        .filter(e -> isAssignable(parameter, e, false))
                         .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
                         .orElse(null);
             }
@@ -117,44 +118,53 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
     }
 
     /**
-     * Returns {@code true} if the entity or any of its parents match the expected parameter type.
+     * Returns {@code true} if the entity or any of its parents match the expected parameter type, respecting nullable
+     * flags on parameters.
      */
-    protected boolean matches(Parameter parameter, Entity<?> entity) {
-        if (entity == null) {
-            return false;
-        }
-        if (isAssignable(parameter, entity)) {
-            return true;
-        }
-        return matches(parameter, entity.parent());
+    protected static boolean matches(Parameter parameter, Entity<?> entity) {
+        return matches(parameter, entity, false);
     }
 
     /**
-     * Returns a {@link Supplier} that returns the entity if the entity or any of its parents match the expected parameter type.
+     * Returns {@code true} if the entity or any of its parents match the expected parameter type.
+     * <p>
+     * If {@code ignoreNullable} is {@code true}, nullable flags on parameters are ignored, meaning that a parameter is
+     * matched only if it is assignable from the entity type, ignoring the empty state of the entity.
+     */
+    protected static boolean matches(Parameter parameter, Entity<?> entity, boolean ignoreNullable) {
+        if (entity == null) {
+            return false;
+        }
+        if (isAssignable(parameter, entity, ignoreNullable)) {
+            return true;
+        }
+        return matches(parameter, entity.parent(), ignoreNullable);
+    }
+
+    /**
+     * Returns a {@link Supplier} that returns the entity if the entity or any of its parents match the expected
+     * parameter type.
      */
     protected Supplier<?> resolve(Parameter parameter, Entity<?> entity) {
         if (entity == null) {
             return () -> null;
         }
-        if (isAssignable(parameter, entity)) {
+        if (isAssignable(parameter, entity, false)) {
             return Entity.class.isAssignableFrom(parameter.getType()) ? () -> entity : entity::get;
         }
         return resolve(parameter, entity.parent());
     }
 
-    /**
-     * Returns {@code true} if the entity or any of its parents match the expected parameter type.
-     */
-    protected boolean isAssignable(Parameter parameter, Entity<?> entity) {
+    private static boolean isAssignable(Parameter parameter, Entity<?> entity, boolean ignoreNullable) {
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
-                ? (isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
+                ? (ignoreNullable || isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }
 
-    private Class<?> getEntityParameterType(Parameter parameter) {
+    private static Class<?> getEntityParameterType(Parameter parameter) {
         if (Entity.class.equals(parameter.getType())) {
             Type parameterizedType = parameter.getParameterizedType();
             if (parameterizedType instanceof ParameterizedType) {
@@ -187,12 +197,12 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
     }
 
     /**
-     * Indicates that this resolver contributes to disambiguating handler methods when multiple
-     * handlers are present in the same target class.
+     * Indicates that this resolver contributes to disambiguating handler methods when multiple handlers are present in
+     * the same target class.
      *
      * <p>This is useful when more than one method matches a message, and the framework must
-     * decide which method is more specific. If this returns {@code true}, the resolver's presence
-     * and compatibility with the parameter may influence which handler is selected.
+     * decide which method is more specific. If this returns {@code true}, the resolver's presence and compatibility
+     * with the parameter may influence which handler is selected.
      *
      * @return true, signaling that this resolver helps determine method specificity
      */

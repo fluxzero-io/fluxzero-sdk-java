@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 
 import java.beans.Transient;
 import java.time.Instant;
@@ -47,6 +48,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty
 import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.Message.asMessage;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Optional.ofNullable;
@@ -80,6 +82,28 @@ public interface Entity<T> {
      * A constant key used for identifying the sequence number of an applied event in metadata.
      */
     String AGGREGATE_SN_METADATA_KEY = "$sequenceNumber";
+
+    /**
+     * A predefined instance of {@link IllegalCommandException} that indicates an operation failed because the target
+     * entity already exists.
+     * <p>
+     * This exception is initialized with a message retrieved from the application properties file. If the property
+     * "fluxzero.assert.apply-compatibility.exception.already-exists" is not found, the default message "Already exists."
+     * is used.
+     */
+    IllegalCommandException ALREADY_EXISTS_EXCEPTION = new IllegalCommandException(
+            getProperty("fluxzero.assert.apply-compatibility.exception.already-exists", "Already exists."));
+
+    /**
+     * A predefined instance of {@link IllegalCommandException} that indicates an operation failed because the target
+     * entity was not found.
+     * <p>
+     * This exception is initialized with a message retrieved from the application properties file. If the property
+     * "fluxzero.assert.apply-compatibility.exception.not-found" is not found, the default message "Not found."
+     * is used.
+     */
+    IllegalCommandException NOT_FOUND_EXCEPTION = new IllegalCommandException(
+            getProperty("fluxzero.assert.apply-compatibility.exception.not-found", "Not found."));
 
     /**
      * Indicates whether any entity is currently being loaded in this thread.
@@ -551,8 +575,9 @@ public interface Entity<T> {
             return Optional.empty();
         }
         String entityIdString = entityId.toString();
-        return allEntities().filter(e -> e.id() != null && (e.id().toString().equals(entityIdString) || e.aliases().stream().anyMatch(
-                a -> a != null && a.toString().equals(entityIdString)))).findFirst().map(e -> (Entity<C>) e);
+        return allEntities().filter(
+                e -> e.id() != null && (e.id().toString().equals(entityIdString) || e.aliases().stream().anyMatch(
+                        a -> a != null && a.toString().equals(entityIdString)))).findFirst().map(e -> (Entity<C>) e);
     }
 
     /**
@@ -775,8 +800,7 @@ public interface Entity<T> {
             }
         }
         return switch (result.size()) {
-            case 0 -> emptyList();
-            case 1 -> result.subList(0, 1);
+            case 0, 1 -> result;
             default -> {
                 result.sort(Comparator.<Entity<?>>comparingInt(Entity::depth).reversed());
                 yield result.subList(0, 1);

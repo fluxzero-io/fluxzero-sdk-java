@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -34,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -44,6 +47,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.modeling.AnnotatedEntityHolder.getEntityHolder;
 import static java.util.Collections.emptyList;
 
@@ -52,11 +56,11 @@ import static java.util.Collections.emptyList;
  * Immutable implementation of the {@link Entity} interface, representing a snapshot of a domain entity.
  * <p>
  * Unlike mutable entities, an {@code ImmutableEntity} is never changed in-place. Instead, updates such as event
- * applications or transformations return a new, updated instance, preserving immutability and making it suitable
- * for event-sourced state transitions, testing, and functional-style programming models.
+ * applications or transformations return a new, updated instance, preserving immutability and making it suitable for
+ * event-sourced state transitions, testing, and functional-style programming models.
  * <p>
- * This entity is typically wrapped by higher-level mutable structures such as {@code ModifiableAggregateRoot},
- * which manage lifecycle and mutation tracking.
+ * This entity is typically wrapped by higher-level mutable structures such as {@code ModifiableAggregateRoot}, which
+ * manage lifecycle and mutation tracking.
  *
  * <h2>Key Features</h2>
  * <ul>
@@ -188,20 +192,53 @@ public class ImmutableEntity<T> implements Entity<T> {
     @Override
     public Entity<T> apply(DeserializingMessage message) {
         Optional<HandlerInvoker> invoker = entityHelper.applyInvoker(message, this);
+        ImmutableEntity<T> result = this;
         if (invoker.isPresent()) {
             return toBuilder().value((T) invoker.get().invoke()).build();
         }
-        ImmutableEntity<T> result = this;
+        boolean applied = false;
         Object payload = message.getPayload();
         for (Entity<?> entity : result.possibleTargets(payload)) {
             ImmutableEntity<?> immutableEntity = (ImmutableEntity<?>) entity;
             Entity<?> updated = immutableEntity.apply(message);
+            if (updated != immutableEntity) {
+                applied = true;
+            }
             if (immutableEntity.get() != updated.get()) {
                 result = result.toBuilder().value((T) immutableEntity
                         .holder().updateOwner(result.get(), entity, updated)).build();
             }
         }
+        if (!applied && getBooleanProperty("fluxzero.assert.apply-compatibility", true)
+            && !Entity.isLoading()) {
+            assertApplyFeasibility(message.getPayload(), this);
+        }
         return result;
+    }
+
+    protected <E extends Exception> void assertApplyFeasibility(Object payload, Entity<?> entity) throws E {
+        if (payload == null) {
+            return;
+        }
+        Class<?> entityType = entity.type();
+        ReflectionUtils.getAnnotatedMethods(payload, Apply.class).forEach(m -> {
+            Class<?> returnType = m.getReturnType();
+            if (Arrays.stream(m.getParameters())
+                        .anyMatch(p -> EntityParameterResolver.matches(p, entity, true))
+                || entityType.isAssignableFrom(returnType) || returnType.isAssignableFrom(entityType)) {
+                Apply apply = ReflectionUtils.getAnnotation(m, Apply.class).orElseThrow();
+                if (!apply.disableCompatibilityCheck()) {
+                    if (entity.isPresent()) {
+                        throw Entity.ALREADY_EXISTS_EXCEPTION;
+                    } else {
+                        throw Entity.NOT_FOUND_EXCEPTION;
+                    }
+                }
+            }
+        });
+        for (Entity<?> e : entity.possibleTargets(payload)) {
+            assertApplyFeasibility(payload, e);
+        }
     }
 
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.eventsourcing;
@@ -154,4 +155,14 @@ public @interface Apply {
      * @return strategy for persisting and/or publishing the applied update
      */
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
+
+    /**
+     * Disables apply-compatibility checking for this method.
+     * <p>
+     * Unless property {@code fluxzero.assert.legal.apply-compatibility} is explicitly set to {@code false}, Fluxzero
+     * verifies that at least one {@code @Apply} method is compatible with the current entity state.
+     * <p>
+     * Setting this flag to {@code true} exempts this method from that check.
+     */
+    boolean disableCompatibilityCheck() default false;
 }

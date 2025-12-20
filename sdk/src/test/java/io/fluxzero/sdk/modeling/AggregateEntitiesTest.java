@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -542,6 +543,24 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testAddSingletonTwiceNotAllowed() {
+                MissingChildId childId = new MissingChildId("missing");
+                testFixture
+                        .givenCommands(new AddChild(childId))
+                        .whenCommand(new AddChild(childId))
+                        .expectExceptionalResult(Entity.ALREADY_EXISTS_EXCEPTION)
+                        .andThen()
+                        .withProperty("fluxzero.assert.apply-compatibility.exception.already-exists",
+                                      "Child already exists")
+                        .whenCommand(new AddChild(childId))
+                        .expectExceptionalResult(new IllegalCommandException("Child already exists"))
+                        .andThen()
+                        .withProperty("fluxzero.assert.apply-compatibility", false)
+                        .whenCommand(new AddChild(childId))
+                        .expectSuccessfulResult();
+            }
+
+            @Test
             void findChildJustAfterAdding() {
                 MissingChildId childId = new MissingChildId("missing");
                 TestFixture.create().given(
@@ -575,6 +594,20 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testUpdateSingleton_illegalBeforeAdding() {
+                testFixture.whenCommand(new UpdateChild("missing", "data"))
+                        .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION)
+                        .andThen()
+                        .withProperty("fluxzero.assert.apply-compatibility.exception.not-found", "Child not found")
+                        .whenCommand(new UpdateChild("missing", "data"))
+                        .expectExceptionalResult(new IllegalCommandException("Child not found"))
+                        .andThen()
+                        .withProperty("fluxzero.assert.apply-compatibility", false)
+                        .whenCommand(new UpdateChild("missing", "data"))
+                        .expectSuccessfulResult();
+            }
+
+            @Test
             void testRemoveSingleton() {
                 testFixture.whenCommand(new RemoveChild("id"))
                         .expectThat(fc -> {
@@ -583,6 +616,12 @@ public class AggregateEntitiesTest {
                             expectEntity(e -> "otherId".equals(e.id()));
                             expectEntity(e -> e.previous() != null && "otherId".equals(e.previous().id()));
                         });
+            }
+
+            @Test
+            void testRemoveSingleton_noExceptionIfNotFoundDueToApplyOverride() {
+                testFixture.whenCommand(new RemoveChild("missing"))
+                        .expectNoErrors();
             }
 
             @Test
@@ -807,7 +846,7 @@ public class AggregateEntitiesTest {
             @RoutingKey
             Object id;
 
-            @Apply
+            @Apply(disableCompatibilityCheck = true)
             Object apply(Updatable target, @NonNull Aggregate aggregate, @NonNull Metadata metadata) {
                 return null;
             }

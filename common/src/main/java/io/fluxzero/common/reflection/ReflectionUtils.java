@@ -666,6 +666,10 @@ public class ReflectionUtils {
                                       || annotation.annotationType().isAnnotationPresent(annotationType));
     }
 
+    public static boolean isOrHas(Class<?> type, Class<? extends Annotation> annotationType) {
+        return type != null && (Objects.equals(type, annotationType) || type.isAnnotationPresent(annotationType));
+    }
+
     public static Optional<Field> getField(Class<?> owner, String name) {
         while (owner != null) {
             for (Field declaredField : owner.getDeclaredFields()) {
