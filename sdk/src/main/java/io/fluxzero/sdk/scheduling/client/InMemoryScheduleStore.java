@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.scheduling.client;
 
+import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
@@ -55,7 +57,7 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
 
     private final ConcurrentSkipListMap<Long, String> scheduleIdsByIndex = new ConcurrentSkipListMap<>();
     private final AtomicLong minScheduleIndex = new AtomicLong();
-    private volatile Clock clock = Clock.systemUTC();
+    private final DelegatingClock clock = new DelegatingClock();
 
     public InMemoryScheduleStore() {
         super(SCHEDULE);
@@ -118,11 +120,9 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     public synchronized void setClock(@NonNull Clock clock) {
-        synchronized (this) {
-            this.clock = clock;
-            this.minScheduleIndex.set(0L);
-            notifyMonitors();
-        }
+        this.clock.setDelegate(clock);
+        this.minScheduleIndex.set(0L);
+        notifyMonitors();
     }
 
     public synchronized List<Schedule> getFutureSchedules(Serializer serializer) {

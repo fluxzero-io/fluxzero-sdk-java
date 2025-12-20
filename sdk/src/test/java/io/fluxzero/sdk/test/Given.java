@@ -34,6 +34,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Defines the {@code given} phase of a behavioral Given-When-Then test using a {@link TestFixture}.
@@ -215,28 +217,43 @@ public interface Given<Self extends Given<Self>> extends When {
     Self givenScheduledCommands(Schedule... commands);
 
     /**
-     * Simulates expired schedules that should be processed before the behavior under test.
+     * Simulates schedules that have already expired and should be processed before the behavior under test is
+     * executed.
      * <p>
-     * If the object is not a {@link Message}, it is wrapped as a payload with a generated ID and the current time.
+     * Each provided object is interpreted as either a {@link Schedule} or as a schedule payload. Non-schedule objects
+     * are wrapped in a {@link Schedule} with a generated technical identifier and the current test time as deadline.
+     * <p>
+     * All schedules are processed in order, and test time is advanced to the latest schedule deadline if necessary,
+     * ensuring that any intermediate schedule effects are applied before the {@code when} phase begins.
      */
     default Self givenExpiredSchedules(Object... schedules) {
-        return givenSchedules(
-                Arrays.stream(schedules).map(p -> new Schedule(
-                                p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime()))
-                        .toArray(Schedule[]::new));
+        List<Schedule> mappedSchedules = Arrays.stream(schedules).map(p -> p instanceof Schedule s ? s :
+                new Schedule(p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime())).toList();
+        Self self = givenSchedules(mappedSchedules.toArray(Schedule[]::new));
+        var lastDeadline = mappedSchedules.stream().map(Schedule::getDeadline).max(Comparator.naturalOrder()).orElseGet(
+                self::getCurrentTime);
+        return self.getCurrentTime().isBefore(lastDeadline) ? givenTimeAdvancedTo(lastDeadline) : self;
     }
 
     /**
      * Advances the test clock to the specified {@code timestamp} before the behavior under test.
      * <p>
-     * Any schedules that expire during the jump will be processed.
+     * Time may be advanced in steps rather than a single jump if messages are set to expire before the target
+     * timestamp, ensuring that intermediate schedules are processed in order. If handling those schedules triggers
+     * additional schedules that are due before the target timestamp, they are fired as well.
+     * <p>
+     * This allows tests to simulate real-world scheduling behavior accurately.
      */
     Self givenTimeAdvancedTo(Instant timestamp);
 
     /**
      * Advances the test clock by the given {@code duration} before the behavior under test.
      * <p>
-     * Any schedules that expire during the jump will be processed.
+     * Time may be advanced in steps rather than a single jump if messages are set to expire before the target
+     * timestamp, ensuring that intermediate schedules are processed in order. If handling those schedules triggers
+     * additional schedules that are due before the target timestamp, they are fired as well.
+     * <p>
+     * This allows tests to simulate real-world scheduling behavior accurately.
      */
     Self givenElapsedTime(Duration duration);
 

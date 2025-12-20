@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -46,6 +47,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Value
 @NoArgsConstructor
 public class FixtureResult {
+
+    /**
+     * Indicates whether the when-phase has started on the fixture.
+     */
+    @NonFinal
+    @Setter
+    boolean whenPhaseStarted;
 
     /**
      * Indicates whether the fixture is currently collecting results (e.g., during the {@code when} phase).

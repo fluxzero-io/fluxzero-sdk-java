@@ -779,9 +779,9 @@ public class TestFixture implements Given<TestFixture>, When {
     protected TestFixture givenModification(ThrowingConsumer<TestFixture> modifier) {
         try {
             return modifyFixture(fixture -> {
-                fixture.handleExpiredSchedulesLocally(false);
+                fixture.handleExpiredSchedulesLocally();
                 modifier.accept(fixture);
-                fixture.handleExpiredSchedulesLocally(false);
+                fixture.handleExpiredSchedulesLocally();
                 fixture.waitForConsumers();
             });
         } catch (Throwable e) {
@@ -894,7 +894,16 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public Then<?> whenScheduleExpires(Object schedule) {
         Message message = trace(schedule);
-        return whenExecuting(fc -> fc.messageScheduler().schedule(message, getCurrentTime()));
+        return whenExecuting(fc -> {
+            if (message instanceof Schedule s) {
+                fc.messageScheduler().schedule(s);
+                if (s.getDeadline().isAfter(getCurrentTime())) {
+                    advanceTimeTo(s.getDeadline());
+                }
+            } else {
+                fc.messageScheduler().schedule(message, getCurrentTime());
+            }
+        });
     }
 
     @Override
@@ -918,7 +927,8 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public <R> Then<R> whenApplying(ThrowingFunction<Fluxzero, R> action) {
         return fluxzero.apply(fc -> {
-            handleExpiredSchedulesLocally(true);
+            fixtureResult.setWhenPhaseStarted(true);
+            handleExpiredSchedulesLocally();
             waitForConsumers();
             resetMocks();
             fixtureResult.setCollectingResults(true);
@@ -934,7 +944,7 @@ public class TestFixture implements Given<TestFixture>, When {
             }
             fixtureResult.setResult(result);
             waitForConsumers();
-            handleExpiredSchedulesLocally(true);
+            handleExpiredSchedulesLocally();
             return new ResultValidator<>(this);
         });
     }
@@ -993,7 +1003,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                                                                  .toList());
     }
 
-    protected void handleExpiredSchedulesLocally(boolean collectErrors) {
+    protected void handleExpiredSchedulesLocally() {
         getFluxzero().taskScheduler().executeExpiredTasks();
         if (synchronous) {
             try {
@@ -1008,7 +1018,7 @@ public class TestFixture implements Given<TestFixture>, When {
                     } while (!expiredSchedules.isEmpty());
                 }
             } catch (Throwable e) {
-                if (collectErrors) {
+                if (fixtureResult.isWhenPhaseStarted()) {
                     registerError(e);
                 } else {
                     throw e;
@@ -1076,11 +1086,21 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void setClock(Clock clock) {
-        getFluxzero().withClock(clock);
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
         if (schedulingClient instanceof LocalSchedulingClient local) {
+            var target = clock.instant();
+            var nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+            while (nextDeadline != null && nextDeadline.isBefore(target)) {
+                Clock nextClock = Clock.fixed(nextDeadline, ZoneId.systemDefault());
+                getFluxzero().withClock(nextClock);
+                local.setClock(nextClock);
+                handleExpiredSchedulesLocally();
+                nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+            }
+            getFluxzero().withClock(clock);
             local.setClock(clock);
         } else {
+            getFluxzero().withClock(clock);
             log.warn("Could not update clock of scheduling client. Timing tests may not work.");
         }
     }

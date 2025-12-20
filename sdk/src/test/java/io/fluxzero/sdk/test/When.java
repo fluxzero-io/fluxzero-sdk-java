@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.Search;
+import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
@@ -356,21 +357,35 @@ public interface When {
     }
 
     /**
-     * Simulates the expiration of a schedule and returns expectations for the triggered behavior.
+     * Simulates the expiration of a schedule and returns expectations for the behavior triggered by that expiration.
+     * <p>
+     * If the given object is a {@link Schedule}, it is scheduled and test time is advanced to its deadline if
+     * necessary, causing the schedule to expire naturally.
+     * <p>
+     * If the given object is not a {@link Schedule} (typically the payload of a schedule), it is scheduled to execute
+     * immediately at the current test time.
      */
     Then<?> whenScheduleExpires(Object schedule);
 
     /**
      * Simulates advancing the test clock to the specified timestamp.
      * <p>
-     * Any schedule that expires as a result will be triggered.
+     * Time may be advanced in steps rather than a single jump if messages are set to expire before the target
+     * timestamp, ensuring that intermediate schedules are processed in order. If handling those schedules triggers
+     * additional schedules that are due before the target timestamp, they are fired as well.
+     * <p>
+     * This allows tests to simulate real-world scheduling behavior accurately.
      */
     Then<?> whenTimeAdvancesTo(Instant timestamp);
 
     /**
      * Simulates advancing the test clock by the specified duration.
      * <p>
-     * Any schedule that expires as a result will be triggered.
+     * Time may be advanced in steps rather than a single jump if messages are set to expire before the target
+     * timestamp, ensuring that intermediate schedules are processed in order. If handling those schedules triggers
+     * additional schedules that are due before the target timestamp, they are fired as well.
+     * <p>
+     * This allows tests to simulate real-world scheduling behavior accurately.
      */
     Then<?> whenTimeElapses(Duration duration);
 
