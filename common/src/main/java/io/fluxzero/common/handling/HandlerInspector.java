@@ -262,7 +262,7 @@ public class HandlerInspector {
 
         @SuppressWarnings("unchecked")
         protected Optional<Function<Object, HandlerInvoker>> prepareInvoker(M m) {
-            if (!config.messageFilter().test(m, executable, methodAnnotationType)) {
+            if (!config.messageFilter().test(m, executable, methodAnnotationType, targetClass)) {
                 return Optional.empty();
             }
 

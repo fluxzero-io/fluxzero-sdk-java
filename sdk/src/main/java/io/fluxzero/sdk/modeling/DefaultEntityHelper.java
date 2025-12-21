@@ -89,7 +89,7 @@ public class DefaultEntityHelper implements EntityHelper {
     }
 
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
-    private final Function<Class<?>, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
+    private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> assertLegalMatchers;
     private final boolean disablePayloadValidation;
 
@@ -103,11 +103,38 @@ public class DefaultEntityHelper implements EntityHelper {
     public DefaultEntityHelper(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                boolean disablePayloadValidation) {
         this.interceptMatchers = memoize(type -> inspect(type, (List) parameterResolvers, InterceptApply.class));
-        this.applyMatchers = memoize(type -> inspect(type, parameterResolvers, Apply.class));
+        this.applyMatchers = memoize((type, checkCompatibility) -> {
+            var entityParameterResolver = new EntityParameterResolver(checkCompatibility);
+            List resolvers = parameterResolvers.stream().map(r -> r instanceof EntityParameterResolver ? entityParameterResolver : r).toList();
+            return inspect(type, resolvers, applyHandlerConfiguration(checkCompatibility, entityParameterResolver));
+        });
         this.assertLegalMatchers = memoize(type -> inspect(
                 type, (List) parameterResolvers, HandlerConfiguration.builder().methodAnnotation(AssertLegal.class)
                         .invokeMultipleMethods(true).build()));
         this.disablePayloadValidation = disablePayloadValidation;
+    }
+
+    protected static HandlerConfiguration<DeserializingMessageWithEntity> applyHandlerConfiguration(
+            boolean checkCompatibility, EntityParameterResolver entityParameterResolver) {
+        return HandlerConfiguration.<DeserializingMessageWithEntity>builder().methodAnnotation(Apply.class)
+                .messageFilter((hi, executable, handlerAnnotation, targetClass) -> {
+                    if (executable instanceof Method m && targetClass.isAssignableFrom(hi.getPayloadClass())) {
+                        var entity = hi.getEntity();
+                        var entityType = entity.type();
+
+                        //return type should match entity
+                        Class<?> returnType = m.getReturnType();
+                        if (!entityType.isAssignableFrom(returnType) && !returnType.isAssignableFrom(entityType)
+                            && !returnType.equals(void.class)) {
+                            return false;
+                        }
+
+                        //@Apply methods without matching entity parameters should be ignored if the entity is present
+                        return !checkCompatibility || entity.isEmpty() || Arrays.stream(m.getParameters())
+                                .anyMatch(p -> entityParameterResolver.matches(p, entity));
+                    }
+                    return true;
+                }).build();
     }
 
     /**
@@ -158,45 +185,35 @@ public class DefaultEntityHelper implements EntityHelper {
      * Finds a handler method annotated with {@code @Apply} and wraps it to preserve apply context flags.
      */
     @Override
-    public Optional<HandlerInvoker> applyInvoker(DeserializingMessage event, Entity<?> entity, boolean searchChildren) {
+    public Optional<HandlerInvoker> applyInvoker(DeserializingMessage event, Entity<?> entity, boolean searchChildren,
+                                                 boolean checkCompatibility) {
         var message = new DeserializingMessageWithEntity(event, entity);
         Class<?> entityType = entity.type();
-        Optional<HandlerInvoker> result = applyMatchers.apply(entityType).getInvoker(entity.get(), message)
-                .or(() -> applyMatchers.apply(message.getPayloadClass()).getInvoker(message.getPayload(), message)
-                        .filter(i -> {
-                            if (i.getMethod() instanceof Method m) {
-                                //@Apply methods without matching entity parameters should be ignored if the entity is present
-                                if (entity.isPresent() && Arrays.stream(m.getParameters()).noneMatch(
-                                        p -> EntityParameterResolver.matches(p, entity, false))) {
-                                    return false;
-                                }
-                                Class<?> returnType = m.getReturnType();
-                                return entityType.isAssignableFrom(returnType)
-                                       || returnType.isAssignableFrom(entityType) || returnType.equals(void.class);
-                            }
-                            return false;
-                        }))
-                .map(i -> new HandlerInvoker.DelegatingHandlerInvoker(i) {
-                    @Override
-                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                        return message.apply(m -> {
-                            boolean wasApplying = Entity.isApplying();
-                            try {
-                                Entity.applying.set(true);
-                                Object result = delegate.invoke();
-                                if (result == null && !delegate.expectResult()) {
-                                    return entity.get(); //Annotated method returned void - apparently the entity is mutable
-                                }
-                                return result;
-                            } finally {
-                                Entity.applying.set(wasApplying);
+        Optional<HandlerInvoker> result =
+                applyMatchers.apply(entityType, checkCompatibility).getInvoker(entity.get(), message)
+                        .or(() -> applyMatchers.apply(message.getPayloadClass(), checkCompatibility)
+                                .getInvoker(message.getPayload(), message))
+                        .map(i -> new HandlerInvoker.DelegatingHandlerInvoker(i) {
+                            @Override
+                            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                                return message.apply(m -> {
+                                    boolean wasApplying = Entity.isApplying();
+                                    try {
+                                        Entity.applying.set(true);
+                                        Object result = delegate.invoke();
+                                        if (result == null && !delegate.expectResult()) {
+                                            return entity.get(); //Annotated method returned void - apparently the entity is mutable
+                                        }
+                                        return result;
+                                    } finally {
+                                        Entity.applying.set(wasApplying);
+                                    }
+                                });
                             }
                         });
-                    }
-                });
         if (result.isEmpty() && searchChildren) {
-            for (Entity<?> e : entity.possibleTargets(message.getPayload())) {
-                result = applyInvoker(event, e, true);
+            for (Entity<?> e : entity.possibleTargets(event.getPayload())) {
+                result = applyInvoker(event, e, true, checkCompatibility);
                 if (result.isPresent()) {
                     return result;
                 }

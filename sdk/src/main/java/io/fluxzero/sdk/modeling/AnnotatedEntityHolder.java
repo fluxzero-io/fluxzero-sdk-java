@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -218,7 +219,7 @@ public class AnnotatedEntityHolder {
                             e.getValue(), v -> new Id(e.getKey(), idProvider.apply(v).property()), parent).stream()),
                     Stream.of(emptyEntity));
         } else {
-            return createEntity(holderValue, idProvider, parent).stream();
+            return Stream.concat(createEntity(holderValue, idProvider, parent).stream(), Stream.of(emptyEntity));
         }
     }
 

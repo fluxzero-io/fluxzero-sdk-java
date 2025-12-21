@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.handling;
@@ -77,7 +78,7 @@ public class HandlerConfiguration<M> {
      * topic filtering, or segment-based routing.
      */
     @Default
-    MessageFilter<? super M> messageFilter = (m, e, handlerAnnotation) -> true;
+    MessageFilter<? super M> messageFilter = (m, e, handlerAnnotation, targetClass) -> true;
 
     /**
      * Determines whether the given method is eligible to handle messages according to this configuration.

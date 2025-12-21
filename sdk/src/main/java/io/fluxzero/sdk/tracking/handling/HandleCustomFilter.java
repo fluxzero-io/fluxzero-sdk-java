@@ -44,7 +44,7 @@ public class HandleCustomFilter implements MessageFilter<DeserializingMessage> {
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
-                        Class<? extends Annotation> handlerAnnotation) {
+                        Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
         return handleCustomCache.apply(executable).map(c -> Objects.equals(c.value(), message.getTopic()))
                 .orElse(false);
     }

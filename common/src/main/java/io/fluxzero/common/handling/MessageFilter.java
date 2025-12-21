@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.handling;
@@ -42,9 +43,10 @@ public interface MessageFilter<M> {
      * @param message           the message instance to evaluate
      * @param executable        the candidate handler method
      * @param handlerAnnotation the annotation that marks the method as a handler (e.g. {@code @HandleCommand})
+     * @param targetClass       the class of the handler object
      * @return {@code true} if the message is accepted by this filter for the given handler method
      */
-    boolean test(M message, Executable executable, Class<? extends Annotation> handlerAnnotation);
+    boolean test(M message, Executable executable, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass);
 
     /**
      * Provides the least specific class type that is allowed to match this filter for a given method and annotation.
@@ -71,8 +73,8 @@ public interface MessageFilter<M> {
         var first = this;
         return new MessageFilter<>() {
             @Override
-            public boolean test(M m, Executable e, Class<? extends Annotation> handlerAnnotation) {
-                return first.test(m, e, handlerAnnotation) && second.test(m, e, handlerAnnotation);
+            public boolean test(M m, Executable e, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+                return first.test(m, e, handlerAnnotation, targetClass) && second.test(m, e, handlerAnnotation, targetClass);
             }
 
             @Override

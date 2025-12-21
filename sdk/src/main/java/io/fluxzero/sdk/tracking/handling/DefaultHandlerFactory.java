@@ -179,7 +179,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                 .flatMap(p -> ReflectionUtils.getPackageAnnotation(p, TrackSelf.class)));
                 if (trackSelf.isPresent()) {
                     MessageFilter<DeserializingMessage> selfFilter =
-                            (message, method, handlerAnnotation) -> targetClass.isAssignableFrom(
+                            (message, method, handlerAnnotation, t) -> t.isAssignableFrom(
                                     message.getPayloadClass());
                     config = config.toBuilder().messageFilter(selfFilter.and(config.messageFilter())).build();
                     return createDefaultHandler(targetClass, DeserializingMessage::getPayload, config);
@@ -202,7 +202,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (messageType == MessageType.WEBREQUEST) {
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
-                    var messageFilter = config.messageFilter().and((m, e, a )-> {
+                    var messageFilter = config.messageFilter().and((m, e, a, t)-> {
                         if (m instanceof DeserializingMessage dm) {
                             var context = DefaultWebRequestContext.getWebRequestContext(dm);
                             return context != null && !context.matchesAny(h.getIgnorePaths());

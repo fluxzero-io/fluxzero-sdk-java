@@ -19,6 +19,7 @@ import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
@@ -53,7 +54,14 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
  * <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple
  * handler methods are present in the same target class.
  */
+@AllArgsConstructor
 public class EntityParameterResolver implements ParameterResolver<Object> {
+
+    private final boolean checkCompatibility;
+
+    public EntityParameterResolver() {
+        this(true);
+    }
 
     /**
      * Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will
@@ -109,7 +117,7 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
                 return Optional.ofNullable(Entity.getAggregateId(message)).or(message::computeRoutingKey)
                         .flatMap(possibleEntityId -> Fluxzero.getOptionally()
                                 .map(fc -> Fluxzero.loadEntity(possibleEntityId)))
-                        .filter(e -> isAssignable(parameter, e, false))
+                        .filter(e -> isAssignable(parameter, e))
                         .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
                         .orElse(null);
             }
@@ -121,24 +129,14 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
      * Returns {@code true} if the entity or any of its parents match the expected parameter type, respecting nullable
      * flags on parameters.
      */
-    protected static boolean matches(Parameter parameter, Entity<?> entity) {
-        return matches(parameter, entity, false);
-    }
-
-    /**
-     * Returns {@code true} if the entity or any of its parents match the expected parameter type.
-     * <p>
-     * If {@code ignoreNullable} is {@code true}, nullable flags on parameters are ignored, meaning that a parameter is
-     * matched only if it is assignable from the entity type, ignoring the empty state of the entity.
-     */
-    protected static boolean matches(Parameter parameter, Entity<?> entity, boolean ignoreNullable) {
+    protected boolean matches(Parameter parameter, Entity<?> entity) {
         if (entity == null) {
             return false;
         }
-        if (isAssignable(parameter, entity, ignoreNullable)) {
+        if (isAssignable(parameter, entity)) {
             return true;
         }
-        return matches(parameter, entity.parent(), ignoreNullable);
+        return matches(parameter, entity.parent());
     }
 
     /**
@@ -149,22 +147,22 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
         if (entity == null) {
             return () -> null;
         }
-        if (isAssignable(parameter, entity, false)) {
+        if (isAssignable(parameter, entity)) {
             return Entity.class.isAssignableFrom(parameter.getType()) ? () -> entity : entity::get;
         }
         return resolve(parameter, entity.parent());
     }
 
-    private static boolean isAssignable(Parameter parameter, Entity<?> entity, boolean ignoreNullable) {
+    private boolean isAssignable(Parameter parameter, Entity<?> entity) {
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
-                ? (ignoreNullable || isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
+                ? (!checkCompatibility || isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }
 
-    private static Class<?> getEntityParameterType(Parameter parameter) {
+    private Class<?> getEntityParameterType(Parameter parameter) {
         if (Entity.class.equals(parameter.getType())) {
             Type parameterizedType = parameter.getParameterizedType();
             if (parameterizedType instanceof ParameterizedType) {

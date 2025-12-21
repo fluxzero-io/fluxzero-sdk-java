@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.exception;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.EqualsAndHashCode;
+
+import java.util.Objects;
 
 /**
  * Base class for user-facing exceptions that are intended to be serialized and transferred across system boundaries
@@ -34,7 +36,6 @@ import lombok.EqualsAndHashCode;
  * To support clean serialization and prevent internal leakage, stack traces and suppressed exceptions are excluded.
  * </p>
  */
-@EqualsAndHashCode
 @JsonIgnoreProperties({"localizedMessage", "cause", "stackTrace", "suppressed"})
 public abstract class FunctionalException extends RuntimeException {
 
@@ -56,4 +57,19 @@ public abstract class FunctionalException extends RuntimeException {
     public FunctionalException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        FunctionalException that = (FunctionalException) o;
+        return Objects.equals(getMessage(), that.getMessage());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(getMessage());
+    }
+
 }

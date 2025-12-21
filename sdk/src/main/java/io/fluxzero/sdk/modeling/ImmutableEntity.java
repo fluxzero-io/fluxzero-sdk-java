@@ -24,6 +24,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -36,7 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -48,6 +48,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperti
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.fluxzero.sdk.modeling.AnnotatedEntityHolder.getEntityHolder;
 import static java.util.Collections.emptyList;
 
@@ -192,53 +193,43 @@ public class ImmutableEntity<T> implements Entity<T> {
     @Override
     public Entity<T> apply(DeserializingMessage message) {
         Optional<HandlerInvoker> invoker = entityHelper.applyInvoker(message, this);
-        ImmutableEntity<T> result = this;
         if (invoker.isPresent()) {
             return toBuilder().value((T) invoker.get().invoke()).build();
         }
-        boolean applied = false;
-        Object payload = message.getPayload();
-        for (Entity<?> entity : result.possibleTargets(payload)) {
+        ImmutableEntity<T> result = this;
+        for (Entity<?> entity : result.possibleTargets(message.getPayload())) {
             ImmutableEntity<?> immutableEntity = (ImmutableEntity<?>) entity;
             Entity<?> updated = immutableEntity.apply(message);
             if (updated != immutableEntity) {
-                applied = true;
-            }
-            if (immutableEntity.get() != updated.get()) {
                 result = result.toBuilder().value((T) immutableEntity
                         .holder().updateOwner(result.get(), entity, updated)).build();
             }
         }
-        if (!applied && getBooleanProperty("fluxzero.assert.apply-compatibility", true)
-            && !Entity.isLoading()) {
-            assertApplyFeasibility(message.getPayload(), this);
+        if (result == this && !Entity.isLoading()
+            && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {
+            assertApplyCompatibility(message, this);
         }
         return result;
     }
 
-    protected <E extends Exception> void assertApplyFeasibility(Object payload, Entity<?> entity) throws E {
-        if (payload == null) {
-            return;
-        }
-        Class<?> entityType = entity.type();
-        ReflectionUtils.getAnnotatedMethods(payload, Apply.class).forEach(m -> {
-            Class<?> returnType = m.getReturnType();
-            if (Arrays.stream(m.getParameters())
-                        .anyMatch(p -> EntityParameterResolver.matches(p, entity, true))
-                || entityType.isAssignableFrom(returnType) || returnType.isAssignableFrom(entityType)) {
-                Apply apply = ReflectionUtils.getAnnotation(m, Apply.class).orElseThrow();
-                if (!apply.disableCompatibilityCheck()) {
-                    if (entity.isPresent()) {
-                        throw Entity.ALREADY_EXISTS_EXCEPTION;
-                    } else {
-                        throw Entity.NOT_FOUND_EXCEPTION;
+    protected <E extends Exception> void assertApplyCompatibility(DeserializingMessage message, Entity<?> entity) throws E {
+        entityHelper.applyInvoker(message, entity, false, false)
+                .ifPresent(i -> {
+                    Apply apply = ReflectionUtils.getAnnotation(i.getMethod(), Apply.class).orElseThrow();
+                    if (!apply.disableCompatibilityCheck()) {
+                        if (entity.isPresent()) {
+                            log.warn("@Apply method {}#{} expected {} (id = '{}') to be empty",
+                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(), entity.type().getSimpleName(), entity.id());
+                            throw mapProperty("fluxzero.assert.apply-compatibility.exception.already-exists",
+                                              IllegalCommandException::new, () -> Entity.ALREADY_EXISTS_EXCEPTION);
+                        } else {
+                            log.warn("@Apply method {}#{} expected {} (id = '{}') to exist",
+                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(), entity.type().getSimpleName(), entity.id());
+                            throw mapProperty("fluxzero.assert.apply-compatibility.exception.not-found",
+                                              IllegalCommandException::new, () -> Entity.NOT_FOUND_EXCEPTION);
+                        }
                     }
-                }
-            }
-        });
-        for (Entity<?> e : entity.possibleTargets(payload)) {
-            assertApplyFeasibility(payload, e);
-        }
+                });
     }
 
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {

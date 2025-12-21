@@ -97,7 +97,8 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      * @return {@code true} if the message matches the filter criteria, {@code false} otherwise
      */
     @Override
-    public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation) {
+    public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                        Class<?> targetClass) {
         return messageFilterCache.apply(executable).test(message);
     }
 

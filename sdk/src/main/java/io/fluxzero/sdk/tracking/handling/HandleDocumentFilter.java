@@ -52,7 +52,7 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
-                        Class<? extends Annotation> handlerAnnotation) {
+                        Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
         return handleDocumentCache.apply(executable).map(
                         handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))

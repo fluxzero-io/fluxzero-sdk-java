@@ -64,7 +64,21 @@ public interface EntityHelper {
      * @param searchChildren whether to search nested child entities for applicable handlers
      * @return a handler invoker if a suitable method is located
      */
-    Optional<HandlerInvoker> applyInvoker(DeserializingMessage message, Entity<?> entity, boolean searchChildren);
+    default Optional<HandlerInvoker> applyInvoker(DeserializingMessage message, Entity<?> entity, boolean searchChildren) {
+        return applyInvoker(message, entity, searchChildren, true);
+    }
+
+    /**
+     * Returns an invoker for applying the event to the entity, optionally checking nested entities.
+     *
+     * @param message            the event to apply
+     * @param entity             the root or intermediate entity
+     * @param searchChildren     whether to search nested child entities for applicable handlers
+     * @param checkCompatibility whether to check if the entity state is compatible with the event being applied
+     * @return a handler invoker if a suitable method is located
+     */
+    Optional<HandlerInvoker> applyInvoker(DeserializingMessage message, Entity<?> entity, boolean searchChildren,
+                                          boolean checkCompatibility);
 
     /**
      * Validates whether the given value results in a legal state transition for the specified entity. Throws an

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -60,7 +61,8 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
             .orElse(null)));
 
     @Override
-    public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation) {
+    public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                        Class<?> targetClass) {
         Class<?> payloadClass = message.getPayloadClass();
         return Optional.ofNullable(allowedClassProvider.apply(handlerAnnotation).apply(executable))
                 .map(a -> a.getAllowedClasses().isEmpty() || a.getAllowedClasses().stream()

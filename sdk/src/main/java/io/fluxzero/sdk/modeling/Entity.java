@@ -91,8 +91,7 @@ public interface Entity<T> {
      * "fluxzero.assert.apply-compatibility.exception.already-exists" is not found, the default message "Already exists."
      * is used.
      */
-    IllegalCommandException ALREADY_EXISTS_EXCEPTION = new IllegalCommandException(
-            getProperty("fluxzero.assert.apply-compatibility.exception.already-exists", "Already exists."));
+    IllegalCommandException ALREADY_EXISTS_EXCEPTION = new IllegalCommandException("Already exists.");
 
     /**
      * A predefined instance of {@link IllegalCommandException} that indicates an operation failed because the target
