@@ -76,10 +76,15 @@
       "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Evaluates whether a message should be handled by a given method annotated with a specific handler annotation.\n\n @param message           the message instance to evaluate\n @param executable        the candidate handler method\n @param handlerAnnotation the annotation that marks the method as a handler (e.g. {@code @HandleCommand})\n @return {@code true} if the message is accepted by this filter for the given handler method\n"
+    "documentation" : " Evaluates whether a message should be handled by a given method annotated with a specific handler annotation.\n\n @param message           the message instance to evaluate\n @param executable        the candidate handler method\n @param handlerAnnotation the annotation that marks the method as a handler (e.g. {@code @HandleCommand})\n @param targetClass       the class of the handler object\n @return {@code true} if the message is accepted by this filter for the given handler method\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

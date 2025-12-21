@@ -36,7 +36,7 @@
     "name" : "applyInvoker",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#applyInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
-    "modifiers" : [ "abstract", "public" ],
+    "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -58,6 +58,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns an invoker for applying the event to the entity, optionally checking nested entities.\n\n @param message        the event to apply\n @param entity         the root or intermediate entity\n @param searchChildren whether to search nested child entities for applicable handlers\n @return a handler invoker if a suitable method is located\n"
+  }, {
+    "name" : "applyInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#applyInvoker",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "searchChildren",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "checkCompatibility",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an invoker for applying the event to the entity, optionally checking nested entities.\n\n @param message            the event to apply\n @param entity             the root or intermediate entity\n @param searchChildren     whether to search nested child entities for applicable handlers\n @param checkCompatibility whether to check if the entity state is compatible with the event being applied\n @return a handler invoker if a suitable method is located\n"
   }, {
     "name" : "assertLegal",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#assertLegal",

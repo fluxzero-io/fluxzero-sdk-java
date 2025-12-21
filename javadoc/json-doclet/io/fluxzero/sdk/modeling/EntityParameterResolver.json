@@ -4,12 +4,23 @@
   "packageName" : "io.fluxzero.sdk.modeling",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
   "documentation" : " Resolves handler method parameters that reference an {@link Entity} or the entity's value.\n\n <p>This resolver supports parameters of either {@code Entity<T>} or the entity's actual type {@code T}.\n It will traverse the hierarchy of parent-child relationships between entities (if any) to find the closest match.\n\n <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:\n <ul>\n   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>\n   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID,\n   then loads the entity from the Fluxzero Runtime using {@code Fluxzero#loadEntity}.</li>\n </ul>\n\n <p>The entity is only resolved if:\n <ul>\n   <li>The parameter type is assignable from the resolved entity type (or the {@code Entity<T>} type).</li>\n   <li>Or, the entity has a parent matching the required parameter type.</li>\n </ul>\n\n <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple\n handler methods are present in the same target class.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "checkCompatibility",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver.checkCompatibility",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "EntityParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#EntityParameterResolver",
@@ -39,7 +50,7 @@
     "name" : "getEntityParameterType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#getEntityParameterType",
     "returnType" : "java.lang.Class<?>",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -76,7 +87,7 @@
     "name" : "isAssignable",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#isAssignable",
     "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -89,11 +100,6 @@
       "type" : "io.fluxzero.sdk.modeling.Entity<?>",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "ignoreNullable",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -102,7 +108,7 @@
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
     "returnType" : "boolean",
-    "modifiers" : [ "protected", "static" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -119,32 +125,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type, respecting nullable\n flags on parameters.\n"
-  }, {
-    "name" : "matches",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",
-    "returnType" : "boolean",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parameter",
-      "type" : "java.lang.reflect.Parameter",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "ignoreNullable",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Returns {@code true} if the entity or any of its parents match the expected parameter type.\n <p>\n If {@code ignoreNullable} is {@code true}, nullable flags on parameters are ignored, meaning that a parameter is\n matched only if it is assignable from the entity type, ignoring the empty state of the entity.\n"
   }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#matches",

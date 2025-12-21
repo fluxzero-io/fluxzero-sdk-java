@@ -20,7 +20,7 @@
   }, {
     "name" : "applyMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.applyMatchers",
-    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.Boolean,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -93,6 +93,27 @@
     "documentation" : " Creates a new helper using the given parameter resolvers and configuration.\n\n @param parameterResolvers       Resolvers used to inject values into annotated handler methods\n @param disablePayloadValidation If true, disables bean validation of payloads\n"
   } ],
   "methods" : [ {
+    "name" : "applyHandlerConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#applyHandlerConfiguration",
+    "returnType" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.modeling.DefaultEntityHelper.DeserializingMessageWithEntity>",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "checkCompatibility",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityParameterResolver",
+      "type" : "io.fluxzero.sdk.modeling.EntityParameterResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "applyInvoker",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#applyInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -114,6 +135,11 @@
       "annotations" : [ ]
     }, {
       "name" : "searchChildren",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "checkCompatibility",
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]

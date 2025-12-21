@@ -248,15 +248,15 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "assertApplyFeasibility",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyFeasibility",
+    "name" : "assertApplyCompatibility",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyCompatibility",
     "returnType" : "void",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ "E" ],
     "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
