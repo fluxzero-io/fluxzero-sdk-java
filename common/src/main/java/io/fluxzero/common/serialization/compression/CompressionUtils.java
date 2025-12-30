@@ -19,6 +19,7 @@ import lombok.SneakyThrows;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.util.Native;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +27,9 @@ import java.nio.ByteBuffer;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
+
+import static net.jpountz.lz4.LZ4Factory.fastestJavaInstance;
+import static net.jpountz.lz4.LZ4Factory.nativeInsecureInstance;
 
 /**
  * Utility class for compressing and decompressing byte arrays using common compression algorithms.
@@ -54,8 +58,32 @@ import java.util.zip.ZipException;
  */
 public class CompressionUtils {
 
-    private static final LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
-    private static final LZ4FastDecompressor lz4Decompressor = LZ4Factory.fastestInstance().fastDecompressor();
+    private static final LZ4Compressor lz4Compressor = fastestInstance().fastCompressor();
+    private static final LZ4FastDecompressor lz4Decompressor = fastestInstance().fastDecompressor();
+
+    /**
+     * Returns the fastest available {@link LZ4Factory} instance. If the class
+     * loader is the system class loader and if the
+     * {@link LZ4Factory#nativeInsecureInstance() native instance} loads successfully, then the
+     * {@link LZ4Factory#nativeInsecureInstance() native instance} is returned, otherwise the
+     * {@link LZ4Factory#fastestJavaInstance() fastest Java instance} is returned.
+     * <p>
+     * Please read {@link LZ4Factory#nativeInsecureInstance() javadocs of nativeInstance()} before
+     * using this method.
+     *
+     * @return the fastest available {@link LZ4Factory} instance
+     */
+    private static LZ4Factory fastestInstance() {
+        if (Native.isLoaded() || Native.class.getClassLoader() == ClassLoader.getSystemClassLoader()) {
+            try {
+                return nativeInsecureInstance();
+            } catch (Throwable t) {
+                return fastestJavaInstance();
+            }
+        } else {
+            return fastestJavaInstance();
+        }
+    }
 
     /**
      * Compresses the given byte array using {@link CompressionAlgorithm#LZ4} by default.
