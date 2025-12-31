@@ -123,6 +123,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Decompresses the given byte array using the specified algorithm.\n\n @param compressed the compressed data\n @param algorithm the compression algorithm to apply\n @return the original (decompressed) byte array\n"
+  }, {
+    "name" : "fastestInstance",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils#fastestInstance",
+    "returnType" : "net.jpountz.lz4.LZ4Factory",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the fastest available {@link LZ4Factory} instance. If the class\n loader is the system class loader and if the\n {@link LZ4Factory#nativeInsecureInstance() native instance} loads successfully, then the\n {@link LZ4Factory#nativeInsecureInstance() native instance} is returned, otherwise the\n {@link LZ4Factory#fastestJavaInstance() fastest Java instance} is returned.\n <p>\n Please read {@link LZ4Factory#nativeInsecureInstance() javadocs of nativeInstance()} before\n using this method.\n\n @return the fastest available {@link LZ4Factory} instance\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
