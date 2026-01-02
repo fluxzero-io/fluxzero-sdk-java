@@ -1831,6 +1831,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isClass",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isClass",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isKotlinReflectionSupported",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isKotlinReflectionSupported",
     "returnType" : "boolean",
