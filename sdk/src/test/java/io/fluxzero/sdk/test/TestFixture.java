@@ -46,6 +46,7 @@ import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -82,6 +83,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -673,6 +675,11 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture givenAppliedEvents(Id<?> aggregateId, Object... events) {
+        return givenAppliedEvents(aggregateId.toString(), aggregateId.getType(), events);
+    }
+
+    @Override
     public TestFixture givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events) {
         Class<?> callerClass = getCallerClass();
         return givenModification(fixture -> fixture.applyEvents(aggregateId, aggregateClass, fixture.getFluxzero(),
@@ -698,6 +705,21 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture givenDocument(Object document, Object collection) {
+        return givenDocument(document, getFluxzero().identityProvider().nextTechnicalId(), collection);
+    }
+
+    @Override
+    public TestFixture givenDocument(Object document, Object id, Object collection) {
+        return givenDocument(document, id, collection, null);
+    }
+
+    @Override
+    public TestFixture givenDocument(Object document, Object id, Object collection, Instant timestamp) {
+        return givenDocument(document, id, collection, timestamp, timestamp);
+    }
+
+    @Override
     public TestFixture givenDocument(Object document, Object id, Object collection, Instant timestamp, Instant end) {
         Class<?> callerClass = getCallerClass();
         return givenModification(fixture -> fixture.getFluxzero().documentStore()
@@ -712,6 +734,11 @@ public class TestFixture implements Given<TestFixture>, When {
                     .index(fixture.<Object>parseObject(document, callerClass), collection).get());
         }
         return this;
+    }
+
+    @Override
+    public TestFixture givenStateful(Object stateful) {
+        return givenDocument(stateful);
     }
 
     @Override
@@ -731,6 +758,16 @@ public class TestFixture implements Given<TestFixture>, When {
                         () -> fluxzero.messageScheduler().scheduleCommand((Schedule) s, false, Guarantee.STORED)
                                 .get())));
         return this;
+    }
+
+    @Override
+    public TestFixture givenExpiredSchedules(Object... schedules) {
+        List<Schedule> mappedSchedules = Arrays.stream(schedules).map(p -> p instanceof Schedule s ? s :
+                new Schedule(p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime())).toList();
+        TestFixture self = givenSchedules(mappedSchedules.toArray(Schedule[]::new));
+        var lastDeadline = mappedSchedules.stream().map(Schedule::getDeadline).max(Comparator.naturalOrder()).orElseGet(
+                self::getCurrentTime);
+        return self.getCurrentTime().isBefore(lastDeadline) ? givenTimeAdvancedTo(lastDeadline) : self;
     }
 
     @Override
@@ -769,6 +806,56 @@ public class TestFixture implements Given<TestFixture>, When {
         Class<?> callerClass = getCallerClass();
         return givenModification(fixture -> fixture.executeWebRequest(
                 fixture.addUser(getUser(user), fixture.parseObject(webRequest, callerClass))));
+    }
+
+    @Override
+    public TestFixture givenPost(String path, Object payload) {
+        return givenWebRequest(WebRequest.post(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenPostByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenPut(String path, Object payload) {
+        return givenWebRequest(WebRequest.put(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenPutByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenPatch(String path, Object payload) {
+        return givenWebRequest(WebRequest.patch(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenPatchByUser(Object user, String path, Object payload) {
+        return givenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
+    }
+
+    @Override
+    public TestFixture givenDelete(String path) {
+        return givenWebRequest(WebRequest.delete(path).build());
+    }
+
+    @Override
+    public TestFixture givenDeleteByUser(Object user, String path) {
+        return givenWebRequestByUser(user, WebRequest.delete(path).build());
+    }
+
+    @Override
+    public TestFixture givenGet(String path) {
+        return givenWebRequest(WebRequest.get(path).build());
+    }
+
+    @Override
+    public TestFixture givenGetByUser(Object user, String path) {
+        return givenWebRequestByUser(user, WebRequest.get(path).build());
     }
 
     @Override
@@ -868,6 +955,56 @@ public class TestFixture implements Given<TestFixture>, When {
     public Then<Object> whenWebRequestByUser(Object user, WebRequest request) {
         WebRequest message = addUser(getUser(user), trace(request));
         return doWhenWebRequest(message);
+    }
+
+    @Override
+    public Then<Object> whenPost(String path, Object payload) {
+        return whenWebRequest(WebRequest.post(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenPostByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenPut(String path, Object payload) {
+        return whenWebRequest(WebRequest.put(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenPutByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenPatch(String path, Object payload) {
+        return whenWebRequest(WebRequest.patch(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenPatchByUser(Object user, String path, Object payload) {
+        return whenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
+    }
+
+    @Override
+    public Then<Object> whenDelete(String path) {
+        return whenWebRequest(WebRequest.delete(path).build());
+    }
+
+    @Override
+    public Then<Object> whenDeleteByUser(Object user, String path) {
+        return whenWebRequestByUser(user, WebRequest.delete(path).build());
+    }
+
+    @Override
+    public Then<Object> whenGet(String path) {
+        return whenWebRequest(WebRequest.get(path).build());
+    }
+
+    @Override
+    public Then<Object> whenGetByUser(Object user, String path) {
+        return whenWebRequestByUser(user, WebRequest.get(path).build());
     }
 
     Then<Object> doWhenWebRequest(WebRequest message) {

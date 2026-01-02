@@ -267,9 +267,7 @@ public interface When {
     /**
      * Simulates a POST request to the specified path with the given payload.
      */
-    default Then<Object> whenPost(String path, Object payload) {
-        return whenWebRequest(WebRequest.post(path).payload(payload).build());
-    }
+    Then<Object> whenPost(String path, Object payload);
 
     /**
      * Simulates a POST request to the specified path without a payload.
@@ -284,16 +282,12 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Then<Object> whenPostByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
-    }
+    Then<Object> whenPostByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a PUT request to the specified path with the given payload.
      */
-    default Then<Object> whenPut(String path, Object payload) {
-        return whenWebRequest(WebRequest.put(path).payload(payload).build());
-    }
+    Then<Object> whenPut(String path, Object payload);
 
     /**
      * Simulates a PUT request by the given user to the specified path with the given payload.
@@ -301,16 +295,12 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Then<Object> whenPutByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
-    }
+    Then<Object> whenPutByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a PATCH request to the specified path with the given payload.
      */
-    default Then<Object> whenPatch(String path, Object payload) {
-        return whenWebRequest(WebRequest.patch(path).payload(payload).build());
-    }
+    Then<Object> whenPatch(String path, Object payload);
 
     /**
      * Simulates a PATCH request by the given user to the specified path with the given payload.
@@ -318,16 +308,12 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Then<Object> whenPatchByUser(Object user, String path, Object payload) {
-        return whenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
-    }
+    Then<Object> whenPatchByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a DELETE request to the specified path.
      */
-    default Then<Object> whenDelete(String path) {
-        return whenWebRequest(WebRequest.delete(path).build());
-    }
+    Then<Object> whenDelete(String path);
 
     /**
      * Simulates a DELETE request by the given user to the specified path.
@@ -335,16 +321,12 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Then<Object> whenDeleteByUser(Object user, String path) {
-        return whenWebRequestByUser(user, WebRequest.delete(path).build());
-    }
+    Then<Object> whenDeleteByUser(Object user, String path);
 
     /**
      * Simulates a GET request to the specified path.
      */
-    default Then<Object> whenGet(String path) {
-        return whenWebRequest(WebRequest.get(path).build());
-    }
+    Then<Object> whenGet(String path);
 
     /**
      * Simulates a GET request by the given user to the specified path.
@@ -352,9 +334,7 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Then<Object> whenGetByUser(Object user, String path) {
-        return whenWebRequestByUser(user, WebRequest.get(path).build());
-    }
+    Then<Object> whenGetByUser(Object user, String path);
 
     /**
      * Simulates the expiration of a schedule and returns expectations for the behavior triggered by that expiration.

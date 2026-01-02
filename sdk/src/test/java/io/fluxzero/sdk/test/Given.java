@@ -33,9 +33,6 @@ import java.net.HttpCookie;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 
 /**
  * Defines the {@code given} phase of a behavioral Given-When-Then test using a {@link TestFixture}.
@@ -138,9 +135,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * <p>
      * You may also pass a {@code String} ending in {@code .json} to load an event from a resource file.
      */
-    default Self givenAppliedEvents(Id<?> aggregateId, Object... events) {
-        return givenAppliedEvents(aggregateId.toString(), aggregateId.getType(), events);
-    }
+    Self givenAppliedEvents(Id<?> aggregateId, Object... events);
 
     /**
      * Simulates one or more events that were previously applied to a specific aggregate.
@@ -166,24 +161,18 @@ public interface Given<Self extends Given<Self>> extends When {
     /**
      * Stores a document in the given {@code collection} with a generated ID and no timestamps.
      */
-    default Self givenDocument(Object document, Object collection) {
-        return givenDocument(document, getFluxzero().identityProvider().nextTechnicalId(), collection);
-    }
+    Self givenDocument(Object document, Object collection);
 
     /**
      * Stores a document in the given {@code collection} with a specific {@code id} and no timestamps.
      */
-    default Self givenDocument(Object document, Object id, Object collection) {
-        return givenDocument(document, id, collection, null);
-    }
+    Self givenDocument(Object document, Object id, Object collection);
 
     /**
      * Stores a document with a specific {@code id} and timestamp in the given {@code collection}. The timestamp is used
      * as both start and end time.
      */
-    default Self givenDocument(Object document, Object id, Object collection, Instant timestamp) {
-        return givenDocument(document, id, collection, timestamp, timestamp);
-    }
+    Self givenDocument(Object document, Object id, Object collection, Instant timestamp);
 
     /**
      * Stores a document with specific {@code id}, {@code collection}, and time range.
@@ -202,9 +191,7 @@ public interface Given<Self extends Given<Self>> extends When {
      *
      * @see io.fluxzero.sdk.tracking.handling.Stateful
      */
-    default Self givenStateful(Object stateful) {
-        return givenDocument(stateful);
-    }
+    Self givenStateful(Object stateful);
 
     /**
      * Schedules one or more commands before the behavior under test.
@@ -226,14 +213,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * All schedules are processed in order, and test time is advanced to the latest schedule deadline if necessary,
      * ensuring that any intermediate schedule effects are applied before the {@code when} phase begins.
      */
-    default Self givenExpiredSchedules(Object... schedules) {
-        List<Schedule> mappedSchedules = Arrays.stream(schedules).map(p -> p instanceof Schedule s ? s :
-                new Schedule(p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime())).toList();
-        Self self = givenSchedules(mappedSchedules.toArray(Schedule[]::new));
-        var lastDeadline = mappedSchedules.stream().map(Schedule::getDeadline).max(Comparator.naturalOrder()).orElseGet(
-                self::getCurrentTime);
-        return self.getCurrentTime().isBefore(lastDeadline) ? givenTimeAdvancedTo(lastDeadline) : self;
-    }
+    Self givenExpiredSchedules(Object... schedules);
 
     /**
      * Advances the test clock to the specified {@code timestamp} before the behavior under test.
@@ -273,9 +253,7 @@ public interface Given<Self extends Given<Self>> extends When {
     /**
      * Simulates a POST request to the specified {@code path} with the given {@code payload}.
      */
-    default Self givenPost(String path, Object payload) {
-        return givenWebRequest(WebRequest.post(path).payload(payload).build());
-    }
+    Self givenPost(String path, Object payload);
 
     /**
      * Simulates a POST request by the given user to the specified {@code path} with the given {@code payload}.
@@ -283,16 +261,12 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Self givenPostByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(user, WebRequest.post(path).payload(payload).build());
-    }
+    Self givenPostByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a PUT request to the specified {@code path} with the given {@code payload}.
      */
-    default Self givenPut(String path, Object payload) {
-        return givenWebRequest(WebRequest.put(path).payload(payload).build());
-    }
+    Self givenPut(String path, Object payload);
 
     /**
      * Simulates a PUT request by the given user to the specified {@code path} with the given {@code payload}.
@@ -300,16 +274,12 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Self givenPutByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(user, WebRequest.put(path).payload(payload).build());
-    }
+    Self givenPutByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a PATCH request to the specified {@code path} with the given {@code payload}.
      */
-    default Self givenPatch(String path, Object payload) {
-        return givenWebRequest(WebRequest.patch(path).payload(payload).build());
-    }
+    Self givenPatch(String path, Object payload);
 
     /**
      * Simulates a PATCH request by the given user to the specified {@code path} with the given {@code payload}.
@@ -317,16 +287,12 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Self givenPatchByUser(Object user, String path, Object payload) {
-        return givenWebRequestByUser(user, WebRequest.patch(path).payload(payload).build());
-    }
+    Self givenPatchByUser(Object user, String path, Object payload);
 
     /**
      * Simulates a DELETE request to the specified {@code path}.
      */
-    default Self givenDelete(String path) {
-        return givenWebRequest(WebRequest.delete(path).build());
-    }
+    Self givenDelete(String path);
 
     /**
      * Simulates a DELETE request by the given user to the specified {@code path} with the given {@code payload}.
@@ -334,16 +300,12 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Self givenDeleteByUser(Object user, String path) {
-        return givenWebRequestByUser(user, WebRequest.delete(path).build());
-    }
+    Self givenDeleteByUser(Object user, String path);
 
     /**
      * Simulates a GET request to the specified {@code path}.
      */
-    default Self givenGet(String path) {
-        return givenWebRequest(WebRequest.get(path).build());
-    }
+    Self givenGet(String path);
 
     /**
      * Simulates a GET request by the given user to the specified {@code path} with the given {@code payload}.
@@ -351,9 +313,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    default Self givenGetByUser(Object user, String path) {
-        return givenWebRequestByUser(user, WebRequest.get(path).build());
-    }
+    Self givenGetByUser(Object user, String path);
 
     /**
      * Performs any arbitrary precondition using the {@link Fluxzero} instance directly.
