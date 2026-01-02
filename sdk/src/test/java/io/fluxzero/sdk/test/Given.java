@@ -207,8 +207,15 @@ public interface Given<Self extends Given<Self>> extends When {
      * Simulates schedules that have already expired and should be processed before the behavior under test is
      * executed.
      * <p>
-     * Each provided object is interpreted as either a {@link Schedule} or as a schedule payload. Non-schedule objects
-     * are wrapped in a {@link Schedule} with a generated technical identifier and the current test time as deadline.
+     * Each provided object is interpreted as either a {@link Schedule}, a schedule payload, or a {@link Class} of a
+     * previously scheduled message.
+     * <p>
+     * If a {@link Class} is provided, the first matching future schedule is selected and processed as expired. If no
+     * matching schedule is found, an {@link IllegalStateException} is thrown. Duplicate {@link Class} arguments are
+     * ignored.
+     * <p>
+     * Any remaining non-schedule objects are treated as schedule payloads and wrapped in a {@link Schedule} with a
+     * generated technical identifier and the current test time as deadline.
      * <p>
      * All schedules are processed in order, and test time is advanced to the latest schedule deadline if necessary,
      * ensuring that any intermediate schedule effects are applied before the {@code when} phase begins.

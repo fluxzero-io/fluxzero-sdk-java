@@ -212,6 +212,10 @@ public class ReflectionUtils {
         return null;
     }
 
+    public static boolean isClass(Object value) {
+        return ifClass(value) != null;
+    }
+
     public static Class<?> asClass(@NonNull Object value) {
         return ifClass(value) instanceof Class<?> c ? c : value.getClass();
     }

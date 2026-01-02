@@ -342,8 +342,12 @@ public interface When {
      * If the given object is a {@link Schedule}, it is scheduled and test time is advanced to its deadline if
      * necessary, causing the schedule to expire naturally.
      * <p>
-     * If the given object is not a {@link Schedule} (typically the payload of a schedule), it is scheduled to execute
-     * immediately at the current test time.
+     * If the given object is a {@link Class}, the fixture looks up the first scheduled message whose payload type
+     * matches the given class (i.e. {@code givenClass.isAssignableFrom(payloadClass)}). The fixture then advances time
+     * to the deadline of that schedule. If no matching schedule is found, an {@link IllegalStateException} is thrown.
+     * <p>
+     * In all other cases, the given object is treated as a schedule payload and executed immediately at the current
+     * test time.
      */
     Then<?> whenScheduleExpires(Object schedule);
 

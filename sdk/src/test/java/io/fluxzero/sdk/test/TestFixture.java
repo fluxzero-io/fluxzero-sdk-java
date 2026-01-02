@@ -32,6 +32,7 @@ import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
@@ -99,6 +100,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -762,9 +764,23 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public TestFixture givenExpiredSchedules(Object... schedules) {
-        List<Schedule> mappedSchedules = Arrays.stream(schedules).map(p -> p instanceof Schedule s ? s :
+        TestFixture self = this;
+        var classes = Arrays.stream(schedules).filter(ReflectionUtils::isClass).map(ReflectionUtils::asClass).collect(
+                toSet());
+        for (Class<?> c : classes) {
+            if (getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local) {
+                var match = local.getFutureSchedules(getFluxzero().serializer())
+                        .stream().filter(s -> c.isAssignableFrom(s.getPayloadClass()))
+                        .min(Comparator.comparing(Schedule::getDeadline))
+                        .orElseThrow(() -> new IllegalStateException("No future schedule of type " + c + " found"));
+                self = self.givenTimeAdvancedTo(match.getDeadline());
+            }
+        }
+        List<Schedule> mappedSchedules = Arrays.stream(schedules)
+                .filter(Predicate.not(ReflectionUtils::isClass))
+                .map(p -> p instanceof Schedule s ? s :
                 new Schedule(p, getFluxzero().identityProvider().nextTechnicalId(), getCurrentTime())).toList();
-        TestFixture self = givenSchedules(mappedSchedules.toArray(Schedule[]::new));
+        self = self.givenSchedules(mappedSchedules.toArray(Schedule[]::new));
         var lastDeadline = mappedSchedules.stream().map(Schedule::getDeadline).max(Comparator.naturalOrder()).orElseGet(
                 self::getCurrentTime);
         return self.getCurrentTime().isBefore(lastDeadline) ? givenTimeAdvancedTo(lastDeadline) : self;
@@ -1030,6 +1046,15 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public Then<?> whenScheduleExpires(Object schedule) {
+        if (ReflectionUtils.ifClass(schedule) instanceof Class<?> c) {
+            if (getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local) {
+                var match = local.getFutureSchedules(getFluxzero().serializer())
+                        .stream().filter(s -> c.isAssignableFrom(s.getPayloadClass()))
+                        .min(Comparator.comparing(Schedule::getDeadline))
+                        .orElseThrow(() -> new IllegalStateException("No future schedule of type " + c + " found"));
+                return whenTimeAdvancesTo(match.getDeadline());
+            }
+        }
         Message message = trace(schedule);
         return whenExecuting(fc -> {
             if (message instanceof Schedule s) {
@@ -1144,8 +1169,7 @@ public class TestFixture implements Given<TestFixture>, When {
         getFluxzero().taskScheduler().executeExpiredTasks();
         if (synchronous) {
             try {
-                SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
-                if (schedulingClient instanceof LocalSchedulingClient local) {
+                if (getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local) {
                     List<Schedule> expiredSchedules;
                     do {
                         expiredSchedules = local.removeExpiredSchedules(getFluxzero().serializer());
