@@ -97,7 +97,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     @Override
     protected ProxyRequestHandler createForNamespace(String namespace) {
         return Objects.equals(client.namespace(), namespace)
-                ? this : new ProxyRequestHandler(client.forNamespace(namespace));
+                ? this : new ProxyRequestHandler(client.forNamespace(namespace), namespaceSelector);
     }
 
     @Override

@@ -17,10 +17,14 @@ package io.fluxzero.proxy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fluxzero.sdk.Fluxzero;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.Synchronized;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -31,10 +35,11 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.RSAPublicKeySpec;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * JwtVerifier provides functionality to verify the cryptographic signature of a JSON Web Token (JWT) and validate its
@@ -46,12 +51,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * The public keys are cached after being fetched from the JWKS endpoint to reduce network calls.
  */
 @RequiredArgsConstructor
+@Slf4j
 public final class JwtVerifier {
     private final String jwksUrl;
 
-    private final HttpClient http = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
-    private final Map<String, PublicKey> keyCache = new ConcurrentHashMap<>();
+    private final HttpClient http = HttpClient.newHttpClient();
+    private final Duration keyRefreshFrequency = Duration.ofMinutes(15);
+    private volatile Map<String, PublicKey> keyCache = Map.of();
+    private volatile Instant nextScheduledRefresh = Instant.EPOCH;
+    private volatile Instant nextAllowedFetch = Instant.EPOCH;
 
     /**
      * Verifies the provided JWT (JSON Web Token) for its signature, expiration, and not-before validity.
@@ -109,37 +118,67 @@ public final class JwtVerifier {
         return payload;
     }
 
-    private PublicKey resolveKey(String kid) throws Exception {
+    public PublicKey resolveKey(String kid) throws Exception {
+        refreshIfNeeded(false);
         PublicKey cached = keyCache.get(kid);
         if (cached != null) {
             return cached;
         }
-        // Unknown key -> fetch JWKS once
-        synchronized (keyCache) {
-            JsonNode jwks = fetchJwks();
-
-            PublicKey result = null;
-
-            for (JsonNode keyNode : jwks.get("keys")) {
-                String keyKid = keyNode.get("kid").asText();
-                PublicKey key = buildRsaKey(keyNode);
-                keyCache.put(keyKid, key);
-                if (keyKid.equals(kid)) {
-                    result = key;
-                }
-            }
-            if (result != null) {
-                return result;
-            }
-
-            throw new IllegalStateException("JWKS did not contain key with kid=" + kid);
+        // On-demand refresh for rotations
+        refreshIfNeeded(true);
+        cached = keyCache.get(kid);
+        if (cached != null) {
+            return cached;
         }
+        throw new SecurityException("Unknown kid");
+    }
+
+    private void refreshIfNeeded(boolean force) throws Exception {
+        Instant now = Fluxzero.currentTime();
+        if (!force && now.isBefore(nextScheduledRefresh)) {
+            return;
+        }
+        if (now.isBefore(nextAllowedFetch)) {
+            return; // rate limit applies always
+        }
+        doRefreshIfNeeded(force);
+    }
+
+    @Synchronized
+    private void doRefreshIfNeeded(boolean force) throws Exception {
+        Instant now = Fluxzero.currentTime();
+        if (!force && now.isBefore(nextScheduledRefresh)) {
+            return;
+        }
+        if (now.isBefore(nextAllowedFetch)) {
+            return;
+        }
+        nextAllowedFetch = now.plusSeconds(60); // rate limit: don’t allow another fetch for 60s
+        JsonNode jwks = fetchJwks();
+        replaceCache(jwks);
+        nextScheduledRefresh = Fluxzero.currentTime().plus(keyRefreshFrequency);
+    }
+
+    private void replaceCache(JsonNode jwks) throws Exception {
+        Map<String, PublicKey> newCache = new HashMap<>();
+        for (JsonNode keyNode : jwks.get("keys")) {
+            String keyKid = keyNode.get("kid").asText();
+            newCache.put(keyKid, buildRsaKey(keyNode));
+        }
+        if (newCache.isEmpty()) {
+            throw new IOException("JWKS contained no keys");
+        }
+        keyCache = Map.copyOf(newCache);
     }
 
     private JsonNode fetchJwks() throws Exception {
+        log.info("Fetching JWKS from {}", jwksUrl);
         HttpRequest request = HttpRequest.newBuilder(URI.create(jwksUrl)).GET().build();
-        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-        return mapper.readTree(response.body());
+        HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new IOException("Failed to fetch JWKS: %s (status: %s)".formatted(resp.body(), resp.statusCode()));
+        }
+        return mapper.readTree(resp.body());
     }
 
     private PublicKey buildRsaKey(JsonNode keyNode) throws Exception {

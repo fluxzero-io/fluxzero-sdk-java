@@ -139,6 +139,10 @@ class ProxyServerTest {
                             .registerHandlers(new NamespacedHandler())
                             .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
                                                         BodyHandlers.ofString()).body())
+                            .expectResult("Hello test")
+                            .andThen()
+                            .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                                                BodyHandlers.ofString()).body())
                             .expectResult("Hello test"));
 
 
