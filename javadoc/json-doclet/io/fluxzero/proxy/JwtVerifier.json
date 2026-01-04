@@ -7,6 +7,9 @@
   "annotations" : [ {
     "annotationType" : "lombok.RequiredArgsConstructor",
     "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
   } ],
   "documentation" : " JwtVerifier provides functionality to verify the cryptographic signature of a JSON Web Token (JWT) and validate its\n claims.\n <p>\n This class relies on a JWKS (JSON Web Key Set) endpoint to resolve public keys used to verify the JWT signature. It\n supports the RS256 algorithm for signature verification.\n <p>\n The public keys are cached after being fetched from the JWKS endpoint to reduce network calls.\n",
   "typeParameters" : [ ],
@@ -32,6 +35,14 @@
     "name" : "keyCache",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.keyCache",
     "type" : "java.util.Map<java.lang.String,java.security.PublicKey>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "keyRefreshFrequency",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.keyRefreshFrequency",
+    "type" : "java.time.Duration",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -41,6 +52,22 @@
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.mapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nextAllowedFetch",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.nextAllowedFetch",
+    "type" : "java.time.Instant",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nextScheduledRefresh",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.nextScheduledRefresh",
+    "type" : "java.time.Instant",
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -89,6 +116,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "doRefreshIfNeeded",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#doRefreshIfNeeded",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "force",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fetchJwks",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#fetchJwks",
     "returnType" : "com.fasterxml.jackson.databind.JsonNode",
@@ -100,10 +146,42 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "refreshIfNeeded",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#refreshIfNeeded",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "force",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "replaceCache",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#replaceCache",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jwks",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolveKey",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#resolveKey",
     "returnType" : "java.security.PublicKey",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
