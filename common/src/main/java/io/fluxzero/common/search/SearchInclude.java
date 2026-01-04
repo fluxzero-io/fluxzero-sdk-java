@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.search;
@@ -24,13 +25,15 @@ import java.lang.annotation.Target;
 /**
  * Marker annotation that indicates that a property is to be included when indexing a document for search. When a
  * property is included, the document can be matched using this property. Note that inclusion is the default for
- * properties, so this annotation is only useful to override the effects of {@link SearchExclude}(true) on a parent or
+ * properties, so this annotation is only useful to override the effects of {@link SearchExclude} on a parent or
  * ancestor.
  * <p>
- * When this annotation is present on a type, all properties of the class will be included when indexing, unless they
- * are individually annotated with {@link SearchExclude}(true).
+ * When this annotation is present on a type, all properties and inner types of the class will be included when
+ * indexing, unless they are individually annotated with {@link SearchExclude}.
  * <p>
  * Note that this annotation is an alias for {@link SearchExclude}(false) and has the same effect.
+ *
+ * @see SearchExclude
  */
 @Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

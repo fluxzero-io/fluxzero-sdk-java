@@ -36,7 +36,8 @@ import java.lang.annotation.Target;
  * When a property is ignored, the document can't be matched using this property. More specifically, the property is
  * ignored by {@link MatchConstraint}, {@link LookAheadConstraint}, {@link ContainsConstraint}, and
  * {@link QueryConstraint}. I.e. if the property is also marked with {@link Facet @Facet}, it can still be matched using
- * a {@link FacetConstraint}. Matching using {@link BetweenConstraint} or {@link ExistsConstraint} is also not affected.
+ * a {@link FacetConstraint}. Matching using {@link BetweenConstraint} or {@link ExistsConstraint} is also not
+ * affected.
  * <p>
  * When this annotation is present on a type, all properties of the class will be ignored when indexing, unless they are
  * individually annotated with {@link SearchExclude SearchExclude(false)} or {@link SearchInclude}.
@@ -45,8 +46,13 @@ import java.lang.annotation.Target;
  * the property transient instead, e.g. using an annotation like {@link java.beans.Transient} or
  * {@link com.fasterxml.jackson.annotation.JsonIgnore}.
  * <p>
- * Subclasses can re-enable indexing by specifying a {@link #value()} of {@code false} on the overridden property or
- * class.
+ * When placed on a type, @SearchExclude also applies to any nested types declared within that type. Use
+ * {@link SearchInclude} to override.
+ * <p>
+ * Subclasses can re-enable indexing using {@link SearchInclude} or by specifying a {@link #value()} of {@code false} on
+ * the overridden property or class.
+ *
+ * @see SearchInclude
  */
 @Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.FIELD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
