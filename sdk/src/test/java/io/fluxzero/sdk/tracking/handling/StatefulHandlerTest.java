@@ -69,6 +69,17 @@ public class StatefulHandlerTest {
         }
 
         @Test
+        void handlerIsDeletedByList() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new DeleteHandlerByList("foo"))
+                    .expectOnlyCommands(2)
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(StaticHandler.class).fetchAll())
+                    .expectResult(List::isEmpty);
+        }
+
+        @Test
         void handlerIsDeleted_secondDelete() {
             testFixture.givenEvents(new SomeEvent("foo"), new DeleteHandler("foo"))
                     .whenEvent(new DeleteHandler("foo"))
@@ -88,6 +99,28 @@ public class StatefulHandlerTest {
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(StaticHandler.class).stream().findFirst().orElse(null))
                     .expectResult(Objects::nonNull);
+        }
+
+        @Test
+        void handlerIsReplaced() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new ReplaceHandler("foo", "bar"))
+                    .expectOnlyCommands(2, 1)
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(StaticHandler.class).fetchAll(StaticHandler.class))
+                    .expectResult(r -> r.size() == 1 && r.getFirst().someId().equals("bar"));
+        }
+
+        @Test
+        void handlerIsReplacedByList() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new ReplaceHandlerByList("foo", "bar"))
+                    .expectOnlyCommands(2, 1)
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(StaticHandler.class).fetchAll(StaticHandler.class))
+                    .expectResult(r -> r.size() == 1 && r.getFirst().someId().equals("bar"));
         }
 
         @Test
@@ -220,15 +253,33 @@ public class StatefulHandlerTest {
             }
 
             @HandleEvent
-            StaticHandler update(SomeEvent event) {
+            StaticHandler handle(SomeEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
-            StaticHandler update(DeleteHandler event) {
+            StaticHandler handle(DeleteHandler event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return null;
+            }
+
+            @HandleEvent
+            List<StaticHandler> handle(DeleteHandlerByList event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return List.of();
+            }
+
+            @HandleEvent
+            StaticHandler handle(ReplaceHandler event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return create(new SomeEvent(event.newId()));
+            }
+
+            @HandleEvent
+            List<StaticHandler> handle(ReplaceHandlerByList event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return List.of(create(new SomeEvent(event.newId())));
             }
 
             @HandleEvent
@@ -241,13 +292,13 @@ public class StatefulHandlerTest {
             }
 
             @HandleEvent
-            StaticHandler update(String ignored) {
+            StaticHandler handle(String ignored) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
-            StaticHandler update(Integer ignored) {
+            StaticHandler handle(Integer ignored) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -258,74 +309,74 @@ public class StatefulHandlerTest {
             }
 
             @HandleEvent
-            StaticHandler update(AliasEvent event) {
+            StaticHandler handle(AliasEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association(always = true)
-            StaticHandler update(AlwaysAssociate event) {
+            StaticHandler handle(AlwaysAssociate event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association(always = true)
-            static void update(AlwaysAssociateStatic event) {
+            static void handle(AlwaysAssociateStatic event) {
                 Fluxzero.sendAndForgetCommand("once");
             }
 
             @HandleEvent
             @Association("customId")
-            StaticHandler update(CustomEvent event) {
+            StaticHandler handle(CustomEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association(value = "customId", path = "someId")
-            StaticHandler update(CustomRightPathEvent event) {
+            StaticHandler handle(CustomRightPathEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association(value = "customId", path = "unknown")
-            StaticHandler update(CustomWrongPathEvent event) {
+            StaticHandler handle(CustomWrongPathEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
-            StaticHandler update(EventWithRightPath event) {
+            StaticHandler handle(EventWithRightPath event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
-            StaticHandler update(EventWithWrongPath event) {
+            StaticHandler handle(EventWithWrongPath event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association("someIds")
-            StaticHandler update(EventWithPropertyList event) {
+            StaticHandler handle(EventWithPropertyList event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association("someIds/nested")
-            StaticHandler update(EventWithNestedPropertyList event) {
+            StaticHandler handle(EventWithNestedPropertyList event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
 
             @HandleEvent
             @Association("someIds/nested")
-            StaticHandler update(EventWithMapPropertyList event) {
+            StaticHandler handle(EventWithMapPropertyList event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -370,7 +421,7 @@ public class StatefulHandlerTest {
             }
 
             @HandleEvent
-            ConstructorHandler update(SomeEvent event) {
+            ConstructorHandler handle(SomeEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -405,7 +456,7 @@ public class StatefulHandlerTest {
             }
 
             @HandleEvent
-            SomeHandler update(SomeEvent event) {
+            SomeHandler handle(SomeEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -473,6 +524,15 @@ public class StatefulHandlerTest {
     }
 
     record DeleteHandler(String someId) {
+    }
+
+    record DeleteHandlerByList(String someId) {
+    }
+
+    record ReplaceHandler(String someId, String newId) {
+    }
+
+    record ReplaceHandlerByList(String someId, String newId) {
     }
 
     record DuplicationEvent(String someId, String copyId) {

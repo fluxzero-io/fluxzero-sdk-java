@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -258,18 +260,50 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         @SneakyThrows
         protected void handleResult(Object result) {
             if (result instanceof Collection<?> collection) {
-                collection.forEach(this::handleResult);
-            } else if (getTargetClass().isInstance(result)) {
-                if (currentEntry == null || !Objects.equals(currentEntry.getValue(), result)) {
-                    repository.put(computeId(result), result).get();
+                if (collection.isEmpty()) {
+                    if (currentEntry != null) {
+                        //when an empty collection is returned, the entry is deleted
+                        repository.delete(currentEntry.getId()).get();
+                    }
+                } else {
+                    var newIds = collection.stream().map(this::tryStoreResult).filter(Objects::nonNull)
+                            .map(Object::toString).toList();
+                    if (new HashSet<>(newIds).size() != newIds.size()) {
+                        log.warn("Duplicate IDs returned from stateful handler {}#{}: {}."
+                                 + " Please ensure that each handler has a unique property marked with @EntityId!",
+                                 getTargetClass(), getMethod(), newIds);
+                    }
+                    if (!newIds.isEmpty() && currentEntry != null && !newIds.contains(currentEntry.getId())) {
+                        // entry was deleted because the collection did not contain the current entry
+                        repository.delete(currentEntry.getId()).get();
+                    }
                 }
-            } else if (result == null && expectResult() && getMethod() instanceof Method m
-                       && (getTargetClass().isAssignableFrom(m.getReturnType())
-                           || m.getReturnType().isAssignableFrom(getTargetClass()))) {
-                if (currentEntry != null) {
+            } else if (result == null) {
+                if (expectResult() && getMethod() instanceof Method m
+                    && (getTargetClass().isAssignableFrom(m.getReturnType())
+                    || m.getReturnType().isAssignableFrom(getTargetClass()))) {
+                    if (currentEntry != null) {
+                        repository.delete(currentEntry.getId()).get();
+                    }
+                }
+            } else {
+                Object newId = tryStoreResult(result);
+                if (newId != null && currentEntry != null && !currentEntry.getId().equals(newId.toString())) {
+                    // entry was replaced
                     repository.delete(currentEntry.getId()).get();
                 }
             }
+        }
+
+        protected Object tryStoreResult(Object result) {
+            if (!getTargetClass().isInstance(result)) {
+                return null;
+            }
+            Object id = computeId(result);
+            if (currentEntry == null || !Objects.equals(currentEntry.getValue(), result)) {
+                repository.put(id, result).join();
+            }
+            return id;
         }
 
         protected Object computeId(Object handler) {
