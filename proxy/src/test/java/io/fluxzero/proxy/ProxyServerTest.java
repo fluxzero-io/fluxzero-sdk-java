@@ -35,6 +35,7 @@ import io.fluxzero.sdk.web.WebRequest;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +56,8 @@ import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @Slf4j
 class ProxyServerTest {
@@ -124,8 +127,9 @@ class ProxyServerTest {
         @Test
         void getNamespaced() {
             testFixture.registerHandlers(new NamespacedHandler())
-                    .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
-                                                        BodyHandlers.ofString()).body())
+                    .whenApplying(
+                            fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                                  BodyHandlers.ofString()).body())
                     .expectResult("Hello test");
         }
 
@@ -137,12 +141,14 @@ class ProxyServerTest {
             withJwksServer(jwksResponse, url ->
                     testFixture
                             .registerHandlers(new NamespacedHandler())
-                            .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                                        BodyHandlers.ofString()).body())
+                            .whenApplying(fc -> httpClient.send(
+                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                    BodyHandlers.ofString()).body())
                             .expectResult("Hello test")
                             .andThen()
-                            .whenApplying(fc -> httpClient.send(newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                                                BodyHandlers.ofString()).body())
+                            .whenApplying(fc -> httpClient.send(
+                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                    BodyHandlers.ofString()).body())
                             .expectResult("Hello test"));
 
 
@@ -172,7 +178,8 @@ class ProxyServerTest {
         static class NamespacedHandler {
             @HandleGet("/")
             String hello() {
-                return "Hello " + Tracker.current().map(Tracker::getConfiguration).map(ConsumerConfiguration::getNamespace).orElse(null);
+                return "Hello " + Tracker.current().map(Tracker::getConfiguration)
+                        .map(ConsumerConfiguration::getNamespace).orElse(null);
             }
         }
 
@@ -344,5 +351,83 @@ class ProxyServerTest {
         private URI baseUri() {
             return URI.create(format("ws://0.0.0.0:%s/", proxyPort));
         }
+    }
+
+    @Nested
+    class CorsTests {
+
+        @BeforeEach
+        void setUpCors() {
+            testFixture.registerHandlers(new Object() {
+                @HandleGet("/users")
+                String users() {
+                    return "ok";
+                }
+            });
+            System.setProperty("FLUXZERO_CORS_DOMAINS", "https://app.example.com");
+        }
+
+        @AfterEach
+        void tearDown() {
+            System.clearProperty("FLUXZERO_CORS_DOMAINS");
+        }
+
+        @Test
+        void preflightIsHandledByProxy() {
+            var preflightRequest = newRequest()
+                    .method("OPTIONS", BodyPublishers.noBody())
+                    .header("Origin", "https://app.example.com")
+                    .header("Access-Control-Request-Method", "POST")
+                    .header("Access-Control-Request-Headers", "X-Impersonation, Content-Type")
+                    .build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(preflightRequest, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(204, resp.statusCode());
+                        assertEquals("https://app.example.com",
+                                     resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+                        assertEquals("true",
+                                     resp.headers().firstValue("Access-Control-Allow-Credentials").orElse(null));
+                        assertEquals("POST", resp.headers().firstValue("Access-Control-Allow-Methods").orElse(null));
+                        assertEquals("X-Impersonation, Content-Type",
+                                     resp.headers().firstValue("Access-Control-Allow-Headers").orElse(null));
+                        assertEquals(String.valueOf(java.time.Duration.ofDays(1).toSeconds()),
+                                     resp.headers().firstValue("Access-Control-Max-Age").orElse(null));
+                        assertEquals("Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+                                     resp.headers().firstValue("Vary").orElse(null));
+                    });
+        }
+
+        @Test
+        void corsHeadersAreAddedToRuntimeResponses() {
+            var request = newRequest().GET().header("Origin", "https://app.example.com").build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertEquals("https://app.example.com",
+                                     resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+                        assertEquals("true",
+                                     resp.headers().firstValue("Access-Control-Allow-Credentials").orElse(null));
+                        assertEquals("ok", resp.body());
+                    });
+        }
+
+        @Test
+        void corsHeadersAreNotAddedForDisallowedOrigin() {
+            var request = newRequest().GET().header("Origin", "https://evil.example.com").build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(200, resp.statusCode());
+                        assertNull(resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+                        assertEquals("ok", resp.body());
+                    });
+        }
+
+        private HttpRequest.Builder newRequest() {
+            return newBuilder(URI.create(String.format("http://0.0.0.0:%s/users", proxyPort)));
+        }
+
     }
 }

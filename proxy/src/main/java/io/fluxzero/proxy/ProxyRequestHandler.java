@@ -57,16 +57,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.undertow.servlet.Servlets.deployment;
 import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
 
 @Slf4j
 public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
+
+    public static final String CORS_DOMAINS_PROPERTY = "FLUXZERO_CORS_DOMAINS";
 
     @Getter
     private final Client client;
@@ -79,6 +84,9 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private final NamespaceSelector namespaceSelector;
 
     private final AtomicBoolean closed = new AtomicBoolean();
+    @Getter(lazy = true)
+    private final Set<String> allowedCorsDomains = mapProperty(CORS_DOMAINS_PROPERTY, p -> Arrays.stream(p.split(",")).map(String::trim)
+            .filter(d -> !d.isEmpty()).collect(Collectors.toSet()), Set::of);
 
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
@@ -108,6 +116,9 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         }
         if (exchange.isInIoThread()) {
             exchange.dispatch(this);
+            return;
+        }
+        if (handleCorsPreflight(exchange)) {
             return;
         }
         exchange.getRequestReceiver().receiveFullBytes(
@@ -164,6 +175,69 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         }
         return headerValue.stream().flatMap(
                 protocolHeader -> Arrays.stream(protocolHeader.split(",")).map(String::trim)).toList();
+    }
+
+    protected boolean handleCorsPreflight(HttpServerExchange se) {
+        if ("options".equalsIgnoreCase(se.getRequestMethod().toString())
+            && se.getRequestHeaders().contains("Access-Control-Request-Method")
+            && applyCorsHeaders(se)) {
+            ofNullable(se.getRequestHeaders().getFirst("Access-Control-Request-Headers"))
+                    .ifPresent(h -> se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Headers"), h));
+            ofNullable(se.getRequestHeaders().getFirst("Access-Control-Request-Method"))
+                    .ifPresent(h -> se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Methods"), h));
+            se.getResponseHeaders().put(new HttpString("Access-Control-Max-Age"),
+                                        String.valueOf(Duration.ofDays(1).toSeconds()));
+            se.getResponseHeaders().put(new HttpString("Vary"),
+                                        "Origin, Access-Control-Request-Method, Access-Control-Request-Headers");
+            se.setStatusCode(204);
+            se.endExchange();
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean applyCorsHeaders(HttpServerExchange se) {
+        String origin = se.getRequestHeaders().getFirst("Origin");
+        if (corsOrigin(origin)) {
+            se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), origin);
+            if (!se.getResponseHeaders().contains("Access-Control-Allow-Credentials")) {
+                se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Credentials"), "true");
+            }
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean corsOrigin(String origin) {
+        if (getAllowedCorsDomains().isEmpty() || origin == null || origin.isBlank()) {
+            return false;
+        }
+        origin = origin.trim();
+        if (getAllowedCorsDomains().contains(origin)) {
+            return true;
+        }
+        // Also allow matching by host suffix, e.g. allow "example.com" to match "https://app.example.com"
+        try {
+            java.net.URI uri = java.net.URI.create(origin);
+            String host = uri.getHost();
+            if (host == null) {
+                return false;
+            }
+            for (String domain : getAllowedCorsDomains()) {
+                if (domain.startsWith("http://") || domain.startsWith("https://")) {
+                    try {
+                        domain = java.net.URI.create(domain).getHost();
+                    } catch (Throwable ignored) {
+                    }
+                }
+                if (domain != null && !domain.isBlank()
+                    && (host.equalsIgnoreCase(domain) || host.toLowerCase().endsWith("." + domain.toLowerCase()))) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     protected void sendWebRequest(HttpServerExchange se, WebRequest webRequest) {
@@ -232,8 +306,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         }
     }
 
-    protected HttpServerExchange prepareForSending(SerializedMessage responseMessage, HttpServerExchange se, int statusCode) {
+    protected HttpServerExchange prepareForSending(SerializedMessage responseMessage, HttpServerExchange se,
+                                                   int statusCode) {
         se.setStatusCode(statusCode);
+        applyCorsHeaders(se);
         boolean http2 = se.getProtocol().compareTo(Protocols.HTTP_1_1) > 0;
         Map<String, List<String>> headers = WebUtils.getHeaders(responseMessage.getMetadata());
         if (responseMessage.chunked()) {
@@ -247,7 +323,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                     }
                 });
         if (!se.getResponseHeaders().contains("Content-Type")) {
-            Optional.ofNullable(responseMessage.getData().getFormat()).ifPresent(
+            ofNullable(responseMessage.getData().getFormat()).ifPresent(
                     format -> se.getResponseHeaders().add(new HttpString("Content-Type"), format));
         }
         return se;
