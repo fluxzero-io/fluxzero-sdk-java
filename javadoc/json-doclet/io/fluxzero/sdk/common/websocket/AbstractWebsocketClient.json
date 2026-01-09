@@ -262,6 +262,11 @@
       "type" : "jakarta.websocket.Session",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "reason",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
