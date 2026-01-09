@@ -82,8 +82,8 @@ import static io.fluxzero.sdk.Fluxzero.publishMetrics;
 import static io.fluxzero.sdk.common.ClientUtils.ignoreMarker;
 import static io.fluxzero.sdk.common.Message.asMessage;
 import static io.fluxzero.sdk.publishing.AdhocDispatchInterceptor.getAdhocInterceptor;
-import static jakarta.websocket.CloseReason.CloseCodes.CLOSED_ABNORMALLY;
 import static jakarta.websocket.CloseReason.CloseCodes.GOING_AWAY;
+import static jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.Thread.currentThread;
 import static java.lang.Thread.sleep;
@@ -273,7 +273,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         } catch (Exception e) {
             log().error(ignoreMarker, "Failed to send request {} (session {})", object, session.getId(), e);
             if (ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false)) {
-                abort(session);
+                abort(session, "Channel closed before sending");
             } else {
                 throw e;
             }
@@ -364,7 +364,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
                     return new PingRegistration(pingScheduler.schedule(clientConfig.getPingTimeout(), () -> {
                         log().warn("Failed to get a ping response in time for session {}. Resetting connection",
                                    session.getId());
-                        abort(session);
+                        abort(session, "Ping failed");
                     }));
                 });
                 try {
@@ -377,8 +377,8 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
     }
 
     @SneakyThrows
-    protected void abort(Session session) {
-        session.close(new CloseReason(CLOSED_ABNORMALLY, "Session aborted"));
+    protected void abort(Session session, String reason) {
+        session.close(new CloseReason(UNEXPECTED_CONDITION, reason));
     }
 
     @OnMessage
