@@ -16,7 +16,7 @@ env:
   BUILD_ENVIRONMENT: github
 
 jobs:
-  # Job 1: Build and test (CRITICAL PATH - must succeed before anything else)
+  # Job 1: Build and test (must succeed before anything else)
   build-and-test:
     runs-on: ubuntu-latest
     outputs:
