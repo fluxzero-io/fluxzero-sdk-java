@@ -117,7 +117,7 @@ jobs:
         with:
           tag_name: ${{ needs.build-and-test.outputs.version }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
-          generate_release_notes: true
+          body: ${{ needs.build-and-test.outputs.changelog }}
 
   # Job 5: Build and push test-server Docker image (runs in parallel after build)
   docker-test-server:
