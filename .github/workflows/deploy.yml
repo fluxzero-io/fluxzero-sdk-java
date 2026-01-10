@@ -22,6 +22,7 @@ jobs:
     outputs:
       version: ${{ steps.tag_version.outputs.new_version }}
       version-tag: ${{ steps.tag_version.outputs.new_tag }}
+      version-changelog: ${{ steps.tag_version.outputs.changelog }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -117,7 +118,7 @@ jobs:
         with:
           tag_name: ${{ needs.build-and-test.outputs.version }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
-          body: ${{ needs.build-and-test.outputs.changelog }}
+          body: ${{ needs.build-and-test.outputs.version-changelog }}
 
   # Job 5: Build and push test-server Docker image (runs in parallel after build)
   docker-test-server:
