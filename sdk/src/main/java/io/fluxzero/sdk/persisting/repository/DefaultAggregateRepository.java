@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 package io.fluxzero.sdk.persisting.repository;
@@ -205,8 +204,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
     /**
      * Aggregate-type-specific delegate used internally by {@link DefaultAggregateRepository}.
      * <p>
-     * This class is instantiated per aggregate class and parses metadata from the {@link Aggregate} annotation to
-     * determine:
+     * This class is instantiated per aggregate class and parses metadata from the {@link Aggregate} annotation to determine:
      * <ul>
      *   <li>Whether the aggregate is event-sourced or backed by the document store.</li>
      *   <li>If and how frequently snapshots should be created.</li>
@@ -398,11 +396,11 @@ public class DefaultAggregateRepository implements AggregateRepository {
             }
         }
 
-        protected CompletableFuture<?> commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
+        public void commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
             if (after.type() != null && !Objects.equals(after.type(), type)) {
-                return delegates.apply(after.type()).commit(after, unpublishedEvents, before);
+                delegates.apply(after.type()).commit(after, unpublishedEvents, before);
+                return;
             }
-            List<CompletableFuture<?>> futures = new ArrayList<>();
             try {
                 aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
                         current == null || Objects.equals(before.lastEventId(), current.lastEventId())
@@ -420,13 +418,12 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             map.put(r.getAggregateId(), after.type());
                             return map;
                         }));
-
                 if (!associations.isEmpty() || !dissociations.isEmpty()) {
-                    futures.add(eventStoreClient.updateRelationships(
-                            new UpdateRelationships(associations, dissociations, STORED)));
+                    eventStoreClient.updateRelationships(
+                            new UpdateRelationships(associations, dissociations, STORED)).get();
                 }
                 if (!unpublishedEvents.isEmpty()) {
-                    storeEvents(after.id().toString(), unpublishedEvents, futures);
+                    storeEvents(after.id().toString(), unpublishedEvents);
                     if (snapshotTrigger.shouldCreateSnapshot(after, unpublishedEvents)) {
                         snapshotStore.storeSnapshot(after);
                     }
@@ -434,28 +431,21 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 if (searchable) {
                     Object value = after.get();
                     if (value == null) {
-                        futures.add(documentStore.deleteDocument(after.id().toString(), collection));
+                        documentStore.deleteDocument(after.id().toString(), collection);
                     } else {
-                        futures.add(documentStore.index(
+                        documentStore.index(
                                 value, after.id().toString(), collection,
-                                timestampFunction.apply(after), endFunction.apply(after)));
+                                timestampFunction.apply(after), endFunction.apply(after)).get();
                     }
                 }
             } catch (Exception e) {
                 log.error("Failed to commit aggregate {}", after.id(), e);
                 aggregateCache.remove(after.id().toString());
             }
-            return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-                    .whenComplete((r, e) -> {
-                        if (e != null) {
-                            log.error("Failed to commit aggregate {}", after.id(), e);
-                            aggregateCache.remove(after.id().toString());
-                        }
-                    });
         }
 
         @SneakyThrows
-        void storeEvents(String aggregateId, List<AppliedEvent> appliedEvents, List<CompletableFuture<?>> futures) {
+        void storeEvents(String aggregateId, List<AppliedEvent> appliedEvents) {
             Fluxzero.getOptionally().ifPresent(fc -> appliedEvents.forEach(
                     e -> e.getEvent().getSerializedObject().setSource(fc.client().id())));
 
@@ -463,18 +453,16 @@ public class DefaultAggregateRepository implements AggregateRepository {
             EventPublicationStrategy currentStrategy = null;
             for (AppliedEvent event : appliedEvents) {
                 if (event.getPublicationStrategy() != currentStrategy && currentStrategy != null) {
-                    futures.add(eventStore.storeEvents(aggregateId,
-                                                       currentBatch.stream().map(AppliedEvent::getEvent).toList(),
-                                                       currentStrategy));
+                    eventStore.storeEvents(aggregateId, currentBatch.stream().map(AppliedEvent::getEvent).toList(),
+                                           currentStrategy).get();
                     currentBatch.clear();
                 }
                 currentStrategy = event.getPublicationStrategy();
                 currentBatch.add(event);
             }
             if (!currentBatch.isEmpty()) {
-                futures.add(
-                        eventStore.storeEvents(aggregateId, currentBatch.stream().map(AppliedEvent::getEvent).toList(),
-                                               currentStrategy));
+                eventStore.storeEvents(aggregateId, currentBatch.stream().map(AppliedEvent::getEvent).toList(),
+                                       currentStrategy).get();
             }
         }
     }
