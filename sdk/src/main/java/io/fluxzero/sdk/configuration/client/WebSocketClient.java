@@ -256,10 +256,10 @@ public class WebSocketClient extends AbstractClient {
         Map<MessageType, TrackingClientConfig> trackingConfigs = defaultTrackingSessions();
 
         /**
-         * How long to wait for a ping response before timing out. Defaults to {@code 5 seconds}.
+         * How long to wait for a ping response before timing out. Defaults to {@code 15 seconds}.
          */
         @Default
-        Duration pingTimeout = Duration.ofSeconds(5);
+        Duration pingTimeout = Duration.ofSeconds(15);
 
         /**
          * The delay between automatic ping messages. Defaults to {@code 10 seconds}.
