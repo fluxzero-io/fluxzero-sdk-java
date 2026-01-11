@@ -142,7 +142,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " How long to wait for a ping response before timing out. Defaults to {@code 5 seconds}.\n",
+    "documentation" : " How long to wait for a ping response before timing out. Defaults to {@code 15 seconds}.\n",
     "constantValue" : null
   }, {
     "name" : "runtimeBaseUrl",

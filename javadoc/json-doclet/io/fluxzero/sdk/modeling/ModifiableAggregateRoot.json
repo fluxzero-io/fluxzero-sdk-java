@@ -16,7 +16,7 @@
       "onlyExplicitlyIncluded" : "true"
     }
   } ],
-  "documentation" : " A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events with commit\n support for persisting the state and synchronizing it with the Fluxzero Runtime.\n <p>\n This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}), providing\n additional lifecycle management for:\n <ul>\n     <li>Capturing uncommitted changes during an event or command handler execution.</li>\n     <li>Intercepting and applying updates and events with legality assertions.</li>\n     <li>Buffering applied events and committing them via a {@link CommitHandler} callback.</li>\n     <li>Supporting batch-commit semantics for grouped event processing.</li>\n     <li>Tracking active aggregates for correlation and relationship resolution during handlers.</li>\n </ul>\n\n <h2>Commit Lifecycle</h2>\n During handler invocation, intercepted updates and applied events are stored in a temporary buffer.\n When the handler completes successfully, events are committed via the configured {@link CommitHandler},\n which typically stores events in the {@link EventStore} and\n publishes them if needed.\n <p>\n If the handler fails (throws), state changes and captured events are discarded, and the aggregate is rolled\n back to the last stable state.\n\n <h2>Publication Strategy</h2>\n Events are published according to the {@link EventPublication} and {@link EventPublicationStrategy} specified\n either globally or on individual {@link Apply}-annotated methods. This allows\n fine-grained control over which events are stored or published.\n\n <h2>Thread-Scoped Aggregates</h2>\n All active {@code ModifiableAggregateRoot} instances are tracked per thread using a thread-local map,\n enabling relationship resolution and update tracking across aggregates within the same handler context.\n <p>\n This mechanism enables other parts of the framework to determine which aggregates are currently in use\n or updated within a processing thread, without requiring external state.\n\n @param <T> the type of the aggregate's value.\n @see ImmutableAggregateRoot\n @see LazyAggregateRoot\n @see CommitHandler\n @see EventPublication\n @see EventPublicationStrategy\n",
+  "documentation" : " A mutable, stateful {@link AggregateRoot} implementation that allows in-place updates and applies events\n with commit support for persisting the state and synchronizing it with the Fluxzero Runtime.\n <p>\n This class acts as a wrapper around an immutable entity (typically an {@link ImmutableAggregateRoot}),\n providing additional lifecycle management for:\n <ul>\n     <li>Capturing uncommitted changes during an event or command handler execution.</li>\n     <li>Intercepting and applying updates and events with legality assertions.</li>\n     <li>Buffering applied events and committing them via a {@link CommitHandler} callback.</li>\n     <li>Supporting batch-commit semantics for grouped event processing.</li>\n     <li>Tracking active aggregates for correlation and relationship resolution during handlers.</li>\n </ul>\n\n <h2>Commit Lifecycle</h2>\n During handler invocation, intercepted updates and applied events are stored in a temporary buffer.\n When the handler completes successfully, events are committed via the configured {@link CommitHandler},\n which typically stores events in the {@link EventStore} and\n publishes them if needed.\n <p>\n If the handler fails (throws), state changes and captured events are discarded, and the aggregate is rolled\n back to the last stable state.\n\n <h2>Publication Strategy</h2>\n Events are published according to the {@link EventPublication} and {@link EventPublicationStrategy} specified\n either globally or on individual {@link Apply}-annotated methods. This allows\n fine-grained control over which events are stored or published.\n\n <h2>Thread-Scoped Aggregates</h2>\n All active {@code ModifiableAggregateRoot} instances are tracked per thread using a thread-local map,\n enabling relationship resolution and update tracking across aggregates within the same handler context.\n <p>\n This mechanism enables other parts of the framework to determine which aggregates are currently in use\n or updated within a processing thread, without requiring external state.\n\n @param <T> the type of the aggregate's value.\n\n @see ImmutableAggregateRoot\n @see LazyAggregateRoot\n @see CommitHandler\n @see EventPublication\n @see EventPublicationStrategy\n",
   "typeParameters" : [ "T" ],
   "superClass" : "io.fluxzero.sdk.modeling.DelegatingEntity<T>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.AggregateRoot<T>" ],
@@ -24,14 +24,6 @@
     "name" : "activeAggregates",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.activeAggregates",
     "type" : "java.lang.ThreadLocal<java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "activeCommits",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.activeCommits",
-    "type" : "java.lang.ThreadLocal<java.util.List<java.util.concurrent.CompletableFuture<?>>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -317,39 +309,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "commit",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#commit",
-    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "async",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "commitAndClear",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#commitAndClear",
-    "returnType" : "void",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "entities",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#entities",
     "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
@@ -502,6 +461,22 @@
     "parameters" : [ {
       "name" : "function",
       "type" : "java.util.function.UnaryOperator<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "whenBatchCompletes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#whenBatchCompletes",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

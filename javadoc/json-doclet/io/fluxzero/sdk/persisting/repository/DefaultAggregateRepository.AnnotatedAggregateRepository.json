@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Aggregate-type-specific delegate used internally by {@link DefaultAggregateRepository}.\n <p>\n This class is instantiated per aggregate class and parses metadata from the {@link Aggregate} annotation to\n determine:\n <ul>\n   <li>Whether the aggregate is event-sourced or backed by the document store.</li>\n   <li>If and how frequently snapshots should be created.</li>\n   <li>Whether the aggregate is indexed for search.</li>\n   <li>How events should be published and committed.</li>\n   <li>Which cache(s) to use.</li>\n </ul>\n\n <p>It provides loading and committing capabilities tailored to the configured storage and publication strategy.\n It also supports refetching aggregates from the Fluxzero Runtime and maintaining relationships with child entities.\n\n <p>Snapshot and document-based aggregates are supported out of the box. Event replay is triggered as needed.\n\n <p>This class is not intended to be used directly outside the {@code DefaultAggregateRepository}.\n\n @param <T> the aggregate root type\n",
+  "documentation" : " Aggregate-type-specific delegate used internally by {@link DefaultAggregateRepository}.\n <p>\n This class is instantiated per aggregate class and parses metadata from the {@link Aggregate} annotation to determine:\n <ul>\n   <li>Whether the aggregate is event-sourced or backed by the document store.</li>\n   <li>If and how frequently snapshots should be created.</li>\n   <li>Whether the aggregate is indexed for search.</li>\n   <li>How events should be published and committed.</li>\n   <li>Which cache(s) to use.</li>\n </ul>\n\n <p>It provides loading and committing capabilities tailored to the configured storage and publication strategy.\n It also supports refetching aggregates from the Fluxzero Runtime and maintaining relationships with child entities.\n\n <p>Snapshot and document-based aggregates are supported out of the box. Event replay is triggered as needed.\n\n <p>This class is not intended to be used directly outside the {@code DefaultAggregateRepository}.\n\n @param <T> the aggregate root type\n",
   "typeParameters" : [ "T" ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -149,8 +149,8 @@
   "methods" : [ {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#commit",
-    "returnType" : "java.util.concurrent.CompletableFuture<?>",
-    "modifiers" : [ "protected" ],
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -280,11 +280,6 @@
     }, {
       "name" : "appliedEvents",
       "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "futures",
-      "type" : "java.util.List<java.util.concurrent.CompletableFuture<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
