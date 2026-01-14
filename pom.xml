@@ -39,7 +39,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <undertow.version>2.3.20.Final</undertow.version>
+        <undertow.version>2.3.21.Final</undertow.version>
         <kotlin.version>2.3.0</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
     </properties>
