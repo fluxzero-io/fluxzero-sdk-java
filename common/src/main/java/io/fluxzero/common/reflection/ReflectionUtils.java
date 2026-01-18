@@ -237,7 +237,7 @@ public class ReflectionUtils {
        Adopted from https://stackoverflow.com/questions/28400408/what-is-the-new-way-of-getting-all-methods-of-a-class-including-inherited-defau
     */
     private static List<Method> computeAllMethods(Class<?> type) {
-        Predicate<Method> include = m -> !m.isBridge() && !m.isSynthetic() &&
+        Predicate<Method> include = m -> !m.isSynthetic() &&
                                          Character.isJavaIdentifierStart(m.getName().charAt(0))
                                          && m.getName().chars().skip(1).allMatch(Character::isJavaIdentifierPart);
 
