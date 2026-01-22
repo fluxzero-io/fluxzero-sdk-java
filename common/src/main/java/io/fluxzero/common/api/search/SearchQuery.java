@@ -80,6 +80,8 @@ public class SearchQuery {
     boolean beforeInclusive;
     @Singular
     List<Constraint> constraints;
+    @lombok.Builder.Default
+    SearchType type = SearchType.search;
 
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
@@ -91,7 +93,7 @@ public class SearchQuery {
     @lombok.Builder(toBuilder = true, builderClassName = "Builder")
     @Jacksonized
     public SearchQuery(List<String> collections, Instant since, Instant before, boolean sinceExclusive,
-                       boolean beforeInclusive, List<Constraint> constraints) {
+                       boolean beforeInclusive, List<Constraint> constraints, SearchType type) {
         this.sinceExclusive = sinceExclusive;
         this.beforeInclusive = beforeInclusive;
         if (collections.isEmpty()) {
@@ -101,6 +103,7 @@ public class SearchQuery {
         this.since = since;
         this.before = before;
         this.constraints = constraints;
+        this.type = type;
     }
 
     public Instant getBefore() {

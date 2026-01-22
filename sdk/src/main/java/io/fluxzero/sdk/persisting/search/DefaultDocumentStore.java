@@ -31,6 +31,7 @@ import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
 import io.fluxzero.common.api.search.SearchQuery;
+import io.fluxzero.common.api.search.SearchType;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
@@ -336,6 +337,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (n != null) {
                 this.skip = n;
             }
+            return this;
+        }
+
+        @Override
+        public Search type(SearchType type) {
+            queryBuilder.type(type);
             return this;
         }
 

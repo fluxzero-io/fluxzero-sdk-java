@@ -20,6 +20,7 @@ import io.fluxzero.common.api.search.DocumentStats.FieldStats;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.Group;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchType;
 import io.fluxzero.common.api.search.constraints.AllConstraint;
 import io.fluxzero.common.api.search.constraints.AnyConstraint;
 import io.fluxzero.common.api.search.constraints.BetweenConstraint;
@@ -298,6 +299,17 @@ public interface Search {
      */
     Search skip(Integer n);
 
+    /**
+     * Configures the type of search, See: {@link  SearchType}
+     */
+    Search type(SearchType type);
+
+    /**
+     * Sets the {@link SearchType} for this search to audittrail
+     */
+    private Search audittrail() {
+        return type(SearchType.audittrail);
+    }
     /*
         Execution
      */
