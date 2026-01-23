@@ -22,14 +22,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declares a static file handler that serves files from a resource or file system location at the specified web path(s).
+ * Declares a static file handler that serves files from a resource or file system location at the specified web
+ * path(s).
  * <p>
- * This annotation can be placed on a class or package that configures or instantiates a {@code StaticFileHandler}. At runtime,
- * it may be discovered and used to register routes that serve static assets such as HTML, JavaScript, CSS, or images.
+ * This annotation can be placed on a class or package that configures or instantiates a {@code StaticFileHandler}. At
+ * runtime, it may be discovered and used to register routes that serve static assets such as HTML, JavaScript, CSS, or
+ * images.
  * <p>
- * Files are served from either the file system or the classpath. If a file exists in both locations, the file system version
- * takes precedence. If the {@code resourcePath} starts with {@code classpath:}, it is <strong>only</strong> loaded from the
- * classpath. If it starts with {@code file:}, it is <strong>only</strong> loaded from the file system.
+ * Files are served from either the file system or the classpath. If a file exists in both locations, the file system
+ * version takes precedence. If the {@code resourcePath} starts with {@code classpath:}, it is <strong>only</strong>
+ * loaded from the classpath. If it starts with {@code file:}, it is <strong>only</strong> loaded from the file system.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
@@ -37,12 +39,13 @@ import java.lang.annotation.Target;
 public @interface ServeStatic {
 
     /**
-     * One or more web path patterns this handler applies to (e.g. {@code "static"}, {@code "/web/public"}).
+     * One or more web path patterns this handler applies to (e.g. {@code "/"}, {@code "/static"}).
      * <p>
-     * If a path starts with {@code /}, it is interpreted as an absolute path and not influenced by outer {@link Path} annotations.
-     * Otherwise, it is considered relative and will be prefixed with any outer {@code @Path} values.
+     * If a path starts with {@code /}, it is interpreted as an absolute path and not influenced by outer {@link Path}
+     * annotations. Otherwise, it is considered relative and will be prefixed with any outer {@code @Path} values.
      * <p>
-     * If left empty, the path will be inferred from outer {@code @Path} annotations or defaults.
+     * If left empty, the path will be inferred from outer {@code @Path} annotations. If no outer {@code @Path} is
+     * present, the default path is {@code "/"}.
      *
      * @return Web path patterns for serving static content.
      */
@@ -58,8 +61,9 @@ public @interface ServeStatic {
     /**
      * The base resource path from which to serve static files.
      * <p>
-     * May point to a classpath directory (e.g., {@code /static}, {@code assets/}) or a file system path (e.g., {@code /opt/myapp/public}).
-     * If both classpath and file system contain the same file, the file system version takes precedence.
+     * May point to a classpath directory (e.g., {@code /static}, {@code assets/}) or a file system path (e.g.,
+     * {@code /opt/myapp/public}). If both classpath and file system contain the same file, the file system version
+     * takes precedence.
      * <p>
      * Prefixing the path with {@code classpath:} or {@code file:} restricts loading to that source only.
      *
@@ -70,7 +74,8 @@ public @interface ServeStatic {
     /**
      * Optional fallback file to serve if a requested resource is not found.
      * <p>
-     * This is useful for single-page applications (SPAs) where all unknown routes should fall back to {@code index.html}.
+     * This is useful for single-page applications (SPAs) where all unknown routes should fall back to
+     * {@code index.html}.
      * <p>
      * To disable this behavior, return an empty string.
      *

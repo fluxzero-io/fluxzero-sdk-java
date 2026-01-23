@@ -73,9 +73,7 @@ public class StaticFileHandler implements Closeable {
         var webPaths = Arrays.stream(serveStatic.value())
                 .map(v -> v.startsWith("/") ? v : WebUtils.concatenateUrlParts(path, v)).toList();
         if (webPaths.isEmpty()) {
-            webPaths = Optional.of(path).filter(p -> !p.isBlank()).map(List::of).orElseThrow(
-                    () -> new IllegalStateException("@ServeStatic's value should be present on " + targetClass.getName()
-                                                    + " or @Path should be present on the target class or its package."));
+            webPaths = Optional.of(path).filter(p -> !p.isBlank()).map(List::of).orElseGet(() -> List.of("/"));
         }
         var ignorePaths = Arrays.stream(serveStatic.ignorePaths()).collect(toSet());
         var immutableFileExtensions = Arrays.stream(serveStatic.immutableCandidateExtensions()).collect(toSet());
