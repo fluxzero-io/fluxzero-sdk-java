@@ -530,6 +530,15 @@ public class HandleWebTest {
                     .expectExceptionalResult(TimeoutException.class);
         }
 
+        @Test
+        void serveUsingBasicStaticHandler() {
+            TestFixture.create(new BasicStaticHandler()).whenGet("/abc.txt")
+                    .expectWebResult(testContents("123"))
+                    .andThen()
+                    .whenGet("")
+                    .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
         @Path
         @ServeStatic(value = "/static", ignorePaths = "/static/api/*", resourcePath = "classpath:/web/static")
         static class ClasspathHandler {
@@ -542,6 +551,10 @@ public class HandleWebTest {
         @Path
         @ServeStatic(value = "static", resourcePath = "classpath:/web/static")
         static class RelativeClasspathHandler {
+        }
+
+        @ServeStatic
+        static class BasicStaticHandler {
         }
 
         static class FileSystemHandler extends StaticFileHandler {
