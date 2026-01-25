@@ -1,0 +1,105 @@
+{
+  "name" : "TimeParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " The TimeParameterResolver class implements the ParameterResolver interface to resolve parameters of type\n {@link Instant} and {@link Clock} in message handler methods.\n <p>\n This resolver is capable of injecting values into handler method parameters based on the message being processed.\n <p>\n It supports two types of parameters: 1. {@link Instant}: Resolved to the timestamp of the current message. 2.\n {@link Clock}: Resolved to a fixed Clock instance with the current message's timestamp in UTC.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "TimeParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#TimeParameterResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

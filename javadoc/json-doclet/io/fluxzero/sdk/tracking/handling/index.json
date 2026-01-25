@@ -255,6 +255,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
     "kind" : "class"
   }, {
+    "file" : "TimeParameterResolver.json",
+    "name" : "TimeParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver",
+    "kind" : "class"
+  }, {
     "file" : "Trigger.json",
     "name" : "Trigger",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger",
