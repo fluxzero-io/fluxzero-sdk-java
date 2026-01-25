@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.givenwhenthen;
@@ -28,6 +29,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -252,6 +257,29 @@ class GivenWhenThenTest {
     @Test
     void testExpectNoMetricsLike() {
         TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
+    }
+
+    @Test
+    void testTimestampInject() {
+        Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
+        TestFixture.create(new Object() {
+            @HandleCommand
+            Instant handle(String payload, Instant timestamp) {
+                return timestamp;
+            }
+        }).atFixedTime(time).whenCommand("test").expectResult(time);
+    }
+
+    @Test
+    void testClockInject() {
+        Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
+        TestFixture.create(new Object() {
+            @HandleCommand
+            Instant handle(String payload, Clock clock) {
+                return clock.instant();
+            }
+        }).atFixedTime(time)
+                .whenCommand("test").expectResult(time);
     }
 
     private static class CommandHandler {
