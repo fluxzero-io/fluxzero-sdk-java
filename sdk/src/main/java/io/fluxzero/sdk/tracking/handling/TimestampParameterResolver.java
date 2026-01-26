@@ -16,8 +16,11 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -28,29 +31,34 @@ import java.time.ZoneOffset;
 import java.util.function.Function;
 
 /**
- * The TimeParameterResolver class implements the ParameterResolver interface to resolve parameters of type
- * {@link Instant} and {@link Clock} in message handler methods.
+ * Resolves {@link Instant} and {@link Clock} parameters for message‑handling methods.
+ *
+ * <p>When a handler method declares an {@link Instant} parameter, the resolver injects the timestamp
+ * of the current message if available. Otherwise, it supplies the current time via {@link Fluxzero#currentTime()}.
  * <p>
- * This resolver is capable of injecting values into handler method parameters based on the message being processed.
- * <p>
- * It supports two types of parameters: 1. {@link Instant}: Resolved to the timestamp of the current message. 2.
- * {@link Clock}: Resolved to a fixed Clock instance with the current message's timestamp in UTC.
+ * For a {@link Clock} parameter, it provides a clock fixed at that timestamp if the handler method is annotated with
+ * {@link Apply}; otherwise it supplies the clock of {@link Fluxzero} if available or else the system UTC clock.
+ *
+ * @see ParameterResolver
  */
-public class TimeParameterResolver implements ParameterResolver<Object> {
+public class TimestampParameterResolver implements ParameterResolver<Object> {
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         if (Instant.class.isAssignableFrom(p.getType())) {
             return m -> {
                 var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
-                return dm.getTimestamp();
+                return dm == null ? Fluxzero.currentTime() : dm.getTimestamp();
             };
         }
         if (Clock.class.isAssignableFrom(p.getType())) {
-            return m -> {
-                var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
-                return Clock.fixed(dm.getTimestamp(), ZoneOffset.UTC);
-            };
+            if (ReflectionUtils.isOrHas(methodAnnotation, Apply.class)) {
+                return m -> {
+                    var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
+                    return Clock.fixed(dm.getTimestamp(), ZoneOffset.UTC);
+                };
+            }
+            return m -> Fluxzero.currentClock();
         }
         return null;
     }

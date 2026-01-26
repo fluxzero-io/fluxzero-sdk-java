@@ -101,7 +101,7 @@ import io.fluxzero.sdk.tracking.handling.MetadataParameterResolver;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.RepositoryProvider;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
-import io.fluxzero.sdk.tracking.handling.TimeParameterResolver;
+import io.fluxzero.sdk.tracking.handling.TimestampParameterResolver;
 import io.fluxzero.sdk.tracking.handling.TriggerParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor;
 import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
@@ -670,7 +670,7 @@ public class DefaultFluxzero implements Fluxzero {
             parameterResolvers.addAll(List.of(new TriggerParameterResolver(client, serializer),
                                               new MessageParameterResolver(),
                                               new MetadataParameterResolver(),
-                                              new TimeParameterResolver(),
+                                              new TimestampParameterResolver(),
                                               websocketHandlerDecorator,
                                               new WebParamParameterResolver(),
                                               new WebPayloadParameterResolver(
