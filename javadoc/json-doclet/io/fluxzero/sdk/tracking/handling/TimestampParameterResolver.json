@@ -1,18 +1,18 @@
 {
-  "name" : "TimeParameterResolver",
-  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver",
+  "name" : "TimestampParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimestampParameterResolver",
   "packageName" : "io.fluxzero.sdk.tracking.handling",
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " The TimeParameterResolver class implements the ParameterResolver interface to resolve parameters of type\n {@link Instant} and {@link Clock} in message handler methods.\n <p>\n This resolver is capable of injecting values into handler method parameters based on the message being processed.\n <p>\n It supports two types of parameters: 1. {@link Instant}: Resolved to the timestamp of the current message. 2.\n {@link Clock}: Resolved to a fixed Clock instance with the current message's timestamp in UTC.\n",
+  "documentation" : " Resolves {@link Instant} and {@link Clock} parameters for message‑handling methods.\n\n <p>When a handler method declares an {@link Instant} parameter, the resolver injects the timestamp\n of the current message if available. Otherwise, it supplies the current time via {@link Fluxzero#currentTime()}.\n <p>\n For a {@link Clock} parameter, it provides a clock fixed at that timestamp if the handler method is annotated with\n {@link Apply}; otherwise it supplies the clock of {@link Fluxzero} if available or else the system UTC clock.\n\n @see ParameterResolver\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
   "fields" : [ ],
   "constructors" : [ {
-    "name" : "TimeParameterResolver",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#TimeParameterResolver",
+    "name" : "TimestampParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimestampParameterResolver#TimestampParameterResolver",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -23,7 +23,7 @@
   } ],
   "methods" : [ {
     "name" : "matches",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#matches",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimestampParameterResolver#matches",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -52,7 +52,7 @@
     "documentation" : null
   }, {
     "name" : "mayApply",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimestampParameterResolver#mayApply",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -76,7 +76,7 @@
     "documentation" : null
   }, {
     "name" : "resolve",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimeParameterResolver#resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TimestampParameterResolver#resolve",
     "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
