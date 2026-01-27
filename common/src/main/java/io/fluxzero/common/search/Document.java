@@ -32,6 +32,7 @@ import lombok.experimental.Accessors;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -307,20 +308,34 @@ public class Document {
 
         private static final Pattern splitPattern = Pattern.compile("(?<!\\\\)/");
 
-        private static final Function<String, String[]> splitFunction = memoize(in -> splitPattern.split(in));
+        private static final Function<String, Stream<String>> splitFunction = Path::split;
 
-        private static final Function<String, String> shortValueFunction = memoize(in -> Arrays.stream(
-                        splitPattern.split(in))
+        private static final Function<String, String> shortValueFunction = memoize(in -> splitFunction.apply(in)
                 .filter(p -> !SearchUtils.isInteger(p)).map(SearchUtils::unescapeFieldName).collect(joining("/")));
 
         /**
-         * Splits a path string into individual elements (unescaped), using {@code /} as the delimiter.
+         * Splits a given path string into a stream of its segments. The path is split based on the forward slash ('/')
+         * separator if it does not contain any backslashes ('\\'). If the path contains backslashes, a pre-defined
+         * pattern is used for splitting.
          *
-         * @param path path string to split
-         * @return stream of path components (e.g. {@code ["foo", "bar", "name"]})
+         * @param path the string representation of the path to be split into segments
+         * @return a Stream of strings, each representing a segment of the path
          */
         public static Stream<String> split(String path) {
-            return Arrays.stream(splitFunction.apply(path));
+            if (path.indexOf('\\') < 0) {
+                int n = path.length();
+                ArrayList<String> parts = new ArrayList<>(8);
+                int segStart = 0;
+                for (int i = 0; i < n; i++) {
+                    if (path.charAt(i) == '/') {
+                        parts.add(path.substring(segStart, i));
+                        segStart = i + 1;
+                    }
+                }
+                parts.add(path.substring(segStart));
+                return parts.stream();
+            }
+            return splitPattern.splitAsStream(path);
         }
 
         /**
