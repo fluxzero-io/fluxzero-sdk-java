@@ -329,6 +329,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private Duration resultTimeout = defaultResultTimeout;
     private Duration consumerTimeout = defaultConsumerTimeout;
     private boolean ignoreErrorsInGiven;
+    private boolean skipScheduleDeadlines;
     private final boolean synchronous;
     private final boolean spying;
     private final boolean productionUserProvider;
@@ -618,6 +619,11 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public TestFixture ignoringErrors() {
         return modifyFixture(fixture -> fixture.ignoreErrorsInGiven = true);
+    }
+
+    @Override
+    public TestFixture advanceTimeIncrementally(boolean enabled) {
+        return modifyFixture(fixture -> fixture.skipScheduleDeadlines = !enabled);
     }
 
     protected TestFixture modifyFixture(ThrowingConsumer<TestFixture> modifier) {
@@ -1249,14 +1255,16 @@ public class TestFixture implements Given<TestFixture>, When {
     protected void setClock(Clock clock) {
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
         if (schedulingClient instanceof LocalSchedulingClient local) {
-            var target = clock.instant();
-            var nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
-            while (nextDeadline != null && nextDeadline.isBefore(target)) {
-                Clock nextClock = Clock.fixed(nextDeadline, ZoneId.systemDefault());
-                getFluxzero().withClock(nextClock);
-                local.setClock(nextClock);
-                handleExpiredSchedulesLocally();
-                nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+            if (!skipScheduleDeadlines) {
+                var target = clock.instant();
+                var nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+                while (nextDeadline != null && nextDeadline.isBefore(target)) {
+                    Clock nextClock = Clock.fixed(nextDeadline, ZoneId.systemDefault());
+                    getFluxzero().withClock(nextClock);
+                    local.setClock(nextClock);
+                    handleExpiredSchedulesLocally();
+                    nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+                }
             }
             getFluxzero().withClock(clock);
             local.setClock(clock);

@@ -19,6 +19,7 @@ import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
@@ -140,9 +141,11 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     protected List<Schedule> asList(Map<Long, String> scheduleIdsByIndex, Serializer serializer) {
         return scheduleIdsByIndex.entrySet().stream().map(e -> {
             SerializedMessage m = getMessage(e.getKey());
-            return new Schedule(
-                    serializer.deserializeMessages(Stream.of(m), SCHEDULE).findFirst().get().getPayload(),
-                    m.getMetadata(), e.getValue(), timestampFromIndex(e.getKey()));
+            DeserializingMessage deserializingMessage =
+                    serializer.deserializeMessages(Stream.of(m), SCHEDULE).findFirst().get();
+            return new Schedule(deserializingMessage.getPayload(),
+                    m.getMetadata(), m.getMessageId(), deserializingMessage.getTimestamp(),
+                                e.getValue(), timestampFromIndex(e.getKey()));
         }).toList();
     }
 

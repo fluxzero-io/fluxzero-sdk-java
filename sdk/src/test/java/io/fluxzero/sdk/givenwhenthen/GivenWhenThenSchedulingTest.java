@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.givenwhenthen;
@@ -36,6 +37,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static io.fluxzero.sdk.Fluxzero.publishEvent;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -421,6 +423,22 @@ class GivenWhenThenSchedulingTest {
     }
 
     @Test
+    void testIncrementalSchedule() {
+        subject.givenSchedules(new Schedule(new IncrementalSchedule(0), subject.getCurrentTime().plusSeconds(1)))
+                .whenTimeElapses(Duration.ofMillis(10_100))
+                .expectNewSchedules(IntStream.range(1, 11).mapToObj(IncrementalSchedule::new).toArray());
+    }
+
+    @Test
+    void testIncrementalScheduleSingleJump() {
+        subject.advanceTimeIncrementally(false)
+                .givenSchedules(new Schedule(new IncrementalSchedule(0), subject.getCurrentTime().plusSeconds(1)))
+                .whenTimeElapses(Duration.ofMillis(10_100))
+                .expectNewSchedules(new IncrementalSchedule(1), new IncrementalSchedule(2))
+                .expectNoNewSchedulesLike(new IncrementalSchedule(3));
+    }
+
+    @Test
     void testCancellingPeriodic() {
         TestFixture.create(new CancellingPeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000))
@@ -530,6 +548,11 @@ class GivenWhenThenSchedulingTest {
         @HandleSchedule
         void handle(NonAutomaticPeriodicSchedule schedule) {
         }
+
+        @HandleSchedule
+        IncrementalSchedule handle(IncrementalSchedule schedule) {
+            return new IncrementalSchedule(schedule.count() + 1);
+        }
     }
 
     static class InterfacePeriodicHandler {
@@ -616,6 +639,8 @@ class GivenWhenThenSchedulingTest {
     @Periodic(delay = 1, timeUnit = TimeUnit.SECONDS)
     static class PeriodicSchedule {
     }
+
+    record IncrementalSchedule(int count) {}
 
     @Value
     static class CronSchedule {

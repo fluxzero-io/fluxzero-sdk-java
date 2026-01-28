@@ -405,4 +405,20 @@ public interface Given<Self extends Given<Self>> extends When {
      * Errors in a later phase will still be recorded.
      */
     Self ignoringErrors();
+
+    /**
+     * Configures how the fixture advances test time when processing schedules.
+     * <p>
+     * If enabled (default), the fixture advances time step-by-step to each intermediate schedule deadline, processing
+     * schedules in deadline order until the requested target time is reached. This ensures that recurring schedules or
+     * schedules that reschedule themselves are handled realistically.
+     * <p>
+     * If disabled, the fixture advances time directly to the target timestamp in a single jump and processes only the
+     * schedules that are due at or before that time. This is faster for large time jumps, but may skip intermediate
+     * rescheduling effects.
+     *
+     * @param enabled whether to step through intermediate schedule deadlines when advancing time
+     * @return this fixture instance for fluent configuration
+     */
+    Self advanceTimeIncrementally(boolean enabled);
 }
