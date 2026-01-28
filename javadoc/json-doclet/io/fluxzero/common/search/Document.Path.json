@@ -75,7 +75,7 @@
   }, {
     "name" : "splitFunction",
     "qualifiedName" : "io.fluxzero.common.search.Document$Path.splitFunction",
-    "type" : "java.util.function.Function<java.lang.String,java.lang.String[]>",
+    "type" : "java.util.function.Function<java.lang.String,java.util.stream.Stream<java.lang.String>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -155,7 +155,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Splits a path string into individual elements (unescaped), using {@code /} as the delimiter.\n\n @param path path string to split\n @return stream of path components (e.g. {@code [\"foo\", \"bar\", \"name\"]})\n"
+    "documentation" : " Splits a given path string into a stream of its segments. The path is split based on the forward slash ('/')\n separator if it does not contain any backslashes ('\\\\'). If the path contains backslashes, a pre-defined\n pattern is used for splitting.\n\n @param path the string representation of the path to be split into segments\n @return a Stream of strings, each representing a segment of the path\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
