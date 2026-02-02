@@ -188,6 +188,15 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Generates a strongly typed ID of given {@code idClass} using the current {@link IdentityProvider}.
+     *
+     * @return a unique, traceable typed identifier
+     */
+    static <T extends Id<?>> T generateId(Class<T> idClass) {
+        return JsonUtils.convertValue(TextNode.valueOf(generateId()), idClass);
+    }
+
+    /**
      * Generates an ID derived from the given {@code name} using the current {@link IdentityProvider}.
      * <p>
      * For a given name, this method always returns the same identifier.
@@ -197,15 +206,6 @@ public interface Fluxzero extends AutoCloseable {
      */
     static String idForName(String name) {
         return currentIdentityProvider().idForName(name);
-    }
-
-    /**
-     * Generates a strongly typed ID of given {@code idClass} using the current {@link IdentityProvider}.
-     *
-     * @return a unique, traceable typed identifier
-     */
-    static <T extends Id<?>> T generateId(Class<T> idClass) {
-        return JsonUtils.convertValue(TextNode.valueOf(generateId()), idClass);
     }
 
     /**
