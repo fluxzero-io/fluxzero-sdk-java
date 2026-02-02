@@ -12,66 +12,62 @@ illustrative use cases.
 
 - **Aggregates**: Define the consistency boundary and root of your domain. Annotate with `@Aggregate` to enable event
   sourcing and optional search indexing.
-  ```java
+  ```kotlin
   @Aggregate(searchable = true, eventPublication = EventPublication.IF_MODIFIED)
-  @Builder(toBuilder = true)
-  public record Project(
-      @EntityId ProjectId projectId,
-      ProjectDetails details,
-      UserId ownerId,
-      @With @Member List<Task> tasks
-  ) {}
+  data class Project(
+      @EntityId val projectId: ProjectId,
+      val details: ProjectDetails,
+      val ownerId: UserId,
+      @Member val tasks: List<Task>
+  )
   ```
 
 - **Entities and Value Objects**: Model nested elements and immutable data types.
-  ```java
-  public record Task(
-      @EntityId TaskId taskId,
-      TaskDetails details,
-      boolean completed,
-      UserId assigneeId
-  ) {}
+  ```kotlin
+  data class Task(
+      @EntityId val taskId: TaskId,
+      val details: TaskDetails,
+      val completed: Boolean,
+      val assigneeId: UserId?
+  )
 
-  public record ProjectDetails(@NotBlank String name) {}
+  data class ProjectDetails(@field:NotBlank val name: String)
 
-  public record TaskDetails(@NotBlank String name) {}
+  data class TaskDetails(@field:NotBlank val name: String)
   ```
 
 ## Global Identifiers
 
 - Strongly typed IDs in `com.example.app.todo.api`:
-  ```java
-  public class ProjectId extends Id<Project> {
-      public ProjectId(String id) { super(id); }
-  }
+  ```kotlin
+  class ProjectId(id: String) : Id<Project>(id)
 
-  public class TaskId extends Id<Task> {
-      public TaskId(String id) { super(id); }
-  }
+  class TaskId(id: String) : Id<Task>(id)
   ```
-- Use `Fluxzero.generateId(ProjectId.class)` or `...generateId(TaskId.class)` when creating new IDs.
+- Use `Fluxzero.generateId(ProjectId::class.java)` or `...generateId(TaskId::class.java)` when creating new IDs.
 
 ## Commands
 
 - **Command interfaces**: Define a common interface per aggregate or module to group related commands and manage
   dispatch. Typically annotate it with `@TrackSelf` and `@Consumer(name="...")` from
   `io.fluxzero.sdk.tracking`.
-  ```java
-  import io.fluxzero.sdk.Fluxzero;
-  import io.fluxzero.sdk.tracking.Consumer;
-  import io.fluxzero.sdk.tracking.TrackSelf;
-  import io.fluxzero.sdk.tracking.handling.HandleCommand;
-  import jakarta.validation.constraints.NotNull;
+  ```kotlin
+  import io.fluxzero.sdk.Fluxzero
+  import io.fluxzero.sdk.tracking.Consumer
+  import io.fluxzero.sdk.tracking.TrackSelf
+  import io.fluxzero.sdk.tracking.handling.HandleCommand
+  import jakarta.validation.constraints.NotNull
 
   @TrackSelf    // asynchronously track commands after dispatch
   @Consumer(name = "user-update") // logical consumer for command handling
-  public interface UserUpdate {
-      @NotNull UserId userId();
+  interface UserUpdate {
+      @get:NotNull
+      val userId: UserId
 
       @HandleCommand
-      default void handle() {
-          Fluxzero.loadAggregate(userId())
-                       .assertAndApply(this);
+      fun handle() {
+          Fluxzero.loadAggregate(userId)
+                  .assertAndApply(this)
       }
   }
   ```
@@ -79,74 +75,73 @@ illustrative use cases.
 
   When an update (command) is successfully applied to an aggregate, the command payload is automatically published as an event. These events can be handled using `@HandleEvent` within an event handler. E.g.:
 
-  ```java
+  ```kotlin
   @Component
   class UserLifecycleHandler {
       @HandleEvent
-      void handle(CreateUser event) {
+      fun handle(event: CreateUser) {
           // do something like sending an email
       }
   }
   ```
 
-- **Command definitions**: Implement the interface with a `record`. Use Jakarta Validation, role-based checks, and
+- **Command definitions**: Implement the interface with a `data class`. Use Jakarta Validation, role-based checks, and
   event-sourcing annotations:
-  ```java
+  ```kotlin
   @RequiresRole(Role.admin)
-  public record CreateUser(
-      UserId userId,
-      @Valid UserDetails details,
-      Role role
-  ) implements UserUpdate
+  data class CreateUser(
+      override val userId: UserId,
+      @field:Valid val details: UserDetails,
+      val role: Role
+  ) : UserUpdate
   ```
 
 - **CreateTask (sub-entity)**: Under a parent aggregate interface, return the new sub-entity instance.
-  ```java
-  public record CreateTask(
-      @NotNull ProjectId projectId,
-      @NotNull TaskId taskId,
-      @Valid @NotNull TaskDetails details
-  ) implements ProjectUpdate, AssertOwner {
+  ```kotlin
+  data class CreateTask(
+      @field:NotNull val projectId: ProjectId,
+      @field:NotNull val taskId: TaskId,
+      @field:Valid @field:NotNull val details: TaskDetails
+  ) : ProjectUpdate, AssertOwner {
       @Apply
-      Task apply() {
-          return Task.builder()
-                     .taskId(taskId)
-                     .details(details)
-                     .completed(false)
-                     .build();
+      fun apply(): Task {
+          return Task(
+              taskId = taskId,
+              details = details,
+              completed = false,
+              assigneeId = null
+          )
       }
   }
   ```
 
 - **CompleteTask (sub-entity)**: Enforce legal checks on both parent and entity before updating.
-  ```java
-  public record CompleteTask(
-      @NotNull ProjectId projectId,
-      @NotNull TaskId taskId
-  ) implements ProjectUpdate {
+  ```kotlin
+  data class CompleteTask(
+      @field:NotNull val projectId: ProjectId,
+      @field:NotNull val taskId: TaskId
+  ) : ProjectUpdate {
       @AssertLegal
-      void assertPermission(Project project, Task task, Sender sender) {
+      fun assertPermission(project: Project, task: Task, sender: Sender) {
           if (!sender.isAdmin()
-              && !project.ownerId().equals(sender.userId())
-              && !(task.assigneeId() != null && task.assigneeId().equals(sender.userId()))) {
-              throw ProjectErrors.noPermission;
+              && project.ownerId != sender.userId()
+              && task.assigneeId != sender.userId()) {
+              throw ProjectErrors.noPermission
           }
       }
 
       @Apply
-      Task apply(Task task) {
-          return task.toBuilder()
-                     .completed(true)
-                     .build();
+      fun apply(task: Task): Task {
+          return task.copy(completed = true)
       }
   }
   ```
 
 with:
 
-```java
-public interface ProjectErrors {
-  IllegalCommandException noPermission = new IllegalCommandException("You don't have permission to complete this task.");
+```kotlin
+object ProjectErrors {
+    val noPermission = IllegalCommandException("You don't have permission to complete this task.")
 }
 ```
 
@@ -155,132 +150,155 @@ public interface ProjectErrors {
 
 **Standalone tracking handler:**
 
-```java
+```kotlin
 @Component
-@Consumer(name = "notifications") // with this the handler consumes and processes commands in isolation 
+@Consumer(name = "notifications") // with this the handler consumes and processes commands in isolation
 class NotificationHandler {
     @HandleCommand
-    void handle(SendEmail command) {
+    fun handle(command: SendEmail) {
         // send email by whatever method (e.g.: web request or smtp)
     }
 
     @HandleCommand
-    void handle(SendSlackMessage command) {
-      // ...
+    fun handle(command: SendSlackMessage) {
+        // ...
     }
 }
 ```
 
 **Standalone local handler:**
 
-```java
+```kotlin
 @Component
-@LocalHandler(logMetrics = true) 
+@LocalHandler(logMetrics = true)
 class NotificationHandler {
-  @HandleCommand
-  void handle(SendEmail command) {
-    // ...
-  }
+    @HandleCommand
+    fun handle(command: SendEmail) {
+        // ...
+    }
 
-  @HandleCommand
-  void handle(SendSlackMessage command) {
-    // ...
-  }
+    @HandleCommand
+    fun handle(command: SendSlackMessage) {
+        // ...
+    }
 }
 ```
 
 **Local self-handling:**
 
-```java
-@Value
+```kotlin
 @RequiresRole(Role.admin)
-public class SendEmail {
-  String subject;
-  // ... other fields
-
-  @HandleCommand
-  void handle(@Autowired SmtpClient smtpClient) {
-    // send the email using the Spring-injected SmtpClient
-  }
+data class SendEmail(
+    val subject: String
+    // ... other fields
+) {
+    @HandleCommand
+    fun handle(smtpClient: SmtpClient) {
+        // send the email using the Spring-injected SmtpClient
+    }
 }
 ```
 
 **Tracking self-handling:**
 
-```java
+```kotlin
 @TrackSelf
 @Consumer(name = "user-update")
-public interface UserUpdate {
+interface UserUpdate {
+    val userId: UserId
 
-  UserId userId();
-
-  @HandleCommand
-  default UserProfile handle() {
-    return Fluxzero.loadAggregate(userId()).assertAndApply(this).get();
-  }
+    @HandleCommand
+    fun handle(): UserProfile {
+        return Fluxzero.loadAggregate(userId).assertAndApply(this).get()
+    }
 }
 ```
 
 **Stateful handler (saga):**
 
-```java
+```kotlin
 @Stateful
 @Consumer(name = "stripe")
-@Builder(toBuilder = true)
-record StripeTransaction(@Association TransactionId transactionId, @Association String stripeId, int retries) {
-  @HandleEvent
-  static StripeTransaction handle(MakePayment event) {
-    String stripeId = makePayment();
-    return new StripeTransaction(event.transactionId(), stripeId,
-                                 0); //automatically stores the handler in the repository
-  }
+data class StripeTransaction(
+    @Association val transactionId: TransactionId,
+    @Association val stripeId: String,
+    val retries: Int
+) {
+    companion object {
+        @HandleEvent
+        fun handle(event: MakePayment): StripeTransaction {
+            val stripeId = makePayment(event)
+            return StripeTransaction(
+                transactionId = event.transactionId,
+                stripeId = stripeId,
+                retries = 0
+            ) // automatically stores the handler in the repository
+        }
 
-  String makePayment() {
-    WebResponse response = Fluxzero.sendWebRequestAndWait(
-            WebRequest.post(ApplicationProperties.require("stripe.url")).payload(toBody(event)).build());
-    return response.getPayloadAs(String.class);
-  }
-
-  @HandleEvent
-  StripeTransaction handle(StripeApproval event) { //the event gets handled if it has a matching `stripeId` property 
-    Fluxzero.publishEvent(new PaymentCompleted(transactionId));
-    return null; // this deletes the stateful handler from the repository
-  }
-
-  @HandleEvent
-  StripeTransaction handle(StripeFailure event) {
-    if (retries > 3) {
-      Fluxzero.publishEvent(new PaymentRejected(transactionId, "failed repeatedly"));
-      return null;
+        private fun makePayment(event: MakePayment): String {
+            val response = Fluxzero.sendWebRequestAndWait(
+                WebRequest.post(ApplicationProperties.require("stripe.url"))
+                    .payload(event.toBody())
+                    .build()
+            )
+            return response.getPayloadAs(String::class.java)
+        }
     }
-    return toBuilder().stripeId(makePayment()).retries(retries + 1).build();
-  }
+
+    @HandleEvent
+    fun handle(event: StripeApproval): StripeTransaction? {
+        // the event gets handled if it has a matching `stripeId` property
+        Fluxzero.publishEvent(PaymentCompleted(transactionId))
+        return null // this deletes the stateful handler from the repository
+    }
+
+    @HandleEvent
+    fun handle(event: StripeFailure): StripeTransaction? {
+        if (retries > 3) {
+            Fluxzero.publishEvent(PaymentRejected(transactionId, "failed repeatedly"))
+            return null
+        }
+        return copy(stripeId = makePayment(event), retries = retries + 1)
+    }
+
+    private fun makePayment(event: Any): String {
+        val response = Fluxzero.sendWebRequestAndWait(
+            WebRequest.post(ApplicationProperties.require("stripe.url"))
+                .payload(event)
+                .build()
+        )
+        return response.getPayloadAs(String::class.java)
+    }
 }
 ```
 
 ### Sending commands
 
-Sending a command trigges domain behavior and optionally returns a result.
+Sending a command triggers domain behavior and optionally returns a result.
 
 **Fire-and-forget:**
 
-```java
-Fluxzero.sendAndForgetCommand(new CreateUser("Alice"));
-        
-Fluxzero.sendAndForgetCommand(new CreateUser("Alice"), Metadata.of("ipAddress", ipAddress), Guarantee.STORED).join(); //waits until the command has been stored by Fluxzero runtime
+```kotlin
+Fluxzero.sendAndForgetCommand(CreateUser("Alice"))
+
+Fluxzero.sendAndForgetCommand(
+    CreateUser("Alice"),
+    Metadata.of("ipAddress", ipAddress),
+    Guarantee.STORED
+).join() // waits until the command has been stored by Fluxzero runtime
 ```
 
 **Send and wait:**
 
-```java
-UserId id = Fluxzero.sendCommandAndWait(new CreateUser("Charlie"));
+```kotlin
+val id = Fluxzero.sendCommandAndWait(CreateUser("Charlie"))
 ```
 
 **Async:**
 
-```java
-CompletableFuture<UserId> future =
-    Fluxzero.sendCommand(new CreateUser("Bob"));
+```kotlin
+val future: CompletableFuture<UserId> =
+    Fluxzero.sendCommand(CreateUser("Bob"))
 ```
 
 
@@ -291,27 +309,28 @@ CompletableFuture<UserId> future =
   `Request<List<Project>>` for listing projects.
 
 - **List projects** (filter by owner unless admin):
-  ```java
-  public record ListProjects() implements Request<List<Project>> {
+  ```kotlin
+  data class ListProjects(val dummy: Unit = Unit) : Request<List<Project>> {
       @HandleQuery
-      List<Project> handleQuery(Sender sender) {
-          return Fluxzero.search(Project.class)
-                              .match(sender.isAdmin() ? null : sender.userId(), "ownerId")
-                              .fetch(100);
+      fun handleQuery(sender: Sender): List<Project> {
+          return Fluxzero.search(Project::class.java)
+              .match(if (sender.isAdmin()) null else sender.userId(), "ownerId")
+              .fetch(100)
       }
   }
   ```
 
 - **Get single project**:
-  ```java
-  public record GetProject(@NotNull ProjectId projectId)
-      implements Request<Project> {
+  ```kotlin
+  data class GetProject(
+      @field:NotNull val projectId: ProjectId
+  ) : Request<Project> {
       @HandleQuery
-      Project handleQuery(Sender sender) {
-          return Fluxzero.search(Project.class)
-                               .match(projectId, "projectId")
-                               .match(sender.isAdmin() ? null : sender.userId(), "ownerId")
-                               .fetchFirstOrNull();
+      fun handleQuery(sender: Sender): Project? {
+          return Fluxzero.search(Project::class.java)
+              .match(projectId, "projectId")
+              .match(if (sender.isAdmin()) null else sender.userId(), "ownerId")
+              .fetchFirstOrNull()
       }
   }
   ```
@@ -320,67 +339,69 @@ CompletableFuture<UserId> future =
 
 **Standalone tracking handler:**
 
-```java
+```kotlin
 @Component
 class UserQueryHandler {
     @HandleQuery
-    UserProfile handle(GetUserProfile query) {
-        return new UserProfile(...);
+    fun handle(query: GetUserProfile): UserProfile {
+        return UserProfile(...)
     }
 }
 ```
 
 **Standalone local handler:**
 
-```java
+```kotlin
 @Component
 @LocalHandler
 class UserQueryHandler {
-  @HandleQuery
-  UserProfile handle(GetUserProfile query) {
-    return new UserProfile(...);
-  }
+    @HandleQuery
+    fun handle(query: GetUserProfile): UserProfile {
+        return UserProfile(...)
+    }
 }
 ```
 
 **Local self-handler with content filtering:**
 
-```java
-public record GetUserProfile(@NotNull UserId userId) implements Request<UserProfile> {
-  @HandleQuery
-  @FilterContent
-  UserProfile handle() {
-    return new UserProfile(...);
-  }
+```kotlin
+data class GetUserProfile(
+    @field:NotNull val userId: UserId
+) : Request<UserProfile> {
+    @HandleQuery
+    @FilterContent
+    fun handle(): UserProfile {
+        return UserProfile(...)
+    }
 }
 ```
 
 with content filtering logic in the profile:
 
-```java
+```kotlin
 @Aggregate
-public record UserProfile(
-        @EntityId UserId userId,
-        UserDetails details
+data class UserProfile(
+    @EntityId val userId: UserId,
+    val details: UserDetails
 ) {
-  @FilterContent
-  UserProfile filter(Sender sender) {
-    return sender.isAdminOr(userId) ? this : null;
-  }
+    @FilterContent
+    fun filter(sender: Sender): UserProfile? {
+        return if (sender.isAdminOr(userId)) this else null
+    }
 }
 ```
 
 ### Fluxzero Search
 
-```java
-List<UserAccount> admins = Fluxzero
-    .search(UserAccount.class) //or input a search collection by name, e.g. "users"
+```kotlin
+val admins: List<UserAccount> = Fluxzero
+    .search(UserAccount::class.java) // or input a search collection by name, e.g. "users"
     .match("admin", "roles.name")
-    .lookAhead("pete") //searches for words anywhere starting with pete, ignoring capitalization or accents     
+    .lookAhead("pete") // searches for words anywhere starting with pete, ignoring capitalization or accents
     .inLast(Duration.ofDays(30))
     .sortBy("lastLogin", true) // true for descending. Make sure property `lastLogin` has `@Sortable`.
     .skip(100)
-    .fetch(100);
+    .fetch(100)
 ```
 
 Fluxzero supports a rich set of constraints:
@@ -397,14 +418,14 @@ Fluxzero supports a rich set of constraints:
 
 **Advanced Constraint Usages:**
 
-```java
+```kotlin
 // Combining multiple exclusions using NOT and Facets
-List<Luggage> activeLuggage = Fluxzero.search(Luggage.class)
-    .not(FacetConstraint.matchFacet("status", List.of(LOADED, DELIVERED)))
-    .fetchAll(Luggage.class);
+val activeLuggage: List<Luggage> = Fluxzero.search(Luggage::class.java)
+    .not(FacetConstraint.matchFacet("status", listOf(LOADED, DELIVERED)))
+    .fetchAll(Luggage::class.java)
 
 // Complex logical grouping
-List<User> complexFilter = Fluxzero.search(User.class)
+val complexFilter: List<User> = Fluxzero.search(User::class.java)
     .any(
         MatchConstraint.match("active", "status"),
         AllConstraint.all(
@@ -412,28 +433,29 @@ List<User> complexFilter = Fluxzero.search(User.class)
             MatchConstraint.match(true, "vip")
         )
     )
-    .fetchAll(User.class);
+    .fetchAll(User::class.java)
 
 // Time-based filtering combined with status exclusion
-List<Luggage> delayedBags = Fluxzero.search(Luggage.class)
+val delayedBags: List<Luggage> = Fluxzero.search(Luggage::class.java)
     .beforeLast(Duration.ofHours(2))
-    .not(FacetConstraint.matchFacet("status", List.of(LOADED, DELIVERED)))
-    .fetchAll(Luggage.class);
+    .not(FacetConstraint.matchFacet("status", listOf(LOADED, DELIVERED)))
+    .fetchAll(Luggage::class.java)
 ```
 
 When a field or getter is annotated with `@Facet`, you can also retrieve **facet statistics**:
 
-```java
-public record Product(ProductId productId, 
-                      @Facet String category,
-                      @Facet String brand,
-                      String name,
-                      BigDecimal price) {
-}
+```kotlin
+data class Product(
+    val productId: ProductId,
+    @field:Facet val category: String,
+    @field:Facet val brand: String,
+    val name: String,
+    val price: BigDecimal
+)
 
-List<FacetStats> stats = Fluxzero.search(Product.class)
-        .lookAhead("wireless")
-        .facetStats();
+val stats: List<FacetStats> = Fluxzero.search(Product::class.java)
+    .lookAhead("wireless")
+    .facetStats()
 ```
 
 This gives you document counts per facet value:
@@ -449,9 +471,9 @@ This gives you document counts per facet value:
 Aggregates with `searchable = true` are stored automatically on update.
 You can index any object manually using:
 
-```java
-Fluxzero.index(myObject);
-```  
+```kotlin
+Fluxzero.index(myObject)
+```
 
 This stores `myObject` in the document store so it can be queried later via `Fluxzero.search(...)`.
 
@@ -461,24 +483,24 @@ This stores `myObject` in the document store so it can be queried later via `Flu
 
 You can also specify the collection in which the object should be stored directly:
 
-```java
-Fluxzero.index(myObject, "customCollection");
+```kotlin
+Fluxzero.index(myObject, "customCollection")
 ```
 
 ### Sending queries
 
 **Blocking:**
 
-```java
-UserProfile profile =
-    Fluxzero.queryAndWait(new GetUserProfile("user456"));
+```kotlin
+val profile: UserProfile =
+    Fluxzero.queryAndWait(GetUserProfile("user456"))
 ```
 
 **Async:**
 
-```java
-CompletableFuture<UserProfile> result =
-    Fluxzero.query(new GetUserProfile(new UserId("user123")));
+```kotlin
+val result: CompletableFuture<UserProfile> =
+    Fluxzero.query(GetUserProfile(UserId("user123")))
 ```
 
 
@@ -486,45 +508,45 @@ CompletableFuture<UserProfile> result =
 
 **Sending, cancelling and handling a schedule:**
 
-```java
+```kotlin
 @Component
-public class UserLifecycleHandler {
-  @HandleEvent
-  void handle(CloseAccount event) {
-    Fluxzero.schedule(
-            new TerminateAccount(event.getUserId()),
-            "AccountClosed-" + event.getUserId(),
+class UserLifecycleHandler {
+    @HandleEvent
+    fun handle(event: CloseAccount) {
+        Fluxzero.schedule(
+            TerminateAccount(event.userId),
+            "AccountClosed-${event.userId}",
             Duration.ofDays(30)
-    );
-  }
+        )
+    }
 
-  @HandleEvent
-  void handle(ReopenAccount event) {
-    Fluxzero.cancelSchedule("AccountClosed-" + event.getUserId());
-  }
+    @HandleEvent
+    fun handle(event: ReopenAccount) {
+        Fluxzero.cancelSchedule("AccountClosed-${event.userId}")
+    }
 
-  @HandleSchedule
-  void handle(TerminateAccount schedule) {
-    // logic here
-  }
+    @HandleSchedule
+    fun handle(schedule: TerminateAccount) {
+        // logic here
+    }
 }
 ```
 
 **Scheduling a command:**
 
-```java
+```kotlin
 @Component
-public class UserLifecycleHandler {
-  @HandleEvent
-  void handle(CloseAccount event) {
-    Fluxzero.scheduleCommand(
-            new TerminateAccount(event.getUserId()),
-            "AccountClosed-" + event.getUserId(),
+class UserLifecycleHandler {
+    @HandleEvent
+    fun handle(event: CloseAccount) {
+        Fluxzero.scheduleCommand(
+            TerminateAccount(event.userId),
+            "AccountClosed-${event.userId}",
             Fluxzero.currentTime().plus(10, ChronoUnit.DAYS)
-    );
-  }
+        )
+    }
 
-  // ...
+    // ...
 }
 ```
 
@@ -532,93 +554,97 @@ public class UserLifecycleHandler {
 
 **On payload class:**
 
-```java
+```kotlin
 @Periodic(delay = 5, timeUnit = TimeUnit.MINUTES)
-public record RefreshWeatherData() {
-}
+data class RefreshWeatherData(val dummy: Unit = Unit)
 ```
 
 **On handler method:**
 
-```java
+```kotlin
 @Periodic(cron = "0 0 * * MON", timeZone = "Europe/Amsterdam")
 @HandleSchedule
-void weeklySync(PollData schedule) {
-    ...
+fun weeklySync(schedule: PollData) {
+    // ...
 }
 ```
 
 **Wait until schedule is started manually:**
 
-```java
+```kotlin
 @Periodic(delay = 5, timeUnit = TimeUnit.MINUTES, autostart = false)
-public record RefreshData(String index) {
-}
+data class RefreshData(val index: String)
 ```
 
 ## Web Endpoints
 
 - **API Endpoints**: All API endpoints (except for `@ServeStatic` ones) should be annotated with `@Path("/api")` to ensure that API calls don't clash with frontend routes.
-  ```java
+  ```kotlin
   @Component
   @Path("/api/projects")
-  public class ProjectsEndpoint {
+  class ProjectsEndpoint {
   ```
 
 - Expose REST routes for projects and tasks:
-  ```java
+  ```kotlin
   @Component
   @Path("/api/projects")
-  public class ProjectsEndpoint {
+  class ProjectsEndpoint {
       @HandlePost
-      ProjectId createProject(ProjectDetails details) {
-          var id = Fluxzero.generateId(ProjectId.class);
-          Fluxzero.sendCommandAndWait(new CreateProject(id, details));
-          return id;
+      fun createProject(details: ProjectDetails): ProjectId {
+          val id = Fluxzero.generateId(ProjectId::class.java)
+          Fluxzero.sendCommandAndWait(CreateProject(id, details))
+          return id
       }
 
       @HandleGet
-      List<Project> listProjects() {
-          return Fluxzero.queryAndWait(new ListProjects());
+      fun listProjects(): List<Project> {
+          return Fluxzero.queryAndWait(ListProjects())
       }
 
       @HandleGet("/{projectId}")
-      Project getProject(@PathParam ProjectId projectId) {
-          return Fluxzero.queryAndWait(new GetProject(projectId));
+      fun getProject(@PathParam projectId: ProjectId): Project {
+          return Fluxzero.queryAndWait(GetProject(projectId))
       }
 
       @HandlePost("/{projectId}/tasks")
-      TaskId createTask(@PathParam ProjectId projectId, TaskDetails details) {
-          var taskId = Fluxzero.generateId(TaskId.class);
+      fun createTask(
+          @PathParam projectId: ProjectId,
+          details: TaskDetails
+      ): TaskId {
+          val taskId = Fluxzero.generateId(TaskId::class.java)
           Fluxzero.sendCommandAndWait(
-              new CreateTask(projectId, taskId, details)
-          );
-          return taskId;
+              CreateTask(projectId, taskId, details)
+          )
+          return taskId
       }
 
       @HandlePost("/{projectId}/tasks/{taskId}/complete")
-      void completeTask(@PathParam ProjectId projectId,
-                        @PathParam TaskId taskId) {
-          Fluxzero.sendCommandAndWait(new CompleteTask(projectId, taskId));
+      fun completeTask(
+          @PathParam projectId: ProjectId,
+          @PathParam taskId: TaskId
+      ) {
+          Fluxzero.sendCommandAndWait(CompleteTask(projectId, taskId))
       }
 
       @HandlePost("/{projectId}/tasks/{taskId}/assign")
-      void assignTask(@PathParam ProjectId projectId,
-                      @PathParam TaskId taskId,
-                      UserId assigneeId) {
+      fun assignTask(
+          @PathParam projectId: ProjectId,
+          @PathParam taskId: TaskId,
+          assigneeId: UserId
+      ) {
           Fluxzero.sendCommandAndWait(
-              new AssignTask(projectId, taskId, assigneeId)
-          );
+              AssignTask(projectId, taskId, assigneeId)
+          )
       }
   }
   ```
 
 - **Static Content**: Use `@ServeStatic` to serve static assets (like a frontend) from the classpath.
-  ```java
+  ```kotlin
   @Component
   @ServeStatic("/")
-  public class UiEndpoint {
-  }
+  class UiEndpoint
   ```
 
 ## Upcasting
@@ -626,29 +652,29 @@ public record RefreshData(String index) {
 Upcasting transforms old versions of serialized objects (messages, documents, stateful handlers, etc.) into the current version during deserialization.
 
 - **ObjectNode Upcaster**: Used for modifying the payload of an object.
-  ```java
+  ```kotlin
   @Revision(2)
-  public record Project(...) {
+  data class Project(...) {
       @Component
-      public static class ProjectUpcaster {
+      class ProjectUpcaster {
           @Upcast(type = "com.example.app.todo.api.model.Project", revision = 1)
-          public JsonNode upcastRev1(ObjectNode payload) {
+          fun upcastRev1(payload: ObjectNode): JsonNode {
               if (!payload.has("details")) {
-                  payload.putObject("details").put("name", "Untitled Project");
+                  payload.putObject("details").put("name", "Untitled Project")
               }
-              return payload;
+              return payload
           }
       }
   }
   ```
 
 - **Data Upcaster**: Used for changing the type, revision, or metadata of the serialized object.
-  ```java
+  ```kotlin
   @Component
-  public class CreateProjectUpcaster {
+  class CreateProjectUpcaster {
       @Upcast(type = "com.example.app.old.CreateProject", revision = 0)
-      public Data<JsonNode> upcastRev0(Data<JsonNode> data) {
-          return data.withType("com.example.app.todo.api.CreateProject").withRevision(1);
+      fun upcastRev0(data: Data<JsonNode>): Data<JsonNode> {
+          return data.withType("com.example.app.todo.api.CreateProject").withRevision(1)
       }
   }
   ```
@@ -658,48 +684,54 @@ Upcasting is applied to **ALL** deserializing objects in Fluxzero, ensuring they
 ## Authentication & Authorization
 
 - Enforce roles directly on command interfaces or implementations. Example: an admin-only create-user command signature:
-  ```java
+  ```kotlin
   @RequiresRole(Role.admin)
-  public record CreateUser(UserId userId, @Valid UserDetails details, Role role) implements UserUpdate
+  data class CreateUser(
+      override val userId: UserId,
+      @field:Valid val details: UserDetails,
+      val role: Role
+  ) : UserUpdate
   ```
 
 ## Testing Patterns
 
 **Command tests:**
 
-```java
-public class ProjectTests {
+```kotlin
+class ProjectTests {
 
-  final TestFixture fixture = TestFixture.create();
+    private val fixture = TestFixture.create()
 
-  @Test
-  void successfullyCreateProject() {
-    fixture.whenCommand("/todo/create-project.json")
-            .expectEvents("/todo/create-project.json");
-  }
+    @Test
+    fun successfullyCreateProject() {
+        fixture.whenCommand("/todo/create-project.json")
+            .expectEvents("/todo/create-project.json")
+    }
 
-  @Test
-  void creatingDuplicateProjectIsRejected() {
-    fixture.givenCommands("/todo/create-project.json")
+    @Test
+    fun creatingDuplicateProjectIsRejected() {
+        fixture.givenCommands("/todo/create-project.json")
             .whenCommand("/todo/create-project.json")
-            .expectExceptionalResult(Entity.ALREADY_EXISTS_EXCEPTION);
-  }
+            .expectExceptionalResult(Entity.ALREADY_EXISTS_EXCEPTION)
+    }
 
-  @Test
-  void canCreateTaskForOwnedProject() {
-    fixture.givenCommands("/todo/create-project.json")
+    @Test
+    fun canCreateTaskForOwnedProject() {
+        fixture.givenCommands("/todo/create-project.json")
             .whenCommand("/todo/create-task.json")
-            .expectEvents("/todo/create-task.json");
-  }
+            .expectEvents("/todo/create-task.json")
+    }
 
-  @Test
-  void cannotAssignCompletedTask() {
-    fixture.givenCommands(
-                    "/todo/create-project.json", "/todo/create-task.json", "/todo/complete-task.json"
-            )
+    @Test
+    fun cannotAssignCompletedTask() {
+        fixture.givenCommands(
+            "/todo/create-project.json",
+            "/todo/create-task.json",
+            "/todo/complete-task.json"
+        )
             .whenCommand("/todo/assign-task.json")
-            .expectExceptionalResult(TaskErrors.alreadyCompleted);
-  }
+            .expectExceptionalResult(TaskErrors.alreadyCompleted)
+    }
 }
 ```
 
@@ -733,69 +765,73 @@ Or like this if referring from another package:
 
 **Query tests:**
 
-```java
+```kotlin
 @Test
-void listProjectsReturnsOwnedProjects() {
+fun listProjectsReturnsOwnedProjects() {
     fixture.givenCommands("/todo/create-project.json")
-           .whenQuery(new ListProjects())
-           .expectResult(result -> !result.isEmpty());
+        .whenQuery(ListProjects())
+        .expectResult { result -> result.isNotEmpty() }
 }
 
 @Test
-void nonOwnerCannotGetProject() {
+fun nonOwnerCannotGetProject() {
     fixture.givenCommands("/todo/create-project.json")
-           .givenCommands("/user/create-other-user.json")
-           .whenQueryByUser("otherUser", "/todo/get-project.json")
-           .expectNoResult();
+        .givenCommands("/user/create-other-user.json")
+        .whenQueryByUser("otherUser", "/todo/get-project.json")
+        .expectNoResult()
 }
 ```
 
 **Schedule tests:**
 
-```java
-public class UserLifecycleTests {
-  final TestFixture testFixture = TestFixture.create(UserLifecycleHandler.class);
+```kotlin
+class UserLifecycleTests {
+    private val testFixture = TestFixture.create(UserLifecycleHandler::class.java)
 
-  @Test
-  void accountIsTerminatedAfterClosing() {
-    testFixture
-            .givenCommands(new CreateUser(myUserProfile),
-                           new CloseAccount(userId))
+    @Test
+    fun accountIsTerminatedAfterClosing() {
+        testFixture
+            .givenCommands(
+                CreateUser(myUserProfile),
+                CloseAccount(userId)
+            )
             .whenTimeElapses(Duration.ofDays(30))
-            .expectEvents(new AccountTerminated(userId));
-  }
+            .expectEvents(AccountTerminated(userId))
+    }
 
-  @Test
-  void accountReopeningCancelsTermination() {
-    testFixture
-            .givenCommands(new CreateUser(myUserProfile),
-                           new CloseAccount(userId),
-                           new ReopenAccount(userId))
+    @Test
+    fun accountReopeningCancelsTermination() {
+        testFixture
+            .givenCommands(
+                CreateUser(myUserProfile),
+                CloseAccount(userId),
+                ReopenAccount(userId)
+            )
             .whenTimeElapses(Duration.ofDays(30))
-            .expectNoEventsLike(AccountTerminated.class);
-  }
+            .expectNoEventsLike(AccountTerminated::class.java)
+    }
 }
 ```
 
 **Endpoint tests:**
 
-```java
+```kotlin
 @Nested
 class ProjectsEndpointTests {
-    final TestFixture testFixture = TestFixture.create(new ProjectsEndpoint());
+    private val testFixture = TestFixture.create(ProjectsEndpoint())
 
     @Test
-    void createProjectViaPost() {
+    fun createProjectViaPost() {
         fixture.whenPost("/projects", "/todo/create-project-request.json")
-               .expectResult(ProjectId.class)
-               .expectEvents(CreateProject.class);
+            .expectResult(ProjectId::class.java)
+            .expectEvents(CreateProject::class.java)
     }
 
     @Test
-    void completeTaskViaEndpoint() {
+    fun completeTaskViaEndpoint() {
         fixture.givenCommands("/todo/create-project.json", "/todo/create-task.json")
-               .whenPost("/projects/p1/tasks/t1/complete", null)
-               .expectEvents(CompleteTask.class);
+            .whenPost("/projects/p1/tasks/t1/complete", null)
+            .expectEvents(CompleteTask::class.java)
     }
 }
 ```

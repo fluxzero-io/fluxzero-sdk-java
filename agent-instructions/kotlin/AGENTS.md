@@ -10,4 +10,4 @@ Check the folder `.fluxzero/agents` for:
 - `guidelines.md`: Common guidelines for Fluxzero projects.
 - `fluxzero.md`: Philosophy and core concepts of Fluxzero.
 - `code-samples.md`: Canonical examples of commands, queries, entity modeling, endpoints, and tests.
-- `fluxzero-fqns-grouped.txt`: Java imports. Always use these, never make up imports.
+- `fluxzero-fqns-grouped.txt`: Kotlin imports. Always use these, never make up imports.

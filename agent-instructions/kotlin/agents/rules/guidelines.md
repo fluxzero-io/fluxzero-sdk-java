@@ -14,7 +14,7 @@ You know the full SDK and design philosophy and always follow established conven
 
 - `fluxzero.md`: philosophy of Fluxzero.
 - `code-samples.md`: contains canonical examples of commands, queries, entity modeling, endpoints, and tests.
-- `fluxzero-fqns-grouped.txt`: contains java imports. Always check this, never make up imports.
+- `fluxzero-fqns-grouped.txt`: contains Kotlin imports. Always check this, never make up imports.
 
 Use these as the **source of truth**. Do not generalize or guess patterns that differ from these files.
 
@@ -28,27 +28,27 @@ Always follow this layout unless instructed otherwise:
 - Commands, queries, IDs: `...<domain>.api`
 - Models (aggregates, entities, value objects): `...<domain>.api.model`
 - Endpoints: `...<domain>.<Something>Endpoint`
-- Tests: mirror the domain structure under `src/test/java`
+- Tests: mirror the domain structure under `src/test/kotlin`
 - JSON test resources: flat files grouped per domain (`/home/create-home.json`, etc.)
 
 Here's the layout of a sample app called `fluxchess`:
 
 ```
-src/main/java
+src/main/kotlin
 └── io/fluxzero/fluxchess/game
-    ├── GameEndpoint.java
+    ├── GameEndpoint.kt
     ├── package-info.java
     └── api
-        ├── CreateGame.java
-        ├── GameId.java
-        ├── GameUpdate.java
+        ├── CreateGame.kt
+        ├── GameId.kt
+        ├── GameUpdate.kt
         └── model
-            ├── Game.java
-            └── GameStatus.java
+            ├── Game.kt
+            └── GameStatus.kt
 
-src/test/java
+src/test/kotlin
 └── io/fluxzero/fluxchess/game
-    └── GameTest.java
+    └── GameTest.kt
 
 src/test/resources
 └── game
@@ -64,7 +64,7 @@ src/test/resources
 - Never combine `@HandleCommand` and `@Apply` in the same class or interface.
 - Use `assertAndApply(this)` for command handlers inside interfaces like `UserUpdate`, `ProjectUpdate`, etc.
 - Always inject the current user (`Sender`) in permission checks.
-- Use `Fluxzero.generateId(...)` to create IDs, never `new ...Id()` in endpoint or command logic.
+- Use `Fluxzero.generateId(SomeId::class.java)` to create IDs, never construct IDs directly in endpoint or command logic.
 - Inject `Clock` or use passed-in time values—never use `System.currentTimeMillis()` inside `@Apply`.
 - Never load other aggregates inside `@Apply`. This method is used for event sourcing and must be deterministic and self-contained. Resolve required data from other aggregates in a saga or endpoint and pass it into the command payload.
 - Never use `Fluxzero.search(...)` inside `@Apply`. Similar to loading aggregates, searches are non-deterministic and can change over time, breaking event sourcing. Perform searches in sagas or endpoints and pass the result (e.g., an ID) in the command payload.
@@ -81,11 +81,13 @@ src/test/resources
 - Do not add explicit structural existence checks using `@AssertLegal` (e.g., “exists” / “does not exist”). The SDK
   enforces these implicitly now.
 - Inject `Sender` into `@AssertLegal` and `@Apply` to inject the command sender. Never add the user id to the payload.
-- Use dedicated error interfaces for domain errors thrown in `@AssertLegal` methods and test them using `TestFixtures`:
-  `public interface HotelErrors {
-      IllegalCommandException alreadyExists = new IllegalCommandException("Hotel already exists");
-      UnauthorizedException unauthorized = new UnauthorizedException("Not authorized for hotel");
-  }`
+- Use dedicated error objects for domain errors thrown in `@AssertLegal` methods and test them using `TestFixtures`:
+  ```kotlin
+  object HotelErrors {
+      val alreadyExists = IllegalCommandException("Hotel already exists")
+      val unauthorized = UnauthorizedException("Not authorized for hotel")
+  }
+  ```
 
 ---
 

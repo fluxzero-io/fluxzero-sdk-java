@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Agent Instructions Release Artifacts**: GitHub releases now include `agents-java.zip` and `agents-kotlin.zip` containing AI coding assistant instructions for working with the Fluxzero SDK. These zip files provide guidelines, code samples, and FQN references to help AI tools generate correct Fluxzero code.
 
+### Changed
+
+- **Kotlin Agent Instructions**: Converted all code examples in the Kotlin agent instructions to use Kotlin-specific syntax and idioms. Examples now use data classes, Kotlin property syntax, named arguments, string templates, and other Kotlin language features instead of Java syntax.
+
 - **Host Metrics Collection**: New feature to collect and publish JVM and system metrics similar to Micrometer, without requiring Micrometer as a dependency. Enable with `FluxzeroBuilder.enableHostMetrics()`.
 
   **Collected metrics include:**
