@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common;
@@ -29,7 +30,7 @@ import java.util.ServiceLoader;
  * The interface defines two types of identifiers:
  * </p>
  * <ul>
- *   <li>{@link #nextFunctionalId()} – the main ID used in application-level constructs</li>
+ *   <li>{@link #idForName()} – the main ID used in application-level constructs</li>
  *   <li>{@link #nextTechnicalId()} – defaults to {@code nextFunctionalId()}, but may be overridden for traceability</li>
  * </ul>
  *
@@ -45,7 +46,6 @@ import java.util.ServiceLoader;
  *
  * @see UuidFactory
  */
-@FunctionalInterface
 public interface IdentityProvider {
 
     /**
@@ -62,16 +62,26 @@ public interface IdentityProvider {
      *
      * @return a unique, non-null identifier string
      */
-    String nextFunctionalId();
+    String idForName();
+
+    /**
+     * Returns a new functional ID derived from the given name.
+     * <p>
+     * For a given name, this method should always return the same identifier.
+     *
+     * @param name the name to derive the identifier from
+     * @return a unique, non-null identifier string
+     */
+    String idForName(String name);
 
     /**
      * Returns a new technical ID, suitable for lower-level operations such as internal tracing.
      * <p>
-     * Defaults to {@link #nextFunctionalId()}, but can be overridden.
+     * Defaults to {@link #idForName()}, but can be overridden.
      *
      * @return a unique identifier string
      */
     default String nextTechnicalId() {
-        return nextFunctionalId();
+        return idForName();
     }
 }
