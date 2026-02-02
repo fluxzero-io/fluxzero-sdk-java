@@ -33,8 +33,8 @@
     "documentation" : " Creates a {@code UuidFactory} that removes dashes (default behavior).\n"
   } ],
   "methods" : [ {
-    "name" : "nextFunctionalId",
-    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#nextFunctionalId",
+    "name" : "idForName",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#idForName",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -46,6 +46,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a new UUID string, optionally stripped of dashes.\n\n @return a unique identifier string\n"
+  }, {
+    "name" : "idForName",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#idForName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -663,6 +663,22 @@
     "varArgs" : false,
     "documentation" : " Checks if a document exists in the specified collection.\n"
   }, {
+    "name" : "idForName",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#idForName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Generates an ID derived from the given {@code name} using the current {@link IdentityProvider}.\n <p>\n For a given name, this method always returns the same identifier.\n\n @param name the name to derive the identifier from\n @return a unique, traceable identifier string\n"
+  }, {
     "name" : "identityProvider",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#identityProvider",
     "returnType" : "io.fluxzero.sdk.common.IdentityProvider",
