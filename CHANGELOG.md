@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Kotlin Agent Instructions**: Converted all code examples in the Kotlin agent instructions to use Kotlin-specific syntax and idioms. Examples now use data classes, Kotlin property syntax, named arguments, string templates, and other Kotlin language features instead of Java syntax.
+- **Kotlin Agent Instructions**: Converted all code examples in the Kotlin agent instructions to use Kotlin-specific syntax and idioms. Examples now use data classes, Kotlin property syntax, named arguments, string templates, and other Kotlin language features instead of Java syntax. Updated to use `::class` instead of `::class.java` for Fluxzero SDK methods, require fully qualified names in JSON test files, and clarify that `Instant` or `Message` should be injected for time handling instead of `Clock`.
 
 - **Host Metrics Collection**: New feature to collect and publish JVM and system metrics similar to Micrometer, without requiring Micrometer as a dependency. Enable with `FluxzeroBuilder.enableHostMetrics()`.
 

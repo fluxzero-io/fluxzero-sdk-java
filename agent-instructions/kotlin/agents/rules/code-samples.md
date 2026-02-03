@@ -44,7 +44,7 @@ illustrative use cases.
 
   class TaskId(id: String) : Id<Task>(id)
   ```
-- Use `Fluxzero.generateId(ProjectId::class.java)` or `...generateId(TaskId::class.java)` when creating new IDs.
+- Use `Fluxzero.generateId(ProjectId::class)` or `...generateId(TaskId::class)` when creating new IDs.
 
 ## Commands
 
@@ -313,7 +313,7 @@ val future: CompletableFuture<UserId> =
   data class ListProjects(val dummy: Unit = Unit) : Request<List<Project>> {
       @HandleQuery
       fun handleQuery(sender: Sender): List<Project> {
-          return Fluxzero.search(Project::class.java)
+          return Fluxzero.search(Project::class)
               .match(if (sender.isAdmin()) null else sender.userId(), "ownerId")
               .fetch(100)
       }
@@ -327,7 +327,7 @@ val future: CompletableFuture<UserId> =
   ) : Request<Project> {
       @HandleQuery
       fun handleQuery(sender: Sender): Project? {
-          return Fluxzero.search(Project::class.java)
+          return Fluxzero.search(Project::class)
               .match(projectId, "projectId")
               .match(if (sender.isAdmin()) null else sender.userId(), "ownerId")
               .fetchFirstOrNull()
@@ -395,7 +395,7 @@ data class UserProfile(
 
 ```kotlin
 val admins: List<UserAccount> = Fluxzero
-    .search(UserAccount::class.java) // or input a search collection by name, e.g. "users"
+    .search(UserAccount::class) // or input a search collection by name, e.g. "users"
     .match("admin", "roles.name")
     .lookAhead("pete") // searches for words anywhere starting with pete, ignoring capitalization or accents
     .inLast(Duration.ofDays(30))
@@ -420,12 +420,12 @@ Fluxzero supports a rich set of constraints:
 
 ```kotlin
 // Combining multiple exclusions using NOT and Facets
-val activeLuggage: List<Luggage> = Fluxzero.search(Luggage::class.java)
+val activeLuggage: List<Luggage> = Fluxzero.search(Luggage::class)
     .not(FacetConstraint.matchFacet("status", listOf(LOADED, DELIVERED)))
-    .fetchAll(Luggage::class.java)
+    .fetchAll(Luggage::class)
 
 // Complex logical grouping
-val complexFilter: List<User> = Fluxzero.search(User::class.java)
+val complexFilter: List<User> = Fluxzero.search(User::class)
     .any(
         MatchConstraint.match("active", "status"),
         AllConstraint.all(
@@ -433,13 +433,13 @@ val complexFilter: List<User> = Fluxzero.search(User::class.java)
             MatchConstraint.match(true, "vip")
         )
     )
-    .fetchAll(User::class.java)
+    .fetchAll(User::class)
 
 // Time-based filtering combined with status exclusion
-val delayedBags: List<Luggage> = Fluxzero.search(Luggage::class.java)
+val delayedBags: List<Luggage> = Fluxzero.search(Luggage::class)
     .beforeLast(Duration.ofHours(2))
     .not(FacetConstraint.matchFacet("status", listOf(LOADED, DELIVERED)))
-    .fetchAll(Luggage::class.java)
+    .fetchAll(Luggage::class)
 ```
 
 When a field or getter is annotated with `@Facet`, you can also retrieve **facet statistics**:
@@ -453,7 +453,7 @@ data class Product(
     val price: BigDecimal
 )
 
-val stats: List<FacetStats> = Fluxzero.search(Product::class.java)
+val stats: List<FacetStats> = Fluxzero.search(Product::class)
     .lookAhead("wireless")
     .facetStats()
 ```
@@ -592,7 +592,7 @@ data class RefreshData(val index: String)
   class ProjectsEndpoint {
       @HandlePost
       fun createProject(details: ProjectDetails): ProjectId {
-          val id = Fluxzero.generateId(ProjectId::class.java)
+          val id = Fluxzero.generateId(ProjectId::class)
           Fluxzero.sendCommandAndWait(CreateProject(id, details))
           return id
       }
@@ -612,7 +612,7 @@ data class RefreshData(val index: String)
           @PathParam projectId: ProjectId,
           details: TaskDetails
       ): TaskId {
-          val taskId = Fluxzero.generateId(TaskId::class.java)
+          val taskId = Fluxzero.generateId(TaskId::class)
           Fluxzero.sendCommandAndWait(
               CreateTask(projectId, taskId, details)
           )
@@ -739,11 +739,13 @@ JSON files used in tests can look like this:
 
 ```json
 {
-  "@class": "DepositMoney",
+  "@class": "io.fluxzero.app.api.DepositMoney",
   "amount": 23,
   "recipient": "userA"
 }
 ```
+
+Note: In Kotlin tests, you must use fully qualified class names in JSON files.
 
 You can extend another JSON file like this:
 

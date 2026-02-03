@@ -64,8 +64,8 @@ src/test/resources
 - Never combine `@HandleCommand` and `@Apply` in the same class or interface.
 - Use `assertAndApply(this)` for command handlers inside interfaces like `UserUpdate`, `ProjectUpdate`, etc.
 - Always inject the current user (`Sender`) in permission checks.
-- Use `Fluxzero.generateId(SomeId::class.java)` to create IDs, never construct IDs directly in endpoint or command logic.
-- Inject `Clock` or use passed-in time values—never use `System.currentTimeMillis()` inside `@Apply`.
+- Use `Fluxzero.generateId(SomeId::class)` to create IDs, never construct IDs directly in endpoint or command logic.
+- Inject `Instant` or `Message` to get the message time—never use `System.currentTimeMillis()` inside `@Apply`.
 - Never load other aggregates inside `@Apply`. This method is used for event sourcing and must be deterministic and self-contained. Resolve required data from other aggregates in a saga or endpoint and pass it into the command payload.
 - Never use `Fluxzero.search(...)` inside `@Apply`. Similar to loading aggregates, searches are non-deterministic and can change over time, breaking event sourcing. Perform searches in sagas or endpoints and pass the result (e.g., an ID) in the command payload.
 
@@ -76,7 +76,7 @@ src/test/resources
 - Add `@RequiresUser` at the domain package level unless instructed otherwise.
 - Prefer `assertLegal(...)` with injected `Sender` over relying on roles alone.
 - Use `@NotNull`, `@Valid`, `@Size`, etc., on all payloads.
-- Use `@class` in JSON test files with simple, unqualified type names only (e.g., `"@class": "CreateProject"`).
+- Use `@class` in JSON test files with fully qualified names (e.g., `"@class": "io.fluxzero.app.api.CreateProject"`).
 - Use `@AssertLegal` in commands to enforce permissions against entities.
 - Do not add explicit structural existence checks using `@AssertLegal` (e.g., “exists” / “does not exist”). The SDK
   enforces these implicitly now.
@@ -99,9 +99,8 @@ src/test/resources
 - Always use `TestFixture`.
 - Prefer `.whenCommand(...)`, `.expectEvents(...)`, `.expectResult(...)`.
 - Use external JSON resources for all test inputs and expectations.
-- Use simple types in JSON resources when referring to classes, using `"@class" : "TheClass"`.
+- Use fully qualified names in JSON resources when referring to classes, using `"@class" : "io.fluxzero.app.api.TheClass"`.
 - You can extend from other JSON resources using `"@extends" : "other-file.json"`.
-- If a newly added type can't be found through its simple type, try running `mvn clean` once.
 - One `whenCommand`, `whenQuery`, or `whenPost` per chain; multiple chains are allowed using `.andThen()`.
 - Avoid `@ExtendWith(MockitoExtension.class)` or other mocking patterns unless explicitly required.
 - Do not use Spring in unit/integration tests (`@SpringBootTest`, `@Autowired`). Use `TestFixture.create()` instead.
@@ -112,7 +111,7 @@ src/test/resources
 ## Best Practices
 
 - Route commands using `@RoutingKey` on ID fields; param names must match entity field names.
-- Use `@Aggregate(searchable = true)` to enable document indexing.
+- Use `@Aggregate(searchable = true)` to enable document indexing when the aggregate is modified.
 - Extract static properties into a dedicated value object (e.g., `ProjectDetails`) and reference it in both the aggregate and its creation/update commands (typically using `@Valid`).
 - When dealing with decimal properties (e.g., weight, price, dimensions) in entities or value objects, always prefer `BigDecimal` over `double` or `float` to avoid precision issues.
 - Expose search via queries that use `Fluxzero.search(...)`.
