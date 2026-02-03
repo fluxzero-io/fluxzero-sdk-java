@@ -53,6 +53,7 @@ jobs:
 
       - name: Create agent instruction zips
         run: |
+          mkdir -p target
           cd agent-instructions
           zip -r ../target/agents-java.zip java
           zip -r ../target/agents-kotlin.zip kotlin
