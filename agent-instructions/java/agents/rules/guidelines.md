@@ -65,7 +65,7 @@ src/test/resources
 - Use `assertAndApply(this)` for command handlers inside interfaces like `UserUpdate`, `ProjectUpdate`, etc.
 - Always inject the current user (`Sender`) in permission checks.
 - Use `Fluxzero.generateId(...)` to create IDs, never `new ...Id()` in endpoint or command logic.
-- Inject `Clock` or use passed-in time values—never use `System.currentTimeMillis()` inside `@Apply`.
+- Inject `Instant` or `Message` to get the message time—never use `System.currentTimeMillis()`.
 - Never load other aggregates inside `@Apply`. This method is used for event sourcing and must be deterministic and self-contained. Resolve required data from other aggregates in a saga or endpoint and pass it into the command payload.
 - Never use `Fluxzero.search(...)` inside `@Apply`. Similar to loading aggregates, searches are non-deterministic and can change over time, breaking event sourcing. Perform searches in sagas or endpoints and pass the result (e.g., an ID) in the command payload.
 

@@ -241,7 +241,7 @@ data class StripeTransaction(
                     .payload(event.toBody())
                     .build()
             )
-            return response.getPayloadAs(String::class.java)
+            return response.getPayloadAs(String::class)
         }
     }
 
@@ -267,7 +267,7 @@ data class StripeTransaction(
                 .payload(event)
                 .build()
         )
-        return response.getPayloadAs(String::class.java)
+        return response.getPayloadAs(String::class)
     }
 }
 ```
@@ -788,7 +788,7 @@ fun nonOwnerCannotGetProject() {
 
 ```kotlin
 class UserLifecycleTests {
-    private val testFixture = TestFixture.create(UserLifecycleHandler::class.java)
+    private val testFixture = TestFixture.create(UserLifecycleHandler::class)
 
     @Test
     fun accountIsTerminatedAfterClosing() {
@@ -810,7 +810,7 @@ class UserLifecycleTests {
                 ReopenAccount(userId)
             )
             .whenTimeElapses(Duration.ofDays(30))
-            .expectNoEventsLike(AccountTerminated::class.java)
+            .expectNoEventsLike(AccountTerminated::class)
     }
 }
 ```
@@ -825,15 +825,15 @@ class ProjectsEndpointTests {
     @Test
     fun createProjectViaPost() {
         fixture.whenPost("/projects", "/todo/create-project-request.json")
-            .expectResult(ProjectId::class.java)
-            .expectEvents(CreateProject::class.java)
+            .expectResult(ProjectId::class)
+            .expectEvents(CreateProject::class)
     }
 
     @Test
     fun completeTaskViaEndpoint() {
         fixture.givenCommands("/todo/create-project.json", "/todo/create-task.json")
             .whenPost("/projects/p1/tasks/t1/complete", null)
-            .expectEvents(CompleteTask::class.java)
+            .expectEvents(CompleteTask::class)
     }
 }
 ```
