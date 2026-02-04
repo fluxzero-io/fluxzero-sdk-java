@@ -17,17 +17,11 @@ package io.fluxzero.sdk.givenwhenthen;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.test.Then;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
-import io.fluxzero.sdk.web.HandleGet;
-import io.fluxzero.sdk.web.HandlePost;
-import io.fluxzero.sdk.web.HandleWeb;
-import io.fluxzero.sdk.web.PathParam;
-import io.fluxzero.sdk.web.WebRequest;
+import io.fluxzero.sdk.web.*;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
-import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
-import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
+import static io.fluxzero.sdk.web.HttpRequestMethod.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -68,6 +62,18 @@ public class GivenWhenThenWebTest {
         }
 
         @Test
+        void testInvalidRedirect() {
+            testFixture.whenGet("/redirect")
+                    .expectNoWebResponseLike(r -> r.getStatus() == 302 && r.getHeader("location").equals("https://fake.com"));
+        }
+
+        @Test
+        void testNoWebRequestLike_predicate() {
+            testFixture.whenGet("/get")
+                    .expectNoWebRequestLike(r -> "/other".equals(r.getPath()));
+        }
+
+        @Test
         void testPostString_missingParam() {
             assertThrows(IllegalStateException.class, () -> testFixture.whenPost("/followUp/{var1}", null));
         }
@@ -100,6 +106,11 @@ public class GivenWhenThenWebTest {
             @HandlePost("/error")
             void postForError(String body) {
                 throw new IllegalCommandException("error: " + body);
+            }
+
+            @HandleGet("/redirect")
+            WebResponse getRedirect() {
+                return WebResponse.builder().header("Location", "https://example.com").status(302).build();
             }
 
             @HandlePost("/followUp/{var1}")

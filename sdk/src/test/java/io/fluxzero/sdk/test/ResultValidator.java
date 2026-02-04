@@ -23,24 +23,12 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.SneakyThrows;
-import lombok.With;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -534,7 +522,7 @@ public class ResultValidator<R> implements Then<R> {
                         Class<?> payloadType =
                                 e instanceof Message ? ((Message) e).getPayload().getClass() : expected.getClass();
                         Object match = remaining.stream().filter(a -> payloadType
-                                        .equals(a instanceof Message ? ((Message) a).getPayload().getClass() : a.getClass()))
+                                        .equals(a instanceof Message m ? m.getPayloadClass() : a.getClass()))
                                 .max(Comparator.comparingDouble(a -> similarity(e, a)))
                                 .orElse(null);
                         if (match != null) {
