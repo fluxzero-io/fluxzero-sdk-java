@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Agent Instructions Release Artifacts**: GitHub releases now include `agents-java.zip` and `agents-kotlin.zip` containing AI coding assistant instructions for working with the Fluxzero SDK. These zip files provide guidelines, code samples, and FQN references to help AI tools generate correct Fluxzero code.
+- **Project Files Release Artifacts**: GitHub releases now include `project-java.zip` and `project-kotlin.zip` containing AI coding assistant project files for working with the Fluxzero SDK. These zip files provide guidelines, code samples, and FQN references to help AI tools generate correct Fluxzero code.
 
 ### Changed
+
+- **Project Files Naming**: Renamed `agent-instructions` directory to `project-files` and release artifacts from `agents-{lang}.zip` to `project-{lang}.zip` for clearer nomenclature.
 
 - **Kotlin Agent Instructions**: Converted all code examples in the Kotlin agent instructions to use Kotlin-specific syntax and idioms. Examples now use data classes, Kotlin property syntax, named arguments, string templates, and other Kotlin language features instead of Java syntax. Updated to use `::class` instead of `::class.java` for Fluxzero SDK methods, require fully qualified names in JSON test files, and clarify that `Instant` or `Message` should be injected for time handling instead of `Clock`.
 
