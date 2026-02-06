@@ -39,7 +39,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <undertow.version>2.3.22.Final</undertow.version>
+        <undertow.version>2.3.23.Final</undertow.version>
         <kotlin.version>2.3.10</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
     </properties>
@@ -112,7 +112,7 @@
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
-                <version>1.5.29</version>
+                <version>1.5.26</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -254,7 +254,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.15.0</version>
+                    <version>3.14.1</version>
                     <configuration>
                         <annotationProcessorPaths>
                             <path>
