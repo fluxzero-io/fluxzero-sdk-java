@@ -51,12 +51,12 @@ jobs:
       - name: Build and test
         run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
 
-      - name: Create agent instruction zips
+      - name: Create project files zips
         run: |
           mkdir -p target
-          cd agent-instructions
-          zip -r ../target/agents-java.zip java
-          zip -r ../target/agents-kotlin.zip kotlin
+          cd project-files
+          zip -r ../target/project-java.zip java
+          zip -r ../target/project-kotlin.zip kotlin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
@@ -68,13 +68,13 @@ jobs:
             !**/target/*-javadoc.jar
           retention-days: 1
 
-      - name: Upload agent instructions
+      - name: Upload project files
         uses: actions/upload-artifact@v6
         with:
-          name: agent-instructions
+          name: project-files
           path: |
-            target/agents-java.zip
-            target/agents-kotlin.zip
+            target/project-java.zip
+            target/project-kotlin.zip
           retention-days: 1
 
   # Job 2: Deploy to Maven Central (runs in parallel after build)
@@ -129,10 +129,10 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v6
 
-      - name: Download agent instructions
+      - name: Download project files
         uses: actions/download-artifact@v7
         with:
-          name: agent-instructions
+          name: project-files
           path: release-assets
 
       - name: Create GitHub release
@@ -142,8 +142,8 @@ jobs:
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           files: |
-            release-assets/agents-java.zip
-            release-assets/agents-kotlin.zip
+            release-assets/project-java.zip
+            release-assets/project-kotlin.zip
 
   # Job 5: Build and push test-server Docker image (runs in parallel after build)
   docker-test-server:
