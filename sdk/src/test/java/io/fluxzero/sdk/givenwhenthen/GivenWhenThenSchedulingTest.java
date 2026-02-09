@@ -334,6 +334,12 @@ class GivenWhenThenSchedulingTest {
     }
 
     @Test
+    void testExpectNoNewScheduleLike_predicate() {
+        subject.whenCommand(new YieldsSchedule())
+               .expectNoNewScheduleLike(s -> s.getPayload() instanceof Integer);
+    }
+
+    @Test
     void testExpectScheduleWithoutAnySchedules() {
         assertThrows(GivenWhenThenAssertionError.class,
                      () -> subject.whenCommand("command").expectOnlyNewSchedules("schedule"));
@@ -357,6 +363,14 @@ class GivenWhenThenSchedulingTest {
                 .whenTimeElapses(delay)
                 .expectNoNewSchedulesLike(YieldsCommand.class)
                 .expectNoSchedulesLike(YieldsCommand.class);
+    }
+
+    @Test
+    void testExpectNoScheduleLike_predicate() {
+        subject.givenSchedules(new Schedule(new YieldsCommand("whatever"), Fluxzero.currentTime().plusSeconds(1)))
+                .whenNothingHappens()
+                .expectSchedule(s -> s.getPayload() instanceof YieldsCommand)
+                .expectNoScheduleLike(s -> s.getPayload() instanceof String);
     }
 
     @Test

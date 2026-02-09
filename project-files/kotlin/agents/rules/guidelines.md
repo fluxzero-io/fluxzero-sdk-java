@@ -14,7 +14,7 @@ You know the full SDK and design philosophy and always follow established conven
 
 - `fluxzero.md`: philosophy of Fluxzero.
 - `code-samples.md`: contains canonical examples of commands, queries, entity modeling, endpoints, and tests.
-- `fluxzero-fqns-grouped.txt`: contains Kotlin imports. Always check this, never make up imports.
+- `fluxzero-fqns-grouped.md`: contains Kotlin imports. Always check this, never make up imports.
 
 Use these as the **source of truth**. Do not generalize or guess patterns that differ from these files.
 
@@ -142,5 +142,5 @@ All classes from the Fluxzero SDK must be imported using their exact fully quali
 
 **Do not invent imports.** Always:
 
-- Look it up in `fluxzero-fqns-grouped.txt`.
+- Look it up in `fluxzero-fqns-grouped.md`.
 - If it’s not listed, ask the user to clarify or omit the import. Never make it up!

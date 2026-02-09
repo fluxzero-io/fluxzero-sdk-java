@@ -20,6 +20,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 
 import java.lang.annotation.ElementType;
@@ -58,23 +59,17 @@ public @interface ConditionalOnMissingBean {
         @Override
         @SneakyThrows
         public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
-            if (metadata instanceof MethodMetadata) {
-                Class<?> type = (Class<?>) metadata.getAllAnnotationAttributes(
-                        ConditionalOnMissingBean.class.getName()).getFirst("value");
-                if (void.class.equals(type)) {
-                    type = forName(((MethodMetadata) metadata).getReturnTypeName(), context.getClassLoader());
-                }
-                return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(context.getBeanFactory(), type).length == 0;
-            }
-            Class<?> type = (Class<?>) metadata.getAllAnnotationAttributes(ConditionalOnMissingBean.class.getName())
-                    .getFirst("value");
+            Class<?> type = (Class<?>) metadata.getAnnotationAttributes(ConditionalOnMissingBean.class.getName()).get("value");
+
             if (void.class.equals(type)) {
-                type = forName(metadata.getAnnotations().get(ConditionalOnMissingBean.class).getSource().toString(),
-                               context.getClassLoader());
+                type = switch (metadata) {
+                    case MethodMetadata mm -> forName(mm.getReturnTypeName(), context.getClassLoader());
+                    case AnnotationMetadata am -> forName(am.getClassName(), context.getClassLoader());
+                    default -> type;
+                };
             }
-            String[] beanNames = BeanFactoryUtils.beanNamesForTypeIncludingAncestors(context.getBeanFactory(), type);
-            return beanNames.length == 0;
+
+            return BeanFactoryUtils.beanNamesForTypeIncludingAncestors(context.getBeanFactory(), type).length == 0;
         }
     }
-
 }
