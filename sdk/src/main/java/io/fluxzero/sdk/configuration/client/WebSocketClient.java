@@ -48,7 +48,6 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.gatewayUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.keyValueUrl;
@@ -82,21 +81,6 @@ import static java.util.stream.Collectors.toMap;
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public class WebSocketClient extends AbstractClient {
 
-    private final Function<String, Client> clientSupplier = memoize(
-            namespace -> {
-                if (Objects.equals(namespace(), namespace)) {
-                    return this;
-                }
-                var defaultClient = getDefaultClient();
-                if (defaultClient != null) {
-                    return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
-                }
-                if (namespace == null) {
-                    return this;
-                }
-                return new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this);
-            });
-
     @Getter
     private final ClientConfig clientConfig;
 
@@ -128,8 +112,18 @@ public class WebSocketClient extends AbstractClient {
     }
 
     @Override
-    public Client forNamespace(String namespace) {
-        return clientSupplier.apply(namespace);
+    protected Client createForNamespace(String namespace) {
+        if (Objects.equals(namespace(), namespace)) {
+            return this;
+        }
+        var defaultClient = getDefaultClient();
+        if (defaultClient != null) {
+            return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
+        }
+        if (namespace == null) {
+            return this;
+        }
+        return new WebSocketClient(getClientConfig().toBuilder().namespace(namespace).build(), this);
     }
 
     @Override
