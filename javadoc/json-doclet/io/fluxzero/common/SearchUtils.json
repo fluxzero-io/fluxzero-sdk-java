@@ -262,6 +262,27 @@
     "varArgs" : false,
     "documentation" : " Extracts quoted phrases and standalone terms from a free-form query string.\n\n @param query the raw search string\n @return a list of normalized search terms\n"
   }, {
+    "name" : "timeToInstant",
+    "qualifiedName" : "io.fluxzero.common.SearchUtils#timeToInstant",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "time",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a given time object to an {@link Instant}. The input time object can be of type {@link LocalDate},\n {@link LocalDateTime}, {@link TemporalAccessor}, or {@link String}.\n\n @param time the time object to be converted to an Instant.\n @param end  a boolean flag indicating whether to adjust the time to the end of the day if the time is a\n             LocalDate. If true, the conversion reflects the start of the next day ; if false, it reflects the\n             start of the given day.\n @return the corresponding Instant representation of the given time object. Returns null if the input time object\n is not of a recognized type.\n"
+  }, {
     "name" : "tryGetSimpleGlobMatcher",
     "qualifiedName" : "io.fluxzero.common.SearchUtils#tryGetSimpleGlobMatcher",
     "returnType" : "java.util.Optional<java.util.function.Predicate<java.lang.String>>",

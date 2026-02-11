@@ -142,6 +142,22 @@
     "varArgs" : false,
     "documentation" : " Filters documents with timestamps before the given time.\n\n @param inclusive whether the end boundary is inclusive\n"
   }, {
+    "name" : "before",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#before",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endInclusive",
+      "type" : "java.time.LocalDate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Filters and returns search results that occur before the specified end date, inclusive.\n\n @param endInclusive the end date to compare with, inclusive\n @return a Search object containing results that occur before the specified end date\n"
+  }, {
     "name" : "beforeLast",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#beforeLast",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search",
@@ -493,6 +509,27 @@
     "varArgs" : false,
     "documentation" : " Filters documents within the given time range.\n"
   }, {
+    "name" : "inPeriod",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#inPeriod",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "start",
+      "type" : "java.time.LocalDate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endInclusive",
+      "type" : "java.time.LocalDate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Filters the search results to include only those within the specified date range.\n"
+  }, {
     "name" : "includeOnly",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#includeOnly",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search",
@@ -708,6 +745,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Filters documents with timestamps since the given start time.\n\n @param inclusive whether the start boundary is inclusive\n"
+  }, {
+    "name" : "since",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#since",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "start",
+      "type" : "java.time.LocalDate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Initiates a search operation from a specified start date.\n\n @param start the start date from which the search is to be started.\n @return a Search object initialized with the converted instant from the specified start date.\n"
   }, {
     "name" : "skip",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#skip",
