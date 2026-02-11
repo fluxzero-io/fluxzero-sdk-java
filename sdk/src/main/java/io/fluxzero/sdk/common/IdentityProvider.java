@@ -30,7 +30,7 @@ import java.util.ServiceLoader;
  * The interface defines two types of identifiers:
  * </p>
  * <ul>
- *   <li>{@link #idForName()} – the main ID used in application-level constructs</li>
+ *   <li>{@link #nextFunctionalId()} – the main ID used in application-level constructs</li>
  *   <li>{@link #nextTechnicalId()} – defaults to {@code nextFunctionalId()}, but may be overridden for traceability</li>
  * </ul>
  *
@@ -62,7 +62,7 @@ public interface IdentityProvider {
      *
      * @return a unique, non-null identifier string
      */
-    String idForName();
+    String nextFunctionalId();
 
     /**
      * Returns a new functional ID derived from the given name.
@@ -77,11 +77,11 @@ public interface IdentityProvider {
     /**
      * Returns a new technical ID, suitable for lower-level operations such as internal tracing.
      * <p>
-     * Defaults to {@link #idForName()}, but can be overridden.
+     * Defaults to {@link #nextFunctionalId()}, but can be overridden.
      *
      * @return a unique identifier string
      */
     default String nextTechnicalId() {
-        return idForName();
+        return nextFunctionalId();
     }
 }

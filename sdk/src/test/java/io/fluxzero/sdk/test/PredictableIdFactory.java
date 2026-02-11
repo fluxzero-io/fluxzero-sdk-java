@@ -40,7 +40,7 @@ public class PredictableIdFactory implements PredictableIdentityProvider {
      * @return a deterministic functional ID as a string
      */
     @Override
-    public String idForName() {
+    public String nextFunctionalId() {
         return Integer.toString(functionalCounter.getAndIncrement());
     }
 

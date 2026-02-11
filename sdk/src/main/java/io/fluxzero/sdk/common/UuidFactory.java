@@ -52,7 +52,7 @@ public class UuidFactory implements IdentityProvider {
      * @return a unique identifier string
      */
     @Override
-    public String idForName() {
+    public String nextFunctionalId() {
         String id = UUID.randomUUID().toString();
         return removeDashes ? id.replace("-", "") : id;
     }

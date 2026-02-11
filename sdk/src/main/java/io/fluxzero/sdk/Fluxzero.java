@@ -184,7 +184,7 @@ public interface Fluxzero extends AutoCloseable {
      * @return a unique, traceable identifier string
      */
     static String generateId() {
-        return currentIdentityProvider().idForName();
+        return currentIdentityProvider().nextFunctionalId();
     }
 
     /**
