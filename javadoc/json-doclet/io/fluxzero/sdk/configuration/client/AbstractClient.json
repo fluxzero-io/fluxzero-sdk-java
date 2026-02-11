@@ -16,7 +16,7 @@
   } ],
   "documentation" : " Abstract base implementation of the {@link Client} interface, providing shared logic and lifecycle management for\n both local (in-memory) and remote (WebSocket-based) Fluxzero clients.\n <p>\n Concrete implementations such as {@link LocalClient} and {@link WebSocketClient} extend this class to define specific\n transport and storage mechanisms for each subsystem (event store, scheduling, etc.).\n\n <h2>Responsibilities</h2>\n <ul>\n     <li>Manages memoized creation and reuse of {@link GatewayClient} and {@link TrackingClient} instances.</li>\n     <li>Coordinates shutdown behavior and cleanup tasks via {@link #shutDown()} and {@link #beforeShutdown(Runnable)}.</li>\n     <li>Provides monitoring support for dispatched messages using {@link ClientDispatchMonitor}.</li>\n </ul>\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.configuration.client.Client>",
   "interfaces" : [ "io.fluxzero.sdk.configuration.client.Client" ],
   "fields" : [ {
     "name" : "eventStoreClient",

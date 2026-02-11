@@ -26,14 +26,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "clientSupplier",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.clientSupplier",
-    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "defaultClient",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.defaultClient",
     "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient",
@@ -83,6 +75,25 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -169,25 +180,6 @@
       "annotations" : [ ]
     }, {
       "name" : "topic",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "forNamespace",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#forNamespace",
-    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
