@@ -42,20 +42,6 @@
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Returns a new UUID string, optionally stripped of dashes.\n\n @return a unique identifier string\n"
-  }, {
-    "name" : "idForName",
-    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#idForName",
-    "returnType" : "java.lang.String",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "name",
       "type" : "java.lang.String",
@@ -65,6 +51,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "nextFunctionalId",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#nextFunctionalId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new UUID string, optionally stripped of dashes.\n\n @return a unique identifier string\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
