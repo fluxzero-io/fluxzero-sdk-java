@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common;
@@ -357,7 +358,8 @@ public class SearchUtils {
      * If the property is a LocalDate and the end flag is set to true, the result will represent the start of the next
      * day; otherwise, it represents the start of the given day.
      */
-    public static Instant parseTimeProperty(String propertyPath, Object object, boolean end, Supplier<Instant> whenMissing) {
+    public static Instant parseTimeProperty(String propertyPath, Object object, boolean end,
+                                            Supplier<Instant> whenMissing) {
         if (object == null || StringUtils.isBlank(propertyPath)) {
             return whenMissing.get();
         }
@@ -368,7 +370,8 @@ public class SearchUtils {
                 if (ReflectionUtils.hasProperty(key.getValue(), object)) {
                     return true;
                 } else {
-                    log.warn("Type {} does not declare a timestamp property '{}'", key.getKey().getSimpleName(), key.getValue());
+                    log.warn("Type {} does not declare a timestamp property '{}'", key.getKey().getSimpleName(),
+                             key.getValue());
                     return false;
                 }
             })) {
@@ -377,19 +380,36 @@ public class SearchUtils {
             return whenMissing.get();
         }
 
-        return switch (property) {
+        var result = timeToInstant(property, end);
+        if (result == null) {
+            if (isValidTimestampProperty.putIfAbsent(Map.entry(object.getClass(), propertyPath), FALSE) == null) {
+                log.warn("Property '{}' of type {} is not a valid timestamp property",
+                         propertyPath, property.getClass().getSimpleName());
+            }
+            return whenMissing.get();
+        }
+        return result;
+    }
+
+    /**
+     * Converts a given time object to an {@link Instant}. The input time object can be of type {@link LocalDate},
+     * {@link LocalDateTime}, {@link TemporalAccessor}, or {@link String}.
+     *
+     * @param time the time object to be converted to an Instant.
+     * @param end  a boolean flag indicating whether to adjust the time to the end of the day if the time is a
+     *             LocalDate. If true, the conversion reflects the start of the next day ; if false, it reflects the
+     *             start of the given day.
+     * @return the corresponding Instant representation of the given time object. Returns null if the input time object
+     * is not of a recognized type.
+     */
+    public static Instant timeToInstant(Object time, boolean end) {
+        return switch (time) {
             case LocalDate d -> (end ? d.plusDays(1) : d)
                     .atStartOfDay(ZoneOffset.systemDefault()).toInstant();
             case LocalDateTime d -> d.atZone(ZoneOffset.systemDefault()).toInstant();
             case TemporalAccessor t -> Instant.from(t);
             case String s -> Instant.parse(s);
-            default -> {
-                if (isValidTimestampProperty.putIfAbsent(Map.entry(object.getClass(), propertyPath), FALSE) == null) {
-                    log.warn("Property '{}' of type {} is not a valid timestamp property",
-                            propertyPath, property.getClass().getSimpleName());
-                }
-                yield whenMissing.get();
-            }
+            default -> null;
         };
     }
 }

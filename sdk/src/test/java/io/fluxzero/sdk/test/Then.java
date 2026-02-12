@@ -116,6 +116,15 @@ public interface Then<R> {
     Then<R> expectNoEventsLike(Object... events);
 
     /**
+     * Asserts that no event was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to events
+     */
+    default <T> Then<R> expectNoEventLike(ThrowingPredicate<T> predicate) {
+        return expectNoEventsLike(predicate.asPredicate());
+    }
+
+    /**
      * Asserts that no events were published during the {@code when} phase.
      * <p>
      * Equivalent to {@code expectOnlyEvents()}.
@@ -164,6 +173,15 @@ public interface Then<R> {
      * Useful for excluding specific commands by payload, type, or match condition.
      */
     Then<R> expectNoCommandsLike(Object... commands);
+
+    /**
+     * Asserts that no command was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to commands
+     */
+    default <T> Then<R> expectNoCommandLike(ThrowingPredicate<T> predicate) {
+        return expectNoCommandsLike(predicate.asPredicate());
+    }
 
     /**
      * Asserts that no commands were published during the {@code when} phase.
@@ -224,6 +242,16 @@ public interface Then<R> {
     Then<R> expectNoCustomLike(String topic, Object... requests);
 
     /**
+     * Asserts that no request was published to the specified custom {@code topic} that matches the given predicate.
+     *
+     * @param topic     the topic to check
+     * @param predicate predicate applied to messages (or their payloads) on the topic
+     */
+    default <T> Then<R> expectNoCustomLike(String topic, ThrowingPredicate<T> predicate) {
+        return expectNoCustomLike(topic, predicate.asPredicate());
+    }
+
+    /**
      * Asserts that no messages were published to the specified custom {@code topic}.
      * <p>
      * Equivalent to {@code expectOnlyCustom(topic)}.
@@ -279,6 +307,15 @@ public interface Then<R> {
     Then<R> expectNoQueriesLike(Object... queries);
 
     /**
+     * Asserts that no query was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to queries
+     */
+    default <T> Then<R> expectNoQueryLike(ThrowingPredicate<T> predicate) {
+        return expectNoQueriesLike(predicate.asPredicate());
+    }
+
+    /**
      * Asserts that no queries were published during the {@code when} phase.
      * <p>
      * Equivalent to {@code expectOnlyQueries()}.
@@ -330,6 +367,15 @@ public interface Then<R> {
     Then<R> expectNoWebRequestsLike(Object... webRequests);
 
     /**
+     * Asserts that no web request was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to web requests
+     */
+    default Then<R> expectNoWebRequestLike(ThrowingPredicate<WebRequest> predicate) {
+        return expectNoWebRequestsLike(predicate.asPredicate());
+    }
+
+    /**
      * Asserts that no {@link WebRequest}s were published during the {@code when} phase.
      * <p>
      * Equivalent to {@code expectOnlyWebRequests()}.
@@ -360,7 +406,7 @@ public interface Then<R> {
     /**
      * Shorthand for asserting that at least one published web response matches the given predicate.
      *
-     * @param predicate matcher to apply to web response payloads
+     * @param predicate matcher to apply to web responses
      */
     default Then<R> expectWebResponse(ThrowingPredicate<WebResponse> predicate) {
         return expectWebResponses(predicate.asPredicate());
@@ -372,6 +418,15 @@ public interface Then<R> {
      * @param webResponses the only allowed web responses
      */
     Then<R> expectOnlyWebResponses(Object... webResponses);
+
+    /**
+     * Asserts that no web response was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to web responses
+     */
+    default Then<R> expectNoWebResponseLike(ThrowingPredicate<WebResponse> predicate) {
+        return expectNoWebResponsesLike(predicate.asPredicate());
+    }
 
     /**
      * Asserts that none of the specified web responses were published.
@@ -430,6 +485,15 @@ public interface Then<R> {
     Then<R> expectNoNewSchedulesLike(Object... schedules);
 
     /**
+     * Asserts that no new schedule was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to new schedules
+     */
+    default Then<R> expectNoNewScheduleLike(ThrowingPredicate<Schedule> predicate) {
+        return expectNoNewSchedulesLike(predicate.asPredicate());
+    }
+
+    /**
      * Asserts that no new schedules were published.
      * <p>
      * Equivalent to {@code expectOnlyNewSchedules()}.
@@ -463,6 +527,15 @@ public interface Then<R> {
      * Asserts that none of the specified schedules are currently active.
      */
     Then<R> expectNoSchedulesLike(Object... schedules);
+
+    /**
+     * Asserts that no schedule was published that matches the given predicate.
+     *
+     * @param predicate matcher to apply to schedules
+     */
+    default Then<R> expectNoScheduleLike(ThrowingPredicate<Schedule> predicate) {
+        return expectNoSchedulesLike(predicate.asPredicate());
+    }
 
     /**
      * Asserts that there are no schedules currently active.
@@ -890,6 +963,15 @@ public interface Then<R> {
      * @param metrics the disallowed metrics
      */
     Then<R> expectNoMetricsLike(Object... metrics);
+
+    /**
+     * Asserts that no metric was published that matches the given predicate.
+     *
+     * @param predicate matcher applied to metrics
+     */
+    default <T> Then<R> expectNoMetricLike(ThrowingPredicate<T> predicate) {
+        return expectNoMetricsLike(predicate.asPredicate());
+    }
 
     /**
      * Asserts that no metrics were published.

@@ -37,10 +37,7 @@ import java.time.temporal.ChronoUnit;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 class GivenWhenThenTest {
 
@@ -127,6 +124,12 @@ class GivenWhenThenTest {
     }
 
     @Test
+    void testExpectNoEventLike_predicate() {
+        YieldsEventAndNoResult command = new YieldsEventAndNoResult();
+        testFixture.whenCommand(command).expectNoEventLike(o -> o instanceof String);
+    }
+
+    @Test
     void testExpectResultAndEvent() {
         YieldsEventAndResult command = new YieldsEventAndResult();
         testFixture.whenCommand(command).expectOnlyEvents(command).expectResult(String.class);
@@ -196,6 +199,14 @@ class GivenWhenThenTest {
     }
 
     @Test
+    void testExpectNoCommandLike_predicate() {
+        testFixture = TestFixture.create(commandHandler, new EventHandler());
+        // EventHandler sends a YieldsNoResult command; predicate does not match
+        testFixture.whenCommand(new YieldsEventAndNoResult())
+                .expectNoCommandLike(o -> o instanceof String);
+    }
+
+    @Test
     void testMultiHandlerWithExceptionInEventHandler() {
         testFixture = TestFixture.create(commandHandler, new ThrowingEventHandler());
         testFixture.whenCommand(new YieldsEventAndNoResult())
@@ -257,6 +268,14 @@ class GivenWhenThenTest {
     @Test
     void testExpectNoMetricsLike() {
         TestFixture.createAsync(commandHandler).whenCommand(new YieldsNoResult()).expectNoMetricsLike(String.class);
+    }
+
+    @Test
+    void testExpectNoMetricLike_predicate() {
+        // ProcessBatchEvent metric is emitted by async fixture; predicate must not match
+        TestFixture.createAsync(commandHandler)
+                .whenCommand(new YieldsNoResult())
+                .expectNoMetricLike(o -> o instanceof String);
     }
 
     @Test

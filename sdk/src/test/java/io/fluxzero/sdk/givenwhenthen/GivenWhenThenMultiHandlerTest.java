@@ -121,6 +121,12 @@ class GivenWhenThenMultiHandlerTest {
     }
 
     @Test
+    void testNoQueryLike_predicate() {
+        // Query payload is a String, so this predicate must not match
+        subject.whenQuery("bla").expectNoQueryLike(o -> o instanceof Integer);
+    }
+
+    @Test
     void testFailingQuery() {
         subject.whenQuery(1L).expectExceptionalResult(Exception.class);
     }

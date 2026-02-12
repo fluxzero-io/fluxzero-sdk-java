@@ -35,9 +35,7 @@ import lombok.experimental.Accessors;
 
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
-import java.util.function.Function;
-
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
+import java.util.Objects;
 
 /**
  * An in-memory {@link Client} implementation used for local development, testing, or isolated environments where no
@@ -82,21 +80,6 @@ public class LocalClient extends AbstractClient {
     @Getter(AccessLevel.PRIVATE)
     private final LocalClient defaultClient;
 
-    private final Function<String, Client> clientSupplier = memoize(
-            namespace -> {
-                var defaultClient = getDefaultClient();
-                if (defaultClient != null) {
-                    if (namespace == null) {
-                        return defaultClient;
-                    }
-                    return defaultClient.forNamespace(namespace);
-                }
-                if (namespace == null) {
-                    return this;
-                }
-                return new LocalClient(getMessageExpiration(), namespace, this);
-            });
-
     @Getter(lazy = true)
     @Accessors(fluent = true)
     private final String id = DefaultPropertySource.getInstance().get("FLUXZERO_TASK_ID",
@@ -113,7 +96,7 @@ public class LocalClient extends AbstractClient {
     }
 
     protected LocalClient(Duration messageExpiration) {
-        this(messageExpiration, null, null);
+        this(messageExpiration, "public", null);
     }
 
     protected LocalClient(Duration messageExpiration, String namespace, LocalClient defaultClient) {
@@ -134,11 +117,6 @@ public class LocalClient extends AbstractClient {
     public String applicationId() {
         return DefaultPropertySource.getInstance().get("FLUXZERO_APPLICATION_ID",
                         DefaultPropertySource.getInstance().get("FLUX_APPLICATION_ID"));
-    }
-
-    @Override
-    public Client forNamespace(String namespace) {
-        return clientSupplier.apply(namespace);
     }
 
     @Override
@@ -175,5 +153,20 @@ public class LocalClient extends AbstractClient {
     @Override
     protected InMemorySearchStore createSearchClient() {
         return new InMemorySearchStore(messageExpiration);
+    }
+
+    @Override
+    protected Client createForNamespace(String namespace) {
+        if (Objects.equals(namespace(), namespace)) {
+            return this;
+        }
+        var defaultClient = getDefaultClient();
+        if (defaultClient != null) {
+            return namespace == null ? defaultClient : defaultClient.forNamespace(namespace);
+        }
+        if (namespace == null) {
+            return this;
+        }
+        return new LocalClient(getMessageExpiration(), namespace, this);
     }
 }

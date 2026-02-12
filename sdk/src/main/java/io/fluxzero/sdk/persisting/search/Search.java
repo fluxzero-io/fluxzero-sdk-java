@@ -33,6 +33,7 @@ import io.fluxzero.sdk.Fluxzero;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.SearchUtils.timeToInstant;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -101,6 +103,16 @@ public interface Search {
     Search since(Instant start, boolean inclusive);
 
     /**
+     * Initiates a search operation from a specified start date.
+     *
+     * @param start the start date from which the search is to be started.
+     * @return a Search object initialized with the converted instant from the specified start date.
+     */
+    default Search since(LocalDate start) {
+        return since(timeToInstant(start, false));
+    }
+
+    /**
      * Filters documents with timestamps strictly before the given end time.
      */
     default Search before(Instant endExclusive) {
@@ -113,6 +125,16 @@ public interface Search {
      * @param inclusive whether the end boundary is inclusive
      */
     Search before(Instant end, boolean inclusive);
+
+    /**
+     * Filters and returns search results that occur before the specified end date, inclusive.
+     *
+     * @param endInclusive the end date to compare with, inclusive
+     * @return a Search object containing results that occur before the specified end date
+     */
+    default Search before(LocalDate endInclusive) {
+        return before(timeToInstant(endInclusive, true));
+    }
 
     /**
      * Filters out documents older than the given duration.
@@ -139,6 +161,13 @@ public interface Search {
      * Filters documents within a specified time range.
      */
     Search inPeriod(Instant start, boolean startInclusive, Instant end, boolean endInclusive);
+
+    /**
+     * Filters the search results to include only those within the specified date range.
+     */
+    default Search inPeriod(LocalDate start, LocalDate endInclusive) {
+        return inPeriod(timeToInstant(start, false), timeToInstant(endInclusive, true));
+    }
 
     /*
         Other constraints

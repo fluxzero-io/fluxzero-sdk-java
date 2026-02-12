@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.givenwhenthen;
 
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.UuidFactory;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
@@ -35,5 +37,29 @@ public class GivenWhenThenIdentityProviderTest {
         TestFixture.create(DefaultFluxzero.builder().replaceIdentityProvider(p -> new UuidFactory()))
                 .whenApplying(fc -> generateId())
                 .<String>expectResult(s -> !s.contains("-"));
+    }
+
+    @Test
+    void testGenerateIdFromName() {
+        String name = "test-name";
+        String id1 = Fluxzero.idForName(name);
+        String id2 = Fluxzero.idForName(name);
+
+        TestFixture.create()
+                .whenApplying(fc -> id1)
+                .expectResult(id2::equals);
+    }
+
+    @Test
+    void testPredictableGenerateIdFromName() {
+        String name = "test-name";
+        String id1 = Fluxzero.idForName(name);
+        String id2 = Fluxzero.idForName(name);
+
+        // PredictableIdFactory (default in TestFixture) should also be deterministic for names
+        TestFixture.create()
+                .whenApplying(fc -> Fluxzero.idForName(name))
+                .expectResult(id1::equals)
+                .expectResult(id2::equals);
     }
 }

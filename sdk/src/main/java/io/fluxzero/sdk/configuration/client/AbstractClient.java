@@ -19,6 +19,7 @@ import io.fluxzero.common.MemoizingBiFunction;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
+import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -61,7 +62,7 @@ import static java.util.Objects.requireNonNull;
  */
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public abstract class AbstractClient implements Client {
+public abstract class AbstractClient extends AbstractNamespaced<Client> implements Client {
 
     /**
      * Map of message type to a list of dispatch monitors and their corresponding registrations.

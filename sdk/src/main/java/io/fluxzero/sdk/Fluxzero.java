@@ -197,6 +197,18 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Generates an ID derived from the given {@code name} using the current {@link IdentityProvider}.
+     * <p>
+     * For a given name, this method always returns the same identifier.
+     *
+     * @param name the name to derive the identifier from
+     * @return a unique, traceable identifier string
+     */
+    static String idForName(String name) {
+        return currentIdentityProvider().idForName(name);
+    }
+
+    /**
      * Fetches the configured identity provider used for both functional and technical IDs. The default is a
      * {@link UuidFactory} that generates UUIDs.
      * <p>

@@ -51,6 +51,13 @@ jobs:
       - name: Build and test
         run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
 
+      - name: Create project files zips
+        run: |
+          mkdir -p target
+          cd project-files
+          zip -r ../target/project-java.zip java
+          zip -r ../target/project-kotlin.zip kotlin
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -59,6 +66,15 @@ jobs:
             **/target/*.jar
             !**/target/*-sources.jar
             !**/target/*-javadoc.jar
+          retention-days: 1
+
+      - name: Upload project files
+        uses: actions/upload-artifact@v6
+        with:
+          name: project-files
+          path: |
+            target/project-java.zip
+            target/project-kotlin.zip
           retention-days: 1
 
   # Job 2: Deploy to Maven Central (runs in parallel after build)
@@ -113,12 +129,21 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v6
 
+      - name: Download project files
+        uses: actions/download-artifact@v7
+        with:
+          name: project-files
+          path: release-assets
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build-and-test.outputs.version }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
+          files: |
+            release-assets/project-java.zip
+            release-assets/project-kotlin.zip
 
   # Job 5: Build and push test-server Docker image (runs in parallel after build)
   docker-test-server:

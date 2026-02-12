@@ -72,6 +72,14 @@ public class HandleCustomTest {
         ;
     }
 
+    @Test
+    void negativePredicateOnCustomTopic() {
+        testFixture
+                .whenCustom("customEvent", "test")
+                .expectNoResult()
+                .expectNoCustomLike("other", s -> "nope".equals(s));
+    }
+
     static class Handler {
         @HandleCustom("foo")
         String handleFoo(String input) {
