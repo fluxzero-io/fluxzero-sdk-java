@@ -58,8 +58,8 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "hasReturnValue",
-    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.hasReturnValue",
+    "name" : "hasReturnType",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.hasReturnType",
     "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],

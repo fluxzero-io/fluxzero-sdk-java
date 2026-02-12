@@ -1773,6 +1773,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasReturnType",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasReturnType",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "ifClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#ifClass",
     "returnType" : "java.lang.Class<?>",
