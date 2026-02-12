@@ -215,7 +215,7 @@ public class HandlerInspector {
         private final int parameterCount;
         private final boolean staticMethod;
         private final MemberInvoker invoker;
-        private final boolean hasReturnValue;
+        private final boolean hasReturnType;
         private final Class<?> classForSpecificity;
         private final Annotation methodAnnotation;
         private final Class<? extends Annotation> methodAnnotationType;
@@ -239,8 +239,7 @@ public class HandlerInspector {
             this.parameters = this.executable.getParameters();
             this.parameterCount = this.parameters.length;
             this.staticMethod = Modifier.isStatic(this.executable.getModifiers());
-            this.hasReturnValue =
-                    !(executable instanceof Method) || !(((Method) executable).getReturnType()).equals(void.class);
+            this.hasReturnType = ReflectionUtils.hasReturnType(executable);
             this.methodAnnotation = config.getAnnotation(executable).orElse(null);
             this.methodAnnotationType = Optional.ofNullable(this.methodAnnotation).map(Annotation::annotationType)
                     .orElse(null);
@@ -379,7 +378,7 @@ public class HandlerInspector {
 
             @Override
             public boolean expectResult() {
-                return hasReturnValue;
+                return hasReturnType;
             }
 
             @Override

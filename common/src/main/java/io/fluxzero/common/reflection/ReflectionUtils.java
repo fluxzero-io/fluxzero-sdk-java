@@ -296,6 +296,7 @@ public class ReflectionUtils {
                 new ArrayList<>(FieldUtils.getFieldsListWithAnnotation(target, annotation));
         result.addAll(getMethodsListWithAnnotation(target, annotation, true, true).stream()
                               .filter(m -> m.getParameterCount() == 0)
+                              .filter(ReflectionUtils::hasReturnType)
                               .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType())).toList());
         getAllInterfaces(target)
                 .forEach(i -> result.addAll(FieldUtils.getFieldsListWithAnnotation(i, annotation)));
@@ -543,14 +544,19 @@ public class ReflectionUtils {
             return target -> ((Map<?, ?>) target).get(propertyName);
         }
         PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
-        return getMethod(type, "get" + StringUtils.capitalize(propertyName)).map(m -> (Member) m)
-                .or(() -> getMethod(type, propertyName))
+        return getMethod(type, "get" + StringUtils.capitalize(propertyName))
+                .filter(ReflectionUtils::hasReturnType).map(m -> (Member) m)
+                .or(() -> getMethod(type, propertyName).filter(ReflectionUtils::hasReturnType))
                 .or(() -> getField(type, propertyName))
                 .map(DefaultMemberInvoker::asInvoker)
                 .<Function<Object, Object>>map(invoker -> invoker::invoke)
                 .orElseGet(() -> o -> {
                     throw notFoundException;
                 });
+    }
+
+    public static boolean hasReturnType(Executable executable) {
+        return !(executable instanceof Method m) || !void.class.equals(m.getReturnType());
     }
 
     @SuppressWarnings("unchecked")
