@@ -21,6 +21,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
+import io.undertow.UndertowOptions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -85,7 +86,10 @@ public class ProxyServer implements Registration {
      * @return a ProxyServer instance representing the started proxy server, allowing further management such as shutdown.
      */
     public static ProxyServer start(int port, ProxyRequestHandler proxyHandler) {
-        Undertow server = Undertow.builder().addHttpListener(port, "0.0.0.0")
+        Undertow server = Undertow.builder()
+                .addHttpListener(port, "0.0.0.0")
+                .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 16L * 1024 * 1024)
+                .setServerOption(UndertowOptions.MULTIPART_MAX_ENTITY_SIZE, 16L * 1024 * 1024)
                 .setHandler(path()
                         .addPrefixPath("/", proxyHandler)
                         .addExactPath(getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health"), exchange -> {
