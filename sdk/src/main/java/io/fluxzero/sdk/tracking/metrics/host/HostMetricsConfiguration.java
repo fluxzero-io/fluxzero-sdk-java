@@ -32,6 +32,8 @@ import java.util.List;
 @Builder(toBuilder = true)
 public class HostMetricsConfiguration {
 
+    public static class HostMetricsConfigurationBuilder {}
+
     /**
      * The interval between metric collection cycles. Defaults to 60 seconds.
      */
