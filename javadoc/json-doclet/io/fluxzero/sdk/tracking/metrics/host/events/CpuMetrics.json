@@ -1,0 +1,74 @@
+{
+  "name" : "CpuMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " CPU metrics for the process and system.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "availableProcessors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.availableProcessors",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The number of processors available to the JVM.\n",
+    "constantValue" : null
+  }, {
+    "name" : "processCpuTimeNanos",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.processCpuTimeNanos",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total CPU time used by this process in nanoseconds.\n May be null if not available on the current platform.\n",
+    "constantValue" : null
+  }, {
+    "name" : "processCpuUsage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.processCpuUsage",
+    "type" : "java.lang.Double",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The CPU usage of this JVM process as a value between 0.0 and 1.0.\n May be null if not available on the current platform.\n",
+    "constantValue" : null
+  }, {
+    "name" : "systemCpuUsage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.systemCpuUsage",
+    "type" : "java.lang.Double",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The system-wide CPU usage as a value between 0.0 and 1.0.\n May be null if not available on the current platform.\n",
+    "constantValue" : null
+  }, {
+    "name" : "systemLoadAverage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.systemLoadAverage",
+    "type" : "java.lang.Double",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The system load average for the last minute.\n May be null if not available (e.g., on Windows).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CpuMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics#CpuMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

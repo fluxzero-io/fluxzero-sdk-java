@@ -33,5 +33,8 @@ io.fluxzero.sdk.tracking.handling.contentfiltering
 io.fluxzero.sdk.tracking.handling.errorreporting
 io.fluxzero.sdk.tracking.handling.validation
 io.fluxzero.sdk.tracking.metrics
+io.fluxzero.sdk.tracking.metrics.host
+io.fluxzero.sdk.tracking.metrics.host.collectors
+io.fluxzero.sdk.tracking.metrics.host.events
 io.fluxzero.sdk.web
 io.fluxzero.sdk.web.internal

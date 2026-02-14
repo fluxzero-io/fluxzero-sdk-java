@@ -1,0 +1,102 @@
+{
+  "name" : "JvmMemoryMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " JVM memory metrics including heap, non-heap, and individual memory pool statistics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "heapCommitted",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.heapCommitted",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Heap memory committed (guaranteed to be available) in bytes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "heapMax",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.heapMax",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum heap memory in bytes, or -1 if undefined.\n",
+    "constantValue" : null
+  }, {
+    "name" : "heapUsed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.heapUsed",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Current heap memory used in bytes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "nonHeapCommitted",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.nonHeapCommitted",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Non-heap memory committed in bytes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "nonHeapMax",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.nonHeapMax",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum non-heap memory in bytes, or -1 if undefined.\n",
+    "constantValue" : null
+  }, {
+    "name" : "nonHeapUsed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.nonHeapUsed",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Current non-heap memory used in bytes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "pools",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.pools",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.MemoryPoolMetrics>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Metrics for individual memory pools (e.g., Eden, Survivor, Old Gen, Metaspace).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmMemoryMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics#JvmMemoryMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "MemoryPoolMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics$MemoryPoolMetrics",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {}
+    } ]
+  } ]
+}

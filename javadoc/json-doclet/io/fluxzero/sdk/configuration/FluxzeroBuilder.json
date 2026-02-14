@@ -407,6 +407,49 @@
     "varArgs" : false,
     "documentation" : " Disables compression for web responses.\n"
   }, {
+    "name" : "enableHostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#enableHostMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enables host metrics collection with default configuration.\n <p>\n Host metrics include JVM memory, GC, threads, CPU usage, file descriptors, and more.\n Metrics are collected periodically (default: every 30 seconds) and published via\n {@link io.fluxzero.sdk.publishing.MetricsGateway}.\n\n @return this builder instance\n @see HostMetricsConfiguration\n"
+  }, {
+    "name" : "enableHostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#enableHostMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enables host metrics collection with a custom configuration.\n\n @param configuration the host metrics configuration\n @return this builder instance\n @see HostMetricsConfiguration\n"
+  }, {
+    "name" : "enableHostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#enableHostMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configurer",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.HostMetricsConfigurationBuilder>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enables host metrics collection with a configuration customizer.\n <p>\n Example usage:\n <pre>{@code\n builder.enableHostMetrics(config -> config\n     .collectionInterval(Duration.ofSeconds(60))\n     .applicationName(\"my-app\")\n     .collectDisk(true));\n }</pre>\n\n @param configurer a function to customize the configuration builder\n @return this builder instance\n @see HostMetricsConfiguration\n"
+  }, {
     "name" : "forwardWebRequestsToLocalServer",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#forwardWebRequestsToLocalServer",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

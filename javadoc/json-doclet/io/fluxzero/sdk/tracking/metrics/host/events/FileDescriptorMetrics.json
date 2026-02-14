@@ -1,0 +1,50 @@
+{
+  "name" : "FileDescriptorMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " File descriptor metrics (Unix/Linux only).\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "maxCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics.maxCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The maximum number of file descriptors allowed for this process.\n",
+    "constantValue" : null
+  }, {
+    "name" : "openCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics.openCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The number of open file descriptors for this process.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FileDescriptorMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics#FileDescriptorMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

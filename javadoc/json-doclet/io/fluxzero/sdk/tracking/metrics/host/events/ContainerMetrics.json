@@ -1,0 +1,82 @@
+{
+  "name" : "ContainerMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " Container metrics collected from cgroups (v1 or v2).\n <p>\n These metrics are only available when running inside a container (Docker, Kubernetes, etc.).\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "cgroupVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.cgroupVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The cgroup version detected: \"v1\", \"v2\", or null if not in a container.\n",
+    "constantValue" : null
+  }, {
+    "name" : "cpuLimitNanos",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.cpuLimitNanos",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The CPU quota in nanoseconds per period, or null if no limit is set.\n",
+    "constantValue" : null
+  }, {
+    "name" : "cpuPeriodNanos",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.cpuPeriodNanos",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The CPU period in nanoseconds (typically 100ms = 100_000_000ns).\n",
+    "constantValue" : null
+  }, {
+    "name" : "cpuUsageNanos",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.cpuUsageNanos",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total CPU usage in nanoseconds since container start.\n",
+    "constantValue" : null
+  }, {
+    "name" : "memoryLimitBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.memoryLimitBytes",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The memory limit in bytes, or null if no limit is set.\n",
+    "constantValue" : null
+  }, {
+    "name" : "memoryUsageBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.memoryUsageBytes",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The current memory usage in bytes.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ContainerMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics#ContainerMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

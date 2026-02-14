@@ -1,0 +1,28 @@
+{
+  "name" : "HostMetricsConfigurationBuilder",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration$HostMetricsConfigurationBuilder",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "HostMetricsConfigurationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration$HostMetricsConfigurationBuilder#HostMetricsConfigurationBuilder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

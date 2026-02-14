@@ -1,0 +1,74 @@
+{
+  "name" : "JvmThreadMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " JVM thread metrics including counts and state distribution.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "daemonCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics.daemonCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The current number of live daemon threads.\n",
+    "constantValue" : null
+  }, {
+    "name" : "peakCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics.peakCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The peak thread count since the JVM started or since the peak was reset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "threadCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics.threadCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The current number of live threads (daemon and non-daemon).\n",
+    "constantValue" : null
+  }, {
+    "name" : "threadStateDistribution",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics.threadStateDistribution",
+    "type" : "java.util.Map<java.lang.String,java.lang.Integer>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Distribution of threads by state (NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED).\n",
+    "constantValue" : null
+  }, {
+    "name" : "totalStartedCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics.totalStartedCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total number of threads created and started since the JVM started.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmThreadMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics#JvmThreadMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

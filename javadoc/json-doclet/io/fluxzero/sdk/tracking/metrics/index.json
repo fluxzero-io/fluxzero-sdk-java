@@ -40,5 +40,8 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.TrackerMonitor",
     "kind" : "class"
   } ],
-  "subdirectories" : [ ]
+  "subdirectories" : [ {
+    "name" : "host",
+    "path" : "host"
+  } ]
 }

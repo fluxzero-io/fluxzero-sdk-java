@@ -1,0 +1,54 @@
+{
+  "name" : "DiskMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " Disk space metrics for monitored paths.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "disks",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics.disks",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics.DiskSpaceMetrics>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Metrics for each monitored disk/path.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DiskMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics#DiskMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DiskSpaceMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics$DiskSpaceMetrics",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,114 @@
+{
+  "name" : "HostMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " A combined snapshot of host metrics collected at a specific point in time.\n <p>\n This event contains all enabled metrics as an atomic snapshot of the system state.\n Individual metric categories may be null if collection is disabled or unavailable.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "classes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.classes",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " JVM class loading metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  }, {
+    "name" : "container",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.container",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Container/cgroup metrics. May be null if not running in a container.\n",
+    "constantValue" : null
+  }, {
+    "name" : "cpu",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.cpu",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " CPU metrics. May be null if collection is disabled or unavailable.\n",
+    "constantValue" : null
+  }, {
+    "name" : "disk",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.disk",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Disk space metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  }, {
+    "name" : "fileDescriptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.fileDescriptors",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " File descriptor metrics. May be null if collection is disabled or unavailable (Windows).\n",
+    "constantValue" : null
+  }, {
+    "name" : "gc",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.gc",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " JVM garbage collection metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  }, {
+    "name" : "memory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.memory",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " JVM memory metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  }, {
+    "name" : "threads",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.threads",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " JVM thread metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.timestamp",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The timestamp when these metrics were collected.\n",
+    "constantValue" : null
+  }, {
+    "name" : "uptime",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.uptime",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " JVM uptime metrics. May be null if collection is disabled.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics#HostMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

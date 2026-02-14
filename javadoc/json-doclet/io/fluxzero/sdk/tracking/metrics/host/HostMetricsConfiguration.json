@@ -1,0 +1,163 @@
+{
+  "name" : "HostMetricsConfiguration",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Configuration for host metrics collection.\n <p>\n Use the builder to customize which metrics are collected, the collection interval,\n and metadata such as hostname and application name.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collectContainerMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectContainerMetrics",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect container metrics (cgroups v1/v2). Auto-detects if running in a container.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectCpu",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectCpu",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect CPU metrics.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectDisk",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectDisk",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect disk space metrics. Disabled by default.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectFileDescriptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectFileDescriptors",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect file descriptor metrics (Unix only).\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectJvmClasses",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectJvmClasses",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect JVM class loading metrics.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectJvmGc",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectJvmGc",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect JVM garbage collection metrics.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectJvmMemory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectJvmMemory",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect JVM memory metrics (heap, non-heap, memory pools).\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectJvmThreads",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectJvmThreads",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect JVM thread metrics.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectUptime",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectUptime",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to collect JVM uptime metrics.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectionInterval",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.collectionInterval",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The interval between metric collection cycles. Defaults to 60 seconds.\n",
+    "constantValue" : null
+  }, {
+    "name" : "diskPaths",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration.diskPaths",
+    "type" : "java.util.List<java.nio.file.Path>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Paths to monitor for disk metrics. If empty, uses the root filesystem.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HostMetricsConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration#HostMetricsConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "HostMetricsConfigurationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration$HostMetricsConfigurationBuilder",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

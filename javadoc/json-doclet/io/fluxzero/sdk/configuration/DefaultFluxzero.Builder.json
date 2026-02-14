@@ -205,6 +205,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "hostMetricsConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.hostMetricsConfiguration",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "identityProvider",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.identityProvider",
     "type" : "io.fluxzero.sdk.common.IdentityProvider",
@@ -868,6 +876,25 @@
     }, {
       "name" : "shutdownHandler",
       "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enableHostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#enableHostMetrics",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

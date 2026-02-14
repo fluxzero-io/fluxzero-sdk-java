@@ -1,0 +1,50 @@
+{
+  "name" : "UptimeMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " JVM uptime metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "startTimeMs",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics.startTimeMs",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The start time of the JVM in milliseconds since epoch (UTC).\n",
+    "constantValue" : null
+  }, {
+    "name" : "uptimeMs",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics.uptimeMs",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The uptime of the JVM in milliseconds.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "UptimeMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics#UptimeMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

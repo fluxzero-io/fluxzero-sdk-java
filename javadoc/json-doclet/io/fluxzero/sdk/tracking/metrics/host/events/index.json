@@ -1,0 +1,74 @@
+{
+  "package" : {
+    "name" : "events",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ContainerMetrics.json",
+    "name" : "ContainerMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "CpuMetrics.json",
+    "name" : "CpuMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "DiskMetrics.json",
+    "name" : "DiskMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "DiskMetrics.DiskSpaceMetrics.json",
+    "name" : "DiskMetrics.DiskSpaceMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics$DiskSpaceMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "FileDescriptorMetrics.json",
+    "name" : "FileDescriptorMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "HostMetrics.json",
+    "name" : "HostMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmClassMetrics.json",
+    "name" : "JvmClassMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmGcMetrics.json",
+    "name" : "JvmGcMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmGcMetrics.GcCollectorMetrics.json",
+    "name" : "JvmGcMetrics.GcCollectorMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics$GcCollectorMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmMemoryMetrics.json",
+    "name" : "JvmMemoryMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmMemoryMetrics.MemoryPoolMetrics.json",
+    "name" : "JvmMemoryMetrics.MemoryPoolMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics$MemoryPoolMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "JvmThreadMetrics.json",
+    "name" : "JvmThreadMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmThreadMetrics",
+    "kind" : "class"
+  }, {
+    "file" : "UptimeMetrics.json",
+    "name" : "UptimeMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.UptimeMetrics",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

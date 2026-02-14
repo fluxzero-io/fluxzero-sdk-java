@@ -1,0 +1,58 @@
+{
+  "name" : "JvmClassMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " JVM class loading metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "loadedCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics.loadedCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The number of classes currently loaded in the JVM.\n",
+    "constantValue" : null
+  }, {
+    "name" : "totalLoadedCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics.totalLoadedCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total number of classes loaded since the JVM started.\n",
+    "constantValue" : null
+  }, {
+    "name" : "unloadedCount",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics.unloadedCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total number of classes unloaded since the JVM started.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmClassMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics#JvmClassMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,54 @@
+{
+  "name" : "JvmGcMetrics",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.events",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " JVM garbage collection metrics for all available GC collectors.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "collectors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics.collectors",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics.GcCollectorMetrics>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Metrics for each garbage collector.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmGcMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics#JvmGcMetrics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "GcCollectorMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics$GcCollectorMetrics",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder",
+      "values" : {}
+    } ]
+  } ]
+}
