@@ -18,11 +18,9 @@ package io.fluxzero.sdk.tracking.metrics.host;
 import lombok.Builder;
 import lombok.Value;
 
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Configuration for host metrics collection.
@@ -35,10 +33,10 @@ import java.util.UUID;
 public class HostMetricsConfiguration {
 
     /**
-     * The interval between metric collection cycles. Defaults to 30 seconds.
+     * The interval between metric collection cycles. Defaults to 60 seconds.
      */
     @Builder.Default
-    Duration collectionInterval = Duration.ofSeconds(30);
+    Duration collectionInterval = Duration.ofSeconds(60);
 
     /**
      * Whether to collect JVM memory metrics (heap, non-heap, memory pools).
@@ -99,53 +97,4 @@ public class HostMetricsConfiguration {
      */
     @Builder.Default
     boolean collectContainerMetrics = true;
-
-    /**
-     * The hostname to include in metrics metadata. Auto-detected if not specified.
-     */
-    @Builder.Default
-    String hostname = detectHostname();
-
-    /**
-     * The application name to include in metrics metadata. Should be set by the user.
-     */
-    @Builder.Default
-    String applicationName = "";
-
-    /**
-     * A unique instance identifier for this JVM process. Auto-generated if not specified.
-     */
-    @Builder.Default
-    String instanceId = generateInstanceId();
-
-    /**
-     * Detects the hostname of the current machine.
-     *
-     * @return the hostname, or "unknown" if detection fails
-     */
-    public static String detectHostname() {
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (Exception e) {
-            // Try environment variables as fallback
-            String hostname = System.getenv("HOSTNAME");
-            if (hostname != null && !hostname.isBlank()) {
-                return hostname;
-            }
-            hostname = System.getenv("COMPUTERNAME");
-            if (hostname != null && !hostname.isBlank()) {
-                return hostname;
-            }
-            return "unknown";
-        }
-    }
-
-    /**
-     * Generates a unique instance identifier.
-     *
-     * @return a UUID-based instance identifier
-     */
-    public static String generateInstanceId() {
-        return UUID.randomUUID().toString();
-    }
 }

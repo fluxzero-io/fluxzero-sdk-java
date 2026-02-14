@@ -548,21 +548,8 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
-        public FluxzeroBuilder enableHostMetrics() {
-            this.hostMetricsConfiguration = HostMetricsConfiguration.builder().build();
-            return this;
-        }
-
-        @Override
         public FluxzeroBuilder enableHostMetrics(HostMetricsConfiguration configuration) {
             this.hostMetricsConfiguration = configuration;
-            return this;
-        }
-
-        @Override
-        public FluxzeroBuilder enableHostMetrics(
-                UnaryOperator<HostMetricsConfiguration.HostMetricsConfigurationBuilder> configurer) {
-            this.hostMetricsConfiguration = configurer.apply(HostMetricsConfiguration.builder()).build();
             return this;
         }
 
@@ -858,10 +845,7 @@ public class DefaultFluxzero implements Fluxzero {
 
             //start host metrics collection if enabled
             if (hostMetricsConfiguration != null) {
-                var hostMetricsCollector = new HostMetricsCollector(
-                        hostMetricsConfiguration, metricsGateway, taskScheduler);
-                hostMetricsCollector.start();
-                fluxzero.beforeShutdown(hostMetricsCollector::stop);
+                new HostMetricsCollector(hostMetricsConfiguration, fluxzero).start();
             }
 
             //perform a controlled shutdown when the vm exits

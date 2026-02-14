@@ -15,45 +15,31 @@
 
 package io.fluxzero.sdk.tracking.metrics.host;
 
-import io.fluxzero.common.InMemoryTaskScheduler;
-import io.fluxzero.common.api.Metadata;
-import io.fluxzero.sdk.publishing.MetricsGateway;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.util.concurrent.Executors;
+import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HostMetricsCollectorTest {
 
-    private MetricsGateway metricsGateway;
-    private InMemoryTaskScheduler taskScheduler;
-    private HostMetricsConfiguration configuration;
-
-    @BeforeEach
-    void setUp() {
-        metricsGateway = mock(MetricsGateway.class);
-        taskScheduler = new InMemoryTaskScheduler("test", Clock.systemUTC(),
-                Executors.newSingleThreadExecutor());
-        configuration = HostMetricsConfiguration.builder()
-                .collectionInterval(Duration.ofSeconds(1))
-                .applicationName("test-app")
-                .hostname("test-host")
-                .instanceId("test-instance")
-                .build();
-    }
+    HostMetricsConfiguration configuration = HostMetricsConfiguration.builder()
+            .collectionInterval(Duration.ofSeconds(1))
+            .build();
+    HostMetricsCollector collector = new HostMetricsCollector(configuration, DefaultFluxzero.builder().build(
+            LocalClient.newInstance()));
 
     @Test
     void start_beginsCollection() {
-        var collector = new HostMetricsCollector(configuration, metricsGateway, taskScheduler);
-
         assertFalse(collector.isRunning());
         collector.start();
         assertTrue(collector.isRunning());
@@ -61,8 +47,6 @@ class HostMetricsCollectorTest {
 
     @Test
     void stop_stopsCollection() {
-        var collector = new HostMetricsCollector(configuration, metricsGateway, taskScheduler);
-
         collector.start();
         assertTrue(collector.isRunning());
 
@@ -71,88 +55,74 @@ class HostMetricsCollectorTest {
     }
 
     @Test
-    void collectAndPublishNow_publishesMetrics() {
-        var collector = new HostMetricsCollector(configuration, metricsGateway, taskScheduler);
-
-        collector.collectAndPublishNow();
-
-        var metricsCaptor = ArgumentCaptor.forClass(Object.class);
-        var metadataCaptor = ArgumentCaptor.forClass(Metadata.class);
-        verify(metricsGateway).publish(metricsCaptor.capture(), metadataCaptor.capture());
-
-        assertTrue(metricsCaptor.getValue() instanceof HostMetrics);
-        HostMetrics metrics = (HostMetrics) metricsCaptor.getValue();
-
-        assertNotNull(metrics.getTimestamp());
-        assertNotNull(metrics.getMemory());
-        assertNotNull(metrics.getGc());
-        assertNotNull(metrics.getThreads());
-        assertNotNull(metrics.getClasses());
-        assertNotNull(metrics.getCpu());
-        assertNotNull(metrics.getUptime());
-
-        Metadata metadata = metadataCaptor.getValue();
-        assertEquals("test-host", metadata.get("hostname", String.class));
-        assertEquals("test-app", metadata.get("applicationName", String.class));
-        assertEquals("test-instance", metadata.get("instanceId", String.class));
-    }
-
-    @Test
-    void collect_respectsDisabledCollectors() {
-        var config = HostMetricsConfiguration.builder()
-                .collectionInterval(Duration.ofSeconds(1))
-                .collectJvmMemory(false)
-                .collectJvmGc(false)
-                .collectJvmThreads(false)
-                .collectJvmClasses(false)
-                .collectCpu(false)
-                .collectFileDescriptors(false)
-                .collectUptime(false)
-                .collectDisk(false)
-                .collectContainerMetrics(false)
-                .build();
-
-        var collector = new HostMetricsCollector(config, metricsGateway, taskScheduler);
-
-        collector.collectAndPublishNow();
-
-        var metricsCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(metricsGateway).publish(metricsCaptor.capture(), any(Metadata.class));
-
-        HostMetrics metrics = (HostMetrics) metricsCaptor.getValue();
-
-        assertNotNull(metrics.getTimestamp());
-        assertNull(metrics.getMemory(), "Memory should be null when disabled");
-        assertNull(metrics.getGc(), "GC should be null when disabled");
-        assertNull(metrics.getThreads(), "Threads should be null when disabled");
-        assertNull(metrics.getClasses(), "Classes should be null when disabled");
-        assertNull(metrics.getCpu(), "CPU should be null when disabled");
-        assertNull(metrics.getFileDescriptors(), "File descriptors should be null when disabled");
-        assertNull(metrics.getUptime(), "Uptime should be null when disabled");
-        assertNull(metrics.getDisk(), "Disk should be null when disabled");
-        assertNull(metrics.getContainer(), "Container should be null when disabled");
-    }
-
-    @Test
     void start_isIdempotent() {
-        var collector = new HostMetricsCollector(configuration, metricsGateway, taskScheduler);
-
         collector.start();
         collector.start();
         collector.start();
-
         assertTrue(collector.isRunning());
     }
 
     @Test
     void stop_isIdempotent() {
-        var collector = new HostMetricsCollector(configuration, metricsGateway, taskScheduler);
-
         collector.start();
         collector.stop();
         collector.stop();
         collector.stop();
-
         assertFalse(collector.isRunning());
+    }
+
+    @Nested
+    class IntegrationTest {
+        TestFixture testFixture = TestFixture.create(DefaultFluxzero.builder().enableHostMetrics(configuration));
+
+        @Test
+        void metricsArePublishedAfterDelay() {
+            Instant start = testFixture.getCurrentTime();
+            testFixture.whenTimeElapses(Duration.ofSeconds(1))
+                    .<HostMetrics>expectMetric(m -> {
+                        assertNotNull(m.getTimestamp());
+                        assertNotNull(m.getMemory());
+                        assertNotNull(m.getGc());
+                        assertNotNull(m.getThreads());
+                        assertNotNull(m.getClasses());
+                        assertNotNull(m.getCpu());
+                        assertNotNull(m.getUptime());
+                        return m.getTimestamp().equals(start.plusSeconds(1));
+                    })
+                    .andThen()
+                    .whenTimeElapses(Duration.ofSeconds(1))
+                    .<HostMetrics>expectMetric(m -> m.getTimestamp().equals(start.plusSeconds(2)));
+        }
+
+        @Test
+        void disabledCollectorsAreRespected() {
+            configuration = configuration.toBuilder()
+                    .collectJvmMemory(false)
+                    .collectJvmGc(false)
+                    .collectJvmThreads(false)
+                    .collectJvmClasses(false)
+                    .collectCpu(false)
+                    .collectFileDescriptors(false)
+                    .collectUptime(false)
+                    .collectDisk(false)
+                    .collectContainerMetrics(false)
+                    .build();
+            testFixture = TestFixture.create(DefaultFluxzero.builder().enableHostMetrics(configuration));
+            Instant start = testFixture.getCurrentTime();
+            testFixture.whenTimeElapses(Duration.ofSeconds(1))
+                    .<HostMetrics>expectMetric(m -> {
+                        assertNotNull(m.getTimestamp());
+                        assertNull(m.getMemory(), "Memory should be null when disabled");
+                        assertNull(m.getGc(), "GC should be null when disabled");
+                        assertNull(m.getThreads(), "Threads should be null when disabled");
+                        assertNull(m.getClasses(), "Classes should be null when disabled");
+                        assertNull(m.getCpu(), "CPU should be null when disabled");
+                        assertNull(m.getFileDescriptors(), "File descriptors should be null when disabled");
+                        assertNull(m.getUptime(), "Uptime should be null when disabled");
+                        assertNull(m.getDisk(), "Disk should be null when disabled");
+                        assertNull(m.getContainer(), "Container should be null when disabled");
+                        return m.getTimestamp().equals(start.plusSeconds(1));
+                    });
+        }
     }
 }

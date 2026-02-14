@@ -16,11 +16,18 @@
 package io.fluxzero.sdk.tracking.metrics.host;
 
 import io.fluxzero.common.Registration;
-import io.fluxzero.common.TaskScheduler;
-import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.publishing.MetricsGateway;
-import io.fluxzero.sdk.tracking.metrics.host.collectors.*;
-import io.fluxzero.sdk.tracking.metrics.host.events.*;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.CpuCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.FileDescriptorCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.JvmClassCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.JvmGcCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.JvmThreadCollector;
+import io.fluxzero.sdk.tracking.metrics.host.collectors.UptimeCollector;
+import io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -37,9 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class HostMetricsCollector {
 
     private final HostMetricsConfiguration configuration;
-    private final MetricsGateway metricsGateway;
-    private final TaskScheduler taskScheduler;
-    private final Metadata metadata;
+    private final Fluxzero fluxzero;
 
     // Collectors
     private final JvmMemoryCollector memoryCollector;
@@ -55,24 +60,9 @@ public class HostMetricsCollector {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicReference<Registration> scheduledTask = new AtomicReference<>();
 
-    /**
-     * Creates a new HostMetricsCollector.
-     *
-     * @param configuration  the host metrics configuration
-     * @param metricsGateway the gateway used to publish metrics
-     * @param taskScheduler  the scheduler for periodic collection
-     */
-    public HostMetricsCollector(HostMetricsConfiguration configuration,
-                                MetricsGateway metricsGateway,
-                                TaskScheduler taskScheduler) {
+    public HostMetricsCollector(HostMetricsConfiguration configuration, Fluxzero fluxzero) {
         this.configuration = configuration;
-        this.metricsGateway = metricsGateway;
-        this.taskScheduler = taskScheduler;
-
-        // Build metadata
-        this.metadata = Metadata.of("hostname", configuration.getHostname())
-                .with("applicationName", configuration.getApplicationName())
-                .with("instanceId", configuration.getInstanceId());
+        this.fluxzero = fluxzero;
 
         // Initialize collectors
         this.memoryCollector = new JvmMemoryCollector();
@@ -84,6 +74,8 @@ public class HostMetricsCollector {
         this.uptimeCollector = new UptimeCollector();
         this.diskCollector = new DiskCollector(configuration.getDiskPaths());
         this.containerCollector = new ContainerCollector();
+
+        fluxzero.beforeShutdown(this::stop);
     }
 
     /**
@@ -93,7 +85,7 @@ public class HostMetricsCollector {
      */
     public void start() {
         if (running.compareAndSet(false, true)) {
-            log.info("Starting host metrics collection with interval {}", configuration.getCollectionInterval());
+            log.debug("Starting host metrics collection with interval {}", configuration.getCollectionInterval());
             scheduleNextCollection();
         }
     }
@@ -105,7 +97,7 @@ public class HostMetricsCollector {
      */
     public void stop() {
         if (running.compareAndSet(true, false)) {
-            log.info("Stopping host metrics collection");
+            log.debug("Stopping host metrics collection");
             Registration task = scheduledTask.getAndSet(null);
             if (task != null) {
                 task.cancel();
@@ -125,25 +117,26 @@ public class HostMetricsCollector {
 
     private void scheduleNextCollection() {
         if (running.get()) {
-            Registration task = taskScheduler.schedule(configuration.getCollectionInterval(), this::collectAndPublish);
+            Registration task = fluxzero.apply(fz -> fz.taskScheduler().schedule(configuration.getCollectionInterval(), this::collectAndPublish));
             scheduledTask.set(task);
         }
     }
 
     private void collectAndPublish() {
-        try {
-            HostMetrics metrics = collectMetrics();
-            metricsGateway.publish(metrics, metadata);
-            log.debug("Published host metrics");
-        } catch (Exception e) {
-            log.warn("Failed to collect or publish host metrics", e);
-        } finally {
-            scheduleNextCollection();
-        }
+        fluxzero.execute(fz -> {
+            try {
+                HostMetrics metrics = collectMetrics();
+                Fluxzero.publishMetrics(metrics);
+            } catch (Exception e) {
+                log.warn("Failed to collect or publish host metrics", e);
+            } finally {
+                scheduleNextCollection();
+            }
+        });
     }
 
     private HostMetrics collectMetrics() {
-        Instant timestamp = Instant.now();
+        Instant timestamp = fluxzero.clock().instant();
 
         var builder = HostMetrics.builder().timestamp(timestamp);
 

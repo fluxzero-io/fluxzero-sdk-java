@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HostMetricsConfigurationTest {
 
@@ -27,7 +29,7 @@ class HostMetricsConfigurationTest {
     void defaultConfiguration_hasCorrectDefaults() {
         var config = HostMetricsConfiguration.builder().build();
 
-        assertEquals(Duration.ofSeconds(30), config.getCollectionInterval());
+        assertEquals(Duration.ofSeconds(60), config.getCollectionInterval());
         assertTrue(config.isCollectJvmMemory());
         assertTrue(config.isCollectJvmGc());
         assertTrue(config.isCollectJvmThreads());
@@ -43,36 +45,13 @@ class HostMetricsConfigurationTest {
     @Test
     void customConfiguration_overridesDefaults() {
         var config = HostMetricsConfiguration.builder()
-                .collectionInterval(Duration.ofMinutes(1))
+                .collectionInterval(Duration.ofMinutes(2))
                 .collectJvmMemory(false)
                 .collectDisk(true)
-                .applicationName("test-app")
-                .hostname("test-host")
-                .instanceId("test-instance")
                 .build();
 
-        assertEquals(Duration.ofMinutes(1), config.getCollectionInterval());
+        assertEquals(Duration.ofMinutes(2), config.getCollectionInterval());
         assertFalse(config.isCollectJvmMemory());
         assertTrue(config.isCollectDisk());
-        assertEquals("test-app", config.getApplicationName());
-        assertEquals("test-host", config.getHostname());
-        assertEquals("test-instance", config.getInstanceId());
-    }
-
-    @Test
-    void detectHostname_returnsNonEmptyString() {
-        String hostname = HostMetricsConfiguration.detectHostname();
-        assertNotNull(hostname);
-        assertFalse(hostname.isBlank());
-    }
-
-    @Test
-    void generateInstanceId_returnsUniqueIds() {
-        String id1 = HostMetricsConfiguration.generateInstanceId();
-        String id2 = HostMetricsConfiguration.generateInstanceId();
-
-        assertNotNull(id1);
-        assertNotNull(id2);
-        assertNotEquals(id1, id2, "Generated instance IDs should be unique");
     }
 }
