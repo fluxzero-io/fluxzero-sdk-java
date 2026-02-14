@@ -171,6 +171,43 @@
     "varArgs" : false,
     "documentation" : " Resolves an integer property by key, or returns the given default value if not found.\n\n @throws NumberFormatException if the property value is not a valid integer\n"
   }, {
+    "name" : "getLongProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getLongProperty",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a long property by key, or {@code null} if not found.\n\n @throws NumberFormatException if the property value is not a valid long\n"
+  }, {
+    "name" : "getLongProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getLongProperty",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a long property by key, or returns the given default value if not found.\n\n @throws NumberFormatException if the property value is not a valid long\n"
+  }, {
     "name" : "getProperty",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getProperty",
     "returnType" : "java.lang.String",

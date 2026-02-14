@@ -18,6 +18,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.Registration" ],
   "fields" : [ {
+    "name" : "DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default maximum multipart request body size: 1 GiB\n",
+    "constantValue" : 1073741824
+  }, {
+    "name" : "DEFAULT_MAX_REQUEST_BODY_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default maximum request body size: 256 MiB\n",
+    "constantValue" : 268435456
+  }, {
     "name" : "port",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.port",
     "type" : "int",
