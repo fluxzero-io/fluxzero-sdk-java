@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "inNativeImage",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.inNativeImage",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "invokeFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.invokeFunction",
     "type" : "java.util.function.BiFunction<java.lang.Object,java.util.function.IntFunction<?>,java.lang.Object>",
@@ -227,6 +235,17 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ "java.lang.IllegalAccessException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inNativeImage",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#inNativeImage",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   }, {
