@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.reflection;
@@ -78,6 +79,15 @@ public class DefaultMemberInvoker implements MemberInvoker {
 
     private static final MethodHandles.Lookup lookup = MethodHandles.lookup();
     private static final Map<Member, MemberInvoker> cache = new ConcurrentHashMap<>();
+    private static final boolean inNativeImage = inNativeImage();
+
+    private static boolean inNativeImage() {
+        boolean result = System.getProperty("org.graalvm.nativeimage.imagecode") != null;
+        if (result) {
+            log.info("Running in native image. Skipping lambda creation.");
+        }
+        return result;
+    }
 
     @Getter
     private final Member member;
@@ -118,6 +128,9 @@ public class DefaultMemberInvoker implements MemberInvoker {
 
     @SneakyThrows
     private BiFunction<Object, IntFunction<?>, Object> computeInvokeFunction() {
+        if (inNativeImage) {
+            return null;
+        }
         if (member instanceof Field || Proxy.isProxyClass(member.getDeclaringClass())) {
             return null;
         }
