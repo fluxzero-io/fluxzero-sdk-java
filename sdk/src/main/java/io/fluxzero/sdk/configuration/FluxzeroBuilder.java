@@ -319,16 +319,9 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * @return this builder instance
      * @see HostMetricsConfiguration
      */
-    FluxzeroBuilder enableHostMetrics();
-
-    /**
-     * Enables host metrics collection with a custom configuration.
-     *
-     * @param configuration the host metrics configuration
-     * @return this builder instance
-     * @see HostMetricsConfiguration
-     */
-    FluxzeroBuilder enableHostMetrics(HostMetricsConfiguration configuration);
+    default FluxzeroBuilder enableHostMetrics() {
+        return enableHostMetrics(UnaryOperator.identity());
+    }
 
     /**
      * Enables host metrics collection with a configuration customizer.
@@ -345,7 +338,18 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * @return this builder instance
      * @see HostMetricsConfiguration
      */
-    FluxzeroBuilder enableHostMetrics(UnaryOperator<HostMetricsConfiguration.HostMetricsConfigurationBuilder> configurer);
+    default FluxzeroBuilder enableHostMetrics(UnaryOperator<HostMetricsConfiguration.HostMetricsConfigurationBuilder> configurer) {
+        return enableHostMetrics(configurer.apply(HostMetricsConfiguration.builder()).build());
+    }
+
+    /**
+     * Enables host metrics collection with a custom configuration.
+     *
+     * @param configuration the host metrics configuration
+     * @return this builder instance
+     * @see HostMetricsConfiguration
+     */
+    FluxzeroBuilder enableHostMetrics(HostMetricsConfiguration configuration);
 
     /**
      * Builds the Fluxzero instance using the provided low-level {@link Client}.
