@@ -129,6 +129,24 @@ public class ApplicationProperties {
     }
 
     /**
+     * Resolves a long property by key, or {@code null} if not found.
+     *
+     * @throws NumberFormatException if the property value is not a valid long
+     */
+    public static Long getLongProperty(String name) {
+        return getLongProperty(name, null);
+    }
+
+    /**
+     * Resolves a long property by key, or returns the given default value if not found.
+     *
+     * @throws NumberFormatException if the property value is not a valid long
+     */
+    public static Long getLongProperty(String name, Long defaultValue) {
+        return Optional.ofNullable(getProperty(name)).map(Long::valueOf).orElse(defaultValue);
+    }
+
+    /**
      * Returns the string property value for the given key, or the specified default if not found.
      */
     public static String getProperty(String name, String defaultValue) {

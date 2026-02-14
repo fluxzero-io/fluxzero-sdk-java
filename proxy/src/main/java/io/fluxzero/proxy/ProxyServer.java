@@ -32,13 +32,26 @@ import java.util.Optional;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 import static io.undertow.Handlers.path;
+import static io.undertow.UndertowOptions.ENABLE_HTTP2;
 import static io.undertow.util.Headers.CONTENT_TYPE;
 
 @Slf4j
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProxyServer implements Registration {
+
+    /**
+     * Default maximum request body size: 256 MiB
+     */
+    public static final long DEFAULT_MAX_REQUEST_BODY_SIZE = 1L << 28;
+
+    /**
+     * Default maximum multipart request body size: 1 GiB
+     */
+    public static final long DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE = 1L << 30;
+
     public static void main(final String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught error", e));
         int port = getIntegerProperty("PROXY_PORT", 8080);
@@ -88,8 +101,11 @@ public class ProxyServer implements Registration {
     public static ProxyServer start(int port, ProxyRequestHandler proxyHandler) {
         Undertow server = Undertow.builder()
                 .addHttpListener(port, "0.0.0.0")
-                .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 16L * 1024 * 1024)
-                .setServerOption(UndertowOptions.MULTIPART_MAX_ENTITY_SIZE, 16L * 1024 * 1024)
+                .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, getLongProperty(
+                        "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE", DEFAULT_MAX_REQUEST_BODY_SIZE))
+                .setServerOption(UndertowOptions.MULTIPART_MAX_ENTITY_SIZE, getLongProperty(
+                        "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE", DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE))
+                .setServerOption(ENABLE_HTTP2, true)
                 .setHandler(path()
                         .addPrefixPath("/", proxyHandler)
                         .addExactPath(getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health"), exchange -> {
