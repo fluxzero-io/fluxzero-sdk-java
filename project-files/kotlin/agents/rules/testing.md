@@ -1,0 +1,319 @@
+# Testing with TestFixture
+
+<a name="testfixture"></a>
+
+Fluxzero provides a specialized `TestFixture` to verify your domain logic and web endpoints without requiring external
+mocks, databases, or complex framework wiring.
+
+---
+
+## Quick Navigation
+
+- [Core Principles](#core-rules)
+- [Configuration & Handlers](#configuration)
+- [Test Phases (Given/When/Then)](#test-phases)
+    - [Given Phase (Setup)](#given-phase)
+    - [When Phase (Execution)](#when-phase)
+    - [Then Phase (Assertion)](#then-phase)
+- [Testing with JSON](#json-testing)
+- [Advanced Testing Patterns](#advanced-testing)
+    - [Time & Schedules](#time-schedules)
+    - [User Context](#user-context)
+    - [Search & Document Testing](#search-testing)
+    - [Chaining & Result Mapping](#chaining)
+- [Large Preconditions](#large-preconditions)
+- [Mocking Time & Context](#mocking-context)
+- [Testing Web Endpoints](#web-testing)
+
+---
+
+<a name="core-rules"></a>
+
+## Core Principles
+
+1. **Logic-First Testing**: Focus tests on the core domain (Commands, Queries, Events).
+2. **External JSON**: Use JSON files for all complex inputs and expectations to keep tests readable.
+3. **FQN in JSON**: Always use Fully Qualified Names (e.g., `io.fluxzero.app.api.CreateOrder`) for the `@class` property
+   in JSON resources.
+4. **No Spring/Mocks**: Avoid `@SpringBootTest` or Mockito. Use `TestFixture.create()` for lightweight, isolated tests.
+
+---
+
+<a name="configuration"></a>
+
+## Configuration & Handlers
+
+### Registering Handlers
+
+The `TestFixture` manages an internal Fluxzero instance. You must register the handlers you want to test.
+
+#### Synchronous vs. Asynchronous Testing
+
+- **`TestFixture.create(...)` (Standard)**: Processes messages synchronously and predictably. This is the recommended
+  default for most tests.
+- **`TestFixture.createAsync(...)` (Realistic)**: Processes messages asynchronously, mirroring the production
+  environment. Use this when you need to test concurrency, complex timing, or asynchronous coordination.
+
+#### Registration Patterns
+
+- **Class-based Registration (Recommended)**: Always register handlers by `Class` (e.g., `MyHandler::class.java`). This is
+  mandatory for `@Stateful` sagas and `@SocketEndpoint`s because they contain internal properties managed by the SDK.
+- **Instance-based Registration**: Possible for simple, stateless `@Component`s.
+
+```kotlin
+// At creation
+val fixture = TestFixture.create(MyHandler::class.java, MySaga::class.java)
+
+// Or during setup
+fixture.registerHandlers(OtherHandler::class.java)
+```
+
+### Customizing Fluxzero
+
+If you need to tune the Fluxzero instance (e.g., adding interceptors), pass a `DefaultFluxzero.builder()` to the
+fixture.
+
+```kotlin
+val fixture = TestFixture.create(
+    DefaultFluxzero.builder().handlerInterceptor(MyInterceptor()), 
+    MyHandler::class.java
+)
+```
+
+### Setting Properties
+
+Use `withProperty` to set application-level properties for the duration of the test.
+
+```kotlin
+fixture.withProperty("stripe.url", "http://mock-stripe")
+```
+
+---
+
+## Test Phases (Given/When/Then)
+
+The `TestFixture` follows a fluent API mirroring the behavior of your application.
+
+<a name="given-phase"></a>
+
+### Given Phase (Setup)
+
+Use this phase to declare all prior context.
+
+**Important Note on Side Effects**: In the `TestFixture`, all preconditions (commands, events, etc.) are processed *
+*fully and synchronously** before the `When` phase begins. This includes all asynchronous side effects from your
+registered handlers (e.g., event handlers triggered by a command). The system is guaranteed to be "at rest" before your
+test action is executed.
+
+Any effects introduced during this phase are **ignored** by the `Then` phase assertions.
+
+| Method                        | Usage                                              |
+|:------------------------------|:---------------------------------------------------|
+| `givenCommands(...)`          | Issues commands before the test triggers.          |
+| `givenEvents(...)`            | Publishes events into the stream.                  |
+| `givenAppliedEvents(id, ...)` | Replays events into a specific aggregate instance. |
+| `givenDocument(...)`          | Pre-populates the search index with documents.     |
+| `givenStateful(saga)`         | Pre-registers a stateful handler instance.         |
+| `givenExpiredSchedules(...)`  | Simulates timers that have already triggered.      |
+
+<a name="when-phase"></a>
+
+### When Phase (Execution)
+
+Specifies the action that triggers the behavior under test. Use **constructors for simple queries** to improve
+readability and explicitly define the expected return type.
+
+| Method                             | Usage                                      |
+|:-----------------------------------|:-------------------------------------------|
+| `whenCommand(cmd)`                 | Executes a domain command.                 |
+| `whenQuery(query)`                 | Executes a data retrieval query.           |
+| `whenSearching(coll, constraints)` | Verifies search logic and indexing.        |
+| `whenUpcasting(data)`              | Tests versioning and schema evolution.     |
+| `whenTimeElapses(duration)`        | Advances time and processes due schedules. |
+
+**Example: Constructor Query**
+
+```kotlin
+fixture.whenQuery(GetProject(projectId))
+       .expectResult(Project::class.java)
+```
+
+<a name="then-phase"></a>
+
+### Then Phase (Assertion)
+
+Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** for clean exception assertions.
+
+| Assertion Type                | Usage                                                       |
+|:------------------------------|:------------------------------------------------------------|
+| `expectEvents(...)`           | Asserts that specific events were published.                |
+| `expectOnlyEvents(...)`       | Strict check: no other events allowed.                      |
+| `expectNoEventsLike(...)`     | Negative check: specific events must NOT occur.             |
+| `expectResult(value)`         | Verifies the return value of the handler.                   |
+| `expectExceptionalResult(ex)` | Verifies that an invariant was enforced (exception thrown). |
+| `expectError(...)`            | Catches "swallowed" or logged handler errors.               |
+| `expectThat(fluxzero -> ...)` | Arbitrary checks against system state.                      |
+
+**Example: Domain Error Assertion**
+
+```kotlin
+fixture.whenCommand(CloseProject(projectId))
+       .expectExceptionalResult(ProjectErrors.alreadyClosed)
+```
+
+---
+
+<a name="json-testing"></a>
+
+## Testing with JSON
+
+JSON files are stored in `src/test/resources` and should mirror your domain package structure.
+
+### Using FQN
+
+To ensure reliable type resolution, always use the full class path in the `@class` property.
+
+```json
+// @formatter:off
+{
+  "@class": "io.fluxzero.orders.api.CreateOrder",
+  "orderId": "ORD-123",
+  "amount": 50.0
+}
+// @formatter:on
+```
+
+### Extending JSON (@extends)
+
+Reuse base configurations and override specific fields. You can use **absolute paths** (starting with `/`) to reference
+JSON resources from other packages.
+
+```json
+// @formatter:off
+{
+  "@extends": "/shared/base-order.json",
+  "amount": 100.0
+}
+// @formatter:on
+```
+
+---
+
+<a name="advanced-testing"></a>
+
+## Advanced Testing Patterns
+
+<a name="time-schedules"></a>
+
+### Time & Schedules
+
+Fluxzero allows precise control over time-based behavior. Use `givenExpiredSchedules` to trigger past timers before the
+test starts, and `whenTimeElapses` to simulate time passing during the test.
+
+```kotlin
+fixture
+    .givenExpiredSchedules(TerminateAccount(...))
+    .whenTimeElapses(Duration.ofDays(30))
+    .expectEvents(DeleteAccount(...))
+```
+
+<a name="user-context"></a>
+
+### User Context & Default User
+
+- **Default User**: By default, tests run as the **System User** (`UserProvider#getSystemUser()`), which typically has
+  full permissions.
+- **Resolving Users**: The `UserProvider#getUserById(Object userId)` method is used to resolve user identifiers passed
+  to `when...ByUser`.
+
+```kotlin
+fixture
+    .whenQueryByUser("admin-user", GetSystemStats())
+    .expectResult { stats -> stats.totalOrders() > 0 }
+```
+
+<a name="search-testing"></a>
+
+### Search & Document Testing
+
+Verify that your search constraints and facets work as expected.
+
+```kotlin
+fixture
+    .givenDocument(Order("ORD-1", "PAID"), "orders")
+    .whenSearching(Order::class.java, MatchConstraint.match("PAID", "status"))
+    .expectResultContaining(Order("ORD-1", "PAID"))
+```
+
+<a name="chaining"></a>
+
+### Chaining & Result Mapping
+
+Use `.andThen()` to build multi-step scenarios. You can use `.asWebParameter("name")` to map a result (like a generated
+ID) into subsequent web requests.
+
+```kotlin
+fixture
+    .whenPost("/api/users", "create-user.json")
+    .asWebParameter("userId")
+    .andThen()
+    .whenGet("/api/users/{userId}")
+    .expectResult(User::class.java)
+```
+
+---
+
+<a name="large-preconditions"></a>
+
+## Large Preconditions
+
+For tests that require complex setup, issuing many `givenCommands` can become verbose.
+
+- **JSON Inheritance**: Use `@extends` to build on top of base scenarios.
+- **Fixture Commands**: Group setup commands into a single JSON array file and load it using
+  `givenCommands("/setup/baseline.json")`.
+- **Chained setup**: You can chain multiple `given` methods.
+
+```kotlin
+fixture
+    .givenCommands("/baseline.json")
+    .givenDocument(Config(...), "settings")
+    .whenCommand(...)
+```
+
+---
+
+<a name="mocking-context"></a>
+
+## Mocking Time & Context
+
+Ensure your tests are deterministic by controlling the environment.
+
+- **Current Time**: Use `whenTimeElapses` to move time forward. The `TestFixture` maintains its own clock.
+- **Identifiers**: TestFixtures use predictable auto-generated IDs, starting at `"0"`. If you need to assert a specific
+  auto-generated ID, you can fix the ID generator using `DefaultFluxzero.builder().identityProvider(...)` in the fixture constructor.
+- **User context**: Use `when...ByUser(userId, ...)` to simulate different users.
+
+---
+
+<a name="web-testing"></a>
+
+## Testing Web Endpoints
+
+While most testing should focus on core logic, each web endpoint should have at least one test to verify routing and
+mapping.
+
+```kotlin
+@Nested
+inner class ProjectsEndpointTests {
+    val fixture = TestFixture.create(ProjectsEndpoint())
+
+    @Test
+    fun testPostEndpoint() {
+        fixture
+            .whenPost("/api/projects", "/projects/create-request.json")
+            .expectResult(ProjectId::class.java)
+            .expectEvents(CreateProject::class.java)
+    }
+}
+```

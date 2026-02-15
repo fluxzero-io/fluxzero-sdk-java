@@ -53,9 +53,9 @@ import java.lang.annotation.Target;
  *
  * <p><strong>Example (filtering the object):</strong></p>
  * <pre>{@code
- * @FilterContent // Applied to type - filters all handler results
  * public class Order {
- *     public Order filter(User user) {
+ *     @FilterContent
+ *     Order filter(User user) {
  *         return user.hasRole("admin") ? this : new Order(maskedFieldsOnly());
  *     }
  * }
