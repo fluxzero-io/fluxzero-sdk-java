@@ -50,15 +50,15 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 To enable search for an aggregate or any object, use the appropriate annotation.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Aggregate(searchable = true, collection = "active_projects")
 public record Project(...) {}
 
 @Searchable(collection = "custom_docs")
 public record ExternalDocument(...) {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="facets-sorting"></a>
 
@@ -68,16 +68,16 @@ public record ExternalDocument(...) {}
 - **@Sortable**: Required for any field you intend to use in a `sortBy(...)` clause. It is also required for **quantity
   filtering** (e.g., `greaterThan`) and checking for field existence.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 public record Product(
     @EntityId ProductId productId,
     @Facet String category,
     @Sortable BigDecimal price,
     String description
 ) {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="exclude-include"></a>
 
@@ -102,14 +102,14 @@ Access the search engine via `Fluxzero.search(Class<T>)` or by providing a colle
 - **lookAhead(text, paths...)**: Search-as-you-type (prefix matching).
 - **query(text, paths...)**: Full-text search with support for wildcards and operators (`*`, `&`, `|`).
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 List<Project> results = Fluxzero.search(Project.class)
     .lookAhead("flux", "name")
     .match("ACTIVE", "status")
     .fetch(10);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="temporal-filters"></a>
 
@@ -120,13 +120,13 @@ Filter documents based on their creation or modification time.
 - **since(instant)** / **before(instant)**: Absolute time ranges.
 - **inLast(duration)** / **beforeLast(duration)**: Relative time ranges.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 List<Project> recent = Fluxzero.search(Project.class)
     .inLast(Duration.ofDays(7))
     .fetchAll();
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="logical-grouping"></a>
 
@@ -134,8 +134,8 @@ List<Project> recent = Fluxzero.search(Project.class)
 
 Combine multiple constraints using logical operations.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 List<User> complex = Fluxzero.search(User.class)
     .any(
         MatchConstraint.match("ADMIN", "role"),
@@ -145,8 +145,8 @@ List<User> complex = Fluxzero.search(User.class)
         )
     )
     .fetchAll();
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -189,8 +189,8 @@ All documents in Fluxzero support an optional **start** and **end** timestamp, w
 Use `DocumentStore.createAuditTrail(collection, retentionDuration)` to configure a collection that automatically prunes
 documents older than the specified duration (based on their timestamp).
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 class AuditTrailConfig {
     @Autowired
@@ -198,8 +198,8 @@ class AuditTrailConfig {
         documentStore.createAuditTrail("system_logs", Duration.ofDays(90));
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -210,13 +210,13 @@ class AuditTrailConfig {
 Retrieve document counts grouped by their facet values. This is ideal for building dashboard summaries or filter
 sidebars.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 List<FacetStats> stats = Fluxzero.search(Product.class)
     .lookAhead("wireless")
     .facetStats();
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -231,30 +231,30 @@ You can index any object manually, even if it is not an aggregate.
 Use `Fluxzero.prepareIndex(object)` to create a builder for indexing or deleting a document. This is the preferred way
 to configure complex index operations.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 Fluxzero.prepareIndex(myObject)
     .id("custom-id")
     .collection("custom-collection")
     .indexAndWait();
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Bulk Updates
 
 To perform multiple updates in a single transaction, create a collection of `BulkUpdate` objects (typically via
 `IndexOperation#toBulkUpdate()`) and pass them to the document store.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 var updates = List.of(
     Fluxzero.prepareIndex(doc1).toBulkUpdate(),
     Fluxzero.prepareIndex(doc2).id("delete-me").toBulkUpdate() // assuming delete logic
 );
 
 Fluxzero.get().documentStore().bulkUpdate(updates);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 

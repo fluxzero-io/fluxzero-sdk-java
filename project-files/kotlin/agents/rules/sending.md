@@ -206,7 +206,7 @@ val response: WebResponse = Fluxzero.sendWebRequestAndWait(
 )
 
 if (response.isSuccess) {
-    val stripeId: String = response.getPayloadAs(String::class.java)
+    val stripeId: String = response.getPayloadAs(String::class)
 }
 ```
 

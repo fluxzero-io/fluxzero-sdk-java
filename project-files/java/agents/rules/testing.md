@@ -60,39 +60,39 @@ The `TestFixture` manages an internal Fluxzero instance. You must register the h
   mandatory for `@Stateful` sagas and `@SocketEndpoint`s because they contain internal properties managed by the SDK.
 - **Instance-based Registration**: Possible for simple, stateless `@Component`s.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 // At creation
 TestFixture fixture = TestFixture.create(MyHandler.class, MySaga.class);
 
 // Or during setup
 fixture.registerHandlers(OtherHandler.class);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Customizing Fluxzero
 
 If you need to tune the Fluxzero instance (e.g., adding interceptors), pass a `DefaultFluxzero.builder()` to the
 fixture.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 TestFixture fixture = TestFixture.create(
     DefaultFluxzero.builder().handlerInterceptor(new MyInterceptor()), 
     MyHandler.class
 );
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Setting Properties
 
 Use `withProperty` to set application-level properties for the duration of the test.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture.withProperty("stripe.url", "http://mock-stripe");
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -139,12 +139,12 @@ readability and explicitly define the expected return type.
 
 **Example: Constructor Query**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture.whenQuery(new GetProject(projectId))
        .expectResult(Project.class);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="then-phase"></a>
 
@@ -164,12 +164,12 @@ Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** f
 
 **Example: Domain Error Assertion**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture.whenCommand(new CloseProject(projectId))
        .expectExceptionalResult(ProjectErrors.alreadyClosed);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -183,29 +183,29 @@ JSON files are stored in `src/test/resources` and should mirror your domain pack
 
 To ensure reliable type resolution, always use the full class path in the `@class` property.
 
+[//]: # (@formatter:off)
 ```json
-// @formatter:off
 {
   "@class": "io.fluxzero.orders.api.CreateOrder",
   "orderId": "ORD-123",
   "amount": 50.0
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Extending JSON (@extends)
 
 Reuse base configurations and override specific fields. You can use **absolute paths** (starting with `/`) to reference
 JSON resources from other packages.
 
+[//]: # (@formatter:off)
 ```json
-// @formatter:off
 {
   "@extends": "/shared/base-order.json",
   "amount": 100.0
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -220,14 +220,14 @@ JSON resources from other packages.
 Fluxzero allows precise control over time-based behavior. Use `givenExpiredSchedules` to trigger past timers before the
 test starts, and `whenTimeElapses` to simulate time passing during the test.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture
     .givenExpiredSchedules(new TerminateAccount(...))
     .whenTimeElapses(Duration.ofDays(30))
     .expectEvents(new DeleteAccount(...));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="user-context"></a>
 
@@ -238,13 +238,13 @@ fixture
 - **Resolving Users**: The `UserProvider#getUserById(Object userId)` method is used to resolve user identifiers passed
   to `when...ByUser`.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture
     .whenQueryByUser("admin-user", new GetSystemStats())
     .expectResult(stats -> stats.totalOrders() > 0);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="search-testing"></a>
 
@@ -252,14 +252,14 @@ fixture
 
 Verify that your search constraints and facets work as expected.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture
     .givenDocument(new Order("ORD-1", "PAID"), "orders")
     .whenSearching(Order.class, MatchConstraint.match("PAID", "status"))
     .expectResultContaining(new Order("ORD-1", "PAID"));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="chaining"></a>
 
@@ -268,16 +268,16 @@ fixture
 Use `.andThen()` to build multi-step scenarios. You can use `.asWebParameter("name")` to map a result (like a generated
 ID) into subsequent web requests.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture
     .whenPost("/api/users", "create-user.json")
     .asWebParameter("userId")
     .andThen()
     .whenGet("/api/users/{userId}")
     .expectResult(User.class);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -292,14 +292,14 @@ For tests that require complex setup, issuing many `givenCommands` can become ve
   `givenCommands("/setup/baseline.json")`.
 - **Chained setup**: You can chain multiple `given` methods.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 fixture
     .givenCommands("/baseline.json")
     .givenDocument(new Config(...), "settings")
     .whenCommand(...)
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -311,7 +311,8 @@ Ensure your tests are deterministic by controlling the environment.
 
 - **Current Time**: Use `whenTimeElapses` to move time forward. The `TestFixture` maintains its own clock.
 - **Identifiers**: TestFixtures use predictable auto-generated IDs, starting at `"0"`. If you need to assert a specific
-  auto-generated ID, you can fix the ID generator using `DefaultFluxzero.builder().identityProvider(...)` in the fixture constructor.
+  auto-generated ID, you can fix the ID generator using `DefaultFluxzero.builder().identityProvider(...)` in the fixture
+  constructor.
 - **User context**: Use `when...ByUser(userId, ...)` to simulate different users.
 
 ---
@@ -323,11 +324,13 @@ Ensure your tests are deterministic by controlling the environment.
 While most testing should focus on core logic, each web endpoint should have at least one test to verify routing and
 mapping.
 
+### Internal Endpoints
+
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Nested
 class ProjectsEndpointTests {
-    final TestFixture fixture = TestFixture.create(new ProjectsEndpoint());
+    final TestFixture fixture = TestFixture.create(ProjectsEndpoint.class);
 
     @Test
     void testPostEndpoint() {
@@ -337,5 +340,29 @@ class ProjectsEndpointTests {
             .expectEvents(CreateProject.class);
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
+
+### Mocking External Backends (Real Web Handlers)
+
+You can mock external backends (like Stripe or GitHub) by registering a mock that handles requests to the external URL.
+This allows you to test your integration logic with "real" web handlers and URLs without actual network calls.
+
+[//]: # (@formatter:off)
+```java
+class StripeMock {
+    @HandlePost("https://api.stripe.com/v1/charges")
+    WebResponse mockCharge(ChargeRequest request) {
+        return WebResponse.ok(new ChargeResponse("ch_success"));
+    }
+}
+
+TestFixture fixture = TestFixture.create(MyPaymentHandler.class, StripeMock.class);
+
+@Test
+void testStripeIntegration() {
+    fixture.whenCommand(new ProcessPayment(amount))
+           .expectEvents(PaymentSucceeded.class);
+}
+```
+[//]: # (@formatter:on)

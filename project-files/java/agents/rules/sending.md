@@ -57,11 +57,11 @@ Commands trigger domain behavior and state changes.
 
 **Example: Blocking Send**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 UserId id = Fluxzero.sendCommandAndWait(new CreateUser("Charlie"));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Queries
 
@@ -69,12 +69,12 @@ Queries are for read-only data retrieval.
 
 **Example: Async Query**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 CompletableFuture<UserProfile> result = 
     Fluxzero.query(new GetUserProfile(new UserId("user123")));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -84,11 +84,11 @@ CompletableFuture<UserProfile> result =
 
 You can publish payloads to custom topics for specialized handling.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 Fluxzero.publish("my-topic", new MyCustomPayload(...));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -100,8 +100,8 @@ Fluxzero provides gateways for publishing uncommon system messages.
 
 ### Metrics, Errors, and Results
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 // Publishing a custom metric
 Fluxzero.publishMetrics(new CustomMetric("processing-time", 150));
 
@@ -110,8 +110,8 @@ Fluxzero.publishError(new ErrorMessage("External service unavailable"));
 
 // Publishing a result message
 Fluxzero.publishResult(new CommandResult(commandId, resultPayload));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -123,27 +123,27 @@ Use schedules to trigger schedule messages in the future or periodically.
 
 **Example: One-off Schedule**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 Fluxzero.schedule(
     new TerminateAccount(userId),
     "AccountClosed-" + userId,
     Duration.ofDays(30)
 );
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 **Example: Scheduling a Command**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 Fluxzero.scheduleCommand(
     new ArchiveProject(projectId),
     "Archive-" + projectId,
     Fluxzero.currentTime().plus(10, ChronoUnit.DAYS)
 );
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 > ⚠️ **Best Practice**: Always use `Fluxzero.currentTime()` for scheduling or logic requiring the current time. This
 > ensures your code is deterministic and testable via the `TestFixture`.
@@ -156,21 +156,21 @@ For recurring tasks, use the `@Periodic` annotation. It can be placed on the sch
 
 **Payload-based:**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Periodic(delay = 5, timeUnit = TimeUnit.MINUTES)
 public record PollService() {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 **Cron-based:**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Periodic(cron = "0 0 * * MON", timeZone = "Europe/Amsterdam")
 public record WeeklyReport() {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 **Configuration Options:**
 
@@ -217,8 +217,8 @@ Use `WebRequest` to interact with external HTTP APIs.
 
 **Example: POST to External API**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 WebResponse response = Fluxzero.sendWebRequestAndWait(
     WebRequest.post(ApplicationProperties.require("stripe.url"))
               .payload(paymentDetails)
@@ -228,8 +228,8 @@ WebResponse response = Fluxzero.sendWebRequestAndWait(
 if (response.isSuccess()) {
     String stripeId = response.getPayloadAs(String.class);
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 

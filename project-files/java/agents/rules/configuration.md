@@ -34,13 +34,13 @@ order of precedence:
 
 You can access properties in your code using the static `ApplicationProperties` utility:
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 String name = ApplicationProperties.getProperty("app.name", "DefaultApp");
 boolean enabled = ApplicationProperties.getBooleanProperty("feature.toggle", true);
 int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -74,12 +74,12 @@ etc.).
 
 Used for local development and unit tests. All data is stored in-memory and lost on restart.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 Fluxzero fluxzero = DefaultFluxzero.builder()
     .build(LocalClient.newInstance());
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="websocket-client"></a>
 
@@ -87,8 +87,8 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
 
 Used for production and shared environments. It connects to a remote Fluxzero Runtime via WebSockets.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 var config = WebSocketClient.ClientConfig.builder()
     .runtimeBaseUrl("wss://flux.your-domain.com")
     .name("my-service")
@@ -97,8 +97,8 @@ var config = WebSocketClient.ClientConfig.builder()
 
 Fluxzero fluxzero = DefaultFluxzero.builder()
     .build(WebSocketClient.newInstance(config));
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -112,13 +112,13 @@ Fluxzero provides seamless integration with Spring Boot.
 
 Annotate your configuration or application class:
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @SpringBootApplication
 public class MyApplication {
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Auto-Configuration
 
@@ -133,8 +133,8 @@ When `FluxzeroSpringConfig` is imported:
 
 Implement `FluxzeroCustomizer` to tune the `FluxzeroBuilder` before the instance is created:
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 public class MyCustomizer implements FluxzeroCustomizer {
     @Override
@@ -142,8 +142,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
         return builder.replaceCache(new MyCustomCache());
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 

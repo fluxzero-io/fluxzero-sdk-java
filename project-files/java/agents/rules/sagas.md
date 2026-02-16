@@ -61,8 +61,8 @@ public record SystemMonitor(@EntityId String id, List<HealthStatus> statuses) {
 
 **Example: Stripe Payment Saga**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Stateful
 @Consumer(name = "stripe")
 @Builder(toBuilder = true)
@@ -96,8 +96,8 @@ public record StripeTransaction(
         return toBuilder().stripeId(makePayment(event)).retries(retries + 1).build();
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 

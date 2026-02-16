@@ -41,15 +41,15 @@ code.
 By default, every class has a revision of `0`. When you make a breaking change to a class (e.g., renaming a field or
 changing a type), you must increment its revision.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Revision(2)
 public record Project(
     ProjectId projectId,
     ProjectDetails details
 ) {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -66,8 +66,8 @@ Upcasting transforms an old version of a serialized object into the current vers
 Use this pattern when you only need to modify the JSON structure of the payload (e.g., adding a default value or
 renaming a field).
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 public class ProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.api.model.Project", revision = 1)
@@ -78,8 +78,8 @@ public class ProjectUpcaster {
         return payload;
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="data-upcasting"></a>
 
@@ -88,8 +88,8 @@ public class ProjectUpcaster {
 Use this pattern when you need to change the **type**, **revision**, or **metadata** of the serialized object. To modify
 metadata, you must inject the `SerializedMessage` and call `setMetadata(Metadata)`.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 public class CreateProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.old.CreateProject", revision = 0)
@@ -102,8 +102,8 @@ public class CreateProjectUpcaster {
                    .withRevision(1);
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -120,8 +120,8 @@ Unlike upcasting, downcasting is typically invoked manually.
 **Example: Realistic Downcaster (ObjectNode Manipulation)**
 Use this pattern to transform complex nested JSON structures back to an earlier revision.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Downcast(type = "com.example.api.ProjectView", revision = 2)
 ObjectNode downcastProjectFrom2(ObjectNode project) {
     if (project.get("details") instanceof ObjectNode details) {
@@ -135,13 +135,13 @@ ObjectNode downcastProjectFrom2(ObjectNode project) {
     }
     return project;
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 **Example: Versioned API Endpoint**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 @Path("/api/v1/projects")
 public class LegacyProjectEndpoint {
@@ -154,8 +154,8 @@ public class LegacyProjectEndpoint {
         return Fluxzero.downcast(modernProject, 1);
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -182,16 +182,16 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 
 **Example: Upcaster Test**
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Test
 void testProjectUpcasting() {
     fixture.whenUpcasting("/projects/old-project-rev0.json")
            .expectResult(Project.class)
            .expectResult(project -> project.details().name().equals("Untitled Project"));
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 

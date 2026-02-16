@@ -35,16 +35,19 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
     - **Stateful Sagas**: For `@Stateful` handlers, the saga's ID is used automatically for load balancing and
       filtering; `@RoutingKey` is not required.
 
+> Multiple handlers can share the same `@Consumer(name=...)`. This means they will share the same tracker
+> threads and be processed in strict order if they share segments.
+
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 @Consumer(name = "order-tracking", threads = 4)
 class OrderTracker {
     @HandleEvent
     void on(CreateOrder event) { ... }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -70,8 +73,8 @@ public class LoggingBatchInterceptor implements BatchInterceptor {
 }
 ```
 
-**Note**: `DispatchInterceptor` and `HandlerInterceptor` are documented in
-the [Sending](sending.md#dispatch-interceptors) and [Handling](handling.md#handler-interceptors) manuals respectively.
+> `DispatchInterceptor` and `HandlerInterceptor` are documented in
+> the [Sending](sending.md#dispatch-interceptors) and [Handling](handling.md#handler-interceptors) manuals respectively.
 
 ---
 

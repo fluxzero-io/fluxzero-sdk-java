@@ -88,7 +88,7 @@ explicitly include fields that might otherwise be ignored (e.g., specific getter
 
 ## Searching for Data
 
-Access the search engine via `Fluxzero.search(Project::class.java)` or by providing a collection name.
+Access the search engine via `Fluxzero.search(Project::class)` or by providing a collection name.
 
 <a name="basic-constraints"></a>
 
@@ -99,7 +99,7 @@ Access the search engine via `Fluxzero.search(Project::class.java)` or by provid
 - **query(text, paths...)**: Full-text search with support for wildcards and operators (`*`, `&`, `|`).
 
 ```kotlin
-val results: List<Project> = Fluxzero.search(Project::class.java)
+val results: List<Project> = Fluxzero.search(Project::class)
     .lookAhead("flux", "name")
     .match("ACTIVE", "status")
     .fetch(10)
@@ -115,7 +115,7 @@ Filter documents based on their creation or modification time.
 - **inLast(duration)** / **beforeLast(duration)**: Relative time ranges.
 
 ```kotlin
-val recent: List<Project> = Fluxzero.search(Project::class.java)
+val recent: List<Project> = Fluxzero.search(Project::class)
     .inLast(Duration.ofDays(7))
     .fetchAll()
 ```
@@ -127,7 +127,7 @@ val recent: List<Project> = Fluxzero.search(Project::class.java)
 Combine multiple constraints using logical operations.
 
 ```kotlin
-val complex: List<User> = Fluxzero.search(User::class.java)
+val complex: List<User> = Fluxzero.search(User::class)
     .any(
         MatchConstraint.match("ADMIN", "role"),
         AllConstraint.all(
@@ -199,7 +199,7 @@ Retrieve document counts grouped by their facet values. This is ideal for buildi
 sidebars.
 
 ```kotlin
-val stats: List<FacetStats> = Fluxzero.search(Product::class.java)
+val stats: List<FacetStats> = Fluxzero.search(Product::class)
     .lookAhead("wireless")
     .facetStats()
 ```

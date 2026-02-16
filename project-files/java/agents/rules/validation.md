@@ -45,8 +45,8 @@ Fluxzero integrates with **Jakarta Validation**. Annotate your Command and Query
 It is recommended to extract detail properties into a dedicated value object (e.g., `UserDetails`) and reference it in
 your command using `@Valid`.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 public record CreateUser(
     @NotNull UserId userId,
     @Valid @NotNull UserDetails details,
@@ -59,16 +59,16 @@ public record CreateUser(
         return !details.username().equals(details.email());
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### @ValidateWith
 
 Use `@ValidateWith` to reuse validation logic from nested objects or to activate specific validation groups. This is
 useful when a field is optional in some contexts but mandatory in others.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 public record OrderDetails(
     @NotBlank String description,
     @NotNull(groups = FinalOrder.class) String paymentMethod // Only required for final orders
@@ -83,8 +83,8 @@ public record SaveOrder(@Valid OrderDetails details) {}
 // Send uses @ValidateWith to enforce the 'FinalOrder' group
 @ValidateWith(FinalOrder.class)
 public record SendOrder(@NotNull @Valid OrderDetails details) {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -101,14 +101,14 @@ public record SendOrder(@NotNull @Valid OrderDetails details) {}
 It is strongly recommended to add `@RequiresUser` at the domain package level (in `package-info.java`). This ensures
 that all message payloads within that domain are protected by default.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @RequiresUser
 package io.fluxzero.app.orders;
 
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 > **Tip**: In most projects, a custom `@RequiresRole(Role[])` annotation is created and meta-annotated with
 `@RequiresAnyRole` to provide type-safety with a `Role` enum.
@@ -121,8 +121,8 @@ An annotation on a package automatically covers all classes within it and its su
 To silently skip a handler without throwing an error if the user lacks permissions, combine security annotations with
 `throwIfUnauthorized = false`. This is typically used to provide different handlers for the same message.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 class LogHandler {
     // Only admins can see admin logs
@@ -135,8 +135,8 @@ class LogHandler {
     @ForbidsAnyRole("admin")
     public List<Log> handleStandardQuery(GetLogs query) { ... }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="no-user-required"></a>
 
@@ -191,8 +191,8 @@ Filtering allows objects to dynamically adjust their exposed content based on wh
 Content filtering is not automatic. You must add `@FilterContent` to the **handler method, class, or package** to enable
 it for a specific flow.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 public class UserQueryHandler {
     @HandleQuery
@@ -201,16 +201,16 @@ public class UserQueryHandler {
         return Fluxzero.loadAggregate(query.userId()).get();
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Implementing Filter Logic
 
 Filtering is applied recursively to objects, collections, and maps. The annotated method can inject the current `User`
 and the top-level **root object** for context. Returning `null` removes the object from the result.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 public record Order(OrderId id, List<LineItem> items, boolean isSecret) {
     @FilterContent
     public Order filter(User user) {
@@ -230,8 +230,8 @@ public record LineItem(String product, double price, boolean isTaxFree) {
         return this;
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -251,14 +251,14 @@ temporarily in an external Key-Value (KV) store.
 When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the value from the KV store back
 into the payload, making it available to the handler.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 public record SubmitApplication(
     @NotNull ApplicationId id,
     @ProtectData String socialSecurityNumber
 ) {}
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 <a name="drop-protected-data"></a>
 
@@ -267,8 +267,8 @@ public record SubmitApplication(
 Use this annotation on a handler or endpoint to permanently delete the sensitive values from the KV store. This ensures
 that once the trusted processing is complete, the data is no longer accessible.
 
+[//]: # (@formatter:off)
 ```java
-// @formatter:off
 @Component
 class ApplicationHandler {
     @HandleCommand
@@ -278,5 +278,5 @@ class ApplicationHandler {
         verifySsn(command.socialSecurityNumber());
     }
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)

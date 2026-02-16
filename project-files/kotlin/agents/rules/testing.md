@@ -56,37 +56,43 @@ The `TestFixture` manages an internal Fluxzero instance. You must register the h
 
 #### Registration Patterns
 
-- **Class-based Registration (Recommended)**: Always register handlers by `Class` (e.g., `MyHandler::class.java`). This is
+- **Class-based Registration (Recommended)**: Always register handlers by `Class` (e.g., `MyHandler::class`). This is
   mandatory for `@Stateful` sagas and `@SocketEndpoint`s because they contain internal properties managed by the SDK.
 - **Instance-based Registration**: Possible for simple, stateless `@Component`s.
 
+[//]: # (@formatter:off)
 ```kotlin
 // At creation
-val fixture = TestFixture.create(MyHandler::class.java, MySaga::class.java)
+val fixture = TestFixture.create(MyHandler::class, MySaga::class)
 
 // Or during setup
-fixture.registerHandlers(OtherHandler::class.java)
+fixture.registerHandlers(OtherHandler::class)
 ```
+[//]: # (@formatter:on)
 
 ### Customizing Fluxzero
 
 If you need to tune the Fluxzero instance (e.g., adding interceptors), pass a `DefaultFluxzero.builder()` to the
 fixture.
 
+[//]: # (@formatter:off)
 ```kotlin
 val fixture = TestFixture.create(
     DefaultFluxzero.builder().handlerInterceptor(MyInterceptor()), 
-    MyHandler::class.java
+    MyHandler::class
 )
 ```
+[//]: # (@formatter:on)
 
 ### Setting Properties
 
 Use `withProperty` to set application-level properties for the duration of the test.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture.withProperty("stripe.url", "http://mock-stripe")
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -133,10 +139,12 @@ readability and explicitly define the expected return type.
 
 **Example: Constructor Query**
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture.whenQuery(GetProject(projectId))
-       .expectResult(Project::class.java)
+       .expectResult(Project::class)
 ```
+[//]: # (@formatter:on)
 
 <a name="then-phase"></a>
 
@@ -156,10 +164,12 @@ Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** f
 
 **Example: Domain Error Assertion**
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture.whenCommand(CloseProject(projectId))
        .expectExceptionalResult(ProjectErrors.alreadyClosed)
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -173,29 +183,29 @@ JSON files are stored in `src/test/resources` and should mirror your domain pack
 
 To ensure reliable type resolution, always use the full class path in the `@class` property.
 
+[//]: # (@formatter:off)
 ```json
-// @formatter:off
 {
   "@class": "io.fluxzero.orders.api.CreateOrder",
   "orderId": "ORD-123",
   "amount": 50.0
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ### Extending JSON (@extends)
 
 Reuse base configurations and override specific fields. You can use **absolute paths** (starting with `/`) to reference
 JSON resources from other packages.
 
+[//]: # (@formatter:off)
 ```json
-// @formatter:off
 {
   "@extends": "/shared/base-order.json",
   "amount": 100.0
 }
-// @formatter:on
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -210,12 +220,14 @@ JSON resources from other packages.
 Fluxzero allows precise control over time-based behavior. Use `givenExpiredSchedules` to trigger past timers before the
 test starts, and `whenTimeElapses` to simulate time passing during the test.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture
     .givenExpiredSchedules(TerminateAccount(...))
     .whenTimeElapses(Duration.ofDays(30))
     .expectEvents(DeleteAccount(...))
 ```
+[//]: # (@formatter:on)
 
 <a name="user-context"></a>
 
@@ -226,11 +238,13 @@ fixture
 - **Resolving Users**: The `UserProvider#getUserById(Object userId)` method is used to resolve user identifiers passed
   to `when...ByUser`.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture
     .whenQueryByUser("admin-user", GetSystemStats())
     .expectResult { stats -> stats.totalOrders() > 0 }
 ```
+[//]: # (@formatter:on)
 
 <a name="search-testing"></a>
 
@@ -238,12 +252,14 @@ fixture
 
 Verify that your search constraints and facets work as expected.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture
     .givenDocument(Order("ORD-1", "PAID"), "orders")
-    .whenSearching(Order::class.java, MatchConstraint.match("PAID", "status"))
+    .whenSearching(Order::class, MatchConstraint.match("PAID", "status"))
     .expectResultContaining(Order("ORD-1", "PAID"))
 ```
+[//]: # (@formatter:on)
 
 <a name="chaining"></a>
 
@@ -252,14 +268,16 @@ fixture
 Use `.andThen()` to build multi-step scenarios. You can use `.asWebParameter("name")` to map a result (like a generated
 ID) into subsequent web requests.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture
     .whenPost("/api/users", "create-user.json")
     .asWebParameter("userId")
     .andThen()
     .whenGet("/api/users/{userId}")
-    .expectResult(User::class.java)
+    .expectResult(User::class)
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -274,12 +292,14 @@ For tests that require complex setup, issuing many `givenCommands` can become ve
   `givenCommands("/setup/baseline.json")`.
 - **Chained setup**: You can chain multiple `given` methods.
 
+[//]: # (@formatter:off)
 ```kotlin
 fixture
     .givenCommands("/baseline.json")
     .givenDocument(Config(...), "settings")
     .whenCommand(...)
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -303,17 +323,43 @@ Ensure your tests are deterministic by controlling the environment.
 While most testing should focus on core logic, each web endpoint should have at least one test to verify routing and
 mapping.
 
+### Mocking External Backends (Real Web Handlers)
+
+You can mock external backends (like Stripe or GitHub) by registering a component that handles requests to the external URL. This allows you to test your integration logic with "real" web handlers and URLs without actual network calls.
+
+[//]: # (@formatter:off)
+```kotlin
+@Component
+class StripeMock {
+    @HandlePost("https://api.stripe.com/v1/charges")
+    fun mockCharge(request: ChargeRequest): WebResponse {
+        return WebResponse.ok(ChargeResponse("ch_success"))
+    }
+}
+
+TestFixture fixture = TestFixture.create(MyPaymentHandler::class, StripeMock::class);
+
+@Test
+fun testStripeIntegration() {
+    fixture.whenCommand(ProcessPayment(amount))
+           .expectEvents(PaymentSucceeded::class)
+}
+```
+[//]: # (@formatter:on)
+
+[//]: # (@formatter:off)
 ```kotlin
 @Nested
 inner class ProjectsEndpointTests {
-    val fixture = TestFixture.create(ProjectsEndpoint())
+    val fixture = TestFixture.create(ProjectsEndpoint::class)
 
     @Test
     fun testPostEndpoint() {
         fixture
             .whenPost("/api/projects", "/projects/create-request.json")
-            .expectResult(ProjectId::class.java)
-            .expectEvents(CreateProject::class.java)
+            .expectResult(ProjectId::class)
+            .expectEvents(CreateProject::class)
     }
 }
 ```
+[//]: # (@formatter:on)

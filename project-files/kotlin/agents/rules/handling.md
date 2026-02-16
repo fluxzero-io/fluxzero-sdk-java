@@ -7,9 +7,6 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
 
 ## Quick Navigation
 
-- [Core Rules](#core-rules)
-- [The Anatomy of a Message](#message-anatomy)
-- [Defining Payloads (Commands & Queries)](#payloads)
 - [Handling Messages](#handling-messages)
     - [@HandleCommand (Self-Handling & Standalone)](#handlecommand)
     - [@HandleQuery](#handlequery)
@@ -18,11 +15,13 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
         - [@HandleSchedule](#handleschedule)
         - [@HandleCustom](#handlecustom)
         - [@HandleDocument](#handledocument)
-        - [@HandleMetrics / @HandleError](#metrics-errors)
+        - [@HandleError](#handleerror)
+        - [@HandleMetrics](#handlemetrics)
         - [@HandleResult / @HandleWebResponse](#results-responses)
     - [Routing Keys (Client-side Filtering)](#routing-keys)
     - [Handler Types (Tracking vs. Local)](#handler-types)
     - [Handler Parameters](#handler-parameters)
+- [Defining Payloads (Commands & Queries)](#payloads)
 - [Web & WebSocket Handling](#web-handling)
     - [@HandleGet / @HandlePost](#web-requests)
     - [HTTP Status Mapping](#http-mapping)
@@ -33,83 +32,6 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
 - [Handler Interceptors](#handler-interceptors)
 - [Identifiers](#identifiers)
 - [Common Pitfalls](#common-pitfalls)
-
----
-
-<a name="core-rules"></a>
-
-## Core Rules
-
-1. **Logic First**: Business logic resides in handlers. Infrastructure (databases, persistence) is managed automatically
-   by the Fluxzero runtime.
-2. **Naming Convention**: Commands are imperative (`CreateUser`), Queries are descriptive (`GetUserProfile`). Events
-   reflect facts and are typically the action payload (`CreateUser`).
-3. **Dumb Aggregates**: Aggregates are immutable state holders. They do not handle messages themselves. Use
-   self-handling commands or standalone handlers instead.
-4. **Deterministic Handling**: Do not use non-deterministic lookups. Inject `Instant` for message time.
-5. **No Infrastructure in Handlers**: Handlers should focus on domain logic or message routing. Never use SQL or build
-   traditional "services".
-6. **Method Precedence**: When multiple handler methods match a message, the most specific one (matching the payload
-   type exactly) wins.
-7. **Multiple Handlers**: A message can be handled by multiple independent handlers. Each handler will process the
-   message once.
-8. **Eventual Consistency (The Consistency Window)**: `sendCommandAndWait` ensures the command was handled and stored,
-   but **not** necessarily that side-effects (like search index updates) have completed. Use async patterns (e.g.,
-   WebSockets) to update the UI when side-effects finish.
-
----
-
-<a name="message-anatomy"></a>
-
-## The Anatomy of a Message
-
-In Fluxzero, a **Message** is the fundamental unit of work. When you send a payload (like a Command or Query), it is
-automatically wrapped in a rich message envelope.
-
-### Local Message Structure
-
-Before a message leaves your application, it contains:
-
-- **Payload**: The actual domain object (e.g., `CreateOrder`).
-- **Metadata**: Key-value pairs providing context (e.g., the `Sender` user, correlation IDs, or tracing info).
-- **Message ID**: A unique identifier for this specific message instance.
-- **Timestamp**: An `Instant` representing when the message was created.
-
-### Serialized Message Structure
-
-When a message is sent to the remote Fluxzero runtime, it is transformed into a **SerializedMessage**, which adds
-infrastructure-level details:
-
-- **Message Index**: A unique, sequential `long` assigned by the runtime.
-- **Routing Segment**: An `int` used for distribution and ordering. Fluxzero uses **consistent hashing** to assign
-  segments.
-- **Routing Key**: A value extracted from a payload property (marked with `@RoutingKey`) or metadata, used to calculate
-  the segment. This ensures that related messages (e.g., for the same Order ID) are always processed in the correct
-  order by the same handler instance.
-- **Source & Target**: Routing information identifying the originating and destination consumers.
-
----
-
-<a name="payloads"></a>
-
-## Defining Payloads (Commands & Queries)
-
-Payloads are typically implemented as immutable `data classes`. This is where you define the data required for an
-operation and the constraints that must be met.
-
-### Validation & Security
-
-Fluxzero integrates with Jakarta Validation. Additionally, security annotations are checked **before** the message
-reaches any handler.
-
-```kotlin
-@RequiresRole(Role.admin)
-data class CreateProject(
-    @field:NotNull val projectId: ProjectId,
-    @field:NotBlank @field:Size(max = 100) val name: String,
-    @field:Valid val details: ProjectDetails
-) : Request<ProjectId>
-```
 
 ---
 
@@ -125,24 +47,14 @@ Used for messages that intend to change state.
 
 Recommended for updates to aggregates. Combined with `@TrackSelf` to ensure asynchronous tracking. The `@Consumer`
 annotation creates an isolated named consumer, allowing this command type to be tracked and processed independently.
-Commands may implement `Request<T>` if they return a value (e.g., the ID of a created entity).
 
-#### Conventions & Shared Consumers
-
-- **Naming**: Consumer names should typically follow the domain or aggregate name (e.g., `order-processing`,
-  `user-update`).
-- **Versioning**: If you make breaking changes to how a command is handled (not just the payload structure, which is
-  handled by upcasters), you might want to increment the consumer name (e.g., `user-update-v2`) to trigger a fresh
-  tracking of the stream.
-- **Shared Consumers**: Multiple command interfaces *can* share the same `@Consumer(name=...)`. This means they will
-  share the same tracker threads and be processed in strict order if they share segments. Use a shared consumer for
-  related commands that must be processed sequentially relative to each other.
-
+[//]: # (@formatter:off)
 ```kotlin
 @TrackSelf
 @Consumer(name = "user-update")
 interface UserUpdate {
     @NotNull
+    @RoutingKey
     fun userId(): UserId
 
     @HandleCommand
@@ -153,14 +65,76 @@ interface UserUpdate {
     }
 }
 ```
+[//]: # (@formatter:on)
 
-**Passive Listening**: Use `@HandleCommand(passive = true)` to listen to commands without returning a result. This is
-useful for auditing or logging without interfering with the primary command flow.
+**Example: Creating, Updating, and Deleting Aggregates**
+
+[//]: # (@formatter:off)
+```kotlin
+// 1. Create Aggregate
+data class CreateProject(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+    @Apply
+    fun apply(): Project {
+        return Project(projectId = projectId, details = details)
+    }
+}
+
+// 2. Update Aggregate
+data class UpdateProjectDetails(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+    @Apply
+    fun apply(project: Project): Project {
+        return project.copy(details = details)
+    }
+}
+
+// 3. Delete Aggregate
+data class DeleteProject(val projectId: ProjectId) : ProjectUpdate {
+    @Apply
+    fun apply(project: Project): Project? {
+        return null // Clears the aggregate value (but leaves the stored events)
+    }
+}
+```
+[//]: # (@formatter:on)
+
+**Example: Creating, Updating, and Deleting Sub-Entities**
+
+Sub-Entities can be added without modifying the parent aggregate directly. Fluxzero will take of updating the parent
+aggregate's state automatically.
+
+[//]: # (@formatter:off)
+```kotlin
+// 1. Create Sub-Entity (Task within Project)
+data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) : ProjectUpdate {
+    @Apply
+    fun apply(): Task {
+        return Task(taskId = taskId, details = details)
+    }
+}
+
+// 2. Update Sub-Entity
+data class UpdateTaskStatus(val projectId: ProjectId, @field:NotNull val taskId: TaskId, val completed: Boolean) : ProjectUpdate {
+    @Apply
+    fun apply(task: Task): Task {
+        return task.copy(completed = completed)
+    }
+}
+
+// 3. Delete Sub-Entity
+data class RemoveTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId) : ProjectUpdate {
+    @Apply
+    fun apply(task: Task): Task? {
+        return null // Deletes the entity
+    }
+}
+```
+[//]: # (@formatter:on)
 
 **Example: Standalone Command Handler**
 
 Used for actions that don't directly target an aggregate's state (e.g., sending an external notification).
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 class EmailHandler {
@@ -170,6 +144,7 @@ class EmailHandler {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 ### @HandleQuery
 
@@ -178,8 +153,25 @@ class EmailHandler {
 Used for read-only requests. Usually self-handling. Queries should implement `Request<T>` to define the return type (
 though not mandatory).
 
+**Example: Full Query Implementation**
+
+[//]: # (@formatter:off)
+```kotlin
+data class GetProjectDetails(@field:NotNull val projectId: ProjectId) : Request<Project> {
+    @HandleQuery
+    fun handleQuery(): Project {
+        return Fluxzero.loadAggregate(projectId).get()
+    }
+}
+
+// Usage:
+val project = Fluxzero.query(GetProjectDetails(myId))
+```
+[//]: # (@formatter:on)
+
 **Example: Self-Handling Query**
 
+[//]: # (@formatter:off)
 ```kotlin
 data class GetUserProfile(@field:NotNull val userId: UserId) : Request<UserProfile> {
     @HandleQuery
@@ -188,12 +180,14 @@ data class GetUserProfile(@field:NotNull val userId: UserId) : Request<UserProfi
     }
 }
 ```
+[//]: # (@formatter:on)
 
 **Example: Standalone Query Handler**
 
 Queries can also be handled in a separate component. Adding `@LocalHandler` ensures the query is handled synchronously
 in the publication thread. Without `@LocalHandler`, a standalone handler defaults to **tracking** (asynchronous).
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 @LocalHandler
@@ -204,6 +198,7 @@ class UserQueryHandler {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 <a name="events-notifications"></a>
 
@@ -216,6 +211,7 @@ Events are handled asynchronously after a command is applied or when an event is
 
 Used for side effects like sending emails or updating secondary projections within a specific context.
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 class AnalyticsHandler {
@@ -225,12 +221,14 @@ class AnalyticsHandler {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 #### @HandleNotification
 
 Enables handling ALL events of a filtered type across all message segments. This is often used for global statistics
 collection or broadcasting updates over WebSockets.
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 class GlobalStatsHandler {
@@ -240,6 +238,7 @@ class GlobalStatsHandler {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 <a name="specialized-handlers"></a>
 
@@ -251,23 +250,27 @@ Fluxzero supports handling a variety of specialized message types.
 
 Used to handle scheduled messages (unless you are scheduling a command, which is handled via `@HandleCommand`).
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandleSchedule
 fun onSchedule(schedule: TerminateAccount) {
     // Logic to execute when the schedule triggers
 }
 ```
+[//]: # (@formatter:on)
 
 #### @HandleCustom
 
 Used to subscribe to custom topics.
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandleCustom("my-topic")
 fun onCustomMessage(payload: MyCustomPayload) {
     // Handle messages from the specified topic
 }
 ```
+[//]: # (@formatter:on)
 
 #### @HandleDocument
 
@@ -280,47 +283,60 @@ modified in the search index.
 For information on how to retroactively update a collection of documents, see
 the [Retroactive Updates](#retroactive-updates) section in this manual.
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandleDocument(OrderDocument::class)
 fun onOrderDocument(document: OrderDocument) {
     // Handle document-related changes
 }
 ```
+[//]: # (@formatter:on)
 
 ### Retroactive Updates
 
 If you need to retroactively update a collection of documents or handle errors in historical data, you can use the
 Replay mechanism. See [Tracking: Replays](tracking.md#replays) for more details.
 
-<a name="metrics-errors"></a>
+#### @HandleError
 
-#### @HandleMetrics & @HandleError
-
-Used for system monitoring and error handling.
+Used for error monitoring or handling.
 
 `@HandleError` can be used to retroactively update earlier handler errors, acting similarly to a dead-letter queue (DLQ)
 when needed. By using the `@Trigger` annotation on a parameter, you can inject the original payload that failed. For
 more details, see the [Error Correcting](tracking.md#error-correcting) chapter.
 
+[//]: # (@formatter:off)
 ```kotlin
-@HandleMetrics
-fun onMetrics(metrics: HostMetrics) {
-    // Collect or process system metrics
-}
-
 @HandleError
 fun onError(error: Throwable, @Trigger failedCommand: CreateOrder) {
     // Handle domain or system errors
     // failedCommand contains the original payload that caused the error
 }
 ```
+[//]: # (@formatter:on)
+
+<a name="handlemetrics"></a>
+
+#### @HandleMetrics
+
+Used for monitoring metrics of all applications in a Fluxzero cluster.
+
+[//]: # (@formatter:off)
+```kotlin
+@HandleMetrics
+fun onMetrics(metrics: HostMetrics) {
+    // Collect or process system metrics
+}
+```
+[//]: # (@formatter:on)
 
 <a name="results-responses"></a>
 
 #### @HandleResult & @HandleWebResponse
 
-Used to handle the outcomes of asynchronous requests.
+Used to handle the outcomes of asynchronous requests. Very rarely used directly.
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandleResult
 fun onResult(result: CommandResult) {
@@ -332,9 +348,7 @@ fun onWebResponse(response: WebResponse) {
     // Handle the response from an external web request
 }
 ```
-
-> **Note on WebResponse Mapping**: The `DefaultWebResponseMapper` is used to convert handler return values into standard
-`WebResponse` objects, mapping exceptions (like `ValidationException`) to appropriate HTTP status codes.
+[//]: # (@formatter:on)
 
 <a name="handler-types"></a>
 
@@ -364,6 +378,30 @@ Handlers can inject various context parameters:
 
 ---
 
+<a name="payloads"></a>
+
+## Defining Payloads (Commands & Queries)
+
+Payloads are typically implemented as immutable `data classes`. This is where you define the data required for an
+operation and the constraints that must be met.
+
+### Validation & Security
+
+Fluxzero integrates with Jakarta Validation. Additionally, security annotations are checked **before** the message
+reaches any handler.
+
+[//]: # (@formatter:off)
+```kotlin
+@RequiresRole(Role.admin)
+data class CreateProject(
+    @field:NotNull val projectId: ProjectId,
+    @field:Valid val details: ProjectDetails
+) : ProjectUpdate, Request<ProjectId>
+```
+[//]: # (@formatter:on)
+
+---
+
 <a name="web-handling"></a>
 
 ## Web & WebSocket Handling
@@ -374,18 +412,20 @@ Handlers can inject various context parameters:
 
 Expose REST APIs using `@HandleGet`, `@HandlePost`, etc. All API paths should start with `/api`.
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 @Path("/api/projects")
 class ProjectsEndpoint {
     @HandlePost
     fun createProject(details: ProjectDetails): ProjectId {
-        val id = Fluxzero.generateId(ProjectId::class.java)
+        val id = Fluxzero.generateId(ProjectId::class)
         Fluxzero.sendCommandAndWait(CreateProject(id, details))
         return id
     }
 }
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -423,6 +463,7 @@ Use annotations to inject specific parts of the HTTP request:
 - **@HeaderParam**: Extracts values from HTTP headers.
 - **@FormParam**: Extracts values from `application/x-www-form-urlencoded` or `multipart/form-data` bodies.
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandlePost("/{userId}/avatar")
 fun uploadAvatar(
@@ -433,6 +474,7 @@ fun uploadAvatar(
     // ...
 }
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -443,11 +485,13 @@ fun uploadAvatar(
 Serves static assets (like a frontend) from the classpath. By default, it serves files from the `static` directory on
 the classpath for any GET request that does not match an API route (starting with `/api`).
 
+[//]: # (@formatter:off)
 ```kotlin
 @Component
 @ServeStatic
 class UiEndpoint
 ```
+[//]: # (@formatter:on)
 
 <a name="websocket"></a>
 
@@ -457,6 +501,7 @@ Use `@SocketEndpoint` for bi-directional communication. Unlike other components,
 `data classes` to hold the `SocketSession` state. The `@SocketEndpoint` handles session lifecycle events and message
 processing, while typically being reached via a path like `/api/ws/...`.
 
+[//]: # (@formatter:off)
 ```kotlin
 @SocketEndpoint
 @Path("/api/ws/notifications")
@@ -480,6 +525,7 @@ data class NotificationSocket(val session: SocketSession) {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -492,12 +538,14 @@ particularly useful for generic actions (e.g., deleting a stateful saga if any o
 
 When using multiple classes, the payload is typically not injected as a parameter.
 
+[//]: # (@formatter:off)
 ```kotlin
 @HandleEvent(allowedClasses = [OrderCancelled::class, OrderExpired::class])
 fun onOrderFinished(@Association orderId: String) {
     // Logic to handle any of the specified event types
 }
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -511,6 +559,7 @@ Handler interceptors wrap around the **execution of a handler method**.
 - **Out-of-the-box**: Fluxzero provides many interceptors automatically, such as logging and standard validation.
 - **Registration**: `builder.addHandlerInterceptor(interceptor)`.
 
+[//]: # (@formatter:off)
 ```kotlin
 class ValidationInterceptor : HandlerInterceptor {
     override fun interceptHandling(
@@ -526,6 +575,7 @@ class ValidationInterceptor : HandlerInterceptor {
     }
 }
 ```
+[//]: # (@formatter:on)
 
 ---
 
@@ -545,17 +595,28 @@ For more on how segments are assigned, see [Sending: Routing Keys](sending.md#ro
 
 ---
 
+<a name="retroactive-updates"></a>
+
+### Retroactive Updates
+
+If you need to retroactively update a collection of documents or handle errors in historical data, you can use the
+Replay mechanism. See [Tracking: Replays](tracking.md#replays) for more details.
+
+---
+
 <a name="identifiers"></a>
 
 ## Identifiers
 
 Fluxzero uses strongly typed identifiers.
 
+[//]: # (@formatter:off)
 ```kotlin
 class ProjectId(id: String) : Id<Project>(id)
 ```
+[//]: # (@formatter:on)
 
-**Important**: Always use `Fluxzero.generateId(ProjectId::class.java)` to create new IDs.
+**Important**: Always use `Fluxzero.generateId(ProjectId::class)` to create new IDs.
 
 ---
 

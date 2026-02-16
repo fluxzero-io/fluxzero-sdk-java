@@ -27,4 +27,5 @@ Check the folder `{project-root}/project-files/java/agents/rules` for:
 - **[Validation](rules/validation.md)**: Security, authorization, and payload validation.
 - **[Serialization](rules/serialization.md)**: Versioning and upcasting.
 - **[Configuration](rules/configuration.md)**: SDK and application setup.
+- **[Troubleshooting](rules/troubleshooting.md)**: Resolving common issues and errors.
 - **[Imports](rules/fluxzero-fqns-grouped.md)**: Mandatory Java FQNs for all SDK components.

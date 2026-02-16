@@ -179,7 +179,7 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 @Test
 fun testProjectUpcasting() {
     fixture.whenUpcasting("/projects/old-project-rev0.json")
-           .expectResult(Project::class.java)
+           .expectResult(Project::class)
            .expectResult { project -> project.details.name == "Untitled Project" }
 }
 ```
