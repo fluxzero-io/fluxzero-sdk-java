@@ -1,24 +1,21 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:base"],
-  "schedule": ["every day"],
-
-  "prConcurrentLimit": 5,
-
+  "baseBranches": ["main"],
+  "commitMessagePrefix": "deps:",
+  "prConcurrentLimit": 10,
   "packageRules": [
     {
-      "matchManagers": ["maven", "dockerfile", "github-actions"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "Automerge Updates",
+      "matchManagers": ["maven", "maven-wrapper", "dockerfile", "github-actions"],
+      "matchUpdateTypes": ["patch", "minor", "digest", "replacement"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
       "stabilityDays": 2
     },
     {
-      "matchManagers": ["maven", "dockerfile", "github-actions"],
+      "matchManagers": ["maven", "maven-wrapper", "dockerfile", "github-actions"],
       "matchUpdateTypes": ["major"],
-      "groupName": "Major Updates",
       "automerge": false
     }
   ]
