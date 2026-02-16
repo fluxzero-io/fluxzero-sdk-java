@@ -5,7 +5,7 @@
   "commitMessagePrefix": "deps:",
   "packageRules": [
     {
-      "matchManagers": ["maven", "dockerfile", "github-actions"],
+      "matchManagers": ["dockerfile", "github-actions", "maven", "maven-wrapper"],
       "matchUpdateTypes": ["patch", "minor"],
       "groupName": "Automerge Updates",
       "automerge": true,
@@ -14,7 +14,7 @@
       "stabilityDays": 2
     },
     {
-      "matchManagers": ["maven", "dockerfile", "github-actions"],
+      "matchManagers": ["dockerfile", "github-actions", "maven", "maven-wrapper"],
       "matchUpdateTypes": ["major"],
       "groupName": "Major Updates",
       "automerge": false
