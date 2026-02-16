@@ -6,7 +6,7 @@
   "packageRules": [
     {
       "matchManagers": ["dockerfile", "github-actions", "maven", "maven-wrapper"],
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": ["digest", "patch", "minor"],
       "groupName": "Automerge Updates",
       "automerge": true,
       "automergeType": "pr",
