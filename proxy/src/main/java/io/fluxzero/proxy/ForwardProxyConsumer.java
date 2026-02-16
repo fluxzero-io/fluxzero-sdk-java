@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.proxy;
@@ -25,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
@@ -63,6 +65,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
     protected static final Serializer serializer = new ProxySerializer();
     protected static final Serializer metricsSerializer = new JacksonSerializer();
+
+    private static final Duration MAX_TIMEOUT = Duration.ofMinutes(10);
 
     protected final Map<String, Registration> runningConsumers = new ConcurrentHashMap<>();
 
@@ -122,6 +126,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     protected void handle(SerializedMessage request, URI uri, WebRequestSettings settings) {
         Instant start = Instant.now();
+        Instant deadline = IndexUtils.timestampFromIndex(request.getIndex())
+                .plus(Optional.ofNullable(settings.getTimeout()).orElse(MAX_TIMEOUT));
+        if (deadline.isBefore(start)) {
+            //the deadline of this request is in the past. Skipping the request to prevent handling 'old' requests.
+            sendResponse(WebResponse.builder().status(504).payload("Timeout in forward proxy".getBytes())
+                            .build(), request);
+        }
         WebResponse webResponse;
         try {
             HttpRequest httpRequest = asHttpRequest(request, uri, settings);
@@ -207,8 +218,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     protected String formatType(SerializedMessage request) {
         try {
-            return "%s %s" .formatted(WebRequest.getMethod(request.getMetadata()),
-                                      WebRequest.getUrl(request.getMetadata()));
+            return "%s %s".formatted(WebRequest.getMethod(request.getMetadata()),
+                                     WebRequest.getUrl(request.getMetadata()));
         } catch (Exception ignored) {
             return request.getType();
         }
