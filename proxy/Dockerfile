@@ -2,4 +2,6 @@ FROM gcr.io/distroless/java25-debian13:nonroot@sha256:e1eeec12952b877762d2a0a94a
 
 COPY target/fluxzero-proxy.jar .
 
-CMD [ "-XX:MaxRAMPercentage=75.0", "-jar", "fluxzero-proxy.jar" ]
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
+
+ENTRYPOINT ["/usr/bin/java", "-jar", "fluxzero-proxy.jar"]
