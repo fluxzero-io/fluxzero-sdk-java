@@ -2,9 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:base"],
   "schedule": ["every day"],
-
   "prConcurrentLimit": 5,
-
+  "commitMessagePrefix": "deps:",
   "packageRules": [
     {
       "matchManagers": ["maven", "dockerfile", "github-actions"],
