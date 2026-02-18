@@ -269,6 +269,12 @@ fixture
 Use `.andThen()` to build multi-step scenarios. You can use `.asWebParameter("name")` to map a result (like a generated
 ID) into subsequent web requests.
 
+Substitution behavior:
+
+- `.asWebParameter("name")` maps a specific earlier result to `{name}` placeholders.
+- Without explicit mapping, placeholder substitution is positional by prior `when...` results.
+- Use explicit names when chaining multiple IDs to avoid ambiguity.
+
 [//]: # (@formatter:off)
 ```java
 fixture
@@ -277,6 +283,20 @@ fixture
     .andThen()
     .whenGet("/api/users/{userId}")
     .expectResult(User.class);
+```
+[//]: # (@formatter:on)
+
+[//]: # (@formatter:off)
+```java
+fixture
+    .whenPost("/api/projects", "create-project.json")   // returns projectId
+    .asWebParameter("projectId")
+    .andThen()
+    .whenPost("/api/projects/{projectId}/tasks", "create-task.json") // returns taskId
+    .asWebParameter("taskId")
+    .andThen()
+    .whenGet("/api/projects/{projectId}/tasks/{taskId}")
+    .expectResult(TaskView.class);
 ```
 [//]: # (@formatter:on)
 

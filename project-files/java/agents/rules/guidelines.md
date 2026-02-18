@@ -110,6 +110,17 @@ Use this tree to find the correct manual for your current task, ordered by the r
 - **"I'm encountering an error or something isn't working"**
     - → [Troubleshooting](troubleshooting.md)
 
+### 9. Advanced Runtime Operations (Use Only When Needed)
+
+- **"I need replay-based recovery from historical handler failures (dynamic DLQ)"**
+    - → [Error Correcting & Retroactive Updates](tracking.md#error-correcting)
+- **"I need custom message logs/topics with explicit retention control"**
+    - → [Sending Messages](sending.md#custom-topics)
+- **"I need advanced builder-level behavior (consumer predicates, resolvers, toggles)"**
+    - → [Configuration](configuration.md#advanced-builder-patterns)
+- **"I need to reason about multi-consumer behavior, result resolution, or cross-namespace tradeoffs"**
+    - → [Runtime Interaction Model](runtime-interaction.md#agent-defaults)
+
 ---
 
 ## Chapter Overview

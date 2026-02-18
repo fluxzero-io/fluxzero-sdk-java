@@ -209,6 +209,12 @@ public class UserQueryHandler {
 Filtering is applied recursively to objects, collections, and maps. The annotated method can inject the current `User`
 and the top-level **root object** for context. Returning `null` removes the object from the result.
 
+Practical recursion behavior:
+
+- If a filtered list element returns `null`, it is removed from the list.
+- If a filtered map value returns `null`, the key is removed from the map.
+- Root-context injection (`filter(User, RootType)`) is useful when child visibility depends on parent state.
+
 [//]: # (@formatter:off)
 ```java
 public record Order(OrderId id, List<LineItem> items, boolean isSecret) {

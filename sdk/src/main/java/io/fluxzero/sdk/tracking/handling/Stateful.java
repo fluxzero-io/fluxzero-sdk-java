@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -86,12 +87,24 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * <h3>Type constraints on handler updates</h3>
- * State changes to a {@code @Stateful} handler are only applied if the method returns a value that is
- * assignable to the handler's class type. For example:
+ * State changes to a {@code @Stateful} handler are only applied when return values can be interpreted as handler
+ * instances:
  *
  * <ul>
- *     <li>If the method returns {@code void}, no update occurs.</li>
- *     <li>If the method returns a value that is unrelated to the handler type, the return value is ignored for state updates.</li>
+ *     <li>If the method returns {@code void}, no state update occurs.</li>
+ *     <li>If the method returns a value unrelated to the handler type, the return value is ignored for state updates.</li>
+ *     <li>If the method returns a handler instance of the same type, that instance is stored.</li>
+ *     <li>If the method returns a {@code Collection}, each same-type element is stored as a stateful instance.</li>
+ * </ul>
+ *
+ * <p>
+ * Collection return semantics:
+ * <ul>
+ *     <li>Returning an empty collection deletes the current handler instance (if one exists).</li>
+ *     <li>Returning multiple same-type instances allows splitting one workflow into multiple stateful instances.</li>
+ *     <li>If the current instance ID is not present in returned instances, the current instance is deleted.</li>
+ *     <li>If a returned instance has a different {@link EntityId}, it replaces the current instance by creating/updating
+ *     the new ID and deleting the old one.</li>
  * </ul>
  *
  * <p>

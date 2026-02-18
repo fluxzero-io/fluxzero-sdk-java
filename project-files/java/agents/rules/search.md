@@ -88,6 +88,11 @@ public record Product(
 Use `@SearchExclude` to keep sensitive or internal data out of the search index. Conversely, use `@SearchInclude` to
 explicitly include fields that might otherwise be ignored (e.g., specific getters).
 
+For response shaping, prefer search projections instead of post-processing in app code:
+
+- `exclude("path")` to remove fields from returned documents.
+- `includeOnly("path1", "path2")` to return only specific fields.
+
 ---
 
 <a name="searching"></a>

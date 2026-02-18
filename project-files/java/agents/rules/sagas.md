@@ -56,8 +56,37 @@ public record SystemMonitor(@EntityId String id, List<HealthStatus> statuses) {
 |:----------------|:------------|:---------------------|:-----------------------------------------------|
 | **Create**      | `static`    | `NewSaga`            | Returns a new instance; automatically stored.  |
 | **Update**      | Instance    | `this` copy          | Returns a modified copy; updates storage.      |
+| **Split/Fan-out** | Instance  | `Collection<SameSaga>` | Stores each returned same-type instance.    |
 | **Complete**    | Instance    | `null`               | Deletes the saga instance from the repository. |
 | **Stay Active** | Instance    | `void` or `Duration` | Continues running without state mutation.      |
+
+Important nuance:
+
+- Returning the saga type updates persisted state.
+- Returning a collection stores each same-type instance.
+- Returning an empty collection deletes the current instance.
+- If a returned collection omits the current saga ID, the current instance is deleted.
+- Returning a same-type instance with a different `@EntityId` replaces the current instance (old ID removed).
+- Returning `null` (with saga-compatible return type) deletes the saga.
+- Returning any other type (or `void`) does **not** mutate saga state.
+
+```java
+@HandleSchedule
+Duration poll(PollPaymentStatus tick) {
+    // Schedules next run; does not mutate saga state by itself.
+    return Duration.ofMinutes(5);
+}
+```
+
+```java
+@HandleEvent
+Collection<StripeTransaction> split(PaymentSplitRequested event) {
+    return List.of(
+        this.toBuilder().transactionId(event.primaryId()).build(),
+        this.toBuilder().transactionId(event.secondaryId()).build()
+    );
+}
+```
 
 **Example: Stripe Payment Saga**
 

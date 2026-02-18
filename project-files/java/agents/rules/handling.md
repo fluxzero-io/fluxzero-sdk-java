@@ -367,8 +367,8 @@ Handlers can inject various context parameters:
 - **Instant**: The message timestamp.
 - **Entity<T> or T**: The current state of the entity. In `@HandleEvent`, the entity is automatically played back to
   reflect its state immediately after the event occurred.
-- **@Nullable T**: Injects entity state even when it does not exist yet. Useful for upsert-style handlers and idempotent
-  startup/replay flows.
+- **Entity<T> for optional state**: Use `Entity<T>` when the entity may not exist yet. In that case the injected wrapper
+  is present but its value is empty. Useful for upsert-style handlers and idempotent startup/replay flows.
 - **@Autowired**: Standard Spring beans.
 
 ---
@@ -407,6 +407,28 @@ public record CreateProject(
 
 Expose REST APIs using `@HandleGet`, `@HandlePost`, etc. API paths SHOULD start with `/api` because this is safest when
 the backend also serves static content. Use a different base path only when explicitly requested.
+
+### `@Path` Composition Rules
+
+`@Path` values compose from outer to inner scope (package -> class -> method). Use these rules:
+
+- A path starting with `/` resets the composed path.
+- An empty `@Path` segment uses the simple package/class name.
+- Method-level `@Path` appends to class-level `@Path` unless it starts with `/`.
+
+```java
+@Path("/api")
+public class ProjectsEndpoint {
+
+    @Path("projects")
+    @HandleGet
+    List<Project> list() { ... } // -> /api/projects
+
+    @Path("/health")
+    @HandleGet
+    String health() { ... } // -> /health (reset)
+}
+```
 
 [//]: # (@formatter:off)
 ```java

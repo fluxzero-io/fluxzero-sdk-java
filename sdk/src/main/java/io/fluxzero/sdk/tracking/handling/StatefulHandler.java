@@ -257,6 +257,20 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return result;
         }
 
+        /**
+         * Applies stateful persistence semantics to a handler invocation result.
+         * <p>
+         * Supported result forms:
+         * <ul>
+         *     <li>{@code Collection<?>}: stores every same-type instance in the collection. If the collection is empty,
+         *     the current entry is deleted. If the current entry ID is not part of returned IDs, the current entry is
+         *     deleted.</li>
+         *     <li>{@code null}: deletes the current entry only when the invoked method is expected to return handler
+         *     state (same/assignable handler type).</li>
+         *     <li>Single object: stores it only if it is assignable to the handler type. If the stored ID differs from
+         *     the current ID, the current entry is deleted (replacement behavior).</li>
+         * </ul>
+         */
         @SneakyThrows
         protected void handleResult(Object result) {
             if (result instanceof Collection<?> collection) {
@@ -295,6 +309,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             }
         }
 
+        /**
+         * Stores a result object if it is assignable to the stateful handler type.
+         *
+         * @param result object returned from a handler method
+         * @return the computed/stored handler ID, or {@code null} if the result is not a stateful handler instance
+         */
         protected Object tryStoreResult(Object result) {
             if (!getTargetClass().isInstance(result)) {
                 return null;

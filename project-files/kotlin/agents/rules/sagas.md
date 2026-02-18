@@ -55,8 +55,37 @@ data class SystemMonitor(@EntityId val id: String, val statuses: List<HealthStat
 |:----------------|:------------|:---------------------|:-----------------------------------------------|
 | **Create**      | `companion` | `NewSaga`            | Returns a new instance; automatically stored.  |
 | **Update**      | Instance    | `this` copy          | Returns a modified copy; updates storage.      |
+| **Split/Fan-out** | Instance  | `Collection<SameSaga>` | Stores each returned same-type instance.    |
 | **Complete**    | Instance    | `null`               | Deletes the saga instance from the repository. |
 | **Stay Active** | Instance    | `Unit` or `Duration` | Continues running without state mutation.      |
+
+Important nuance:
+
+- Returning the saga type updates persisted state.
+- Returning a collection stores each same-type instance.
+- Returning an empty collection deletes the current instance.
+- If a returned collection omits the current saga ID, the current instance is deleted.
+- Returning a same-type instance with a different `@EntityId` replaces the current instance (old ID removed).
+- Returning `null` (with saga-compatible return type) deletes the saga.
+- Returning any other type (or `Unit`) does **not** mutate saga state.
+
+```kotlin
+@HandleSchedule
+fun poll(tick: PollPaymentStatus): Duration {
+    // Schedules next run; does not mutate saga state by itself.
+    return Duration.ofMinutes(5)
+}
+```
+
+```kotlin
+@HandleEvent
+fun split(event: PaymentSplitRequested): Collection<StripeTransaction> {
+    return listOf(
+        copy(transactionId = event.primaryId),
+        copy(transactionId = event.secondaryId)
+    )
+}
+```
 
 **Example: Stripe Payment Saga**
 

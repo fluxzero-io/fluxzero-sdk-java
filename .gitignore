@@ -1,5 +1,6 @@
 target/
 .private/
+.temp/
 .output.txt
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

@@ -80,8 +80,23 @@ val result: CompletableFuture<UserProfile> =
 
 You can publish payloads to custom topics for specialized handling.
 
+This is especially useful for second-rank or integration-heavy messages (for example external-source events) so the main
+event log stays focused on core domain flow. This keeps future replay and debugging of core behavior cleaner.
+
 ```kotlin
 Fluxzero.publish("my-topic", MyCustomPayload(...))
+```
+
+For advanced isolation, you can publish via a dedicated custom gateway and set topic-specific retention:
+
+```kotlin
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .sendAndForget(AuditEntry("User login"))
+
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .setRetentionTime(Duration.ofDays(90))
 ```
 
 ---

@@ -57,7 +57,10 @@ The following properties are used by the SDK to configure its connection and beh
 | `FLUXZERO_NAMESPACE`        | The project or tenant namespace.                                   | `default`                    |
 | `FLUXZERO_APPLICATION_ID`   | A unique identifier for the application deployment.                | `null`                       |
 | `FLUXZERO_TASK_ID`          | A unique ID for the specific client instance (for tracking).       | Random UUID                  |
-| `ENCRYPTION_KEY`            | The key used for automatic decryption of `encrypted                | ...` values.                 | `null` |
+| `ENCRYPTION_KEY`            | The key used for automatic decryption of `encrypted` values.       | `null`                       |
+
+`FLUXZERO_NAMESPACE` sets the app-wide default namespace (not just one consumer). It applies to runtime interactions
+across messaging/tracking/event store/documents/search unless explicitly overridden on a specific operation/consumer.
 
 ---
 
@@ -99,6 +102,65 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
     .build(WebSocketClient.newInstance(config));
 ```
 [//]: # (@formatter:on)
+
+<a name="advanced-builder-patterns"></a>
+
+### Advanced Builder Patterns
+
+Use these only when default behavior is not sufficient:
+
+- **Predicate-based consumer grouping**: configure extra consumers via builder rules to group handlers by fitness
+  predicates.
+- **Custom parameter injection**: register custom `ParameterResolver`s via `.addParameterResolver(...)` for contextual
+  handler arguments.
+- **Selective runtime toggles**: use targeted toggles (for example metrics/correlation/protection toggles) only when you
+  have an explicit operational reason.
+
+Typical patterns:
+
+1. **Replay + Live split**: Add an additional consumer configuration for replay handlers while the primary consumer keeps
+   processing live traffic.
+2. **Domain grouping by predicate**: Route a subset of handlers into a dedicated consumer (for example billing-heavy
+   handlers) for independent scaling/tuning.
+3. **Context injection**: Use `addParameterResolver(...)` when standard payload/metadata/sender/entity injection is not
+   enough.
+
+```java
+FluxzeroBuilder builder = DefaultFluxzero.builder()
+    .addParameterResolver(new CustomResolver());
+```
+
+Example patterns:
+
+```java
+FluxzeroBuilder builder = DefaultFluxzero.builder()
+    // 1) Tune the default command consumer
+    .configureDefaultConsumer(MessageType.COMMAND, c -> c.toBuilder()
+        .name("commands-default")
+        .threads(4)
+        .build())
+    // 2) Add a dedicated replay/secondary consumer for selected handlers
+    .addConsumerConfiguration(ConsumerConfiguration.builder()
+        .name("replay-billing")
+        .handlerFilter(h -> h.getClass().getSimpleName().contains("Billing"))
+        .exclusive(false)
+        .build(), MessageType.COMMAND)
+    // 3) Extend correlation metadata behavior
+    .replaceCorrelationDataProvider(existing -> existing.andThen((client, msg, type) -> Map.of("tenant", "acme")))
+    // 4) Enable host metrics (or disable tracking metrics explicitly when needed)
+    .enableHostMetrics()
+    // 5) Compatibility bridge: forward Fluxzero web requests to an existing local HTTP server
+    //    (for example Spring Web), typically when migrating or using unsupported web features
+    .forwardWebRequestsToLocalServer(8080);
+```
+
+`forwardWebRequestsToLocalServer(...)` is an advanced compatibility path and is rarely needed in Fluxzero-first
+applications.
+
+Use advanced toggles conservatively:
+
+- Disabling correlation/metrics/protection can affect diagnostics, observability, or security assumptions.
+- Prefer default behavior unless the user explicitly asks for a different operational profile.
 
 ---
 
