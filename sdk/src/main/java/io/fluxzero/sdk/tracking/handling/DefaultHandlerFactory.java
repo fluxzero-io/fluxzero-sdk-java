@@ -147,7 +147,10 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
     protected boolean isHandler(Class<?> targetClass,
                                 HandlerConfiguration<?> handlerConfiguration) {
-        return hasHandlerMethods(targetClass, handlerConfiguration) || StaticFileHandler.isHandler(targetClass);
+        if (hasHandlerMethods(targetClass, handlerConfiguration)) {
+            return true;
+        }
+        return messageType == MessageType.WEBREQUEST && StaticFileHandler.isHandler(targetClass);
     }
 
     protected Handler<DeserializingMessage> buildHandler(@NonNull Object target,
