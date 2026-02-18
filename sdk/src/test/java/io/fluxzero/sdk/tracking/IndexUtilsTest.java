@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
@@ -26,5 +27,11 @@ class IndexUtilsTest {
     void indexFromTimestamp() {
         var index = IndexUtils.indexFromTimestamp(Instant.parse("2024-01-01T00:00:00Z"));
         assertEquals(111677748019200000L, index);
+    }
+
+    @Test
+    void timestampFromIndex() {
+        var resultTimestamp = IndexUtils.timestampFromIndex(116090584388075520L);
+        assertEquals(Instant.parse("2026-02-18T08:02:19.320Z"), resultTimestamp);
     }
 }

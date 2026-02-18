@@ -86,8 +86,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         try {
             object = object instanceof Entity<?> e ? e.get() : object;
             return getSearchClient().index(List.of(serializer.toDocument(object, id.toString(),
-                                                                    determineCollection(collection), begin, end, metadata)),
-                                      guarantee, ifNotExists);
+                                                                         determineCollection(collection), begin, end,
+                                                                         metadata)),
+                                           guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Failed to store a document %s to collection %s", id, collection), e);
@@ -102,7 +103,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         this, v, collection, idPath, beginPath, endPath)
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
-            return getSearchClient().index(documents, guarantee, ifNotExists);
+            return documents.isEmpty() ? CompletableFuture.completedFuture(null)
+                    : getSearchClient().index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -121,7 +123,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         (Function) idFunction, (Function) beginFunction, (Function) endFunction)
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
-            return getSearchClient().index(documents, guarantee, ifNotExists);
+            return documents.isEmpty() ? CompletableFuture.completedFuture(null)
+                    : getSearchClient().index(documents, guarantee, ifNotExists);
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -131,10 +134,11 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> bulkUpdate(Collection<? extends BulkUpdate> updates, Guarantee guarantee) {
         try {
-            return getSearchClient().bulkUpdate(updates.stream().map(this::serializeAction)
-                                             .collect(toMap(a -> format("%s_%s", a.getCollection(), a.getId()),
-                                                            identity(), (a, b) -> b)).values(),
-                                           guarantee);
+            return updates.isEmpty() ? CompletableFuture.completedFuture(null) : getSearchClient()
+                    .bulkUpdate(updates.stream().map(this::serializeAction)
+                                        .collect(toMap(a -> format("%s_%s", a.getCollection(), a.getId()),
+                                                       identity(), (a, b) -> b)).values(),
+                                guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException("Could not apply batch of search actions", e);
         }
@@ -146,11 +150,13 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 .id(update.getId().toString()).type(update.getType());
         if (update instanceof IndexDocument u) {
             var document = u.getObject() instanceof SerializedDocument s
-                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(), u.getEnd());
+                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(),
+                                                u.getEnd());
             return builder.object(document).build();
         } else if (update instanceof IndexDocumentIfNotExists u) {
             var document = u.getObject() instanceof SerializedDocument s
-                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(), u.getEnd());
+                    ? s : serializer.toDocument(u.getObject(), u.getId().toString(), collection, u.getTimestamp(),
+                                                u.getEnd());
             return builder.object(document).build();
         }
         return builder.build();
@@ -190,8 +196,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public <T> Collection<T> fetchDocuments(Collection<?> ids, Object collection) {
         try {
-            return getSearchClient().fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
-                                                       determineCollection(collection)))
+            return getSearchClient().fetch(
+                            new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
+                                             determineCollection(collection)))
                     .stream().map(serializer::<T>fromDocument).toList();
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
@@ -202,8 +209,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public <T> Collection<T> fetchDocuments(Collection<?> ids, Object collection, Class<T> type) {
         try {
-            return getSearchClient().fetch(new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
-                                                       determineCollection(collection)))
+            return getSearchClient().fetch(
+                            new GetDocuments(ids.stream().map(Object::toString).collect(Collectors.toSet()),
+                                             determineCollection(collection)))
                     .stream().map(d -> serializer.fromDocument(d, type)).toList();
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not get documents %s from collection %s", ids, collection),
@@ -222,10 +230,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     }
 
     @Override
-    public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection, Guarantee guarantee) {
+    public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection,
+                                                Guarantee guarantee) {
         try {
-            return getSearchClient().move(id.toString(), determineCollection(collection), determineCollection(targetCollection),
-                                     guarantee);
+            return getSearchClient().move(id.toString(), determineCollection(collection),
+                                          determineCollection(targetCollection),
+                                          guarantee);
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Could not move document %s from collection %s to collection %s", id, collection, targetCollection),
@@ -245,8 +255,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> createAuditTrail(Object collection, Duration retentionTime) {
         try {
-            return getSearchClient().createAuditTrail(new CreateAuditTrail(determineCollection(collection), Optional.ofNullable(
-                    retentionTime).map(Duration::getSeconds).orElse(null), Guarantee.STORED));
+            return getSearchClient().createAuditTrail(
+                    new CreateAuditTrail(determineCollection(collection), Optional.ofNullable(
+                            retentionTime).map(Duration::getSeconds).orElse(null), Guarantee.STORED));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not create audit trail %s", collection), e);
         }
@@ -411,7 +422,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
-            return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection), Guarantee.STORED);
+            return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
+                                          Guarantee.STORED);
         }
 
         @AllArgsConstructor
