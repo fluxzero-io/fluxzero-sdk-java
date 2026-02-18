@@ -86,7 +86,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Applies stateful persistence semantics to a handler invocation result.\n <p>\n Supported result forms:\n <ul>\n     <li>{@code Collection<?>}: stores every same-type instance in the collection. If the collection is empty,\n     the current entry is deleted. If the current entry ID is not part of returned IDs, the current entry is\n     deleted.</li>\n     <li>{@code null}: deletes the current entry only when the invoked method is expected to return handler\n     state (same/assignable handler type).</li>\n     <li>Single object: stores it only if it is assignable to the handler type. If the stored ID differs from\n     the current ID, the current entry is deleted (replacement behavior).</li>\n </ul>\n"
   }, {
     "name" : "invoke",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker#invoke",
@@ -121,7 +121,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Stores a result object if it is assignable to the stateful handler type.\n\n @param result object returned from a handler method\n @return the computed/stored handler ID, or {@code null} if the result is not a stateful handler instance\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
