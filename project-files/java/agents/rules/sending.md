@@ -271,6 +271,8 @@ application or is handled locally.
 - **Typical Use Cases**: Injecting metadata (correlation IDs), blocking/suppressing messages, or mutating payloads.
 - **Out-of-the-box**: Fluxzero provides several interceptors automatically, such as logging and validation.
 - **Registration**: `FluxzeroBuilder.addDispatchInterceptor(interceptor)`.
+- **Tracing Tip**: Use `Metadata.withTrace(key, value)` to propagate trace values across chained messages. This writes
+  entries as `$trace.<key>` automatically.
 
 ```java
 public class CorrelationInterceptor implements DispatchInterceptor {

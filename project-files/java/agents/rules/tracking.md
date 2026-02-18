@@ -11,6 +11,7 @@ concerns like replays and error correction.
 - [Consumers & Trackers](#consumer)
 - [Message Interceptors](#interceptors)
 - [Message Replays](#replays)
+- [Replay Readiness Checklist](runtime-interaction.md#replay-safety)
 - [Error Correcting & Retroactive Updates](#error-correcting)
 - [Document Rebuilding](#document-rebuilding)
 - [Message Retention](#retention)
@@ -106,6 +107,8 @@ public class MyProjection { ...
 - **maxIndexExclusive**: Use this to stop the replay at a specific message index.
 - **IndexUtils**: Use the `IndexUtils` utility to compute the correct `long` index from a specific `Instant` or
   timestamp if you want to start or stop at a specific point in time.
+- **Conversion Note**: Conceptually, timestamp-to-index can be seen as `idx = ts << 16`.
+- **Safety Checklist**: Before replaying, use the [Replay Readiness Checklist](runtime-interaction.md#replay-safety).
 
 **Example: Computing an Index**
 

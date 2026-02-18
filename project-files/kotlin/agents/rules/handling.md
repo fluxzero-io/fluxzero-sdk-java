@@ -150,8 +150,7 @@ class EmailHandler {
 
 <a name="handlequery"></a>
 
-Used for read-only requests. Usually self-handling. Queries should implement `Request<T>` to define the return type (
-though not mandatory).
+Used for read-only requests. Usually self-handling. Queries MUST implement `Request<T>` to define the return type.
 
 **Example: Full Query Implementation**
 
@@ -204,8 +203,8 @@ class UserQueryHandler {
 
 ### Handling Events & Notifications
 
-Events are handled asynchronously after a command is applied or when an event is published explicitly via
-`Fluxzero.publishEvent(...)`.
+Events are handled asynchronously. Usually the flow is: `Command -> @Apply -> Event payload`, or when an event is
+published explicitly via `Fluxzero.publishEvent(...)`.
 
 #### @HandleEvent
 
@@ -369,11 +368,14 @@ The following table summarizes how handlers are categorized and configured:
 Handlers can inject various context parameters:
 
 - **Payload**: The message object itself.
-- **Sender**: The user/system that sent the message.
+- **Sender**: The user/system that sent the message. User context MUST be injected via `Sender`; command/query payloads
+  MUST NOT contain user IDs.
 - **Metadata**: Key-value pairs attached to the message.
 - **Instant**: The message timestamp.
 - **Entity<T> or T**: The current state of the entity. In `@HandleEvent`, the entity is automatically played back to
   reflect its state immediately after the event occurred.
+- **@Nullable T**: Injects entity state even when it does not exist yet. Useful for upsert-style handlers and idempotent
+  startup/replay flows.
 - **@Autowired**: Standard Spring beans.
 
 ---
@@ -410,7 +412,8 @@ data class CreateProject(
 
 <a name="web-requests"></a>
 
-Expose REST APIs using `@HandleGet`, `@HandlePost`, etc. All API paths should start with `/api`.
+Expose REST APIs using `@HandleGet`, `@HandlePost`, etc. API paths SHOULD start with `/api` because this is safest when
+the backend also serves static content. Use a different base path only when explicitly requested.
 
 [//]: # (@formatter:off)
 ```kotlin

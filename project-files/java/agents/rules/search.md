@@ -37,6 +37,8 @@ data through a unified document store, leveraging automatic indexing and a rich 
    historical, search is optimized for current data.
 6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Use the `collection`
    attribute in annotations to override this.
+7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
+   etc.). Avoid re-implementing filtering/sorting in client app code.
 
 ---
 
@@ -170,7 +172,8 @@ Fluxzero supports efficient pagination and sorting.
 Fluxzero search is **eventually consistent**.
 
 - **The Consistency Window**: When you send a command, the aggregate state is updated immediately (consistent), but the search index update happens asynchronously. There is usually a few-millisecond delay before the document is searchable.
-- **Guarantee**: `sendCommandAndWait` ensures the command was handled, but does NOT guarantee the search index is up-to-date.
+- **Guarantee**: `sendCommandAndWait` ensures the command was handled, but does NOT guarantee the search index is
+  up-to-date. Agents MUST NOT assume immediate search consistency after command handling.
 - **UI Tip**: For immediate feedback, return the new state directly from the command handler or use WebSockets to notify the UI when the projection is ready.
 
 ---

@@ -55,7 +55,8 @@ data class Project(
 
 ## Upcasting (@Upcast)
 
-Upcasting transforms an old version of a serialized object into the current version during deserialization.
+Upcasting transforms an old version of a serialized object into the current version during deserialization. Upcasting
+works at the top-level payload/document type, not on nested properties in isolation.
 
 <a name="payload-upcasting"></a>
 
@@ -197,7 +198,13 @@ fun testProjectUpcasting() {
 - **Chain of Responsibility**: Fluxzero automatically chains upcasters. To move from Revision 0 to 2, the SDK will look
   for a 0->1 upcaster and then a 1->2 upcaster.
 - **FQNs**: Always use the Fully Qualified Name of the target class in the `type` attribute of the `@Upcast` annotation.
-- **Safe Rollout**: Before deploying an upcaster to production, verify it locally using `TestFixture.whenUpcasting`.
-  Since historical messages are immutable, a faulty upcaster can be "fixed" with a new deployment without losing data.
+- **Type Coverage**: If a shared nested value object changes (for example `ProjectDetails`), add upcasters for each
+  top-level type that embeds it (for example `CreateProject`, `UpdateProject`, and `Project`).
+- **Revision Discipline**: Whenever a payload/document schema changes, increment `@Revision` on each affected top-level
+  type.
+- **Safe Rollout**: For already-deployed applications, upcasters MUST be verified with
+  `TestFixture.whenUpcasting` before production deployment. If deployment status is unclear, ask the user whether the app
+  is already deployed before enforcing this check. Since historical messages are immutable, a faulty upcaster can be
+  "fixed" with a new deployment without losing data.
 - **Idempotency**: Upcasters are called during deserialization. Ensure your logic is safe to run multiple times,
   although the SDK typically handles the orchestration.

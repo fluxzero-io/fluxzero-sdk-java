@@ -106,10 +106,11 @@ The `TestFixture` follows a fluent API mirroring the behavior of your applicatio
 
 Use this phase to declare all prior context.
 
-**Important Note on Side Effects**: In the `TestFixture`, all preconditions (commands, events, etc.) are processed *
-*fully and synchronously** before the `When` phase begins. This includes all asynchronous side effects from your
+**Important Note on Side Effects**: In the `TestFixture`, all preconditions (commands, events, etc.) are processed
+**fully and synchronously** before the `When` phase begins. This includes all asynchronous side effects from your
 registered handlers (e.g., event handlers triggered by a command). The system is guaranteed to be "at rest" before your
 test action is executed.
+This also means you can safely test asynchronous flows: the fixture waits until processing is complete.
 
 Any effects introduced during this phase are **ignored** by the `Then` phase assertions.
 
@@ -291,6 +292,7 @@ For tests that require complex setup, issuing many `givenCommands` can become ve
 - **Fixture Commands**: Group setup commands into a single JSON array file and load it using
   `givenCommands("/setup/baseline.json")`.
 - **Chained setup**: You can chain multiple `given` methods.
+- **Manual JSON loading**: For custom setup code, use `JsonUtils` to map JSON resources to typed Java/Kotlin objects.
 
 [//]: # (@formatter:off)
 ```kotlin
@@ -323,6 +325,35 @@ Ensure your tests are deterministic by controlling the environment.
 While most testing should focus on core logic, each web endpoint should have at least one test to verify routing and
 mapping.
 
+### Internal Endpoints
+
+[//]: # (@formatter:off)
+```kotlin
+@Nested
+inner class ProjectsEndpointTests {
+    val fixture = TestFixture.create(ProjectsEndpoint::class)
+
+    @Test
+    fun testPostEndpoint() {
+        fixture
+            .whenPost("/api/projects", "/projects/create-request.json")
+            .expectResult(ProjectId::class)
+            .expectEvents(CreateProject::class)
+    }
+}
+```
+[//]: # (@formatter:on)
+
+When testing raw web request results, the fixture does not infer the response generic type. Cast it explicitly:
+
+[//]: # (@formatter:off)
+```kotlin
+fixture
+    .whenGet("/api/bookings")
+    .expectResult { result: List<BookingProfile> -> result.size == 1 }
+```
+[//]: # (@formatter:on)
+
 ### Mocking External Backends (Real Web Handlers)
 
 You can mock external backends (like Stripe or GitHub) by registering a component that handles requests to the external URL. This allows you to test your integration logic with "real" web handlers and URLs without actual network calls.
@@ -343,23 +374,6 @@ TestFixture fixture = TestFixture.create(MyPaymentHandler::class, StripeMock::cl
 fun testStripeIntegration() {
     fixture.whenCommand(ProcessPayment(amount))
            .expectEvents(PaymentSucceeded::class)
-}
-```
-[//]: # (@formatter:on)
-
-[//]: # (@formatter:off)
-```kotlin
-@Nested
-inner class ProjectsEndpointTests {
-    val fixture = TestFixture.create(ProjectsEndpoint::class)
-
-    @Test
-    fun testPostEndpoint() {
-        fixture
-            .whenPost("/api/projects", "/projects/create-request.json")
-            .expectResult(ProjectId::class)
-            .expectEvents(CreateProject::class)
-    }
 }
 ```
 [//]: # (@formatter:on)

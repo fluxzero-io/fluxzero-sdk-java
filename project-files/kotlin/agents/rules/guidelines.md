@@ -60,6 +60,8 @@ Use this tree to find the correct manual for your current task, ordered by the r
         - [Configure a Consumer (threads, retries)](tracking.md#consumer)
         - [Error Correcting / Retroactive updates](tracking.md#error-correcting)
         - [Message Replays & Document Rebuilding](tracking.md#replays)
+- **"I need to understand cross-app runtime interaction, delivery semantics, or tracker scaling"**
+    - → [Runtime Interaction Model](runtime-interaction.md)
 
 ### 4. Sending & Scheduling
 
@@ -120,6 +122,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Entities](entities.md)               | Domain modeling, event sourcing, and aggregate lifecycle.    |
 | [Sagas](sagas.md)                     | Stateful handlers and long-running workflows.                |
 | [Tracking](tracking.md)               | Async consumption mechanism, consumers, and replays.         |
+| [Runtime Interaction](runtime-interaction.md) | Cross-app message flow, delivery semantics, and scaling. |
 | [Search](search.md)                   | Leveraging the built-in search engine and document store.    |
 | [Testing](testing.md)                 | Writing fast, reliable tests with `TestFixture`.             |
 | [Validation](validation.md)           | Authorization, access control, and payload validation.       |
@@ -153,7 +156,8 @@ Use this tree to find the correct manual for your current task, ordered by the r
 13. **Value Object Modeling**: Always model commands and entities to use Value Objects (e.g., `TaskDetails`) instead of
     separate primitive fields (like `name`). This prevents having to change the whole command/event/document structure
     when adding fields later.
-14. **Payload Purity**: Never add the current user's ID to a command or query record. Inject the `Sender` in the logic.
+14. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
+    (`@Handle...`, `@AssertLegal`, `@Apply`) for user context.
 15. **Secure by Default**: Add `@file:RequiresUser` to the top of your Kotlin file or `@RequiresUser` to your domain's
     `package-info.java` to protect all payloads within that package.
 16. **Domain Errors**: Use Error Interfaces like `ProjectErrors` (singleton objects) to group domain-specific exceptions.
@@ -171,6 +175,8 @@ Use this tree to find the correct manual for your current task, ordered by the r
     or **command interface**, never inside the aggregate's `@Apply` method.
 23. **Message Idempotency**: Every message has an ID. Providing a consistent ID from the client (or endpoint) enables
     automatic deduplication in the Fluxzero runtime.
+24. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
+    re-implement filtering/sorting logic.
 
 ---
 

@@ -22,6 +22,7 @@ Check the folder `{project-root}/project-files/kotlin/agents/rules` for:
 - **[Entities](rules/entities.md)**: Aggregates, state transitions, and business invariants.
 - **[Sagas](rules/sagas.md)**: Stateful handlers and long-running workflows.
 - **[Tracking](rules/tracking.md)**: Async consumption, replays, and reliability.
+- **[Runtime Interaction](rules/runtime-interaction.md)**: Cross-app message flow, delivery semantics, and scaling model.
 - **[Search](rules/search.md)**: Document store and search indexing.
 - **[Testing](rules/testing.md)**: Verification using `TestFixture`.
 - **[Validation](rules/validation.md)**: Security, authorization, and payload validation.
