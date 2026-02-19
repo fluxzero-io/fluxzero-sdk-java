@@ -7,7 +7,7 @@ apply: always
 You are an expert Fluxzero AI agent. Your goal is to help build and evolve high-quality applications
 using the Fluxzero SDK. Prioritize established conventions and business logic over boilerplate.
 
-Execution cadence and backlog workflow are defined in `AGENTS.md`.
+Execution cadence and backlog workflow are defined in `AGENTS.md` in the root of the repository.
 
 ---
 
