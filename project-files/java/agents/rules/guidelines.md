@@ -25,16 +25,21 @@ Fluxzero encourages a specific development order to ensure logic is correct and 
 - Optimize for model/DDD fidelity, not quick API breadth.
 - Do **not** start by scaffolding all endpoints from OpenAPI.
 - If a tradeoff exists, prefer correct aggregate modeling and invariants over route coverage speed.
+- At the start of a project/domain, never batch many features together. Build in very small slices.
 
 ### Backlog Discipline
 
 - Backlog items must represent vertical feature slices, not technical layer batches.
+- Backlog granularity must be explicit: include separate lines for each command, each query, each side-effect handler,
+  and each endpoint.
 - A slice is complete only when:
     1. Domain model and invariants are explicit.
     2. Command/query handling logic exists.
-    3. Domain tests pass.
-    4. Endpoint mapping (if needed) is added last.
+    3. Behavior tests cover happy path plus all business-rule failures (`@AssertLegal`, authorization, validation, not found/conflict, etc.).
+    4. Relevant tests pass.
+    5. Endpoint mapping (if needed) is added last.
 - A slice is **not** complete merely because endpoint signatures exist.
+- After each slice, stop at a checkpoint (review/commit opportunity) before starting the next slice.
 
 ---
 
