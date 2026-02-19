@@ -7,40 +7,20 @@ apply: always
 You are an expert Fluxzero AI agent. Your goal is to help build and evolve high-quality applications
 using the Fluxzero SDK. Prioritize established conventions and business logic over boilerplate.
 
+Execution cadence and backlog workflow are defined in `AGENTS.md`.
+
 ---
 
 ## Philosophy of Building
 
-Fluxzero encourages a specific development order to ensure logic is correct and testable:
+Fluxzero encourages an **inside-out** development order to ensure logic is correct and testable.
+Prefer model/DDD fidelity over fast breadth. Do not begin with endpoints; begin with domain commands and model.
 
 1. **Commands + Domain Model**: Define command intent, aggregate/entity boundaries, value objects, and invariants.
 2. **Handlers + State Transitions**: Implement `@HandleCommand`/`@HandleQuery` with `@Apply` and `@AssertLegal`.
 3. **Tests**: Verify domain behavior and invariants using `TestFixture`.
 4. **Queries / Read Models / Side Effects**: Add search/read shaping and event-driven side effects.
 5. **Endpoints Last**: Expose logic via REST/WebSockets as thin transport adapters.
-
-### Mandatory Build Strategy (Inside-Out)
-
-- Always build inside-out: domain first, transport last.
-- Optimize for model/DDD fidelity, not quick API breadth.
-- Do **not** start by scaffolding all endpoints from OpenAPI.
-- If a tradeoff exists, prefer correct aggregate modeling and invariants over route coverage speed.
-- At the start of a project/domain, never batch many features together. Build in very small slices.
-
-### Backlog Discipline
-
-- Backlog items must represent vertical feature slices, not technical layer batches.
-- Backlog granularity must be explicit: include separate lines for each command, each query, each side-effect handler,
-  and each endpoint.
-- A slice is complete only when:
-    1. Domain model and invariants are explicit.
-    2. Command/query handling logic exists.
-    3. Behavior tests cover happy path plus all business-rule failures (`@AssertLegal`, authorization, validation, not
-       found/conflict, etc.).
-    4. Relevant tests pass.
-    5. Endpoint mapping (if needed) is added last.
-- A slice is **not** complete merely because endpoint signatures exist.
-- After each slice, stop at a checkpoint (review/commit opportunity) before starting the next slice.
 
 ---
 
