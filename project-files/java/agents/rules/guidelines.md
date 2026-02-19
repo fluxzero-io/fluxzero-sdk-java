@@ -35,7 +35,8 @@ Fluxzero encourages a specific development order to ensure logic is correct and 
 - A slice is complete only when:
     1. Domain model and invariants are explicit.
     2. Command/query handling logic exists.
-    3. Behavior tests cover happy path plus all business-rule failures (`@AssertLegal`, authorization, validation, not found/conflict, etc.).
+    3. Behavior tests cover happy path plus all business-rule failures (`@AssertLegal`, authorization, validation, not
+       found/conflict, etc.).
     4. Relevant tests pass.
     5. Endpoint mapping (if needed) is added last.
 - A slice is **not** complete merely because endpoint signatures exist.
@@ -147,21 +148,21 @@ Use this tree to find the correct manual for your current task, ordered by the r
 
 ## Chapter Overview
 
-| Chapter                               | Description                                                  |
-|:--------------------------------------|:-------------------------------------------------------------|
-| [Glossary](glossary.md)               | Key terms and definitions used in Fluxzero.                  |
-| [Handling](handling.md)               | Handling incoming messages (Commands, Queries, Events, Web). |
-| [Sending](sending.md)                 | Dispatching messages and making external web requests.       |
-| [Entities](entities.md)               | Domain modeling, event sourcing, and aggregate lifecycle.    |
-| [Sagas](sagas.md)                     | Stateful handlers and long-running workflows.                |
-| [Tracking](tracking.md)               | Async consumption mechanism, consumers, and replays.         |
-| [Runtime Interaction](runtime-interaction.md) | Cross-app message flow, delivery semantics, and scaling. |
-| [Search](search.md)                   | Leveraging the built-in search engine and document store.    |
-| [Testing](testing.md)                 | Writing fast, reliable tests with `TestFixture`.             |
-| [Validation](validation.md)           | Authorization, access control, and payload validation.       |
-| [Serialization](serialization.md)     | Versioning, upcasting, and schema evolution.                 |
-| [Configuration](configuration.md)     | Setting up and tuning your Fluxzero application.             |
-| [Troubleshooting](troubleshooting.md) | Resolving common issues and errors.                          |
+| Chapter                                       | Description                                                  |
+|:----------------------------------------------|:-------------------------------------------------------------|
+| [Glossary](glossary.md)                       | Key terms and definitions used in Fluxzero.                  |
+| [Handling](handling.md)                       | Handling incoming messages (Commands, Queries, Events, Web). |
+| [Sending](sending.md)                         | Dispatching messages and making external web requests.       |
+| [Entities](entities.md)                       | Domain modeling, event sourcing, and aggregate lifecycle.    |
+| [Sagas](sagas.md)                             | Stateful handlers and long-running workflows.                |
+| [Tracking](tracking.md)                       | Async consumption mechanism, consumers, and replays.         |
+| [Runtime Interaction](runtime-interaction.md) | Cross-app message flow, delivery semantics, and scaling.     |
+| [Search](search.md)                           | Leveraging the built-in search engine and document store.    |
+| [Testing](testing.md)                         | Writing fast, reliable tests with `TestFixture`.             |
+| [Validation](validation.md)                   | Authorization, access control, and payload validation.       |
+| [Serialization](serialization.md)             | Versioning, upcasting, and schema evolution.                 |
+| [Configuration](configuration.md)             | Setting up and tuning your Fluxzero application.             |
+| [Troubleshooting](troubleshooting.md)         | Resolving common issues and errors.                          |
 
 ---
 
@@ -181,34 +182,36 @@ Use this tree to find the correct manual for your current task, ordered by the r
 8. **No Databases/SQL**: Fluxzero applications never deal with databases. Data is retrieved via queries or by loading
    entities.
 9. **Core-Focused Testing**: Tests should primarily focus on core domain logic (Commands, Queries, Events).
-10. **No Mocking**: Never use `Mockito` or similar frameworks. The `TestFixture` provides everything needed for
+10. **Behavior over State**: Test behavior, not state. Use message inputs (commands/queries) and observable outputs
+    (events/results/errors) as the test boundary.
+11. **No Mocking**: Never use `Mockito` or similar frameworks. The `TestFixture` provides everything needed for
     verification.
-11. **No Instant.now()**: Always use `Fluxzero.currentTime()` or inject an `Instant` to ensure determinism.
-12. **BigDecimal for Precision**: Always use `BigDecimal` for currency, weights, or dimensions. Avoid `double` or
+12. **No Instant.now()**: Always use `Fluxzero.currentTime()` or inject an `Instant` to ensure determinism.
+13. **BigDecimal for Precision**: Always use `BigDecimal` for currency, weights, or dimensions. Avoid `double` or
     `float`.
-13. **Value Object Modeling**: Always model commands and entities to use Value Objects (e.g., `TaskDetails`) instead of
+14. **Value Object Modeling**: Always model commands and entities to use Value Objects (e.g., `TaskDetails`) instead of
     separate primitive fields (like `name`). This prevents having to change the whole command/event/document structure
     when adding fields later.
-14. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
+15. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
     (`@Handle...`, `@AssertLegal`, `@Apply`) for user context.
-15. **Secure by Default**: Add `@RequiresUser` to your domain's `package-info.java` to protect all payloads within that
+16. **Secure by Default**: Add `@RequiresUser` to your domain's `package-info.java` to protect all payloads within that
     package.
-16. **Domain Errors**: Use Error Interfaces like `ProjectErrors` to group domain-specific exceptions.
-17. **Present-Tense Events**: Don't invent event types. The applied command payload (e.g. `CreateOrder`) is
+17. **Domain Errors**: Use Error Interfaces like `ProjectErrors` to group domain-specific exceptions.
+18. **Present-Tense Events**: Don't invent event types. The applied command payload (e.g. `CreateOrder`) is
     automatically reused for the event.
-18. **Entity History**: Fluxzero enables viewing Entity history using `Entity.previous()`. This removes the need for
+19. **Entity History**: Fluxzero enables viewing Entity history using `Entity.previous()`. This removes the need for
     second-class events like `BalanceChanged` after e.g. a `DepositMoney` command to see what changed.
-19. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
+20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
-20. **The Consistency Window**: Remember that `sendCommandAndWait` only waits for the primary state change. Use
+21. **The Consistency Window**: Remember that `sendCommandAndWait` only waits for the primary state change. Use
     WebSockets or secondary queries to handle eventually consistent side-effects like search index updates.
-21. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
+22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
     messages asynchronously.
-22. **Entity IDs**: Use `Fluxzero.generateId(...)` when creating new aggregates or members. Do this in the **endpoint**
+23. **Entity IDs**: Use `Fluxzero.generateId(...)` when creating new aggregates or members. Do this in the **endpoint**
     or **command interface**, never inside the aggregate's `@Apply` method.
-23. **Message Idempotency**: Every message has an ID. Providing a consistent ID from the client (or endpoint) enables
+24. **Message Idempotency**: Every message has an ID. Providing a consistent ID from the client (or endpoint) enables
     automatic deduplication in the Fluxzero runtime.
-24. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
+25. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
     re-implement filtering/sorting logic.
 
 ---
