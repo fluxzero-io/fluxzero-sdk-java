@@ -126,6 +126,22 @@ Use this tree to find the correct manual for your current task, ordered by the r
 
 ---
 
+## Skill Shortcuts
+
+Skills accelerate execution but do not replace these manuals.
+
+- [slice-delivery](../skills/slice-delivery/SKILL.md): backlog-driven one-slice delivery and checkpoints.
+- [domain-core](../skills/domain-core/SKILL.md): commands/queries/entities/invariants implementation.
+- [messaging-scheduling](../skills/messaging-scheduling/SKILL.md): send/publish/query/schedule and tracing.
+- [web-surface](../skills/web-surface/SKILL.md): REST/WebSocket transport handlers and endpoint tests.
+- [search-readmodels](../skills/search-readmodels/SKILL.md): search constraints, sorting, projections, consistency window.
+- [stateful-orchestration](../skills/stateful-orchestration/SKILL.md): `@Stateful` lifecycle and workflow orchestration.
+- [replay-correction](../skills/replay-correction/SKILL.md): bounded replay and retroactive correction.
+- [schema-evolution](../skills/schema-evolution/SKILL.md): `@Revision` and upcasting/downcasting changes.
+- [runtime-bootstrap](../skills/runtime-bootstrap/SKILL.md): FluxzeroBuilder/client/consumer configuration.
+
+---
+
 ## Chapter Overview
 
 | Chapter                                       | Description                                                  |
