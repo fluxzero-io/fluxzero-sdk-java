@@ -383,6 +383,32 @@
                     <rulesUri>file:///${user.dir}/versions-plugin-rules.xml</rulesUri>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>lychee-maven-plugin</artifactId>
+                <version>0.1.1</version>
+                <inherited>false</inherited>
+                <configuration>
+                    <scanDirectories>
+                        <scanDirectory>
+                            <directory>${project.basedir}/docs</directory>
+                        </scanDirectory>
+                    </scanDirectories>
+                    <args>
+                        <arg>--format</arg>
+                        <arg>detailed</arg>
+                        <arg>--exclude</arg>
+                        <arg>^file://.*/docs/api/index\.html$</arg>
+                    </args>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
