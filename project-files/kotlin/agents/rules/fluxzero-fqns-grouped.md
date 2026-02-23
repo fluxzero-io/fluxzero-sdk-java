@@ -71,7 +71,7 @@ io.fluxzero.sdk.configuration.spring.ConditionalOnProperty
 io.fluxzero.sdk.configuration.spring.ConditionalOnProperty.Condition
 io.fluxzero.sdk.configuration.spring.FluxzeroCustomizer
 io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig
-io.fluxzero.sdk.configuration.spring.FluxPrototype
+io.fluxzero.sdk.configuration.spring.FluxzeroPrototype
 io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor
 io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver
 io.fluxzero.sdk.configuration.spring.SpringHandlerRegistry
@@ -238,7 +238,7 @@ io.fluxzero.sdk.tracking.handling.Association
 io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory
 io.fluxzero.sdk.tracking.handling.DefaultRepositoryProvider
 io.fluxzero.sdk.tracking.handling.DefaultResponseMapper
-io.fluxzero.sdk.tracking.handling.DeserializingMessageParameterResolver
+io.fluxzero.sdk.tracking.handling.TimestampParameterResolver
 io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator
 io.fluxzero.sdk.tracking.handling.HandleCommand
 io.fluxzero.sdk.tracking.handling.HandleCustom

@@ -42,7 +42,7 @@ public class LoggingInterceptor implements DispatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxzeroBuilder.builder()
+DefaultFluxzero.builder()
     .addDispatchInterceptor(new LoggingInterceptor(),MessageType.COMMAND,MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -81,7 +81,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 @Consumer(handlerInterceptors = AuthorizationInterceptor.class)
 public class SecureCommandHandler { ... }
 
-FluxzeroBuilder.builder()
+DefaultFluxzero.builder()
     .addHandlerInterceptor(new AuthorizationInterceptor(), true, MessageType.COMMAND);
 ```
 [//]: # (@formatter:on)
@@ -114,7 +114,7 @@ public class LoggingBatchInterceptor implements BatchInterceptor {
 
 [//]: # (@formatter:off)
 ```java
-FluxzeroBuilder.builder()
+DefaultFluxzero.builder()
     .addBatchInterceptor(new LoggingBatchInterceptor(),MessageType.EVENT);
 ```
 [//]: # (@formatter:on)
@@ -138,7 +138,7 @@ MappingBatchInterceptor filterTestMessages = (batch, tracker) -> {
 
 [//]: # (@formatter:off)
 ```java
-FluxzeroBuilder.builder()
+DefaultFluxzero.builder()
     .addBatchInterceptor(filterTestMessages, MessageType.QUERY);
 ```
 [//]: # (@formatter:on)

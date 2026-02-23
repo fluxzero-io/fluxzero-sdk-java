@@ -233,12 +233,15 @@ that the confirmation is unauthorized.
 
 ### Verifying side effects
 
-Use `expectThat()` or `expectTrue()` to assert custom logic or verify interactions (e.g., using Mockito):
+Use `expectThat()` or `expectTrue()` to assert custom logic or verify side effects:
 
 [//]: # (@formatter:off)
 ```java
 fixture.whenCommand("create-user-pete.json")
-       .expectThat(fc -> Mockito.verify(emailService).sendEmail(...));
+       .expectThat(fc -> fc.search("users")
+                           .match("pete", "userId")
+                           .fetchAll()
+                           .size() == 1);
 ```
 [//]: # (@formatter:on)
 

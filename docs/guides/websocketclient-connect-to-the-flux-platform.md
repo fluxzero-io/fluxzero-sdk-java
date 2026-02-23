@@ -15,7 +15,7 @@ WebSocketClient client = WebSocketClient.newInstance(
                 .name("my-service")
                 .build());
 
-Fluxzero fluxzero = Fluxzero.builder().build(client);
+Fluxzero fluxzero = DefaultFluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
@@ -86,7 +86,7 @@ Runtime and can significantly boost performance in high-fanout projections or ha
 Once created, the client is passed into the builder:
 
 ```java
-Fluxzero fluxzero = Fluxzero.builder()
+Fluxzero fluxzero = DefaultFluxzero.builder()
         .makeApplicationInstance(true)
         .build(webSocketClient);
 ```
@@ -101,5 +101,5 @@ Fluxzero fluxzero = Fluxzero.builder()
 For testing or lightweight local development, use the in-memory `LocalClient` instead:
 
 ```java
-Fluxzero fluxzero = Fluxzero.builder().build(new LocalClient());
+Fluxzero fluxzero = DefaultFluxzero.builder().build(new LocalClient());
 ```

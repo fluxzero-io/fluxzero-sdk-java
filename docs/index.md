@@ -19,28 +19,28 @@ summary: "Know the task, not the file name? Start here and jump straight to the 
 ### Core message handling
 
 - **I want to send & handle commands/events/queries** → [Message Handling](guides/message-handling.md)
-- **I need parameter injection rules** → [Parameter Injection](guides/parameter-injection.md)
-- **I’m building a long‑running workflow (saga)** → [Stateful & Sagas](guides/stateful-sagas.md)
-- **I must schedule or cancel tasks** → [Scheduler & Periodic Tasks](guides/scheduler.md)
+- **I need parameter injection rules** → [Parameter Injection](guides/parameter-injection-with-custom-resolvers.md)
+- **I’m building a long‑running workflow (saga)** → [Stateful & Sagas](guides/stateful-handlers.md)
+- **I must schedule or cancel tasks** → [Scheduler & Periodic Tasks](guides/scheduling.md)
 
 ### Testing
 
-- **I need fixture‑based unit tests** → [Testing](guides/testing.md)
-- **I want end‑to‑end replay tests** → [Message Replays](guides/replays.md)
+- **I need fixture‑based unit tests** → [Testing](guides/testing-your-handlers.md)
+- **I want end‑to‑end replay tests** → [Message Replays](guides/message-replays.md)
 
 ### Data & serialization
 
-- **I need document search / projections** → [Document Search](guides/document-search.md)
-- **I’m up‑/down‑casting events** → [Serialization](guides/serialization.md)
+- **I need document search / projections** → [Document Search](guides/document-indexing-and-search.md)
+- **I’m up‑/down‑casting events** → [Serialization](guides/serialization-upcasting-and-downcasting.md)
 
 ### Web & API development
 
-- **I’m exposing REST / WebSocket endpoints** → [Web Gateway](guides/web.md)
+- **I’m exposing REST / WebSocket endpoints** → [Web Gateway](guides/handling-web-requests.md)
 
 ### Monitoring & operations
 
-- **I need to inspect the Dead‑Letter Queue** → [Dead‑Letter Queue](guides/dlq.md)
-- **I’m on‑call and want health metrics** → [Monitoring & Ops](guides/monitoring.md)
+- **I need to inspect the Dead‑Letter Queue** → [Dead‑Letter Queue](guides/dynamic-dead-letter-queue-dlq.md)
+- **I’m on‑call and want health metrics** → [Monitoring & Ops](guides/metrics-messages.md)
 
 ### API reference
 
@@ -52,15 +52,15 @@ summary: "Know the task, not the file name? Start here and jump straight to the 
 
 | Guide                                                | Description                         |
 |------------------------------------------------------|-------------------------------------|
-| [Document Search](guides/document-search.md)         | Indexing & querying aggregates      |
-| [Dead‑Letter Queue](guides/dlq.md)                   | Recover after failed messages       |
+| [Document Search](guides/document-indexing-and-search.md)         | Indexing & querying aggregates      |
+| [Dead‑Letter Queue](guides/dynamic-dead-letter-queue-dlq.md)                   | Recover after failed messages       |
 | [Installation](guides/installation.md)               | Add the BOM, configure connection   |
 | [Message Handling](guides/message-handling.md)       | Commands, events, queries, routing  |
-| [Monitoring & Ops](guides/monitoring.md)             | Metrics, tracing, dashboards        |
-| [Parameter Injection](guides/parameter-injection.md) | Auto‑wiring handler arguments       |
+| [Monitoring & Ops](guides/metrics-messages.md)             | Metrics, tracing, dashboards        |
+| [Parameter Injection](guides/parameter-injection-with-custom-resolvers.md) | Auto‑wiring handler arguments       |
 | [Quick Reference](quick-ref.md)                      | 60‑sec cheat sheet                  |
-| [Scheduler & Periodic Tasks](guides/scheduler.md)    | One‑off & recurring jobs            |
-| [Serialization](guides/serialization.md)             | Revisions, up‑ & down‑casting       |
-| [Stateful & Sagas](guides/stateful-sagas.md)         | Long‑running workflows              |
-| [Testing](guides/testing.md)                         | Fixture DSL & replay tests          |
-| [Web Gateway](guides/web.md)                         | REST, WebSocket & GraphQL endpoints |
+| [Scheduler & Periodic Tasks](guides/scheduling.md)    | One‑off & recurring jobs            |
+| [Serialization](guides/serialization-upcasting-and-downcasting.md)             | Revisions, up‑ & down‑casting       |
+| [Stateful & Sagas](guides/stateful-handlers.md)         | Long‑running workflows              |
+| [Testing](guides/testing-your-handlers.md)                         | Fixture DSL & replay tests          |
+| [Web Gateway](guides/handling-web-requests.md)                         | REST, WebSocket & GraphQL endpoints |
