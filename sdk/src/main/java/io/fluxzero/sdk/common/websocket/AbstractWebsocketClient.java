@@ -270,10 +270,11 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
             if (session.isOpen()) {
                 outputStream.write(compress(bytes, clientConfig.getCompression()));
             }
+            abort(session, "Channel closed ahead of sending");
         } catch (Exception e) {
             log().error(ignoreMarker, "Failed to send request {} (session {})", object, session.getId(), e);
             if (ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false)) {
-                abort(session, "Channel closed before sending");
+                abort(session, "Channel closed while sending");
             } else {
                 throw e;
             }
@@ -340,6 +341,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
 
     @OnOpen
     public void onOpen(Session session) {
+        log.info("Connected to endpoint {} (session: {})", session.getRequestURI(), session.getId());
         schedulePing(session);
     }
 
@@ -409,7 +411,8 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         ofNullable(sessionBacklogs.remove(session.getId())).ifPresent(Backlog::shutDown);
         ofNullable(pingDeadlines.remove(session.getId())).ifPresent(PingRegistration::cancel);
         if (closeReason.getCloseCode().getCode() > GOING_AWAY.getCode()) {
-            log().warn("Connection to endpoint {} closed with reason {}", session.getRequestURI(), closeReason);
+            log().warn("Connection to endpoint {} closed with reason {} (session: {})", session.getRequestURI(),
+                       closeReason, session.getId());
         }
         retryOutstandingRequests(session.getId());
     }
