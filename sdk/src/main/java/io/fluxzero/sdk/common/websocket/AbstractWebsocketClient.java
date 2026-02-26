@@ -379,18 +379,11 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         }
     }
 
-    @SneakyThrows
-    protected void abort(Session session, String reason) {
-        if (!closed.get()) {
-            session.close(new CloseReason(UNEXPECTED_CONDITION, reason));
-        }
-    }
-
     @OnMessage
     public void onPong(PongMessage message, Session session) {
         pingDeadlines.compute(session.getId(), (k, v) -> {
             if (v == null) {
-                return v;
+                return null;
             }
             v.cancel();
             return schedulePing(session);
@@ -404,19 +397,40 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         Registration delegate;
     }
 
-    @OnClose
-    public void onClose(Session session, CloseReason closeReason) {
-        if (session.isOpen() && session instanceof UndertowSession s) {
-            //this works around a bug in Undertow: after closing the session normally and receiving the onClose message
-            // session.isOpen() still returns true, causing all kinds of havoc. With this workaround we don't get that.
-            s.forceClose();
+    @SneakyThrows
+    protected void abort(Session session, String reason) {
+        CloseReason closeReason = new CloseReason(UNEXPECTED_CONDITION, reason);
+        try {
+            log().warn("Aborting session {} due to {}", session.getId(), reason);
+            onClose(session, closeReason);
+        } finally {
+            session.close(closeReason); //inform the server this session has been aborted
         }
-        ofNullable(sessionBacklogs.remove(session.getId())).ifPresent(Backlog::shutDown);
-        ofNullable(pingDeadlines.remove(session.getId())).ifPresent(PingRegistration::cancel);
+    }
+
+    @OnClose
+    public void onClosing(Session session, CloseReason closeReason) {
+        if (closeReason.getCloseCode().getCode() == UNEXPECTED_CONDITION.getCode()) {
+            return; // this is our own abort
+        }
+        onClose(session, closeReason);
+    }
+
+    protected void onClose(Session session, CloseReason closeReason) {
+        if (session.isOpen() && session instanceof UndertowSession s) {
+            try {
+                //this works around a bug in Undertow: after closing the session normally and receiving the onClose message
+                // session.isOpen() still returns true, causing all kinds of havoc. With this workaround we don't get that.
+                s.forceClose();
+            } catch (Exception ignored) {
+            }
+        }
         if (closeReason.getCloseCode().getCode() > GOING_AWAY.getCode()) {
             log().warn("Connection to endpoint {} closed with reason {} (session: {})", session.getRequestURI(),
                        closeReason, session.getId());
         }
+        ofNullable(sessionBacklogs.remove(session.getId())).ifPresent(Backlog::shutDown);
+        ofNullable(pingDeadlines.remove(session.getId())).ifPresent(PingRegistration::cancel);
         retryOutstandingRequests(session.getId());
     }
 
