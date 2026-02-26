@@ -311,9 +311,10 @@ public class WebUtils {
         }
 
         String joined = String.join("/", cleaned);
-        if (startsWithSlash || (!joined.isBlank() && !joined.startsWith("/")
-                                && !joined.equals("*") && !joined.contains("://"))) {
-            joined = "/" + joined;
+        if (!joined.contains("://")) {
+            if (startsWithSlash || (!joined.isBlank() && !joined.startsWith("/") && !joined.equals("*"))) {
+                joined = "/" + joined;
+            }
         }
         return joined;
     }

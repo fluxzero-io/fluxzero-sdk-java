@@ -37,6 +37,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.SocketEndpoint.AliveCheck;
 import io.fluxzero.sdk.web.path.ClassPathHandler;
 import io.fluxzero.sdk.web.path.PackagePathHandler;
+import io.fluxzero.sdk.web.path.subpath.ExternalUrlHandler;
 import io.fluxzero.sdk.web.path.subpath.ResetPathHandler;
 import io.fluxzero.sdk.web.path.subpath.SubPathHandler;
 import lombok.AccessLevel;
@@ -350,7 +351,7 @@ public class HandleWebTest {
     @Nested
     class PathTests {
 
-        final TestFixture testFixture = TestFixture.create(new ClassPathHandler(), new PackagePathHandler(), new SubPathHandler(), new ResetPathHandler());
+        final TestFixture testFixture = TestFixture.create(new ClassPathHandler(), new PackagePathHandler(), new SubPathHandler(), new ResetPathHandler(), new ExternalUrlHandler());
 
         @Test
         void classPathTest() {
@@ -370,6 +371,11 @@ public class HandleWebTest {
         @Test
         void resetPathTest() {
             testFixture.whenGet("/get-reset").expectResult("get-reset");
+        }
+
+        @Test
+        void externalUrlTest() {
+            testFixture.whenGet("https://example.com/get-external").expectResult("get-external");
         }
 
         @Test
