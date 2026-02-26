@@ -37,6 +37,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.SocketEndpoint.AliveCheck;
 import io.fluxzero.sdk.web.path.ClassPathHandler;
 import io.fluxzero.sdk.web.path.PackagePathHandler;
+import io.fluxzero.sdk.web.path.subpath.ResetPathHandler;
 import io.fluxzero.sdk.web.path.subpath.SubPathHandler;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -349,7 +350,7 @@ public class HandleWebTest {
     @Nested
     class PathTests {
 
-        final TestFixture testFixture = TestFixture.create(new ClassPathHandler(), new PackagePathHandler(), new SubPathHandler());
+        final TestFixture testFixture = TestFixture.create(new ClassPathHandler(), new PackagePathHandler(), new SubPathHandler(), new ResetPathHandler());
 
         @Test
         void classPathTest() {
@@ -364,6 +365,11 @@ public class HandleWebTest {
         @Test
         void subPathTest() {
             testFixture.whenGet("/package/sub/class/get").expectResult("get");
+        }
+
+        @Test
+        void resetPathTest() {
+            testFixture.whenGet("/get-reset").expectResult("get-reset");
         }
 
         @Test

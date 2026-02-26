@@ -299,7 +299,10 @@ public class WebUtils {
                     cleaned.add(part.replaceAll("/+$", ""));
                 } else {
                     startsWithSlash = part.startsWith("/");
-                    cleaned.add(part.replaceAll("^/+", "").replaceAll("/+$", ""));
+                    part = part.replaceAll("^/+", "").replaceAll("/+$", "");
+                    if (!part.isEmpty()) {
+                        cleaned.add(part);
+                    }
                 }
                 first = false;
             } else {
