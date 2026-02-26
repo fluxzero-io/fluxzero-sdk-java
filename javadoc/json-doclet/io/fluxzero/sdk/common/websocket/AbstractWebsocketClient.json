@@ -337,6 +337,27 @@
     "name" : "onClose",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#onClose",
     "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "jakarta.websocket.CloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onClosing",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#onClosing",
+    "returnType" : "void",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "jakarta.websocket.OnClose",
