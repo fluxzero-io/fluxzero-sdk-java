@@ -386,6 +386,8 @@ Handlers can inject various context parameters:
   reflect its state immediately after the event occurred.
 - **Entity<T> for optional state**: Use `Entity<T>` when the entity may not exist yet. In that case the injected wrapper
   is present but its value is empty. Useful for upsert-style handlers and idempotent startup/replay flows.
+- **WebRequest / WebResponse / Schedule**: These extend `Message` and can be injected directly into handler methods when
+  transport/scheduling metadata is needed.
 - **@Autowired**: Standard Spring beans.
 
 ---
