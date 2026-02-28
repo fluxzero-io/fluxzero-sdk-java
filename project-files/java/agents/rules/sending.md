@@ -290,6 +290,8 @@ application or is handled locally.
 - **Registration**: `FluxzeroBuilder.addDispatchInterceptor(interceptor)`.
 - **Tracing Tip**: Use `Metadata.withTrace(key, value)` to propagate trace values across chained messages. This writes
   entries as `$trace.<key>` automatically.
+- **Message Type Tip**: `WebRequest`, `WebResponse`, and `Schedule` are also `Message` subtypes, so interceptors can
+  detect and handle them directly when needed.
 
 ```java
 public class CorrelationInterceptor implements DispatchInterceptor {
