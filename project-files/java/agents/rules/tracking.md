@@ -15,6 +15,7 @@ concerns like replays and error correction.
 - [Error Correcting & Retroactive Updates](#error-correcting)
 - [Document Rebuilding](#document-rebuilding)
 - [Message Retention](#retention)
+- [Incremental Identifiers](#incremental-identifiers)
 
 ---
 
@@ -184,3 +185,30 @@ public class OrderRebuilder {
 
 Fluxzero ensures that messages are retained in the stream based on your configuration, allowing for the replays and
 retroactive corrections mentioned above.
+
+---
+
+<a name="incremental-identifiers"></a>
+
+## Incremental Identifiers
+
+If you need monotonic/incremental identifiers (instead of random IDs), model them as a dedicated query backed by
+persisted counter state (for example, a document store record).
+
+Consumer guidance:
+
+- Use `@Consumer(singleTracker = true)` for a global, strictly ordered sequence.
+- If a routing key partitions sequences naturally (for example one counter per tenant/project), `singleTracker` can
+  often be omitted.
+
+```java
+@Component
+@Consumer(name = "invoice-number-seq", singleTracker = true)
+public class InvoiceNumberQueryHandler {
+    @HandleQuery
+    long handle(NextInvoiceNumber query) {
+        // Read + increment + store counter in a document.
+        return ...;
+    }
+}
+```

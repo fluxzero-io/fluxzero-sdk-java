@@ -201,6 +201,11 @@ class UserQueryHandler {
 ```
 [//]: # (@formatter:on)
 
+**Advanced Tip (Rare): Incremental Identifiers**
+
+If random IDs are not acceptable, implement incremental ID allocation as a dedicated query backed by persisted counter
+state. For the full consumer-pattern details, see [Tracking: Incremental Identifiers](tracking.md#incremental-identifiers).
+
 <a name="events-notifications"></a>
 
 ### Handling Events & Notifications
