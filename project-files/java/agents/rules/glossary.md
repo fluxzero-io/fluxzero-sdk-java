@@ -20,6 +20,12 @@ and a payload (event), and returns the new state.
 A mechanism for enforcing business invariants. These methods are executed before a command is applied. If an invariant
 is violated, an exception is thrown and the command is rejected.
 
+### InterceptApply (@InterceptApply)
+
+A pre-processing hook that runs before `@AssertLegal` and `@Apply`. It can suppress an update (`null`/`void`), keep it
+as-is (`this`), rewrite it (return a different payload), or expand it (return `Collection`/`Stream`/`Optional`).
+Interceptors are applied recursively until they no longer transform the update.
+
 ### Command
 
 A message that expresses an intent to change the state of the system (e.g., `CreateOrder`). Commands are imperative and

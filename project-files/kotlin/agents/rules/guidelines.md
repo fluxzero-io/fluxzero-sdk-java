@@ -44,6 +44,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 - **"I need to define Aggregates, Entities, or apply state changes"**
     - → [Entities & Aggregates](entities.md)
         - [Define an Aggregate or Entity](entities.md#aggregates)
+        - [Intercept or rewrite updates (@InterceptApply)](entities.md#intercept-apply)
         - [Apply state changes (@Apply)](entities.md#apply)
         - [Implement permission checks (@AssertLegal)](entities.md#assertlegal)
         - [Load entities (Id, @Alias, Entity<T>)](entities.md#loading-entities)

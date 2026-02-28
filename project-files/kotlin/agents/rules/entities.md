@@ -137,6 +137,42 @@ The `@Apply` method has a **dual function**:
 - **Update**: Takes the current instance and returns an updated copy.
 - **Deletion**: Returns `null`.
 
+```kotlin
+data class CreateUser(val userId: UserId, val profile: UserProfile) {
+    @Apply
+    fun apply(): UserAccount {
+        return UserAccount(userId, profile, accountClosed = false)
+    }
+}
+```
+```kotlin
+data class UpdateProfile(val userId: UserId, val profile: UserProfile) {
+    @Apply
+    fun apply(current: UserAccount): UserAccount {
+        return current.copy(profile = profile)
+    }
+}
+```
+```kotlin
+data class DeleteUser(val userId: UserId) {
+    @Apply
+    fun apply(current: UserAccount): UserAccount? {
+        return null // delete
+    }
+}
+```
+```kotlin
+data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
+    @Apply
+    fun apply(): Task {
+        return Task(taskId, details, completed = false) // direct child creation
+    }
+}
+```
+
+You can apply updates directly to child/member entities (like `Task`) without manually rebuilding the parent. Fluxzero
+immutably updates the parent aggregate (using Kotlin `copy(...)`) and inserts/replaces the child.
+
 #### Tip: Minimizing Upcasters (Present Tense vs. Past Tense)
 
 Fluxzero encourages applying the Command payload itself (e.g., `CreateUser`, `UpdateEmail`), which will result in a
@@ -146,14 +182,20 @@ Because functional needs and API contracts are generally more stable than intern
 inputs directly often results in an event stream that requires very few schema transformations (upcasters) over many
 years.
 
-```kotlin
-data class UpdateProject(...) : ProjectUpdate {
-    @Apply
-    fun apply(project: Project): Project {
-        ...
-    }
-}
-```
+### Automatic Existence Checks
+
+The SDK implicitly checks existence based on the `@Apply` signature:
+
+- **Missing Entity**: If current state is injected as a non-null type but the entity is missing,
+  `Entity#NOT_FOUND_EXCEPTION` is thrown.
+- **Existing Entity**: If no current state is injected (creation signature) but the entity already exists,
+  `Entity#ALREADY_EXISTS_EXCEPTION` is thrown.
+
+These checks can be relaxed by:
+
+- using nullable injected parameters (for example `current: UserAccount?`) so methods can run when the entity/member is
+  missing, or
+- setting `@Apply(disableCompatibilityCheck = true)` for advanced cases where compatibility checks should be skipped.
 
 ---
 
@@ -164,14 +206,84 @@ data class UpdateProject(...) : ProjectUpdate {
 Use `@InterceptApply` to filter or modify an update **before** `@AssertLegal` and `@Apply` is called. Unlike `@Apply`,
 you can query other aggregates or search here to enrich the payload.
 
+In most cases, `@InterceptApply` lives on the update class being handled, so that update is available as `this` (not as
+an injected method parameter).
+
 [//]: # (@formatter:off)
 ```kotlin
-@InterceptApply
-fun enrichTask(task: CreateTask): CreateTask {
-    // Logic to modify or block the update before @AssertLegal and @Apply is called
+data class CreateUser(val userId: UserId, val profile: UserProfile) {
+    @InterceptApply
+    fun ignoreNoChange(current: UserAccount): Any? {
+        return if (current.profile == profile) null else this
+    }
+}
+```
+```kotlin
+data class CreateUser(val userId: UserId, val profile: UserProfile) {
+    @InterceptApply
+    fun rewriteCreateAsUpdate(current: UserAccount): UpdateProfile {
+        // Non-null current means this interceptor is only invoked when UserAccount exists.
+        return UpdateProfile(userId, profile)
+    }
+}
+```
+```kotlin
+data class BulkCreateTasks(val tasks: List<CreateTask>) {
+    @InterceptApply
+    fun expandBulk(): List<CreateTask> {
+        return tasks
+    }
+}
+```
+```kotlin
+data class CompleteTask(val projectId: ProjectId, val taskId: TaskId) {
+    @InterceptApply
+    fun skipWhenAlreadyCompleted(project: Project, task: Task): Any? {
+        // You can inject both parent aggregate and addressed member entity.
+        return if (task.completed) null else this
+    }
+}
+```
+```kotlin
+data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
+    @InterceptApply
+    fun skipDuplicate(task: Task?): Any? {
+        // Child does not exist yet on create path; nullable type lets this run in both cases.
+        return if (task != null) null else this
+    }
 }
 ```
 [//]: # (@formatter:on)
+
+Flux recursively applies interceptors until no further transformation is needed.
+
+For bulk expansion, returned updates are applied sequentially to the same loaded aggregate/member context, so each
+later update sees the state produced by earlier updates in the list.
+
+Parameter injection rules are the same as `@AssertLegal`: if a parameter like `current: UserAccount` is non-null, the
+interceptor is skipped when that entity is missing. Use nullable types when you want the interceptor to run for both
+create and update paths.
+
+`@InterceptApply` also works for member-entity updates. Interceptors can inspect child/member state and inject both the
+child entity and parent aggregate in the same method. Parent injection is optional when only member state is needed.
+
+### Invocation Order
+
+1. Intercept using `@InterceptApply`
+2. Assert preconditions using `@AssertLegal`
+3. Apply state using `@Apply`
+
+### Return Type Semantics
+
+| Return value                    | Effect                    |
+|:--------------------------------|:--------------------------|
+| `null` or `Unit`                | Suppress update           |
+| `this`                          | No change                 |
+| New update object               | Rewrite the update        |
+| `Collection` / `Stream` / `Optional` | Emit multiple updates |
+
+> **Tip**: For idempotent handling of unchanged state, prefer
+> `@Aggregate(eventPublication = EventPublication.IF_MODIFIED)`.
 
 ---
 
@@ -182,18 +294,55 @@ fun enrichTask(task: CreateTask): CreateTask {
 Enforce rules before an update. If a check fails, throw an exception that extends from `FunctionalException`. These
 exceptions are portable and often used for client-side (**4xx** type) errors.
 
-- **Exceptions**: Use `IllegalCommandException` for 4xx-style functional errors.
+- **Exceptions**: Prefer domain `Errors` objects (for example `UserErrors.accountClosed`). These constants typically
+  wrap `IllegalCommandException`/`UnauthorizedException` and keep behavior consistent across handlers and tests.
 - **Rule Separation**: Split different business rules into separate `@AssertLegal` methods.
-- **Null Safety**: Use `@Nullable` to inject an entity that might not exist. If `@Nullable` is missing, the method will
-  not be invoked if the entity is missing.
+- **Null Safety**: Use nullable types (for example `current: UserAccount?`) to inject an entity that might not exist.
+  With a non-null parameter, the method will not be invoked if the entity is missing.
+- **Existence checks**: Prefer relying on the automatic checks in [Applying State Changes (@Apply)](#apply) instead of
+  duplicating existence checks in `@AssertLegal`.
 
-**Automatic Existence Checks**:
-The SDK implicitly checks existence based on the `@Apply` method:
+Define domain error constants close to invariant logic:
 
-- **Missing Entity**: If the current state is injected without `@Nullable` but the entity is missing,
-  `Entity#NOT_FOUND_EXCEPTION` is thrown.
-- **Existing Entity**: If the entity exists but no current state is injected (creation),
-  `Entity#ALREADY_EXISTS_EXCEPTION` is thrown.
+[//]: # (@formatter:off)
+```kotlin
+object ProjectErrors {
+    val unauthorized: FunctionalException = UnauthorizedException("Unauthorized for action")
+    val accountClosed: FunctionalException = IllegalCommandException("Account is closed")
+    val maxTasksReached: FunctionalException = IllegalCommandException("Project cannot have more than 3 tasks")
+    val taskCompleted: FunctionalException = IllegalCommandException("Task has already completed")
+}
+```
+[//]: # (@formatter:on)
+
+Using shared error constants makes tests simpler and less brittle: assertions can verify exact domain errors directly,
+instead of comparing exception message strings.
+
+Example patterns:
+
+[//]: # (@formatter:off)
+```kotlin
+data class UpdateProfile(val userId: UserId, val profile: UserProfile) {
+    @AssertLegal
+    fun assertAccountNotClosed(current: UserAccount) {
+        if (current.accountClosed) {
+            throw ProjectErrors.accountClosed
+        }
+    }
+}
+```
+```kotlin
+data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: TaskDetails) {
+    @AssertLegal
+    fun assertTaskLimit(project: Project, task: Task?) {
+        // Parent + child injection in one invariant; nullable child allows missing/new member.
+        if (task == null && project.tasks.size >= 3) {
+            throw ProjectErrors.maxTasksReached
+        }
+    }
+}
+```
+[//]: # (@formatter:on)
 
 ---
 
