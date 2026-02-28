@@ -292,6 +292,9 @@ Used for error monitoring or handling.
 when needed. By using the `@Trigger` annotation on a parameter, you can inject the original payload that failed. For
 more details, see the [Error Correcting](tracking.md#error-correcting) chapter.
 
+When testing `@HandleError` behavior, use an asynchronous fixture:
+`TestFixture.createAsync(...)`.
+
 [//]: # (@formatter:off)
 ```java
 @HandleError

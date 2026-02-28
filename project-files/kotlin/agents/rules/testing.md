@@ -53,6 +53,7 @@ The `TestFixture` manages an internal Fluxzero instance. You must register the h
   default for most tests.
 - **`TestFixture.createAsync(...)` (Realistic)**: Processes messages asynchronously, mirroring the production
   environment. Use this when you need to test concurrency, complex timing, or asynchronous coordination.
+  Required for testing `@HandleError` behavior.
 
 #### Registration Patterns
 
