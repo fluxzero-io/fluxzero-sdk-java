@@ -34,6 +34,8 @@ for transitioning between states lie in commands and orchestration logic resides
    Do those things in event handlers.
 5. **No Updates in State Logic**: Inside `@AssertLegal` and `@InterceptApply`, it is fine to query, load other entities,
    or perform searches, but **never** invoke updates.
+6. **Model Mutable Subparts as Entities**: If a nested object can be created/updated/deleted independently, model it as
+   an entity (`@EntityId` + `@Member`) rather than a plain value object field.
 
 ---
 
@@ -89,12 +91,48 @@ Nested components within an aggregate.
 - **Routing**: The `@EntityId` property must be present in the command payload for automatic routing. Use
   `@Member(idProperty = "otherProperty")` if names differ.
 
+#### Entity Boundary Heuristics
+
+Model a type as an entity (root or `@Member`) when most of these are true:
+
+- it has an identity that must stay stable over time,
+- it can be created/updated/deleted without replacing the whole parent object,
+- commands often target it directly (or by ID) as part of normal workflows,
+- it carries lifecycle/status transitions of its own.
+
+Keep it as a value object when it is replaced as one whole and has no independent lifecycle.
+
+Entities can be nested many levels deep (`a -> b -> c -> d`). Any level can declare `@Member` children and be targeted
+through routing as long as IDs are present.
+
 [//]: # (@formatter:off)
 ```kotlin
 data class Task(
     @EntityId val taskId: TaskId,
     val details: TaskDetails,
     val completed: Boolean = false
+)
+```
+```kotlin
+@Aggregate
+data class A(
+    @EntityId val aId: AId,
+    @Member val bs: List<B> = emptyList()
+)
+
+data class B(
+    @EntityId val bId: BId,
+    @Member val cs: List<C> = emptyList()
+)
+
+data class C(
+    @EntityId val cId: CId,
+    @Member val ds: List<D> = emptyList()
+)
+
+data class D(
+    @EntityId val dId: DId,
+    val details: DDetails
 )
 ```
 [//]: # (@formatter:on)
