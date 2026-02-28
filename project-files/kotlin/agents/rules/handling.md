@@ -510,13 +510,28 @@ fun uploadAvatar(
 
 ### @ServeStatic
 
-Serves static assets (like a frontend) from the classpath. By default, it serves files from the `static` directory on
-the classpath for any GET request that does not match an API route (starting with `/api`).
+Serves static assets (like a frontend) from the classpath.
+
+Routing safety notes:
+
+- `@ServeStatic` defaults to `resourcePath = "/static"` and `ignorePaths = "/api/*"` (from `ServeStatic` annotation
+  defaults).
+- This means static serving ignores `/api/...` by default, so API handlers under `/api` will not clash with static
+  fallback routes.
+- Recommended convention: keep HTTP APIs under `/api` and reserve non-`/api` paths for SPA/static routes.
+- If you use a different API prefix, set `ignorePaths` explicitly.
+- In Fluxzero Cloud, you can still expose a separate API host through proxy mapping (for example
+  `api.domain.com -> domain.com/api`).
 
 [//]: # (@formatter:off)
 ```kotlin
 @Component
 @ServeStatic
+class UiEndpoint
+```
+```kotlin
+@Component
+@ServeStatic("/ui")
 class UiEndpoint
 ```
 [//]: # (@formatter:on)
