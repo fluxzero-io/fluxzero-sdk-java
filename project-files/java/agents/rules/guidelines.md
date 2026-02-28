@@ -210,6 +210,7 @@ Skills accelerate execution but do not replace these manuals.
     automatic deduplication in the Fluxzero runtime.
 25. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
     re-implement filtering/sorting logic.
+26. **Prefer Queries Over Utilities**: If you need to fetch or compute data, model it as a dedicated query (`Request<T>` + `@HandleQuery`) instead of static utility methods. This keeps logic discoverable, testable, and composable.
 
 ---
 

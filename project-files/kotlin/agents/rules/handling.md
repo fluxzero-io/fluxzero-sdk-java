@@ -152,6 +152,8 @@ class EmailHandler {
 
 Used for read-only requests. Usually self-handling. Queries MUST implement `Request<T>` to define the return type.
 
+Prefer creating a dedicated query payload (with `@HandleQuery`) for data retrieval or computation instead of static utility methods. This keeps behavior explicit, reusable via messaging, and easy to test with `TestFixture`.
+
 **Example: Full Query Implementation**
 
 [//]: # (@formatter:off)
