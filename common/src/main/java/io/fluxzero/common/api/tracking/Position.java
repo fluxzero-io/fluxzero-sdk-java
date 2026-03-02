@@ -25,17 +25,18 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.fluxzero.common.api.SerializedMessage;
-import lombok.AllArgsConstructor;
 import lombok.Value;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.stream.IntStream;
+
+import static io.fluxzero.common.api.tracking.SegmentRange.fullSegment;
 
 /**
  * Represents the tracking state of a consumer, i.e. the last known indexes of consumed messages per segment.
@@ -46,102 +47,211 @@ import java.util.stream.IntStream;
  *
  * <p>A {@code Position} is an immutable structure and may be merged or queried to support multi-segment tracking.
  */
-@Value
-@AllArgsConstructor
 @JsonSerialize(using = Position.PositionSerializer.class)
 @JsonDeserialize(using = Position.PositionDeserializer.class)
+@Value
 public class Position {
+    private static final Position NEW_POSITION = new Position(List.of());
 
-    private static final Position newPosition = new Position(new TreeMap<>());
+    List<SegmentRange> segmentRanges;
 
-    public static int MAX_SEGMENT = 128;
-    public static int[] FULL_SEGMENT = new int[]{0, MAX_SEGMENT};
+    /**
+     * Creates a position from a list of segment ranges.
+     * @param segmentRanges a list of segment ranges, this list is expected to be sorted by segment start, segments are
+     *                      expected to not overlap.
+     */
+    public Position(List<SegmentRange> segmentRanges) {
+        this.segmentRanges = segmentRanges;
+    }
+
+    /**
+     * Creates a position that applies the same index to all segments.
+     */
+    public Position(long index) {
+        this(fullSegment(index));
+    }
+
+    /**
+     * Creates a position for a single segment range.
+     */
+    public Position(int[] segment, long lastIndex) {
+        this(new SegmentRange(segment[0], segment[1], lastIndex));
+    }
+
+    /**
+     * Creates a position for a single segment range.
+     */
+    public Position(SegmentRange segmentRange) {
+        this(List.of(segmentRange));
+    }
 
     /**
      * Creates an empty position.
      */
     public static Position newPosition() {
-        return newPosition;
+        return NEW_POSITION;
     }
 
     /**
-     * Holds the last seen index per segment.
+     * Returns the last known index for a specific segment.
      */
-    SortedMap<Integer, Long> indexBySegment;
-
-    public Position(long index) {
-        this(FULL_SEGMENT, index);
-    }
-
-    public Position(int[] segment, long index) {
-        SortedMap<Integer, Long> indexBySegment = new TreeMap<>();
-        IntStream.range(segment[0], segment[1]).forEach(i -> indexBySegment.put(i, index));
-        this.indexBySegment = indexBySegment;
-    }
-
     public Optional<Long> getIndex(int segment) {
-        return Optional.ofNullable(indexBySegment.get(segment));
+        for (SegmentRange range : segmentRanges) {
+            if (range.segmentStart() > segment) {
+                break;
+            }
+            if (segment < range.segmentEnd()) {
+                return Optional.of(range.index());
+            }
+        }
+        return Optional.empty();
     }
 
+    /**
+     * Indicates whether no index has been tracked yet for any segment in the given range.
+     */
     public boolean isNew(int[] segment) {
-        return indexBySegment.entrySet().stream().filter(entry -> entry.getValue() != null)
-                .noneMatch(entry -> entry.getKey() >= segment[0] && entry.getKey() < segment[1]);
+        int start = segment[0], end = segment[1];
+        for (SegmentRange range : segmentRanges) {
+            if (range.segmentStart() >= end) {
+                break;
+            }
+            if (range.segmentEnd() > start) {
+                return false;
+            }
+        }
+        return true;
     }
 
+    /**
+     * Returns the lowest tracked index within the given segment range.
+     */
     public Optional<Long> lowestIndexForSegment(int[] segment) {
         int start = segment[0], end = segment[1];
-        return indexBySegment.entrySet().stream()
-                .filter(entry -> entry.getValue() != null)
-                .filter(entry -> entry.getKey() >= start && entry.getKey() < end)
-                .map(Map.Entry::getValue)
-                .sorted().findFirst();
+        Long lowest = null;
+        for (SegmentRange range : segmentRanges) {
+            if (range.segmentStart() >= end) {
+                break;
+            }
+            if (range.segmentEnd() <= start) {
+                continue;
+            }
+            if (lowest == null || range.index() < lowest) {
+                lowest = range.index();
+            }
+        }
+        return Optional.ofNullable(lowest);
+    }
+
+    /**
+     * Indicates whether the message index is newer than what is currently tracked for its segment.
+     */
+    public boolean isNewMessage(SerializedMessage message) {
+        return isNewIndex(message.getSegment(), message.getIndex());
+    }
+
+    /**
+     * Indicates whether the provided message index is newer than what is currently tracked for a segment.
+     */
+    public boolean isNewIndex(int segment, Long messageIndex) {
+        Optional<Long> lastIndex = getIndex(segment);
+        return lastIndex.isEmpty() || messageIndex == null || lastIndex.get() < messageIndex;
     }
 
     /**
      * Merges two {@code Position} objects by taking the highest known index per segment.
      */
-    public Position merge(Position newPosition) {
-        SortedMap<Integer, Long> indexBySegment = new TreeMap<>(this.indexBySegment);
-        newPosition.indexBySegment.forEach((s, i) -> indexBySegment.merge(s, i, (v, v2) -> v2.compareTo(v) > 0 ? v2 : v));
-        return new Position(indexBySegment);
-    }
+    public Position merge(Position other) {
+        List<SegmentRange> result = new ArrayList<>(segmentRanges.size() + other.segmentRanges.size());
 
-    /**
-     * Splits the position map into contiguous segment ranges that share the same index.
-     */
-    public Map<int[], Long> splitInSegments() {
-        Map<int[], Long> result = new LinkedHashMap<>();
-        indexBySegment.entrySet().stream()
-                .map(e -> Map.entry(new int[]{e.getKey(), e.getKey() + 1}, e.getValue())).reduce((a, b) -> {
-            if (Objects.equals(a.getValue(), b.getValue()) && a.getKey()[1] == b.getKey()[0]) {
-                return Map.entry(new int[]{a.getKey()[0], b.getKey()[1]}, b.getValue());
+        NullableIterator<SegmentRange> iterA = new NullableIterator<>(segmentRanges.iterator());
+        NullableIterator<SegmentRange> iterB = new NullableIterator<>(other.segmentRanges.iterator());
+
+        SegmentRange a = iterA.nextOrNull();
+        SegmentRange b = iterB.nextOrNull();
+
+        while (a != null || b != null) {
+            if (a == null) {
+                appendRange(result, b);
+                b = iterB.nextOrNull();
+                continue;
             }
-            result.put(a.getKey(), a.getValue());
-            return b;
-        }).ifPresent(e -> result.put(e.getKey(), e.getValue()));
-        return result;
+            if (b == null) {
+                appendRange(result, a);
+                a = iterA.nextOrNull();
+                continue;
+            }
+
+            if (a.segmentEnd() <= b.segmentStart()) {
+                appendRange(result, a);
+                a = iterA.nextOrNull();
+                continue;
+            }
+            if (b.segmentEnd() <= a.segmentStart()) {
+                appendRange(result, b);
+                b = iterB.nextOrNull();
+                continue;
+            }
+
+            if (a.index() >= b.index()) {
+                if (b.segmentStart() < a.segmentStart()) {
+                    appendRange(result, new SegmentRange(b.segmentStart(), a.segmentStart(), b.index()));
+                }
+                if (b.segmentEnd() <= a.segmentEnd()) {
+                    b = iterB.nextOrNull();
+                } else {
+                    b = new SegmentRange(a.segmentEnd(), b.segmentEnd(), b.index());
+                    appendRange(result, a);
+                    a = iterA.nextOrNull();
+                }
+                continue;
+            }
+
+            if (a.segmentStart() < b.segmentStart()) {
+                appendRange(result, new SegmentRange(a.segmentStart(), b.segmentStart(), a.index()));
+            }
+            if (a.segmentEnd() <= b.segmentEnd()) {
+                a = iterA.nextOrNull();
+            } else {
+                a = new SegmentRange(b.segmentEnd(), a.segmentEnd(), a.index());
+                appendRange(result, b);
+                b = iterB.nextOrNull();
+            }
+        }
+        return new Position(List.copyOf(result));
     }
 
-    public boolean isNewMessage(SerializedMessage message) {
-        return isNewIndex(message.getSegment(), message.getIndex());
+    private static void appendRange(List<SegmentRange> result, SegmentRange range) {
+        if (range.segmentStart() >= range.segmentEnd()) {
+            return;
+        }
+        int size = result.size();
+        if (size > 0) {
+            SegmentRange last = result.get(size - 1);
+            if (last.segmentEnd() == range.segmentStart() && last.index() == range.index()) {
+                result.set(size - 1, new SegmentRange(last.segmentStart(), range.segmentEnd(), last.index()));
+                return;
+            }
+        }
+        result.add(range);
     }
 
-    public boolean isNewIndex(int segment, Long messageIndex) {
-        Long lastIndex = indexBySegment.get(segment);
-        return lastIndex == null || messageIndex == null || lastIndex < messageIndex;
+    private record NullableIterator<T> (Iterator<T> iterator) {
+        T nextOrNull() {
+            return iterator.hasNext() ? iterator.next() : null;
+        }
     }
 
     static class PositionSerializer extends JsonSerializer<Position> {
         @Override
-        public void serialize(Position value, JsonGenerator gen,
-                              SerializerProvider provider) throws IOException {
+        public void serialize(Position value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
             gen.writeStartArray();
-            for (Map.Entry<int[], Long> entry : value.splitInSegments().entrySet()) {
+            for (SegmentRange range : value.segmentRanges) {
                 gen.writeStartArray();
-                gen.writeNumber(entry.getKey()[0]);
-                gen.writeNumber(entry.getKey()[1]);
+                gen.writeNumber(range.segmentStart());
+                gen.writeNumber(range.segmentEnd());
                 gen.writeEndArray();
-                gen.writeNumber(entry.getValue());
+                gen.writeNumber(range.index());
             }
             gen.writeEndArray();
         }
@@ -156,10 +266,10 @@ public class Position {
                 case START_OBJECT -> {
                     p.nextToken();
                     p.nextToken();
-                    yield new Position(p.readValueAs(mapTypeReference));
+                    yield fromIndexBySegment(p.readValueAs(mapTypeReference));
                 }
                 case START_ARRAY -> {
-                    Position position = Position.newPosition();
+                    List<SegmentRange> ranges = new ArrayList<>();
                     while (p.nextToken() == JsonToken.START_ARRAY) {
                         int[] range = new int[2];
                         p.nextToken();
@@ -169,12 +279,44 @@ public class Position {
                         p.nextToken();
                         p.nextToken();
                         long index = p.getLongValue();
-                        position = position.merge(new Position(range, index));
+                        ranges.add(new SegmentRange(range[0], range[1], index));
                     }
-                    yield position;
+                    yield new Position(ranges);
                 }
                 default -> throw new UnsupportedOperationException();
             };
+        }
+
+        private static Position fromIndexBySegment(SortedMap<Integer, Long> indexBySegment) {
+            List<SegmentRange> ranges = new ArrayList<>();
+            Integer start = null;
+            Integer previousSegment = null;
+            Long previousIndex = null;
+
+            for (Map.Entry<Integer, Long> entry : indexBySegment.entrySet()) {
+                int segment = entry.getKey();
+                Long index = entry.getValue();
+                if (start == null) {
+                    start = segment;
+                    previousSegment = segment;
+                    previousIndex = index;
+                    continue;
+                }
+                if (segment == previousSegment + 1 && Objects.equals(previousIndex, index)) {
+                    previousSegment = segment;
+                    continue;
+                }
+                ranges.add(new SegmentRange(start, previousSegment + 1, previousIndex));
+                start = segment;
+                previousSegment = segment;
+                previousIndex = index;
+            }
+
+            if (start != null) {
+                ranges.add(new SegmentRange(start, previousSegment + 1, previousIndex));
+            }
+
+            return new Position(List.copyOf(ranges));
         }
     }
 }

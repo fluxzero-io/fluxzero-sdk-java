@@ -21,6 +21,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -214,8 +215,8 @@ public class CachingTrackingClient implements TrackingClient {
     protected void cacheNewMessages(List<SerializedMessage> messages) {
         if (!messages.isEmpty()) {
             Map<Long, SerializedMessage> messageMap = messages.stream().peek(m -> m.setSegment(
-                            m.getSegment() == null ? computeSegment(m.getMessageId(), Position.MAX_SEGMENT) :
-                                    m.getSegment() % Position.MAX_SEGMENT))
+                            m.getSegment() == null ? computeSegment(m.getMessageId(), SegmentRange.MAX_SEGMENT) :
+                                    m.getSegment() % SegmentRange.MAX_SEGMENT))
                     .collect(toMap(SerializedMessage::getIndex, Function.identity()));
             cache.putAll(messageMap);
             waitingTrackers.values().forEach(Runnable::run);

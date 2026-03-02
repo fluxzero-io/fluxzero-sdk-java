@@ -14,6 +14,7 @@
 
 package io.fluxzero.common.api.tracking;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Command;
@@ -34,7 +35,6 @@ import lombok.Value;
  */
 @Value
 public class StorePosition extends Command {
-
     /**
      * The type of message being tracked (e.g. {@code EVENT}, {@code COMMAND}, etc.).
      */
@@ -60,6 +60,20 @@ public class StorePosition extends Command {
      * The delivery guarantee level to apply when storing the position. See {@link io.fluxzero.common.Guarantee}.
      */
     Guarantee guarantee;
+
+    @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+    public static StorePosition fromJson(MessageType messageType, String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
+        if (segment.length != 2) {
+            throw new IllegalArgumentException("Segment must be of length 2");
+        }
+        if (segment[0] > segment[1]) {
+            throw new IllegalArgumentException("Segment start must be less than end");
+        }
+        if (segment[0] < 0 || segment[1] > SegmentRange.MAX_SEGMENT) {
+            throw new IllegalArgumentException("Segment must be within range 0 - 128");
+        }
+        return new StorePosition(messageType, consumer, segment, lastIndex, guarantee);
+    }
 
     /**
      * Returns a routing key based on the message type and consumer name. This key is used for load balancing and

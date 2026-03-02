@@ -15,6 +15,7 @@
 package io.fluxzero.common;
 
 import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.common.api.tracking.SegmentRange;
 
 import java.util.function.Function;
 
@@ -51,7 +52,7 @@ public class ConsistentHashing {
      * @return the segment index
      */
     public static int computeSegment(String routingKey) {
-        return computeSegment(routingKey, defaultHashFunction, Position.MAX_SEGMENT);
+        return computeSegment(routingKey, defaultHashFunction, SegmentRange.MAX_SEGMENT);
     }
 
     /**

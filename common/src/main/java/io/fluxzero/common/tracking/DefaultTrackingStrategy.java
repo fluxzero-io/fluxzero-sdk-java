@@ -37,7 +37,7 @@ import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
-import static io.fluxzero.common.api.tracking.Position.MAX_SEGMENT;
+import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.emptyList;

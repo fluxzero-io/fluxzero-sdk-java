@@ -37,7 +37,7 @@ public class InMemoryPositionStore implements PositionStore {
 
     @Override
     public CompletableFuture<Void> resetPosition(String consumer, long lastIndex) {
-        positions.put(consumer, new Position(new int[]{0, Position.MAX_SEGMENT}, lastIndex));
+        positions.put(consumer, new Position(lastIndex));
         return CompletableFuture.completedFuture(null);
     }
 
