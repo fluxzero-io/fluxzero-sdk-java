@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -261,7 +262,7 @@ public class ObjectUtils {
         if (e == null) {
             return null;
         }
-        if (e instanceof CompletionException || e instanceof ExecutionException) {
+        if (e instanceof CompletionException || e instanceof ExecutionException || e instanceof InvocationTargetException) {
             return unwrapException(e.getCause());
         }
         return e;

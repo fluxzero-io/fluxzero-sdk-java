@@ -15,6 +15,7 @@
 
 package io.fluxzero.common.reflection;
 
+import io.fluxzero.common.ObjectUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -118,7 +119,11 @@ public class DefaultMemberInvoker implements MemberInvoker {
             return null;
         }
         if (fallbackFunction != null) {
-            return fallbackFunction.apply(target, parameterCount, paramProvider);
+            try {
+                return fallbackFunction.apply(target, parameterCount, paramProvider);
+            } catch (Throwable e) {
+                throw ObjectUtils.unwrapException(e);
+            }
         }
         if (staticMember && parameterCount > 0) {
             return invokeFunction.apply(paramProvider.apply(0), i -> paramProvider.apply(i + 1));
