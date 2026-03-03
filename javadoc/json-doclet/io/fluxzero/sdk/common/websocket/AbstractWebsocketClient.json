@@ -318,6 +318,11 @@
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
