@@ -294,20 +294,20 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
             }
             if (value instanceof ResultBatch) {
                 String batchId = Fluxzero.generateId();
-                ((ResultBatch) value).getResults().forEach(r -> resultExecutor.execute(() -> handleResult(r, batchId)));
+                ((ResultBatch) value).getResults().forEach(r -> resultExecutor.execute(() -> handleResult(r, batchId, session.getId())));
             } else {
                 WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
                 if (webSocketRequest == null) {
                     log().warn("Could not find outstanding read request for id {} (session {})",
                                ((RequestResult) value).getRequestId(), session.getId());
                 }
-                handleResult((RequestResult) value, null);
+                handleResult((RequestResult) value, null, session.getId());
             }
         });
 
     }
 
-    protected void handleResult(RequestResult result, String batchId) {
+    protected void handleResult(RequestResult result, String batchId, String sessionId) {
         try {
             WebSocketRequest webSocketRequest = requests.remove(result.getRequestId());
             if (webSocketRequest == null) {
@@ -319,6 +319,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
                             .with(webSocketRequest.correlationData)
                             .with("batchId", batchId)
+                            .with("sessionId", sessionId)
                             .with("request", webSocketRequest.request.toMetric());
                     Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
                             .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
