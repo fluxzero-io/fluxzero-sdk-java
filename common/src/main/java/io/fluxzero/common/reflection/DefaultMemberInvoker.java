@@ -137,6 +137,9 @@ public class DefaultMemberInvoker implements MemberInvoker {
         if (member instanceof Executable e && Arrays.stream(e.getParameterTypes()).anyMatch(Class::isPrimitive)) {
             return null;
         }
+        if (lambdaParameterCount > 10) {
+            return null;
+        }
         try {
             var lookup = privateLookupIn(member.getDeclaringClass(), DefaultMemberInvoker.lookup);
             MethodHandle realMethodHandle = getMethodHandle(member, lookup);
