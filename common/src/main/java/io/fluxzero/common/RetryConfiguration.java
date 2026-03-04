@@ -111,7 +111,7 @@ public class RetryConfiguration {
     Consumer<RetryStatus> exceptionLogger = status -> {
         if (status.getNumberOfTimesRetried() == 0) {
             log.error("Task {} failed. Retrying every {} ms...",
-                      status.getTask(), status.getRetryConfiguration().getDelay().toMillis(), status.getException());
+                      status.getTask(), status.getRetryConfiguration().resolveDelay(status).toMillis(), status.getException());
         } else if (status.getNumberOfTimesRetried() >= status.getRetryConfiguration().getMaxRetries()) {
             log.error("Task {} failed permanently. Not retrying.", status.getTask(), status.getException());
         }
