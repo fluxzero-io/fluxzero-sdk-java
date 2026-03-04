@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,12 +10,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common;
 
 import lombok.Builder;
 import lombok.Builder.Default;
+import lombok.NonNull;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,8 +29,8 @@ import java.util.function.Predicate;
 /**
  * Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.
  * <p>
- * This class encapsulates options such as retry delay, maximum number of retries, error filtering, and
- * logging callbacks to be invoked on success or failure.
+ * This class encapsulates options such as retry delay, maximum number of retries, error filtering, and logging
+ * callbacks to be invoked on success or failure.
  *
  * <h2>Usage Example</h2>
  * <pre>{@code
@@ -46,14 +48,23 @@ import java.util.function.Predicate;
 @Builder(builderClassName = "Builder")
 @Slf4j
 public class RetryConfiguration {
-
     /**
-     * The delay between retry attempts.
+     * The delay between retry attempts if the {@link #delayFunction} is not overridden.
      * <p>
      * Defaults to 1 second.
      */
     @Default
+    @NonNull
     Duration delay = Duration.ofSeconds(1);
+
+    /**
+     * A function defining a strategy for determining the next delay duration between operation retries.
+     * <p>
+     * If the delay function is or returns {@code null}, {@link #getDelay()} will be used.
+     *
+     * @see RetryStatus
+     */
+    Function<RetryStatus, Duration> delayFunction;
 
     /**
      * The maximum number of retries allowed before failing permanently.
@@ -66,8 +77,8 @@ public class RetryConfiguration {
     /**
      * A predicate that determines whether a caught exception is eligible for retry.
      * <p>
-     * If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest}
-     * is set to true).
+     * If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest} is set
+     * to true).
      * <p>
      * Defaults to always returning true (retry any exception).
      */
@@ -88,13 +99,13 @@ public class RetryConfiguration {
      * This can be used to log success, metrics, etc.
      */
     @Default
-    Consumer<RetryStatus> successLogger = status -> log.info("Task {} completed successfully on retry", status.getTask());
+    Consumer<RetryStatus> successLogger =
+            status -> log.info("Task {} completed successfully on retry", status.getTask());
 
     /**
      * Callback invoked when a retryable exception is caught.
      * <p>
-     * Logs the initial retry attempt and, if applicable, the permanent failure after exceeding
-     * {@link #maxRetries}.
+     * Logs the initial retry attempt and, if applicable, the permanent failure after exceeding {@link #maxRetries}.
      */
     @Default
     Consumer<RetryStatus> exceptionLogger = status -> {
@@ -107,10 +118,26 @@ public class RetryConfiguration {
     };
 
     /**
-     * An optional mapper that can be used to convert a {@link Throwable} to a custom representation
-     * or response. This is not used by default in the retry mechanism but can be plugged into advanced
-     * error handling.
+     * An optional mapper that can be used to convert a {@link Throwable} to a custom representation or response. This
+     * is not used by default in the retry mechanism but can be plugged into advanced error handling.
      */
     @Default
     Function<Throwable, ?> errorMapper = e -> e;
+
+    /**
+     * Resolves the delay duration for the next retry attempt based on the provided {@link RetryStatus}.
+     * If a delay function has been defined, it applies this function to the given status to compute
+     * the delay. If the computed delay is null, or if no delay function is defined, it returns the
+     * default delay.
+     *
+     * @param status the current status of the retry operation containing retry attempt details.
+     * @return the delay duration to apply before the next retry attempt.
+     */
+    public Duration resolveDelay(RetryStatus status) {
+        if (delayFunction == null) {
+            return delay;
+        }
+        Duration computed = delayFunction.apply(status);
+        return computed != null ? computed : delay;
+    }
 }
