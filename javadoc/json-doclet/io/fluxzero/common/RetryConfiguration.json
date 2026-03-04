@@ -16,20 +16,31 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.\n <p>\n This class encapsulates options such as retry delay, maximum number of retries, error filtering, and\n logging callbacks to be invoked on success or failure.\n\n <h2>Usage Example</h2>\n <pre>{@code\n RetryConfiguration config = RetryConfiguration.builder()\n     .delay(Duration.ofSeconds(2))\n     .maxRetries(5)\n     .errorTest(e -> e instanceof IOException)\n     .build();\n }</pre>\n\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n @see RetryStatus\n",
+  "documentation" : " Configuration for retry behavior when executing a task using {@link TimingUtils#retryOnFailure}.\n <p>\n This class encapsulates options such as retry delay, maximum number of retries, error filtering, and logging\n callbacks to be invoked on success or failure.\n\n <h2>Usage Example</h2>\n <pre>{@code\n RetryConfiguration config = RetryConfiguration.builder()\n     .delay(Duration.ofSeconds(2))\n     .maxRetries(5)\n     .errorTest(e -> e instanceof IOException)\n     .build();\n }</pre>\n\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n @see RetryStatus\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
     "name" : "delay",
     "qualifiedName" : "io.fluxzero.common.RetryConfiguration.delay",
-    "type" : "java.time.Duration",
+    "type" : "java.time.@lombok.NonNull Duration",
     "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
     } ],
-    "documentation" : " The delay between retry attempts.\n <p>\n Defaults to 1 second.\n",
+    "documentation" : " The delay between retry attempts if the {@link #delayFunction} is not overridden.\n <p>\n Defaults to 1 second.\n",
+    "constantValue" : null
+  }, {
+    "name" : "delayFunction",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.delayFunction",
+    "type" : "java.util.function.Function<io.fluxzero.common.RetryStatus,java.time.Duration>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " A function defining a strategy for determining the next delay duration between operation retries.\n <p>\n If the delay function is or returns {@code null}, {@link #getDelay()} will be used.\n\n @see RetryStatus\n",
     "constantValue" : null
   }, {
     "name" : "errorMapper",
@@ -40,7 +51,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " An optional mapper that can be used to convert a {@link Throwable} to a custom representation\n or response. This is not used by default in the retry mechanism but can be plugged into advanced\n error handling.\n",
+    "documentation" : " An optional mapper that can be used to convert a {@link Throwable} to a custom representation or response. This\n is not used by default in the retry mechanism but can be plugged into advanced error handling.\n",
     "constantValue" : null
   }, {
     "name" : "errorTest",
@@ -51,7 +62,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " A predicate that determines whether a caught exception is eligible for retry.\n <p>\n If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest}\n is set to true).\n <p>\n Defaults to always returning true (retry any exception).\n",
+    "documentation" : " A predicate that determines whether a caught exception is eligible for retry.\n <p>\n If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest} is set\n to true).\n <p>\n Defaults to always returning true (retry any exception).\n",
     "constantValue" : null
   }, {
     "name" : "exceptionLogger",
@@ -62,7 +73,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Callback invoked when a retryable exception is caught.\n <p>\n Logs the initial retry attempt and, if applicable, the permanent failure after exceeding\n {@link #maxRetries}.\n",
+    "documentation" : " Callback invoked when a retryable exception is caught.\n <p>\n Logs the initial retry attempt and, if applicable, the permanent failure after exceeding {@link #maxRetries}.\n",
     "constantValue" : null
   }, {
     "name" : "maxRetries",
@@ -109,7 +120,23 @@
     "varArgs" : false,
     "documentation" : null
   } ],
-  "methods" : [ ],
+  "methods" : [ {
+    "name" : "resolveDelay",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration#resolveDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "status",
+      "type" : "io.fluxzero.common.RetryStatus",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the delay duration for the next retry attempt based on the provided {@link RetryStatus}.\n If a delay function has been defined, it applies this function to the given status to compute\n the delay. If the computed delay is null, or if no delay function is defined, it returns the\n default delay.\n\n @param status the current status of the retry operation containing retry attempt details.\n @return the delay duration to apply before the next retry attempt.\n"
+  } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]
