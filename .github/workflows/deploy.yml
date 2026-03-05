@@ -172,7 +172,7 @@ jobs:
           name: maven-artifacts
 
       - name: Log in to Github Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -224,7 +224,7 @@ jobs:
           name: maven-artifacts
 
       - name: Log in to Github Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -237,7 +237,7 @@ jobs:
           api-key: ${{ secrets.FLUXZERO_API_KEY }}
 
       - name: Log in to Fluxzero Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: registry.fluxzero.io
           username: ${{ steps.fluxzero-jwt.outputs.userId }}
