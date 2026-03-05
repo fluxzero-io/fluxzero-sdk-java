@@ -180,7 +180,7 @@ jobs:
 
       - name: Extract metadata for test-server
         id: metadata-test-server
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           flavor: |
             latest=true
@@ -245,7 +245,7 @@ jobs:
 
       - name: Extract metadata for proxy
         id: metadata-proxy
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           flavor: |
             latest=true
