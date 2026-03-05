@@ -190,7 +190,7 @@ jobs:
             ghcr.io/${{ github.repository }}/fluxzero-test
 
       - name: Build and push test-server Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: test-server
           push: true
@@ -256,7 +256,7 @@ jobs:
             registry.fluxzero.io/fluxzero-proxy
 
       - name: Build and push proxy Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: proxy
           push: true
