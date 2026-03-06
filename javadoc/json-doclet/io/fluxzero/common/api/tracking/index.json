@@ -50,6 +50,11 @@
     "qualifiedName" : "io.fluxzero.common.api.tracking.Position",
     "kind" : "class"
   }, {
+    "file" : "Position.NullableIterator.json",
+    "name" : "Position.NullableIterator",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position$NullableIterator",
+    "kind" : "record"
+  }, {
     "file" : "Position.PositionDeserializer.json",
     "name" : "Position.PositionDeserializer",
     "qualifiedName" : "io.fluxzero.common.api.tracking.Position$PositionDeserializer",
@@ -94,6 +99,11 @@
     "name" : "ResetPosition",
     "qualifiedName" : "io.fluxzero.common.api.tracking.ResetPosition",
     "kind" : "class"
+  }, {
+    "file" : "SegmentRange.json",
+    "name" : "SegmentRange",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.SegmentRange",
+    "kind" : "record"
   }, {
     "file" : "StorePosition.json",
     "name" : "StorePosition",

@@ -53,6 +53,22 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "fromIndexBySegment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position$PositionDeserializer#fromIndexBySegment",
+    "returnType" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "indexBySegment",
+      "type" : "java.util.SortedMap<java.lang.Integer,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

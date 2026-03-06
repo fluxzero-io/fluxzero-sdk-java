@@ -42,7 +42,7 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "provider",
+      "name" : "serializers",
       "type" : "com.fasterxml.jackson.databind.SerializerProvider",
       "varArgs" : false,
       "annotations" : [ ]

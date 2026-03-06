@@ -65,6 +65,47 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#fromJson",
+    "returnType" : "io.fluxzero.common.api.tracking.StorePosition",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {
+        "mode" : "PROPERTIES"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "routingKey",
     "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#routingKey",
     "returnType" : "java.lang.String",
