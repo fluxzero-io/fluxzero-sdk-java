@@ -186,9 +186,10 @@ Skills accelerate execution but do not replace these manuals.
 12. **No Instant.now()**: Always use `Fluxzero.currentTime()` or inject an `Instant` to ensure determinism.
 13. **BigDecimal for Precision**: Always use `BigDecimal` for currency, weights, or dimensions. Avoid `double` or
     `float`.
-14. **Value Object Modeling**: Always model commands and entities to use Value Objects (e.g., `TaskDetails`) instead of
-    separate primitive fields (like `name`). This prevents having to change the whole command/event/document structure
-    when adding fields later.
+14. **Value Object Modeling (Details vs. Status)**: Model business details that map 1:1 into entity state as dedicated
+    value objects (for example `TenantDetails`, `UserDetails`), even when there is only one field initially (like
+    `name`). Keep top-level primitive/scalar fields for identifiers and simple status/control indicators (for example
+    IDs, enums, booleans, timestamps) that are intentionally changed by a single command.
 15. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
     (`@Handle...`, `@AssertLegal`, `@Apply`) for user context.
 16. **Secure by Default**: Add `@file:RequiresUser` to the top of your Kotlin file or `@RequiresUser` to your domain's

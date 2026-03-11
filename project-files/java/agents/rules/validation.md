@@ -42,8 +42,9 @@ Fluxzero integrates with **Jakarta Validation**. Annotate your Command and Query
 
 ### Structural Validation
 
-It is recommended to extract detail properties into a dedicated value object (e.g., `UserDetails`) and reference it in
-your command using `@Valid`.
+Extract business detail properties into a dedicated value object (e.g., `UserDetails`) and reference it in your
+command/query using `@Valid`. Keep top-level primitive/scalar fields mainly for IDs and simple status/control
+indicators.
 
 [//]: # (@formatter:off)
 ```java
