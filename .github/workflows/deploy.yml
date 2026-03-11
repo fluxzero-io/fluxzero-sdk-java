@@ -153,7 +153,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v6
 
-      - uses: sigstore/cosign-installer@v4.0.0
+      - uses: sigstore/cosign-installer@v4.1.0
 
       - name: Verify docker base image signatures
         run: |
@@ -205,7 +205,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v6
 
-      - uses: sigstore/cosign-installer@v4.0.0
+      - uses: sigstore/cosign-installer@v4.1.0
 
       - name: Verify docker base image signatures
         run: |
