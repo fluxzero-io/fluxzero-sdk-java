@@ -274,6 +274,53 @@
     "varArgs" : false,
     "documentation" : " Executes the given task and waits for completion up to the given maximum duration.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @return {@code true} if the task completed in time, {@code false} if it timed out\n"
   }, {
+    "name" : "runAndWaitSafely",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#runAndWaitSafely",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the given task and waits for completion up to the given maximum duration.\n <p>\n If the task fails, false is returned without logging the failure.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @return {@code true} if the task completed in time, {@code false} if it timed out\n"
+  }, {
+    "name" : "runAndWaitSafely",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#runAndWaitSafely",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "logFailure",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the given task and waits for completion up to the given maximum duration.\n <p>\n If the task fails, a warning is optionally logged and false is returned.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @return {@code true} if the task completed in time, {@code false} if it timed out\n"
+  }, {
     "name" : "time",
     "qualifiedName" : "io.fluxzero.common.TimingUtils#time",
     "returnType" : "void",
