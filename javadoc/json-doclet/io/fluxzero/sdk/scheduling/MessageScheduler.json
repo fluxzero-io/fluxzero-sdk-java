@@ -88,7 +88,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#SENT}\n guarantee.\n\n @param message the message to schedule\n"
+    "documentation" : " Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#STORED}\n guarantee.\n\n @param message the message to schedule\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -115,7 +115,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message, optionally skipping if already present, using the {@link Guarantee#SENT} guarantee.\n\n @param message  the schedule message\n @param ifAbsent whether to skip scheduling if an existing schedule is present\n"
+    "documentation" : " Schedule a message, optionally skipping if already present, using the {@link Guarantee#STORED} guarantee.\n\n @param message  the schedule message\n @param ifAbsent whether to skip scheduling if an existing schedule is present\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -175,7 +175,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message with payload and metadata using a delay, using the {@link Guarantee#SENT} guarantee.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the schedule ID\n @param delay           delay from now until triggering\n"
+    "documentation" : " Schedule a message with payload and metadata using a delay, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the schedule ID\n @param delay           delay from now until triggering\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -209,7 +209,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message with payload and metadata, using the {@link Guarantee#SENT} guarantee.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the unique schedule ID\n @param deadline        the deadline for triggering the schedule\n"
+    "documentation" : " Schedule a message with payload and metadata, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the unique schedule ID\n @param deadline        the deadline for triggering the schedule\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -267,7 +267,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message with the given ID and deadline, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule   the object to schedule\n @param scheduleId unique schedule ID\n @param deadline   the absolute time at which the schedule should trigger\n"
+    "documentation" : " Schedule a message with the given ID and deadline, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule   the object to schedule\n @param scheduleId unique schedule ID\n @param deadline   the absolute time at which the schedule should trigger\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -291,7 +291,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message using a delay from the current time, using the {@link Guarantee#SENT} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the message to schedule\n @param delay    delay duration until the schedule triggers\n @return the schedule ID\n"
+    "documentation" : " Schedule a message using a delay from the current time, using the {@link Guarantee#STORED} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the message to schedule\n @param delay    delay duration until the schedule triggers\n @return the schedule ID\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -315,7 +315,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message to be triggered at the given deadline, using the {@link Guarantee#SENT} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the message to schedule\n @param deadline the absolute time to trigger the message\n @return the schedule ID\n"
+    "documentation" : " Schedule a message to be triggered at the given deadline, using the {@link Guarantee#STORED} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the message to schedule\n @param deadline the absolute time to trigger the message\n @return the schedule ID\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -334,7 +334,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command message using the given scheduling settings, using the {@link Guarantee#SENT} guarantee.\n\n @param message the command message\n"
+    "documentation" : " Schedule a command message using the given scheduling settings, using the {@link Guarantee#STORED} guarantee.\n\n @param message the command message\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -358,7 +358,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command using the given scheduling settings if no other with same ID exists, using the\n {@link Guarantee#SENT} guarantee.\n\n @param message  the command schedule\n @param ifAbsent whether to skip if already scheduled\n"
+    "documentation" : " Schedule a command using the given scheduling settings if no other with same ID exists, using the\n {@link Guarantee#STORED} guarantee.\n\n @param message  the command schedule\n @param ifAbsent whether to skip if already scheduled\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -418,7 +418,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command with metadata and delay, using the {@link Guarantee#SENT} guarantee.\n\n @param schedulePayload payload to schedule\n @param metadata        metadata to attach\n @param scheduleId      schedule ID\n @param delay           delay duration\n"
+    "documentation" : " Schedule a command with metadata and delay, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload payload to schedule\n @param metadata        metadata to attach\n @param scheduleId      schedule ID\n @param delay           delay duration\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -452,7 +452,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command message with attached metadata, using the {@link Guarantee#SENT} guarantee.\n\n @param schedulePayload payload of the command\n @param metadata        metadata to attach\n @param scheduleId      schedule ID\n @param deadline        execution deadline\n"
+    "documentation" : " Schedule a command message with attached metadata, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload payload of the command\n @param metadata        metadata to attach\n @param scheduleId      schedule ID\n @param deadline        execution deadline\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -481,7 +481,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command with the given ID and delay, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule   the command to schedule\n @param scheduleId schedule ID\n @param delay      delay until execution\n"
+    "documentation" : " Schedule a command with the given ID and delay, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule   the command to schedule\n @param scheduleId schedule ID\n @param delay      delay until execution\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -510,7 +510,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command using a specific deadline, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule   the command object or message\n @param scheduleId the schedule ID\n @param deadline   deadline for triggering the schedule\n"
+    "documentation" : " Schedule a command using a specific deadline, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule   the command object or message\n @param scheduleId the schedule ID\n @param deadline   deadline for triggering the schedule\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -534,7 +534,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command to execute after given delay, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule the command to schedule\n @param delay    delay until execution\n @return the schedule ID\n"
+    "documentation" : " Schedule a command to execute after given delay, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule the command to schedule\n @param delay    delay until execution\n @return the schedule ID\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -558,7 +558,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is\n dispatched as a command, using the {@link Guarantee#SENT} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the command to schedule\n @param deadline the deadline for execution\n @return the schedule ID\n"
+    "documentation" : " Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is\n dispatched as a command, using the {@link Guarantee#STORED} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the command to schedule\n @param deadline the deadline for execution\n @return the schedule ID\n"
   }, {
     "name" : "schedulePeriodic",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedulePeriodic",
@@ -582,7 +582,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a periodic message using the given ID and the {@code @Periodic} annotation, using the\n {@link Guarantee#SENT} guarantee.\n\n @param value      the payload to schedule periodically\n @param scheduleId a custom ID or null to use value#toString\n @return the effective schedule ID\n"
+    "documentation" : " Schedule a periodic message using the given ID and the {@code @Periodic} annotation, using the\n {@link Guarantee#STORED} guarantee.\n\n @param value      the payload to schedule periodically\n @param scheduleId a custom ID or null to use value#toString\n @return the effective schedule ID\n"
   }, {
     "name" : "schedulePeriodic",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedulePeriodic",
@@ -598,7 +598,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#SENT}\n guarantee.\n\n @param value the payload to schedule periodically\n @return the schedule ID\n @throws IllegalArgumentException if the annotation is missing or misconfigured\n"
+    "documentation" : " Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#STORED}\n guarantee.\n\n @param value the payload to schedule periodically\n @return the schedule ID\n @throws IllegalArgumentException if the annotation is missing or misconfigured\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
