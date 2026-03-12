@@ -204,6 +204,17 @@ public class ValidationUtils {
         }
     }
 
+    /**
+     * Asserts that executable arguments satisfy JSR 380 constraints declared on method or constructor parameters.
+     *
+     * @param target     the target object for method invocation (ignored for constructors and static methods)
+     * @param executable the executable that will be invoked
+     * @param arguments  resolved argument values in declaration order
+     */
+    public static void assertValidParameters(@Nullable Object target, Executable executable, Object[] arguments) {
+        defaultValidator.assertValidParameters(target, executable, arguments);
+    }
+
     private static Class<?>[] getValidationGroups(Object object, Class<?>[] customGroups) {
         if (customGroups.length > 0 || object == null) {
             return customGroups;

@@ -31,6 +31,7 @@ import javax.lang.model.element.Name;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -140,7 +141,7 @@ public class WebParameterProcessor extends AbstractProcessor {
         content.append("\tstatic Map<String, List<String>> methodParameters() {\n");
         content.append("\t\tMap<String, List<String>> result = new HashMap<>();\n");
         methods.forEach(m -> {
-            content.append("\t\tresult.put(\"").append(ParameterRegistry.signature(m)).append("\", List.of(")
+            content.append("\t\tresult.put(\"").append(signature(m)).append("\", List.of(")
                     .append(String.join(", ", m.getParameters().stream().map(VariableElement::getSimpleName)
                             .map(Name::toString).map(name -> "\"" + name + "\"").toList()))
                     .append("));\n");
@@ -159,6 +160,17 @@ public class WebParameterProcessor extends AbstractProcessor {
             messager.printError("Error generating DumpedParams: " + e.getMessage());
         }
 
+    }
+
+    private String signature(ExecutableElement method) {
+        String methodName = method.getSimpleName().toString();
+        String parameterTypes = method.getParameters().stream()
+                .map(VariableElement::asType)
+                .map(type -> processingEnv.getTypeUtils().erasure(type))
+                .map(TypeMirror::toString)
+                .reduce((a, b) -> a + "," + b)
+                .orElse("");
+        return methodName + "(" + parameterTypes + ")";
     }
 
     @Override

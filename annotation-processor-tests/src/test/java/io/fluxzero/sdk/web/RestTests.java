@@ -2,6 +2,9 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +42,16 @@ class RestTests {
             testFixture.whenGet("/path/123").expectResult(new SomeId("123"));
         }
 
+        @Test
+        void testGetValidatedPathParam_valid() {
+            testFixture.whenGet("/validatedPathParam/5").expectResult("validatedPathParam:5");
+        }
+
+        @Test
+        void testGetValidatedPathParam_invalid() {
+            testFixture.whenGet("/validatedPathParam/0").expectExceptionalResult(ValidationException.class);
+        }
+
         static class Handler {
             @HandleGet("string/{foo}")
             Object get(@PathParam String foo) {
@@ -59,6 +72,11 @@ class RestTests {
             @HandleGet
             Object getPath(@PathParam SomeId foo) {
                 return foo;
+            }
+
+            @HandleGet("/validatedPathParam/{id}")
+            String validatedPathParam(@PathParam @NotNull @Positive Integer id) {
+                return "validatedPathParam:" + id;
             }
         }
     }

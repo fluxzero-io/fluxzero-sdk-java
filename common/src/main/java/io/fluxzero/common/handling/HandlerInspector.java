@@ -292,7 +292,12 @@ public class HandlerInspector {
             return Optional.of(target -> new MethodHandlerInvoker() {
                 @Override
                 public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                    return invoker.invoke(target, parameterCount, i -> matchingResolvers[i].apply(m));
+                    Object[] args = new Object[parameterCount];
+                    for (int i = 0; i < parameterCount; i++) {
+                        args[i] = matchingResolvers[i].apply(m);
+                    }
+                    config.methodInvocationValidator().validate(m, target, executable, args);
+                    return invoker.invoke(target, parameterCount, i -> args[i]);
                 }
             });
         }

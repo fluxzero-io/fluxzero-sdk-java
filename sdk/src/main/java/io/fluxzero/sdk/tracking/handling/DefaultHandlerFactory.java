@@ -24,6 +24,7 @@ import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.MessageFilter;
+import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
@@ -112,6 +113,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
     private final MessageFilter<? super DeserializingMessage> messageFilter;
     private final Class<? extends Annotation> handlerAnnotation;
+    private final MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator;
     private final Function<Class<?>, HandlerRepository> handlerRepositorySupplier;
     private final RepositoryProvider repositoryProvider;
 
@@ -121,9 +123,19 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                  Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                  RepositoryProvider repositoryProvider) {
+        this(messageType, defaultDecorator, parameterResolvers, MethodInvocationValidator.noOp(),
+             handlerRepositorySupplier, repositoryProvider);
+    }
+
+    public DefaultHandlerFactory(MessageType messageType, HandlerDecorator defaultDecorator,
+                                 List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                 MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator,
+                                 Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
+                                 RepositoryProvider repositoryProvider) {
         this.messageType = messageType;
         this.defaultDecorator = defaultDecorator;
         this.parameterResolvers = parameterResolvers;
+        this.methodInvocationValidator = methodInvocationValidator;
         this.handlerRepositorySupplier = handlerRepositorySupplier;
         this.repositoryProvider = repositoryProvider;
         this.handlerAnnotation = getHandlerAnnotation(messageType);
@@ -139,7 +151,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .reduce(HandlerDecorator::andThen).orElseThrow();
         return Optional.of(handlerAnnotation)
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
-                        .handlerFilter(handlerFilter).messageFilter(messageFilter).build())
+                        .handlerFilter(handlerFilter).messageFilter(messageFilter)
+                        .methodInvocationValidator(methodInvocationValidator).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
                 .map(handlerDecorator::wrap);

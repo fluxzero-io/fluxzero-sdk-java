@@ -81,6 +81,12 @@ public class HandlerConfiguration<M> {
     MessageFilter<? super M> messageFilter = (m, e, handlerAnnotation, targetClass) -> true;
 
     /**
+     * Optional hook to validate resolved arguments before invoking a handler method.
+     */
+    @Default
+    MethodInvocationValidator<? super M> methodInvocationValidator = MethodInvocationValidator.noOp();
+
+    /**
      * Determines whether the given method is eligible to handle messages according to this configuration.
      * <p>
      * This includes both:

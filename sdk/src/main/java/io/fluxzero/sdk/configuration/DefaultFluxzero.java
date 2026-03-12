@@ -25,6 +25,7 @@ import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.IdentityProvider;
@@ -109,6 +110,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor;
 import io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor;
 import io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor;
+import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import io.fluxzero.sdk.tracking.metrics.HandlerMonitor;
 import io.fluxzero.sdk.tracking.metrics.TrackerMonitor;
 import io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector;
@@ -294,6 +296,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableErrorReporting;
         private boolean disableMessageCorrelation;
         private boolean disablePayloadValidation;
+        private boolean disableWebParameterValidation;
         private boolean disableDataProtection;
         private boolean disableAutomaticAggregateCaching;
         private boolean disableScheduledCommandHandler;
@@ -490,6 +493,12 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public Builder disablePayloadValidation() {
             disablePayloadValidation = true;
+            return this;
+        }
+
+        @Override
+        public Builder disableWebParameterValidation() {
+            disableWebParameterValidation = true;
             return this;
         }
 
@@ -780,7 +789,8 @@ public class DefaultFluxzero implements Fluxzero {
                             m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
                             generalBatchInterceptors.getOrDefault(m, List.of()), this.serializer,
                             new DefaultHandlerFactory(m, handlerDecorators.get(m == NOTIFICATION ? EVENT : m),
-                                                      parameterResolvers, handlerRepositorySupplier,
+                                                      parameterResolvers, methodInvocationValidator(m),
+                                                      handlerRepositorySupplier,
                                                       repositorySupplier))));
 
             //misc
@@ -926,13 +936,24 @@ public class DefaultFluxzero implements Fluxzero {
                                                        RepositoryProvider repositoryProvider) {
             var result = new LocalHandlerRegistry(new DefaultHandlerFactory(
                     messageType, handlerDecorators.get(messageType), parameterResolvers,
+                    methodInvocationValidator(messageType),
                     handlerRepositorySupplier, repositoryProvider), dispatchInterceptors.get(messageType));
             if (messageType == EVENT) {
                 return result.andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
                         NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,
+                        methodInvocationValidator(NOTIFICATION),
                         handlerRepositorySupplier, repositoryProvider), dispatchInterceptors.get(EVENT)));
             }
             return result;
+        }
+
+        protected MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator(
+                MessageType messageType) {
+            if (messageType == WEBREQUEST && !disableWebParameterValidation) {
+                return (message, target, executable, arguments) ->
+                        ValidationUtils.assertValidParameters(target, executable, arguments);
+            }
+            return MethodInvocationValidator.noOp();
         }
     }
 

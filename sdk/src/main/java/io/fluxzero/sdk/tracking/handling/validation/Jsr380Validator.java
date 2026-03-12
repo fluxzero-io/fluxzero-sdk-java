@@ -19,9 +19,12 @@ import jakarta.validation.Path;
 import jakarta.validation.TraversableResolver;
 import jakarta.validation.Validation;
 import jakarta.validation.metadata.ConstraintDescriptor;
+import jakarta.annotation.Nullable;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.ElementType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -71,6 +74,23 @@ public class Jsr380Validator implements Validator {
             if (violations.isEmpty()) {
                 throw e;
             }
+        }
+        return violations.isEmpty() ? Optional.empty() : Optional.of(newValidationException(violations));
+    }
+
+    @Override
+    public Optional<ValidationException> checkParameterValidity(
+            @Nullable Object target, Executable executable, Object[] arguments) {
+        Collection<? extends ConstraintViolation<?>> violations;
+        if (executable instanceof Method method) {
+            if (target == null) {
+                return Optional.empty();
+            }
+            violations = defaultValidator.forExecutables().validateParameters(target, method, arguments);
+        } else if (executable instanceof Constructor<?> constructor) {
+            violations = defaultValidator.forExecutables().validateConstructorParameters(constructor, arguments);
+        } else {
+            violations = List.of();
         }
         return violations.isEmpty() ? Optional.empty() : Optional.of(newValidationException(violations));
     }

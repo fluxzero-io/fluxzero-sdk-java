@@ -251,6 +251,11 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disablePayloadValidation();
 
     /**
+     * Disables validation of injected web parameters (e.g. {@code @PathParam}, {@code @QueryParam}).
+     */
+    FluxzeroBuilder disableWebParameterValidation();
+
+    /**
      * Disables security filtering based on {@code @FilterContent}.
      */
     FluxzeroBuilder disableDataProtection();
