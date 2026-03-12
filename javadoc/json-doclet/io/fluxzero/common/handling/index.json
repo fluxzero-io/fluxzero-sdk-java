@@ -75,6 +75,11 @@
     "qualifiedName" : "io.fluxzero.common.handling.MessageFilter",
     "kind" : "interface"
   }, {
+    "file" : "MethodInvocationValidator.json",
+    "name" : "MethodInvocationValidator",
+    "qualifiedName" : "io.fluxzero.common.handling.MethodInvocationValidator",
+    "kind" : "interface"
+  }, {
     "file" : "ParameterResolver.json",
     "name" : "ParameterResolver",
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver",

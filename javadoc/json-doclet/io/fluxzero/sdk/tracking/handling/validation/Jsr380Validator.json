@@ -41,6 +41,38 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "checkParameterValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator#checkParameterValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "arguments",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "checkValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator#checkValidity",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",

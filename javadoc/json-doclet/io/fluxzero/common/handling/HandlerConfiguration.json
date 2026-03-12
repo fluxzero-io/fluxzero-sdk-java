@@ -63,6 +63,17 @@
     "annotations" : [ ],
     "documentation" : " The annotation type that marks a method as a handler (e.g. {@code @HandleCommand}, {@code @HandleQuery}).\n If {@code null}, all methods are considered eligible for inspection.\n",
     "constantValue" : null
+  }, {
+    "name" : "methodInvocationValidator",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.methodInvocationValidator",
+    "type" : "io.fluxzero.common.handling.MethodInvocationValidator<? super M>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional hook to validate resolved arguments before invoking a handler method.\n",
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "HandlerConfiguration",

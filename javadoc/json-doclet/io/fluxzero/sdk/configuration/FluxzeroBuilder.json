@@ -396,6 +396,17 @@
     "varArgs" : false,
     "documentation" : " Disables tracking of processing metrics.\n"
   }, {
+    "name" : "disableWebParameterValidation",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableWebParameterValidation",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Disables validation of injected web parameters (e.g. {@code @PathParam}, {@code @QueryParam}).\n"
+  }, {
     "name" : "disableWebResponseCompression",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableWebResponseCompression",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

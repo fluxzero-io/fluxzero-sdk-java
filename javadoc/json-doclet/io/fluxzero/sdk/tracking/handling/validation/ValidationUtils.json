@@ -194,6 +194,35 @@
     "varArgs" : true,
     "documentation" : " Asserts that the given object is valid, using the default {@link Validator}.\n <p>\n Throws a {@link ValidationException} if the object fails validation.\n\n @param object the object to validate\n @param groups optional validation groups\n @throws ValidationException if validation fails\n"
   }, {
+    "name" : "assertValidParameters",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertValidParameters",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "arguments",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asserts that executable arguments satisfy JSR 380 constraints declared on method or constructor parameters.\n\n @param target     the target object for method invocation (ignored for constructors and static methods)\n @param executable the executable that will be invoked\n @param arguments  resolved argument values in declaration order\n"
+  }, {
     "name" : "checkValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#checkValidity",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
