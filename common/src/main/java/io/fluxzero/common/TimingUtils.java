@@ -230,6 +230,32 @@ public class TimingUtils {
 
     /**
      * Executes the given task and waits for completion up to the given maximum duration.
+     * <p>
+     * If the task fails, false is returned without logging the failure.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @return {@code true} if the task completed in time, {@code false} if it timed out
+     */
+    public static boolean runAndWaitSafely(ThrowingRunnable task, Duration maxDuration) {
+        return timeboxedExecutor.runAndWaitSafely(task, maxDuration, false);
+    }
+
+    /**
+     * Executes the given task and waits for completion up to the given maximum duration.
+     * <p>
+     * If the task fails, a warning is optionally logged and false is returned.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @return {@code true} if the task completed in time, {@code false} if it timed out
+     */
+    public static boolean runAndWaitSafely(ThrowingRunnable task, Duration maxDuration, boolean logFailure) {
+        return timeboxedExecutor.runAndWaitSafely(task, maxDuration);
+    }
+
+    /**
+     * Executes the given task and waits for completion up to the given maximum duration.
      *
      * @param task        the task to execute
      * @param maxDuration the maximum duration to wait

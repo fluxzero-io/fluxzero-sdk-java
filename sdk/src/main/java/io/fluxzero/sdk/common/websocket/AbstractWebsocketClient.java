@@ -403,7 +403,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
     protected void abort(Session session, String reason) {
         CloseReason closeReason = new CloseReason(UNEXPECTED_CONDITION, reason);
         log().warn("Aborting session {} due to {}", session.getId(), reason);
-        if (!TimingUtils.runAndWait(() -> session.close(closeReason), Duration.ofSeconds(5))) {
+        if (!TimingUtils.runAndWaitSafely(() -> session.close(closeReason), Duration.ofSeconds(5))) {
             log().warn("Failed to close session {} after abort", session.getId());
             onClose(session, closeReason);
         }

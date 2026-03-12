@@ -17,6 +17,7 @@ package io.fluxzero.common;
 
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -41,12 +42,46 @@ import static io.fluxzero.common.ObjectUtils.rethrow;
  * </ul>
  */
 @AllArgsConstructor
+@Slf4j
 public final class TimeboxedExecutor implements AutoCloseable {
     @NonNull
     private final ExecutorService executor;
 
     public TimeboxedExecutor() {
         this(defaultExecutor());
+    }
+
+    /**
+     * Executes the given task and waits for completion up to the given maximum duration.
+     * <p>
+     * If the task fails, false is returned without logging the failure.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @return {@code true} if the task completed in time, {@code false} if it timed out
+     */
+    public boolean runAndWaitSafely(ThrowingRunnable task, Duration maxDuration) {
+        return runAndWaitSafely(task, maxDuration, false);
+    }
+
+    /**
+     * Executes the given task and waits for completion up to the given maximum duration.
+     * <p>
+     * If the task fails, a warning is optionally logged and false is returned.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @return {@code true} if the task completed in time, {@code false} if it timed out
+     */
+    public boolean runAndWaitSafely(ThrowingRunnable task, Duration maxDuration, boolean logFailure) {
+        try {
+            return runAndWait(task, maxDuration);
+        } catch (Exception e) {
+            if (logFailure) {
+                log.warn("Timeboxed task failed after {}", maxDuration, e);
+            }
+            return false;
+        }
     }
 
     /**
