@@ -13,22 +13,6 @@ These files are the **absolute source of truth** for this project. The Guideline
 3. **Task-Specific Manuals**: Use the Decision Tree in the Guidelines to jump to the relevant manual for your current
    task.
 
-## Skill List (Execution Accelerators)
-
-Skills are workflow wrappers around the manuals. They do **not** replace the guides.
-
-Check the folder `{project-root}/.fluxzero/agents/skills` for:
-
-- **slice-delivery** (`skills/slice-delivery/SKILL.md`): Deliver work as one vertical slice with checkpoint/reporting.
-- **domain-core** (`skills/domain-core/SKILL.md`): Model and implement commands/queries/invariants.
-- **messaging-scheduling** (`skills/messaging-scheduling/SKILL.md`): Publish/query/schedule and metadata tracing.
-- **web-surface** (`skills/web-surface/SKILL.md`): Build REST/WebSocket transport adapters and endpoint tests.
-- **search-readmodels** (`skills/search-readmodels/SKILL.md`): Implement search/doc read models and window-aware reads.
-- **stateful-orchestration** (`skills/stateful-orchestration/SKILL.md`): Build `@Stateful` workflows and retries.
-- **replay-correction** (`skills/replay-correction/SKILL.md`): Run targeted replay/retroactive correction safely.
-- **schema-evolution** (`skills/schema-evolution/SKILL.md`): Handle `@Revision` and upcasting/downcasting.
-- **runtime-bootstrap** (`skills/runtime-bootstrap/SKILL.md`): Configure builder/client/consumer/runtime integration.
-
 ### Complete Manual List (Reference)
 
 Check the folder `{project-root}/.fluxzero/agents/rules` for:
