@@ -83,7 +83,7 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
-     * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#SENT}
+     * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#STORED}
      * guarantee.
      *
      * @param value the payload to schedule periodically
@@ -96,7 +96,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a periodic message using the given ID and the {@code @Periodic} annotation, using the
-     * {@link Guarantee#SENT} guarantee.
+     * {@link Guarantee#STORED} guarantee.
      *
      * @param value      the payload to schedule periodically
      * @param scheduleId a custom ID or null to use value#toString
@@ -119,7 +119,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message to be triggered at the given deadline, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message to be triggered at the given deadline, using the {@link Guarantee#STORED} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -134,7 +134,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message using a delay from the current time, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message using a delay from the current time, using the {@link Guarantee#STORED} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -158,7 +158,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with payload and metadata, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message with payload and metadata, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload the message payload
      * @param metadata        metadata to attach
@@ -170,7 +170,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with payload and metadata using a delay, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message with payload and metadata using a delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload the message payload
      * @param metadata        metadata to attach
@@ -182,7 +182,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with the given ID and deadline, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message with the given ID and deadline, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule   the object to schedule
      * @param scheduleId unique schedule ID
@@ -200,7 +200,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#SENT}
+     * Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#STORED}
      * guarantee.
      *
      * @param message the message to schedule
@@ -210,7 +210,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message, optionally skipping if already present, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message, optionally skipping if already present, using the {@link Guarantee#STORED} guarantee.
      *
      * @param message  the schedule message
      * @param ifAbsent whether to skip scheduling if an existing schedule is present
@@ -218,7 +218,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     @SneakyThrows
     default void schedule(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            schedule(message, ifAbsent, Guarantee.SENT).get();
+            schedule(message, ifAbsent, Guarantee.STORED).get();
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule message %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
@@ -238,7 +238,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is
-     * dispatched as a command, using the {@link Guarantee#SENT} guarantee.
+     * dispatched as a command, using the {@link Guarantee#STORED} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -253,7 +253,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command to execute after given delay, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command to execute after given delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule the command to schedule
      * @param delay    delay until execution
@@ -264,7 +264,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command with the given ID and delay, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command with the given ID and delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule   the command to schedule
      * @param scheduleId schedule ID
@@ -275,7 +275,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command message with attached metadata, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command message with attached metadata, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload payload of the command
      * @param metadata        metadata to attach
@@ -288,7 +288,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command with metadata and delay, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command with metadata and delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload payload to schedule
      * @param metadata        metadata to attach
@@ -301,7 +301,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command using a specific deadline, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command using a specific deadline, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule   the command object or message
      * @param scheduleId the schedule ID
@@ -319,7 +319,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command message using the given scheduling settings, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command message using the given scheduling settings, using the {@link Guarantee#STORED} guarantee.
      *
      * @param message the command message
      */
@@ -329,14 +329,14 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a command using the given scheduling settings if no other with same ID exists, using the
-     * {@link Guarantee#SENT} guarantee.
+     * {@link Guarantee#STORED} guarantee.
      *
      * @param message  the command schedule
      * @param ifAbsent whether to skip if already scheduled
      */
     default void scheduleCommand(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            scheduleCommand(message, ifAbsent, Guarantee.SENT).get();
+            scheduleCommand(message, ifAbsent, Guarantee.STORED).get();
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule command %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
