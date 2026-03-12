@@ -262,10 +262,32 @@ public class ObjectUtils {
         if (e == null) {
             return null;
         }
-        if (e instanceof CompletionException || e instanceof ExecutionException || e instanceof InvocationTargetException) {
+        if (e instanceof CompletionException || e instanceof ExecutionException
+            || e instanceof InvocationTargetException) {
             return unwrapException(e.getCause());
         }
         return e;
+    }
+
+    /**
+     * Unwraps then returns the given {@link Throwable} as an unchecked exception. If the provided throwable is a
+     * {@link RuntimeException} or {@link Error}, it is returned as-is. Otherwise, it is wrapped in a new
+     * {@link RuntimeException}.
+     *
+     * @see #unwrapException(Throwable)
+     */
+    public static RuntimeException rethrow(Throwable e) {
+        if (e == null) {
+            return null;
+        }
+        e = unwrapException(e);
+        if (e instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        if (e instanceof Error error) {
+            throw error;
+        }
+        return new RuntimeException(e);
     }
 
     /**

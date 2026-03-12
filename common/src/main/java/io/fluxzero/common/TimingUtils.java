@@ -15,6 +15,7 @@
 
 package io.fluxzero.common;
 
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,8 +25,10 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static java.lang.Thread.currentThread;
 
@@ -41,6 +44,8 @@ import static java.lang.Thread.currentThread;
  */
 @Slf4j
 public class TimingUtils {
+
+    private static final TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor();
 
     /**
      * Executes a task and measures its execution time in milliseconds.
@@ -221,5 +226,45 @@ public class TimingUtils {
      */
     public static boolean isMissedDeadline(Clock clock, long deadline) {
         return clock.millis() >= deadline;
+    }
+
+    /**
+     * Executes the given task and waits for completion up to the given maximum duration.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @return {@code true} if the task completed in time, {@code false} if it timed out
+     */
+    @SuppressWarnings("UnusedReturnValue")
+    public static boolean runAndWait(ThrowingRunnable task, Duration maxDuration) {
+        return timeboxedExecutor.runAndWait(task, maxDuration);
+    }
+
+    /**
+     * Executes the given task within the specified maximum duration. If the task times out, the fallback value is
+     * returned.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @param fallback    supplies the fallback value in case of timeout
+     * @param <T>         the task result type
+     * @return the task result, or the fallback result if the task timed out
+     */
+    @SuppressWarnings("UnusedReturnValue")
+    public static <T> T callAndWait(Callable<T> task, Duration maxDuration, Supplier<? extends T> fallback) {
+        return timeboxedExecutor.callAndWait(task, maxDuration, fallback);
+    }
+
+    /**
+     * Executes the given task within the specified maximum duration.
+     *
+     * @param task        the task to execute
+     * @param maxDuration the maximum duration to wait
+     * @param <T>         the task result type
+     * @return the task result
+     * @throws TimeoutException if the task does not complete within the given duration
+     */
+    public static <T> T callAndWait(@NonNull Callable<T> task, Duration maxDuration) throws TimeoutException {
+        return timeboxedExecutor.callAndWait(task, maxDuration);
     }
 }

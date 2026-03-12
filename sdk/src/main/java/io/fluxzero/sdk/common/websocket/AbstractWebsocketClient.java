@@ -22,6 +22,7 @@ import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.TimingUtils;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.JsonType;
@@ -372,7 +373,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
                     }));
                 });
                 try {
-                    session.getBasicRemote().sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
+                    session.getAsyncRemote().sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
                 } catch (Exception e) {
                     log().warn("Failed to send ping message", e);
                 }
@@ -401,23 +402,12 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
     @SneakyThrows
     protected void abort(Session session, String reason) {
         CloseReason closeReason = new CloseReason(UNEXPECTED_CONDITION, reason);
-        try {
-            log().warn("Aborting session {} due to {}", session.getId(), reason);
-            onClose(session, closeReason);
-        } finally {
-            session.close(closeReason); //inform the server this session has been aborted
-        }
+        log().warn("Aborting session {} due to {}", session.getId(), reason);
+        TimingUtils.runAndWait(() -> session.close(closeReason), Duration.ofSeconds(5));
     }
 
     @OnClose
-    public void onClosing(Session session, CloseReason closeReason) {
-        if (closeReason.getCloseCode().getCode() == UNEXPECTED_CONDITION.getCode()) {
-            return; // this is our own abort
-        }
-        onClose(session, closeReason);
-    }
-
-    protected void onClose(Session session, CloseReason closeReason) {
+    public void onClose(Session session, CloseReason closeReason) {
         if (session.isOpen() && session instanceof UndertowSession s) {
             try {
                 //this works around a bug in Undertow: after closing the session normally and receiving the onClose message
