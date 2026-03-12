@@ -185,6 +185,11 @@
     "qualifiedName" : "io.fluxzero.common.ThrowingRunnable",
     "kind" : "interface"
   }, {
+    "file" : "TimeboxedExecutor.json",
+    "name" : "TimeboxedExecutor",
+    "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor",
+    "kind" : "class"
+  }, {
     "file" : "TimingUtils.json",
     "name" : "TimingUtils",
     "qualifiedName" : "io.fluxzero.common.TimingUtils",

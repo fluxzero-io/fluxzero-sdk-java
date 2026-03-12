@@ -12,7 +12,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "timeboxedExecutor",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils.timeboxedExecutor",
+    "type" : "io.fluxzero.common.TimeboxedExecutor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "TimingUtils",
     "qualifiedName" : "io.fluxzero.common.TimingUtils#TimingUtils",
@@ -25,6 +33,61 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "callAndWait",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#callAndWait",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.@lombok.NonNull Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.util.concurrent.TimeoutException" ],
+    "varArgs" : false,
+    "documentation" : " Executes the given task within the specified maximum duration.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @param <T>         the task result type\n @return the task result\n @throws TimeoutException if the task does not complete within the given duration\n"
+  }, {
+    "name" : "callAndWait",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#callAndWait",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"UnusedReturnValue\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.concurrent.Callable<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallback",
+      "type" : "java.util.function.Supplier<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the given task within the specified maximum duration. If the task times out, the fallback value is\n returned.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @param fallback    supplies the fallback value in case of timeout\n @param <T>         the task result type\n @return the task result, or the fallback result if the task timed out\n"
+  }, {
     "name" : "isMissedDeadline",
     "qualifiedName" : "io.fluxzero.common.TimingUtils#isMissedDeadline",
     "returnType" : "boolean",
@@ -184,6 +247,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retries a {@link Callable} task with a delay and a predicate to filter retryable exceptions.\n\n @param task      the task to execute\n @param delay     the delay between retries\n @param errorTest predicate to test whether an exception is retryable\n @param <T>       the result type\n @return the successful result, or {@code null} if not retryable and throwOnFailingErrorTest is false\n"
+  }, {
+    "name" : "runAndWait",
+    "qualifiedName" : "io.fluxzero.common.TimingUtils#runAndWait",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"UnusedReturnValue\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.common.ThrowingRunnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the given task and waits for completion up to the given maximum duration.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @return {@code true} if the task completed in time, {@code false} if it timed out\n"
   }, {
     "name" : "time",
     "qualifiedName" : "io.fluxzero.common.TimingUtils#time",

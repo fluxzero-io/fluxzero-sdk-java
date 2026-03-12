@@ -534,6 +534,22 @@
     "varArgs" : false,
     "documentation" : " Returns a predicate that always evaluates to true.\n"
   }, {
+    "name" : "rethrow",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#rethrow",
+    "returnType" : "java.lang.RuntimeException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Unwraps then returns the given {@link Throwable} as an unchecked exception. If the provided throwable is a\n {@link RuntimeException} or {@link Error}, it is returned as-is. Otherwise, it is wrapped in a new\n {@link RuntimeException}.\n\n @see #unwrapException(Throwable)\n"
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#run",
     "returnType" : "void",
