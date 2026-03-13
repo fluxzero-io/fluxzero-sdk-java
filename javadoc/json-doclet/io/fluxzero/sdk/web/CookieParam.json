@@ -20,7 +20,7 @@
       "type" : "COOKIE"
     }
   } ],
-  "documentation" : " Injects the value of an HTTP cookie into a handler method parameter.\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/profile\")\n public User getProfile(@CookieParam(\"auth_token\") String token) { ... }\n }</pre>\n",
+  "documentation" : " Injects the value of an HTTP cookie into a handler method parameter.\n <p>\n Standard validation annotations may be declared directly on the injected parameter.\n </p>\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/profile\")\n public User getProfile(@CookieParam(\"auth_token\") @NotBlank String token) { ... }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

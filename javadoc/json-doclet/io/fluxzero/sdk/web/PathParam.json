@@ -21,7 +21,7 @@
       "value" : ""
     }
   } ],
-  "documentation" : " Injects a path variable from the URI into a handler method parameter.\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/users/{id}\")\n User getUser(@PathParam String id) { ... }\n }</pre>\n",
+  "documentation" : " Injects a path variable from the URI into a handler method parameter.\n <p>\n Standard validation annotations such as {@code @NotNull} and {@code @Positive} may be declared directly on the\n injected parameter.\n </p>\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/users/{id}\")\n User getUser(@PathParam @Positive Long id) { ... }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

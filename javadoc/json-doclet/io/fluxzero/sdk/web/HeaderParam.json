@@ -20,7 +20,7 @@
       "type" : "HEADER"
     }
   } ],
-  "documentation" : " Injects an HTTP request header into a handler method parameter.\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/terms\")\n public String getTerms(@HeaderParam(\"Accept-Language\") String language) { ... }\n }</pre>\n",
+  "documentation" : " Injects an HTTP request header into a handler method parameter.\n <p>\n Standard validation annotations may be declared directly on the injected parameter.\n </p>\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/terms\")\n public String getTerms(@HeaderParam(\"Accept-Language\") @NotBlank String language) { ... }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

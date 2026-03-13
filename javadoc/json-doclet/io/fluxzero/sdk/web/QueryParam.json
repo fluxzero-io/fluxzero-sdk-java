@@ -20,7 +20,7 @@
       "type" : "QUERY"
     }
   } ],
-  "documentation" : " Injects an HTTP query parameter into a handler method parameter.\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/search\")\n public List<User> search(@QueryParam String keyword) { ... }\n }</pre>\n",
+  "documentation" : " Injects an HTTP query parameter into a handler method parameter.\n <p>\n Standard validation annotations such as {@code @NotBlank}, {@code @Min}, or {@code @Pattern} may be declared\n directly on the injected parameter.\n </p>\n\n <h2>Example:</h2>\n <pre>{@code\n @HandleGet(\"/search\")\n public List<User> search(@QueryParam @NotBlank String keyword) { ... }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],
