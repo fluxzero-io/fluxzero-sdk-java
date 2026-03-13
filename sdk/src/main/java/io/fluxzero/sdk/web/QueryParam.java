@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 package io.fluxzero.sdk.web;
 
@@ -20,11 +21,15 @@ import java.lang.annotation.Target;
 
 /**
  * Injects an HTTP query parameter into a handler method parameter.
+ * <p>
+ * Standard validation annotations such as {@code @NotBlank}, {@code @Min}, or {@code @Pattern} may be declared
+ * directly on the injected parameter.
+ * </p>
  *
  * <h2>Example:</h2>
  * <pre>{@code
  * @HandleGet("/search")
- * public List<User> search(@QueryParam String keyword) { ... }
+ * public List<User> search(@QueryParam @NotBlank String keyword) { ... }
  * }</pre>
  */
 @Retention(RetentionPolicy.RUNTIME)

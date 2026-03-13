@@ -493,6 +493,9 @@ Use annotations to inject specific parts of the HTTP request:
 - **@HeaderParam**: Extracts values from HTTP headers.
 - **@FormParam**: Extracts values from `application/x-www-form-urlencoded` or `multipart/form-data` bodies.
 
+These injected parameters can also use standard validation annotations directly, for example
+`@PathParam @Positive Long id` or `@QueryParam @NotBlank String search`.
+
 [//]: # (@formatter:off)
 ```java
 @HandlePost("/{userId}/avatar")
@@ -501,6 +504,15 @@ void uploadAvatar(
     @FormParam byte[] imageData,
     @HeaderParam("Content-Type") String contentType
 ) {
+    // ...
+}
+```
+[//]: # (@formatter:on)
+
+[//]: # (@formatter:off)
+```java
+@HandleGet("/projects/{id}")
+Project getProject(@PathParam @Positive Long id) {
     // ...
 }
 ```

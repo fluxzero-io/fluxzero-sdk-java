@@ -500,6 +500,9 @@ Use annotations to inject specific parts of the HTTP request:
 - **@HeaderParam**: Extracts values from HTTP headers.
 - **@FormParam**: Extracts values from `application/x-www-form-urlencoded` or `multipart/form-data` bodies.
 
+These injected parameters can also use standard validation annotations directly, for example
+`@PathParam @Positive id: Long` or `@QueryParam @NotBlank search: String`.
+
 [//]: # (@formatter:off)
 ```kotlin
 @HandlePost("/{userId}/avatar")
@@ -508,6 +511,15 @@ fun uploadAvatar(
     @FormParam imageData: ByteArray,
     @HeaderParam("Content-Type") contentType: String
 ) {
+    // ...
+}
+```
+[//]: # (@formatter:on)
+
+[//]: # (@formatter:off)
+```kotlin
+@HandleGet("/projects/{id}")
+fun getProject(@PathParam @Positive id: Long): Project {
     // ...
 }
 ```
