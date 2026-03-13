@@ -28,6 +28,8 @@ import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.DefaultMemoization;
+import io.fluxzero.sdk.Memoization;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -209,6 +211,8 @@ public class DefaultFluxzero implements Fluxzero {
 
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Collection<Runnable> cleanupTasks = new CopyOnWriteArrayList<>();
+    @Getter(lazy = true)
+    private final Memoization memoization = new DefaultMemoization(clock());
 
     public static Builder builder() {
         return new Builder();

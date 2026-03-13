@@ -87,9 +87,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
@@ -175,6 +177,125 @@ public interface Fluxzero extends AutoCloseable {
      */
     static Instant currentTime() {
         return currentClock().instant();
+    }
+
+    /**
+     * Stores the given value in a memoization store that is scoped to the current Fluxzero instance and the calling
+     * class.
+     */
+    static void memoize(Object key, Object value) {
+        memoize(key, value, null);
+    }
+
+    /**
+     * Stores the given value in a memoization store that is scoped to the current Fluxzero instance and the calling
+     * class, evicting it after the given lifespan.
+     */
+    static void memoize(Object key, Object value, Duration lifespan) {
+        get().memoization().put(getScopedMemoizationKey(getCallerClass(), key), value, lifespan);
+    }
+
+    /**
+     * Stores the given value in a memoization store that is scoped only to the current Fluxzero instance.
+     */
+    static void memoizeGlobally(Object key, Object value) {
+        memoizeGlobally(key, value, null);
+    }
+
+    /**
+     * Stores the given value in a memoization store that is scoped only to the current Fluxzero instance, evicting it
+     * after the given lifespan.
+     */
+    static void memoizeGlobally(Object key, Object value, Duration lifespan) {
+        get().memoization().put(getGlobalMemoizationKey(key), value, lifespan);
+    }
+
+    /**
+     * Computes and stores a memoized value in a scope bound to the current Fluxzero instance and the calling class.
+     */
+    static <K, V> V memoize(K key, BiFunction<K, V, V> supplier) {
+        return memoize(key, supplier, null);
+    }
+
+    /**
+     * Computes and stores a memoized value in a scope bound to the current Fluxzero instance and the calling class,
+     * evicting it after the given lifespan.
+     */
+    static <K, V> V memoize(K key, BiFunction<K, V, V> supplier, Duration lifespan) {
+        return get().memoization()
+                .compute(getScopedMemoizationKey(getCallerClass(), key), key, supplier, lifespan);
+    }
+
+    /**
+     * Computes and stores a memoized value in a scope bound only to the current Fluxzero instance.
+     */
+    static <K, V> V memoizeGlobally(K key, BiFunction<K, V, V> supplier) {
+        return memoizeGlobally(key, supplier, null);
+    }
+
+    /**
+     * Computes and stores a memoized value in a scope bound only to the current Fluxzero instance, evicting it after
+     * the given lifespan.
+     */
+    static <K, V> V memoizeGlobally(K key, BiFunction<K, V, V> supplier, Duration lifespan) {
+        return get().memoization()
+                .compute(getGlobalMemoizationKey(key), key, supplier, lifespan);
+    }
+
+    /**
+     * Returns the memoized value for the given key in the scope of the current calling class, computing it only when
+     * absent or expired.
+     */
+    static <K, V> V memoizeIfAbsent(K key, Function<K, V> supplier) {
+        return memoizeIfAbsent(key, supplier, null);
+    }
+
+    /**
+     * Returns the memoized value for the given key in the scope of the current calling class, computing it only when
+     * absent or expired and evicting it after the given lifespan.
+     */
+    static <K, V> V memoizeIfAbsent(K key, Function<K, V> supplier, Duration lifespan) {
+        return get().memoization()
+                .computeIfAbsent(getScopedMemoizationKey(getCallerClass(), key), key, supplier, lifespan);
+    }
+
+    /**
+     * Returns the memoized value for the given key in the global scope of the current Fluxzero instance, computing it
+     * only when absent or expired.
+     */
+    static <K, V> V memoizeGloballyIfAbsent(K key, Function<K, V> supplier) {
+        return memoizeGloballyIfAbsent(key, supplier, null);
+    }
+
+    /**
+     * Returns the memoized value for the given key in the global scope of the current Fluxzero instance, computing it
+     * only when absent or expired and evicting it after the given lifespan.
+     */
+    static <K, V> V memoizeGloballyIfAbsent(K key, Function<K, V> supplier, Duration lifespan) {
+        return get().memoization()
+                .computeIfAbsent(getGlobalMemoizationKey(key), key, supplier, lifespan);
+    }
+
+    /**
+     * Returns the memoized value for the given key in the scope of the current calling class.
+     */
+    static <K, V> V getMemoized(K key) {
+        return get().memoization().get(getScopedMemoizationKey(getCallerClass(), key));
+    }
+
+    /**
+     * Returns the memoized value for the given key in the global scope of the current Fluxzero instance.
+     */
+    static <K, V> V getGloballyMemoized(K key) {
+        return get().memoization().get(getGlobalMemoizationKey(key));
+    }
+
+    private static MemoizationKey getScopedMemoizationKey(Class<?> scope, Object key) {
+        return new MemoizationKey(scope, key);
+    }
+
+    private static MemoizationKey getGlobalMemoizationKey(Object key) {
+        return new MemoizationKey(GlobalMemoizationScope.marker, key);
     }
 
     /**
@@ -1225,6 +1346,11 @@ public interface Fluxzero extends AutoCloseable {
     TaskScheduler taskScheduler();
 
     /**
+     * Returns the memoization store of this Fluxzero instance.
+     */
+    Memoization memoization();
+
+    /**
      * Returns the {@link FluxzeroConfiguration} of this Fluxzero instance.
      */
     FluxzeroConfiguration configuration();
@@ -1280,4 +1406,14 @@ public interface Fluxzero extends AutoCloseable {
      * Closes this Fluxzero instance gracefully. If silently is true, shutdown is done without logging.
      */
     void close(boolean silently);
+
+    record MemoizationKey(Object scope, Object key) {
+    }
+
+    final class GlobalMemoizationScope {
+        private static final Object marker = new Object();
+
+        private GlobalMemoizationScope() {
+        }
+    }
 }

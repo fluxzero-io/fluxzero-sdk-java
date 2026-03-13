@@ -183,6 +183,11 @@ data class GetUserProfile(@field:NotNull val userId: UserId) : Request<UserProfi
 ```
 [//]: # (@formatter:on)
 
+**Memoization**
+
+For self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` for lightweight
+runtime caching. Values are scoped to the current `Fluxzero` instance and, by default, to the calling class.
+
 **Example: Standalone Query Handler**
 
 Queries can also be handled in a separate component. Adding `@LocalHandler` ensures the query is handled synchronously

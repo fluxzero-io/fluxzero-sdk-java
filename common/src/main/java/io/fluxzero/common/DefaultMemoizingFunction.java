@@ -15,7 +15,6 @@
 package io.fluxzero.common;
 
 import lombok.AllArgsConstructor;
-import lombok.Value;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -60,7 +59,7 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
                                                 lifespan == null ? null :
                                                         clock.instant().plus(lifespan)))
                         .orElse(nullValue) : v);
-        return (V) result.getValue();
+        return (V) result.value();
     }
 
     @Override
@@ -71,7 +70,7 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
     @Override
     @SuppressWarnings("unchecked")
     public V remove(K key) {
-        return (V) Optional.ofNullable(map.remove(key)).map(Entry::getValue);
+        return (V) Optional.ofNullable(map.remove(key)).map(Entry::value);
     }
 
     @Override
@@ -82,16 +81,10 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
     @Override
     @SuppressWarnings("unchecked")
     public void forEach(Consumer<? super V> consumer) {
-        map.values().forEach(e -> consumer.accept((V) e.getValue()));
+        map.values().forEach(e -> consumer.accept((V) e.value()));
     }
 
-    @Value
-    @AllArgsConstructor
-    static class Entry {
-
-        Object value;
-        Instant expiry;
-
+    record Entry(Object value, Instant expiry) {
         Entry(Object value) {
             this(value, null);
         }

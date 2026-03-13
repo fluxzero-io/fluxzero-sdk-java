@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.Memoization;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
@@ -222,6 +223,11 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public TaskScheduler taskScheduler() {
         return delegate.taskScheduler();
+    }
+
+    @Override
+    public Memoization memoization() {
+        return delegate.memoization();
     }
 
     @Override
