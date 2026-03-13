@@ -154,6 +154,19 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "memoization",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero.memoization",
+    "type" : "io.fluxzero.sdk.Memoization",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "messageScheduler",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero.messageScheduler",
     "type" : "io.fluxzero.sdk.scheduling.MessageScheduler",

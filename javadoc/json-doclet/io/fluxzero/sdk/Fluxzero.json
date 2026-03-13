@@ -615,6 +615,54 @@
     "varArgs" : false,
     "documentation" : " Gets a collection of documents by their IDs, converting the matching documents to value with the given type.\n"
   }, {
+    "name" : "getGlobalMemoizationKey",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#getGlobalMemoizationKey",
+    "returnType" : "io.fluxzero.sdk.Fluxzero.MemoizationKey",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getGloballyMemoized",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#getGloballyMemoized",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the global scope of the current Fluxzero instance.\n"
+  }, {
+    "name" : "getMemoized",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#getMemoized",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the scope of the current calling class.\n"
+  }, {
     "name" : "getOptionally",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#getOptionally",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.Fluxzero>",
@@ -625,6 +673,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the Fluxzero client bound to the current thread or else set by the current application as Optional.\n Returns an empty Optional if no instance was registered.\n"
+  }, {
+    "name" : "getScopedMemoizationKey",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#getScopedMemoizationKey",
+    "returnType" : "io.fluxzero.sdk.Fluxzero.MemoizationKey",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scope",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "hasDocument",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#hasDocument",
@@ -1035,6 +1104,299 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads the current entity value for given entity id. Entity may be the aggregate root or any ancestral entity. If\n no such entity exists or its value is not set {@code null} is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
+  }, {
+    "name" : "memoization",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoization",
+    "returnType" : "io.fluxzero.sdk.Memoization",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoization store of this Fluxzero instance.\n"
+  }, {
+    "name" : "memoize",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoize",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.BiFunction<K,V,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes and stores a memoized value in a scope bound to the current Fluxzero instance and the calling class.\n"
+  }, {
+    "name" : "memoize",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoize",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.BiFunction<K,V,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes and stores a memoized value in a scope bound to the current Fluxzero instance and the calling class,\n evicting it after the given lifespan.\n"
+  }, {
+    "name" : "memoize",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoize",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the given value in a memoization store that is scoped to the current Fluxzero instance and the calling\n class.\n"
+  }, {
+    "name" : "memoize",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoize",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the given value in a memoization store that is scoped to the current Fluxzero instance and the calling\n class, evicting it after the given lifespan.\n"
+  }, {
+    "name" : "memoizeGlobally",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGlobally",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.BiFunction<K,V,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes and stores a memoized value in a scope bound only to the current Fluxzero instance.\n"
+  }, {
+    "name" : "memoizeGlobally",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGlobally",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.BiFunction<K,V,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes and stores a memoized value in a scope bound only to the current Fluxzero instance, evicting it after\n the given lifespan.\n"
+  }, {
+    "name" : "memoizeGlobally",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGlobally",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the given value in a memoization store that is scoped only to the current Fluxzero instance.\n"
+  }, {
+    "name" : "memoizeGlobally",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGlobally",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the given value in a memoization store that is scoped only to the current Fluxzero instance, evicting it\n after the given lifespan.\n"
+  }, {
+    "name" : "memoizeGloballyIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGloballyIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the global scope of the current Fluxzero instance, computing it\n only when absent or expired.\n"
+  }, {
+    "name" : "memoizeGloballyIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeGloballyIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the global scope of the current Fluxzero instance, computing it\n only when absent or expired and evicting it after the given lifespan.\n"
+  }, {
+    "name" : "memoizeIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the scope of the current calling class, computing it only when\n absent or expired.\n"
+  }, {
+    "name" : "memoizeIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoizeIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the memoized value for the given key in the scope of the current calling class, computing it only when\n absent or expired and evicting it after the given lifespan.\n"
   }, {
     "name" : "messageScheduler",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#messageScheduler",
@@ -2154,5 +2516,17 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "GlobalMemoizationScope",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero$GlobalMemoizationScope",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "MemoizationKey",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero$MemoizationKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

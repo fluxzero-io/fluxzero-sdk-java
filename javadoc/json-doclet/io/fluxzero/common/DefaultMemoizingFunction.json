@@ -180,14 +180,8 @@
   "nestedTypes" : [ {
     "name" : "Entry",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry",
-    "kind" : "class",
-    "modifiers" : [ "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.AllArgsConstructor",
-      "values" : {}
-    } ]
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
   } ]
 }

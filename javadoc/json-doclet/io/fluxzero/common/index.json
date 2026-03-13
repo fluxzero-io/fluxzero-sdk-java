@@ -33,7 +33,7 @@
     "file" : "DefaultMemoizingFunction.Entry.json",
     "name" : "DefaultMemoizingFunction.Entry",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry",
-    "kind" : "class"
+    "kind" : "record"
   }, {
     "file" : "DefaultMemoizingSupplier.json",
     "name" : "DefaultMemoizingSupplier",

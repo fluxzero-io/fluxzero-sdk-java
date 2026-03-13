@@ -5,9 +5,34 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "DefaultMemoization.json",
+    "name" : "DefaultMemoization",
+    "qualifiedName" : "io.fluxzero.sdk.DefaultMemoization",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMemoization.Entry.json",
+    "name" : "DefaultMemoization.Entry",
+    "qualifiedName" : "io.fluxzero.sdk.DefaultMemoization$Entry",
+    "kind" : "record"
+  }, {
     "file" : "Fluxzero.json",
     "name" : "Fluxzero",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero",
+    "kind" : "interface"
+  }, {
+    "file" : "Fluxzero.GlobalMemoizationScope.json",
+    "name" : "Fluxzero.GlobalMemoizationScope",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero$GlobalMemoizationScope",
+    "kind" : "class"
+  }, {
+    "file" : "Fluxzero.MemoizationKey.json",
+    "name" : "Fluxzero.MemoizationKey",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero$MemoizationKey",
+    "kind" : "record"
+  }, {
+    "file" : "Memoization.json",
+    "name" : "Memoization",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization",
     "kind" : "interface"
   } ],
   "subdirectories" : [ {

@@ -2,24 +2,18 @@
   "name" : "Entry",
   "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry",
   "packageName" : "io.fluxzero.common",
-  "kind" : "class",
-  "modifiers" : [ "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.Value",
-    "values" : {}
-  }, {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
     "name" : "expiry",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry.expiry",
     "type" : "java.time.Instant",
-    "modifiers" : [ ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -27,7 +21,7 @@
     "name" : "value",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry.value",
     "type" : "java.lang.Object",
-    "modifiers" : [ ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -47,9 +41,99 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#Entry",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
-  "methods" : [ ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "expiry",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#expiry",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction$Entry#value",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
   "enumConstants" : [ ],
-  "recordComponents" : [ ],
+  "recordComponents" : [ {
+    "name" : "expiry",
+    "type" : "java.time.Instant",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
   "nestedTypes" : [ ]
 }
