@@ -267,9 +267,7 @@ public class WebRequest extends Message {
      */
     @Override
     public <R> R getPayloadAs(Type type) {
-        return JSON_FORMAT.equalsIgnoreCase(getContentType())
-                ? JsonUtils.convertValue(getPayload(), type)
-                : super.getPayloadAs(type);
+        return WebUtils.convertPayload(getPayload(), type, getContentType());
     }
 
     /**

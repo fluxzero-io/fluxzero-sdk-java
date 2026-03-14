@@ -17,12 +17,14 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
 
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Type;
 import java.net.HttpCookie;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -41,6 +44,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.ObjectUtils.concat;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
@@ -226,6 +230,62 @@ public class WebUtils {
      */
     public static Optional<String> getHeader(Metadata metadata, String name) {
         return getHeaders(metadata).getOrDefault(name, Collections.emptyList()).stream().findFirst();
+    }
+
+    /**
+     * Converts a web payload to the requested target type.
+     * <p>
+     * This method preserves already-compatible payload instances, supports explicit low-level conversion to
+     * {@code String} and {@code byte[]}, and only parses raw JSON when the payload is represented as text or bytes and
+     * the content type indicates JSON.
+     *
+     * @param payload     the decoded payload value
+     * @param type        the requested target type
+     * @param contentType the associated content type, used to determine whether JSON parsing should be applied
+     * @param <R>         the expected return type
+     * @return the converted payload, or {@code null} if the input payload is {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    public static <R> R convertPayload(Object payload, Type type, String contentType) {
+        if (payload == null) {
+            return null;
+        }
+        if (type instanceof Class<?> c && c.isInstance(payload)) {
+            return (R) payload;
+        }
+        if (type == String.class) {
+            return (R) (payload instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8)
+                    : payload instanceof String s ? s : JsonUtils.asJson(payload));
+        }
+        if (type == byte[].class) {
+            return (R) (payload instanceof byte[] bytes ? bytes
+                    : payload instanceof String s ? s.getBytes(StandardCharsets.UTF_8) : JsonUtils.asBytes(payload));
+        }
+        return isJsonContentType(contentType) && (payload instanceof byte[] || payload instanceof String)
+                ? payload instanceof byte[] bytes ? JsonUtils.fromJson(bytes, type) : JsonUtils.fromJson((String) payload, type)
+                : JsonUtils.convertValue(payload, type);
+    }
+
+    /**
+     * Checks whether a content type should be treated as JSON.
+     * <p>
+     * This recognizes the canonical {@code application/json} media type, optional parameters such as charset, and
+     * structured syntax suffixes such as {@code application/problem+json}.
+     *
+     * @param contentType the content type to inspect
+     * @return {@code true} if the content type denotes JSON; otherwise {@code false}
+     */
+    public static boolean isJsonContentType(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String normalized = contentType.toLowerCase(Locale.ROOT);
+        int separatorIndex = normalized.indexOf(';');
+        if (separatorIndex >= 0) {
+            normalized = normalized.substring(0, separatorIndex);
+        }
+        normalized = normalized.trim();
+        return JSON_FORMAT.equals(normalized) || normalized.endsWith("+json");
     }
 
     /**
