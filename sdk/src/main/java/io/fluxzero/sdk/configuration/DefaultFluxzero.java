@@ -30,7 +30,9 @@ import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.DefaultMemoization;
 import io.fluxzero.sdk.Memoization;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -139,6 +141,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -281,10 +284,9 @@ public class DefaultFluxzero implements Fluxzero {
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> new ArrayList<>()));
         private final List<ParameterResolver<? super DeserializingMessage>> customParameterResolvers =
                 new ArrayList<>();
-        private final Map<MessageType, List<DispatchInterceptor>> lowPrioDispatchInterceptors = new HashMap<>();
-        private final Map<MessageType, List<DispatchInterceptor>> highPrioDispatchInterceptors = new HashMap<>();
-        private final Map<MessageType, List<HandlerDecorator>> lowPrioHandlerDecorators = new HashMap<>();
-        private final Map<MessageType, List<HandlerDecorator>> highPrioHandlerDecorators = new HashMap<>();
+        private final Map<MessageType, List<DispatchInterceptor>> customDispatchInterceptors = new HashMap<>();
+        private final Map<MessageType, List<HandlerDecorator>> customHandlerDecorators = new HashMap<>();
+        private final Map<MessageType, List<BatchInterceptor>> customBatchInterceptors = new HashMap<>();
         private final Map<MessageType, List<BatchInterceptor>> generalBatchInterceptors = new HashMap<>();
         private final DelegatingClock clock = new DelegatingClock();
         private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
@@ -389,27 +391,48 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder addBatchInterceptor(BatchInterceptor interceptor, MessageType... forTypes) {
             Arrays.stream(forTypes.length == 0 ? MessageType.values() : forTypes)
-                    .forEach(type -> generalBatchInterceptors.computeIfAbsent(type, t -> new ArrayList<>())
+                    .forEach(type -> customBatchInterceptors.computeIfAbsent(type, t -> new ArrayList<>())
                             .add(interceptor));
             return this;
         }
 
         @Override
-        public Builder addDispatchInterceptor(@NonNull DispatchInterceptor interceptor, boolean highPriority,
-                                              MessageType... forTypes) {
+        public Builder addDispatchInterceptor(@NonNull DispatchInterceptor interceptor, MessageType... forTypes) {
             Arrays.stream(forTypes.length == 0 ? MessageType.values() : forTypes)
-                    .forEach(type -> (highPriority ? highPrioDispatchInterceptors : lowPrioDispatchInterceptors)
-                            .computeIfAbsent(type, t -> new ArrayList<>()).add(interceptor));
+                    .forEach(type -> customDispatchInterceptors.computeIfAbsent(type, t -> new ArrayList<>())
+                            .add(interceptor));
             return this;
         }
 
         @Override
-        public Builder addHandlerDecorator(@NonNull HandlerDecorator interceptor, boolean highPriority,
-                                           MessageType... forTypes) {
+        public Builder addHandlerDecorator(@NonNull HandlerDecorator interceptor, MessageType... forTypes) {
             Arrays.stream(forTypes.length == 0 ? MessageType.values() : forTypes)
-                    .forEach(type -> (highPriority ? highPrioHandlerDecorators : lowPrioHandlerDecorators)
-                            .computeIfAbsent(type, t -> new ArrayList<>()).add(interceptor));
+                    .forEach(type -> customHandlerDecorators.computeIfAbsent(type, t -> new ArrayList<>())
+                            .add(interceptor));
             return this;
+        }
+
+        private static boolean hasHighPriorityOrder(Object interceptor) {
+            return ClientUtils.orderOf(interceptor) < 0;
+        }
+
+        private static List<BatchInterceptor> mergeBatchInterceptors(List<BatchInterceptor> customInterceptors,
+                                                                     List<BatchInterceptor> internalInterceptors) {
+            List<BatchInterceptor> result = new ArrayList<>();
+            result.addAll(highPriorityInterceptors(customInterceptors));
+            result.addAll(internalInterceptors);
+            result.addAll(regularPriorityInterceptors(customInterceptors));
+            return result;
+        }
+
+        private static <T> List<T> highPriorityInterceptors(List<T> interceptors) {
+            return interceptors.stream().filter(Builder::hasHighPriorityOrder)
+                    .sorted(Comparator.comparingInt(ClientUtils::orderOf)).toList();
+        }
+
+        private static <T> List<T> regularPriorityInterceptors(List<T> interceptors) {
+            return interceptors.stream().filter(interceptor -> !hasHighPriorityOrder(interceptor))
+                    .sorted(Comparator.comparingInt(ClientUtils::orderOf)).toList();
         }
 
         @Override
@@ -638,16 +661,16 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             //add customer interceptors
-            lowPrioDispatchInterceptors.forEach((messageType, interceptors) -> interceptors.forEach(
+            customDispatchInterceptors.forEach((messageType, interceptors) -> regularPriorityInterceptors(interceptors).forEach(
                     interceptor -> dispatchInterceptors.computeIfPresent(messageType,
                                                                          (t, i) -> i.andThen(interceptor))));
-            highPrioDispatchInterceptors.forEach((messageType, interceptors) -> interceptors.forEach(
+            customDispatchInterceptors.forEach((messageType, interceptors) -> highPriorityInterceptors(interceptors).forEach(
                     interceptor -> dispatchInterceptors.computeIfPresent(messageType,
                                                                          (t, i) -> interceptor.andThen(i))));
-            lowPrioHandlerDecorators.forEach((messageType, interceptors) -> interceptors.forEach(
+            customHandlerDecorators.forEach((messageType, interceptors) -> regularPriorityInterceptors(interceptors).forEach(
                     interceptor -> handlerDecorators.computeIfPresent(messageType,
                                                                       (t, i) -> i.andThen(interceptor))));
-            highPrioHandlerDecorators.forEach((messageType, interceptors) -> interceptors.forEach(
+            customHandlerDecorators.forEach((messageType, interceptors) -> highPriorityInterceptors(interceptors).forEach(
                     interceptor -> handlerDecorators.computeIfPresent(messageType,
                                                                       (t, i) -> interceptor.andThen(i))));
 
@@ -791,7 +814,9 @@ public class DefaultFluxzero implements Fluxzero {
             Map<MessageType, Tracking> trackingMap = stream(MessageType.values())
                     .collect(toMap(identity(), m -> new DefaultTracking(
                             m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
-                            generalBatchInterceptors.getOrDefault(m, List.of()), this.serializer,
+                            mergeBatchInterceptors(customBatchInterceptors.getOrDefault(m, List.of()),
+                                                   generalBatchInterceptors.getOrDefault(m, List.of())),
+                            this.serializer,
                             new DefaultHandlerFactory(m, handlerDecorators.get(m == NOTIFICATION ? EVENT : m),
                                                       parameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,

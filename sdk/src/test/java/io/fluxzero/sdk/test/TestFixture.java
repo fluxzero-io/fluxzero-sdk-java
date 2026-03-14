@@ -46,6 +46,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
@@ -383,7 +384,7 @@ public class TestFixture implements Given<TestFixture>, When {
                         ? PredictableIdentityProvider.defaultPredictableIdentityProvider() : p)
                 .replaceTaskScheduler(clock -> new InMemoryTaskScheduler(
                         "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
-                .addBatchInterceptor(interceptor).addHandlerInterceptor(interceptor, true);
+                .addBatchInterceptor(interceptor).addHandlerInterceptor(interceptor);
         this.fluxzeroBuilder = fluxzeroBuilder;
         this.fluxzero = fluxzeroBuilder.build(client);
         Fluxzero.instance.set(this.fluxzero);
@@ -1437,6 +1438,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @AllArgsConstructor
+    @Order(-1)
     protected static class GivenWhenThenInterceptor implements DispatchInterceptor, BatchInterceptor, HandlerInterceptor {
         private TestFixture testFixture;
 

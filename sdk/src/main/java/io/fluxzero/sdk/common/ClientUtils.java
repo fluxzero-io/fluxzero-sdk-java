@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.time.Duration;
@@ -116,6 +117,7 @@ public class ClientUtils {
                     .map(SearchParameters::substituteProperties)
                     .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
                     .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null)));
+    private static final Function<Class<?>, Integer> orderCache = memoize(ClientUtils::computeOrder);
 
     /**
      * Blocks until all futures are complete or the maximum duration has elapsed.
@@ -200,6 +202,41 @@ public class ClientUtils {
     @SuppressWarnings("SameParameterValue")
     static boolean isTrackingHandler(Class<?> target, java.lang.reflect.Executable method) {
         return getLocalHandlerAnnotation(target, method).map(LocalHandler::allowExternalMessages).orElse(true);
+    }
+
+    /**
+     * Resolves the configured order for the given component.
+     * <p>
+     * This first checks Fluxzero's own {@link Order} annotation and then falls back to Spring's
+     * {@code org.springframework.core.annotation.Order} when present on the classpath.
+     *
+     * @param component the component to inspect
+     * @return the configured order value, or {@code 0} if no order annotation is present
+     */
+    public static int orderOf(Object component) {
+        return orderCache.apply(component.getClass());
+    }
+
+    private static int computeOrder(Class<?> type) {
+        return Optional.ofNullable(ReflectionUtils.<Order>getTypeAnnotation(type, Order.class))
+                .map(Order::value)
+                .or(() -> springOrderOf(type)).orElse(0);
+    }
+
+    private static Optional<Integer> springOrderOf(Class<?> type) {
+        return ReflectionUtils.getTypeAnnotations(type).stream()
+                .filter(annotation -> annotation.annotationType().getName()
+                        .equals("org.springframework.core.annotation.Order"))
+                .findFirst()
+                .flatMap(ClientUtils::readOrderValue);
+    }
+
+    private static Optional<Integer> readOrderValue(Annotation annotation) {
+        try {
+            return Optional.of((Integer) annotation.annotationType().getMethod("value").invoke(annotation));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to read Spring @Order value", e);
+        }
     }
 
     /**

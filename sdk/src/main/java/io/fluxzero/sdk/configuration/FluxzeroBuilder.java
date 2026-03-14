@@ -68,49 +68,41 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
     /**
      * Registers a {@link BatchInterceptor} that applies to the given message types.
+     * <p>
+     * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
+     * ordering. Lower values have higher priority. Interceptors with a negative order value run before Fluxzero's
+     * built-in batch interceptors, while zero, positive, or missing values run after them.
      */
     FluxzeroBuilder addBatchInterceptor(BatchInterceptor interceptor, MessageType... forTypes);
 
-    /**
-     * Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch. Shortcut for highPriority =
-     * false.
+     /**
+     * Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch.
+     * <p>
+     * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
+     * ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority
+     * slot, while zero, positive, or missing values run in the regular slot.
      */
-    default FluxzeroBuilder addDispatchInterceptor(DispatchInterceptor interceptor, MessageType... forTypes) {
-        return addDispatchInterceptor(interceptor, false, forTypes);
-    }
-
-    /**
-     * Adds a {@link DispatchInterceptor} for specified message types with optional priority.
-     */
-    FluxzeroBuilder addDispatchInterceptor(DispatchInterceptor interceptor, boolean highPriority,
-                                           MessageType... forTypes);
+    FluxzeroBuilder addDispatchInterceptor(DispatchInterceptor interceptor, MessageType... forTypes);
 
     /**
      * Adds a {@link HandlerInterceptor} for given message types.
+     * <p>
+     * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
+     * ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority
+     * slot, while zero, positive, or missing values run in the regular slot.
      */
     default FluxzeroBuilder addHandlerInterceptor(HandlerInterceptor interceptor, MessageType... forTypes) {
         return addHandlerDecorator(interceptor, forTypes);
     }
 
     /**
-     * Adds a {@link HandlerInterceptor} with specified priority.
-     */
-    default FluxzeroBuilder addHandlerInterceptor(HandlerInterceptor interceptor, boolean highPriority,
-                                                  MessageType... forTypes) {
-        return addHandlerDecorator(interceptor, highPriority, forTypes);
-    }
-
-    /**
      * Adds a {@link HandlerDecorator} for the given message types.
+     * <p>
+     * You can use {@link io.fluxzero.sdk.common.Order @Order} on the decorator class to influence
+     * ordering. Lower values have higher priority. Decorators with a negative order value run in the high-priority
+     * slot, while zero, positive, or missing values run in the regular slot.
      */
-    default FluxzeroBuilder addHandlerDecorator(HandlerDecorator decorator, MessageType... forTypes) {
-        return addHandlerDecorator(decorator, false, forTypes);
-    }
-
-    /**
-     * Adds a {@link HandlerDecorator} with control over priority.
-     */
-    FluxzeroBuilder addHandlerDecorator(HandlerDecorator decorator, boolean highPriority, MessageType... forTypes);
+    FluxzeroBuilder addHandlerDecorator(HandlerDecorator decorator, MessageType... forTypes);
 
     /**
      * Replaces the default routing interceptor used for message dispatch.

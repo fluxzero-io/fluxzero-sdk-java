@@ -16,13 +16,19 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+
 import static io.fluxzero.common.MessageType.COMMAND;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HandlerInterceptorTest {
 
@@ -63,11 +69,63 @@ class HandlerInterceptorTest {
                 .whenCommand("foo").expectExceptionalResult(UnsupportedOperationException.class);
     }
 
+    @Test
+    void ordersCustomInterceptorsUsingOrderAnnotation() {
+        List<String> invocationOrder = new ArrayList<>();
+
+        TestFixture.create(DefaultFluxzero.builder()
+                                .addHandlerInterceptor(new PositiveHandlerInterceptor(invocationOrder), COMMAND)
+                                .addHandlerInterceptor(new HigherPriorityHandlerInterceptor(invocationOrder), COMMAND),
+                        MockCommandHandler.class)
+                .whenCommand("foo")
+                .expectEvents("foo")
+                .expectResult("foo")
+                .expectNoErrors();
+
+        assertEquals(List.of("negative", "positive"), invocationOrder);
+    }
+
     static class MockCommandHandler {
         @HandleCommand
         String handle(String command) {
             Fluxzero.publishEvent(command);
             return command;
+        }
+    }
+
+    @Order(10)
+    static class PositiveHandlerInterceptor implements HandlerInterceptor {
+        private final List<String> invocationOrder;
+
+        PositiveHandlerInterceptor(List<String> invocationOrder) {
+            this.invocationOrder = invocationOrder;
+        }
+
+        @Override
+        public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
+                                                                        io.fluxzero.common.handling.HandlerInvoker invoker) {
+            return message -> {
+                invocationOrder.add("positive");
+                return function.apply(message);
+            };
+        }
+    }
+
+    @Order(-10)
+    static class HigherPriorityHandlerInterceptor implements HandlerInterceptor {
+        private final List<String> invocationOrder;
+
+        HigherPriorityHandlerInterceptor(List<String> invocationOrder) {
+            this.invocationOrder = invocationOrder;
+        }
+
+        @Override
+        public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
+                                                                        io.fluxzero.common.handling.HandlerInvoker invoker) {
+            return message -> {
+                invocationOrder.add("negative");
+                return function.apply(message);
+            };
         }
     }
 }

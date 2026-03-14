@@ -60,8 +60,8 @@ import java.util.Map;
  *
  * <h2>Custom configuration</h2>
  * Many of the returned values (e.g. interceptors, decorators, resolvers) are lists or maps that
- * can be extended to modify the behavior of message handling and dispatch. Lists are ordered by priority
- * (high or low), and are evaluated in that order during processing.
+ * can be extended to modify the behavior of message handling and dispatch. Lists are ordered during
+ * build time based on their configured precedence.
  *
  * @see Fluxzero
  * @see FluxzeroBuilder
@@ -89,17 +89,11 @@ public interface FluxzeroConfiguration {
     /** Returns additional resolvers for injecting parameters into message handler methods. */
     List<ParameterResolver<? super DeserializingMessage>> customParameterResolvers();
 
-    /** Dispatch interceptors applied after high-priority interceptors. */
-    Map<MessageType, List<DispatchInterceptor>> lowPrioDispatchInterceptors();
+    /** User-registered dispatch interceptors grouped per message type. */
+    Map<MessageType, List<DispatchInterceptor>> customDispatchInterceptors();
 
-    /** Dispatch interceptors applied before low-priority interceptors. */
-    Map<MessageType, List<DispatchInterceptor>> highPrioDispatchInterceptors();
-
-    /** Decorators applied to handlers after high-priority decorators. */
-    Map<MessageType, List<HandlerDecorator>> lowPrioHandlerDecorators();
-
-    /** Decorators applied to handlers before low-priority decorators. */
-    Map<MessageType, List<HandlerDecorator>> highPrioHandlerDecorators();
+    /** User-registered handler decorators grouped per message type. */
+    Map<MessageType, List<HandlerDecorator>> customHandlerDecorators();
 
     /** Interceptors applied to message batches during tracking and dispatch. */
     Map<MessageType, List<BatchInterceptor>> generalBatchInterceptors();
