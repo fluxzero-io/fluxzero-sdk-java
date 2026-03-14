@@ -52,12 +52,12 @@ public class CpuCollector implements MetricCollector<CpuMetrics> {
 
                 double processCpuLoad = sunOsMXBean.getProcessCpuLoad();
                 if (processCpuLoad >= 0) {
-                    builder.processCpuUsage(processCpuLoad);
+                    builder.processCpuUsage(normalizeCpuLoad(processCpuLoad));
                 }
 
                 double systemCpuLoad = sunOsMXBean.getCpuLoad();
                 if (systemCpuLoad >= 0) {
-                    builder.systemCpuUsage(systemCpuLoad);
+                    builder.systemCpuUsage(normalizeCpuLoad(systemCpuLoad));
                 }
 
                 long processCpuTime = sunOsMXBean.getProcessCpuTime();
@@ -75,5 +75,13 @@ public class CpuCollector implements MetricCollector<CpuMetrics> {
     @Override
     public boolean isAvailable() {
         return true;
+    }
+
+    /**
+     * Normalizes CPU load values reported by the JMX implementation to the documented {@code [0.0, 1.0]} range.
+     * Some JVM/platform combinations occasionally report values slightly above {@code 1.0} due to timing or rounding.
+     */
+    static double normalizeCpuLoad(double cpuLoad) {
+        return Math.max(0d, Math.min(1d, cpuLoad));
     }
 }

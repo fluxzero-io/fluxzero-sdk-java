@@ -66,4 +66,11 @@ class CpuCollectorTest {
                     "Process CPU time should be non-negative");
         }
     }
+
+    @Test
+    void normalizeCpuLoad_clampsValuesToValidRange() {
+        assertEquals(0.0, CpuCollector.normalizeCpuLoad(-0.1));
+        assertEquals(0.5, CpuCollector.normalizeCpuLoad(0.5));
+        assertEquals(1.0, CpuCollector.normalizeCpuLoad(1.000001));
+    }
 }
