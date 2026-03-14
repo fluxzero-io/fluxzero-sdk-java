@@ -107,6 +107,24 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "formParameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext.formParameters",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "header",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext.header",
     "type" : "io.jooby.value.Value",
@@ -618,6 +636,33 @@
         "annotationType" : "org.jetbrains.annotations.NotNull",
         "values" : {}
       } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseForm",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#parseForm",
+    "returnType" : "io.jooby.Formdata",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseFormParameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#parseFormParameters",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "body",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
