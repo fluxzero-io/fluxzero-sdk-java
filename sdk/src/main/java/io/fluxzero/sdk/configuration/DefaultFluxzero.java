@@ -98,6 +98,7 @@ import io.fluxzero.sdk.tracking.handling.DefaultRepositoryProvider;
 import io.fluxzero.sdk.tracking.handling.DefaultResponseMapper;
 import io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
+import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry;
@@ -661,18 +662,28 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             //add customer interceptors
-            customDispatchInterceptors.forEach((messageType, interceptors) -> regularPriorityInterceptors(interceptors).forEach(
-                    interceptor -> dispatchInterceptors.computeIfPresent(messageType,
-                                                                         (t, i) -> i.andThen(interceptor))));
-            customDispatchInterceptors.forEach((messageType, interceptors) -> highPriorityInterceptors(interceptors).forEach(
-                    interceptor -> dispatchInterceptors.computeIfPresent(messageType,
-                                                                         (t, i) -> interceptor.andThen(i))));
-            customHandlerDecorators.forEach((messageType, interceptors) -> regularPriorityInterceptors(interceptors).forEach(
-                    interceptor -> handlerDecorators.computeIfPresent(messageType,
-                                                                      (t, i) -> i.andThen(interceptor))));
-            customHandlerDecorators.forEach((messageType, interceptors) -> highPriorityInterceptors(interceptors).forEach(
-                    interceptor -> handlerDecorators.computeIfPresent(messageType,
-                                                                      (t, i) -> interceptor.andThen(i))));
+            Arrays.stream(MessageType.values()).forEach(messageType -> {
+                List<DispatchInterceptor> registeredDispatchInterceptors = Stream.concat(
+                        customDispatchInterceptors.getOrDefault(messageType, List.of()).stream(),
+                        DispatchInterceptor.defaultInterceptors.stream()).collect(toList());
+                regularPriorityInterceptors(registeredDispatchInterceptors).forEach(
+                        interceptor -> dispatchInterceptors.computeIfPresent(messageType,
+                                                                             (t, i) -> i.andThen(interceptor)));
+                highPriorityInterceptors(registeredDispatchInterceptors).forEach(
+                        interceptor -> dispatchInterceptors.computeIfPresent(messageType,
+                                                                             (t, i) -> interceptor.andThen(i)));
+
+                List<HandlerDecorator> registeredHandlerDecorators = Stream.concat(
+                        customHandlerDecorators.getOrDefault(messageType, List.of()).stream(),
+                        HandlerInterceptor.defaultInterceptors.stream().map(i -> (HandlerDecorator) i))
+                        .collect(toList());
+                regularPriorityInterceptors(registeredHandlerDecorators).forEach(
+                        interceptor -> handlerDecorators.computeIfPresent(messageType,
+                                                                          (t, i) -> i.andThen(interceptor)));
+                highPriorityInterceptors(registeredHandlerDecorators).forEach(
+                        interceptor -> handlerDecorators.computeIfPresent(messageType,
+                                                                          (t, i) -> interceptor.andThen(i)));
+            });
 
             //add websocket dispatch interceptor
             dispatchInterceptors.computeIfPresent(WEBRESPONSE, (t, i) -> new WebsocketResponseInterceptor().andThen(i));
@@ -814,7 +825,10 @@ public class DefaultFluxzero implements Fluxzero {
             Map<MessageType, Tracking> trackingMap = stream(MessageType.values())
                     .collect(toMap(identity(), m -> new DefaultTracking(
                             m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
-                            mergeBatchInterceptors(customBatchInterceptors.getOrDefault(m, List.of()),
+                            mergeBatchInterceptors(Stream.concat(
+                                                          customBatchInterceptors.getOrDefault(m, List.of()).stream(),
+                                                          BatchInterceptor.defaultInterceptors.stream()).collect(
+                                                          toList()),
                                                    generalBatchInterceptors.getOrDefault(m, List.of())),
                             this.serializer,
                             new DefaultHandlerFactory(m, handlerDecorators.get(m == NOTIFICATION ? EVENT : m),

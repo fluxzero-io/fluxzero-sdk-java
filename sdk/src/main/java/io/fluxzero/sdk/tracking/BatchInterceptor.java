@@ -15,9 +15,11 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.function.Consumer;
 
 /**
@@ -26,6 +28,12 @@ import java.util.function.Consumer;
  * A {@code BatchInterceptor} wraps the execution of a {@code Consumer<MessageBatch>}—typically invoked by a tracker to
  * process a group of messages polled from the message log. Interceptors can be used to inject common behavior such as
  * logging, metrics, retries, transaction boundaries, or diagnostics at the batch level.
+ * </p>
+ *
+ * <p>
+ * Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up
+ * automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link
+ * io.fluxzero.sdk.common.Order @Order}.
  * </p>
  *
  * <h2>Usage</h2>
@@ -54,6 +62,15 @@ import java.util.function.Consumer;
  */
 @FunctionalInterface
 public interface BatchInterceptor {
+
+    /**
+     * Default batch interceptors discovered via {@link ServiceLoader}, sorted by
+     * {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
+     */
+    List<BatchInterceptor> defaultInterceptors = ServiceLoader.load(BatchInterceptor.class).stream()
+            .map(ServiceLoader.Provider::get)
+            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
+            .toList();
 
     /**
      * Returns a no-op interceptor that does not alter the consumer behavior.

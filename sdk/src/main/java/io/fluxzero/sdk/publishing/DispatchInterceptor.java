@@ -17,7 +17,11 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
+
+import java.util.List;
+import java.util.ServiceLoader;
 
 import static java.util.Optional.ofNullable;
 
@@ -28,6 +32,10 @@ import static java.util.Optional.ofNullable;
  * A {@code DispatchInterceptor} allows observing and transforming messages during the dispatch process. It is typically
  * used to inject metadata, rewrite payloads, log outgoing messages, or prevent dispatching certain messages based on
  * custom rules.
+ * <p>
+ * Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up
+ * automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link
+ * io.fluxzero.sdk.common.Order @Order}.
  *
  * <p><strong>Key behaviors:</strong>
  * <ul>
@@ -40,6 +48,15 @@ import static java.util.Optional.ofNullable;
  */
 @FunctionalInterface
 public interface DispatchInterceptor {
+
+    /**
+     * Default dispatch interceptors discovered via {@link ServiceLoader}, sorted by {@link
+     * io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
+     */
+    List<DispatchInterceptor> defaultInterceptors = ServiceLoader.load(DispatchInterceptor.class).stream()
+            .map(ServiceLoader.Provider::get)
+            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
+            .toList();
 
     /**
      * No-op implementation of the {@code DispatchInterceptor} that returns the original message unchanged.

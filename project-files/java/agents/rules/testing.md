@@ -76,6 +76,9 @@ fixture.registerHandlers(OtherHandler.class);
 If you need to tune the Fluxzero instance (e.g., adding interceptors), pass a `DefaultFluxzero.builder()` to the
 fixture.
 
+Very short note: interceptors registered through Java `ServiceLoader` are also auto-loaded by the fixture, so they can
+affect tests unless you isolate or avoid those registrations.
+
 [//]: # (@formatter:off)
 ```java
 TestFixture fixture = TestFixture.create(

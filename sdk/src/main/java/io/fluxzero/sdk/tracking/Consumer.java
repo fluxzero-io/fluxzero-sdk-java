@@ -128,7 +128,8 @@ public @interface Consumer {
      * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are
      * applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches
      * performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are
-     * disabled globally, these consumer-scoped dispatch interceptors are inactive.
+     * disabled globally, these consumer-scoped dispatch interceptors are inactive. Globally service-loaded dispatch
+     * interceptors remain part of the normal global dispatch chain.
      */
     Class<? extends DispatchInterceptor>[] dispatchInterceptors() default {};
 

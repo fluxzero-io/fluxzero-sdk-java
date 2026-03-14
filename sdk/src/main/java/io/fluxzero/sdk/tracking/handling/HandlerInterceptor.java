@@ -17,11 +17,14 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import lombok.AllArgsConstructor;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -37,6 +40,12 @@ import java.util.function.Function;
  * Interceptors are typically configured via
  * {@link io.fluxzero.sdk.tracking.Consumer#handlerInterceptors()}, or applied programmatically using the
  * {@link #wrap(Handler)} method.
+ * </p>
+ *
+ * <p>
+ * Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up
+ * automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link
+ * io.fluxzero.sdk.common.Order @Order}.
  * </p>
  *
  * <h2>Common Use Cases:</h2>
@@ -68,6 +77,15 @@ import java.util.function.Function;
  */
 @FunctionalInterface
 public interface HandlerInterceptor extends HandlerDecorator {
+
+    /**
+     * Default handler interceptors discovered via {@link ServiceLoader}, sorted by
+     * {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
+     */
+    List<HandlerInterceptor> defaultInterceptors = ServiceLoader.load(HandlerInterceptor.class).stream()
+            .map(ServiceLoader.Provider::get)
+            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
+            .toList();
 
     /**
      * Intercepts the message handling logic.

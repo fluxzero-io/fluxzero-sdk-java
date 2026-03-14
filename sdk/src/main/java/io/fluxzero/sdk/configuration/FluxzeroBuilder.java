@@ -71,16 +71,18 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * <p>
      * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
      * ordering. Lower values have higher priority. Interceptors with a negative order value run before Fluxzero's
-     * built-in batch interceptors, while zero, positive, or missing values run after them.
+     * built-in batch interceptors, while zero, positive, or missing values run after them. Interceptors registered via
+     * Java's {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.
      */
     FluxzeroBuilder addBatchInterceptor(BatchInterceptor interceptor, MessageType... forTypes);
 
-     /**
+    /**
      * Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch.
      * <p>
      * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
      * ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority
-     * slot, while zero, positive, or missing values run in the regular slot.
+     * slot, while zero, positive, or missing values run in the regular slot. Interceptors registered via Java's
+     * {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.
      */
     FluxzeroBuilder addDispatchInterceptor(DispatchInterceptor interceptor, MessageType... forTypes);
 
@@ -89,7 +91,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * <p>
      * You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence
      * ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority
-     * slot, while zero, positive, or missing values run in the regular slot.
+     * slot, while zero, positive, or missing values run in the regular slot. Interceptors registered via Java's
+     * {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.
      */
     default FluxzeroBuilder addHandlerInterceptor(HandlerInterceptor interceptor, MessageType... forTypes) {
         return addHandlerDecorator(interceptor, forTypes);
@@ -100,7 +103,9 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * <p>
      * You can use {@link io.fluxzero.sdk.common.Order @Order} on the decorator class to influence
      * ordering. Lower values have higher priority. Decorators with a negative order value run in the high-priority
-     * slot, while zero, positive, or missing values run in the regular slot.
+     * slot, while zero, positive, or missing values run in the regular slot. Decorators registered via Java's
+     * {@link java.util.ServiceLoader} are not discovered automatically; automatic service loading applies to
+     * interceptor interfaces.
      */
     FluxzeroBuilder addHandlerDecorator(HandlerDecorator decorator, MessageType... forTypes);
 
