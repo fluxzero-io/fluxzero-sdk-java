@@ -5,6 +5,11 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "BodyParam.json",
+    "name" : "BodyParam",
+    "qualifiedName" : "io.fluxzero.sdk.web.BodyParam",
+    "kind" : "annotation_type"
+  }, {
     "file" : "CookieParam.json",
     "name" : "CookieParam",
     "qualifiedName" : "io.fluxzero.sdk.web.CookieParam",

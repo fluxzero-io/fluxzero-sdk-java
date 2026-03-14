@@ -12,6 +12,22 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "getBodyParameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestContext#getBodyParameter",
+    "returnType" : "io.fluxzero.sdk.web.ParameterValue",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the value of a parameter from the JSON request body.\n\n @param name the name or path of the body field to retrieve\n @return the value of the body field as a {@code ParameterValue}\n"
+  }, {
     "name" : "getCookieParameter",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestContext#getCookieParameter",
     "returnType" : "io.fluxzero.sdk.web.ParameterValue",

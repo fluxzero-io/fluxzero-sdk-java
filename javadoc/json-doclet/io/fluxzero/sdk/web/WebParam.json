@@ -15,7 +15,7 @@
       "value" : "ANNOTATION_TYPE"
     }
   } ],
-  "documentation" : " Meta-annotation for parameter annotations used to inject values from an HTTP request.\n <p>\n Used internally by Fluxzero to locate and bind request values to handler method parameters\n based on the specified {@link WebParameterSource}.\n </p>\n\n @see PathParam\n @see QueryParam\n @see HeaderParam\n @see FormParam\n @see CookieParam\n",
+  "documentation" : " Meta-annotation for parameter annotations used to inject values from an HTTP request.\n <p>\n Used internally by Fluxzero to locate and bind request values to handler method parameters\n based on the specified {@link WebParameterSource}.\n </p>\n\n @see PathParam\n @see QueryParam\n @see HeaderParam\n @see FormParam\n @see BodyParam\n @see CookieParam\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

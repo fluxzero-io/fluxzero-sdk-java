@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Enumerates the sources of parameter values in an HTTP or WebSocket request.\n <p>\n This enum is used by {@link WebParam} and its derived annotations (e.g. {@link PathParam}, {@link QueryParam}) to\n specify where the value should be extracted from.\n </p>\n\n <ul>\n   <li>{@link #PATH} – Extracted from URI template variables (e.g., {@code /user/{id}})</li>\n   <li>{@link #QUERY} – Extracted from the query string (e.g., {@code ?id=123})</li>\n   <li>{@link #HEADER} – Extracted from HTTP headers</li>\n   <li>{@link #COOKIE} – Extracted from cookies</li>\n   <li>{@link #FORM} – Extracted from form fields (URL-encoded or multipart)</li>\n </ul>\n\n @see WebParam\n",
+  "documentation" : " Enumerates the sources of parameter values in an HTTP or WebSocket request.\n <p>\n This enum is used by {@link WebParam} and its derived annotations (e.g. {@link PathParam}, {@link QueryParam}) to\n specify where the value should be extracted from.\n </p>\n\n <ul>\n   <li>{@link #PATH} – Extracted from URI template variables (e.g., {@code /user/{id}})</li>\n   <li>{@link #QUERY} – Extracted from the query string (e.g., {@code ?id=123})</li>\n   <li>{@link #HEADER} – Extracted from HTTP headers</li>\n   <li>{@link #COOKIE} – Extracted from cookies</li>\n   <li>{@link #FORM} – Extracted from form fields (URL-encoded or multipart)</li>\n   <li>{@link #BODY} – Extracted from a JSON request body</li>\n </ul>\n\n @see WebParam\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.WebParameterSource>",
   "interfaces" : [ ],
@@ -50,6 +50,11 @@
     "documentation" : null
   } ],
   "enumConstants" : [ {
+    "name" : "BODY",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebParameterSource.BODY",
+    "annotations" : [ ],
+    "documentation" : " JSON request body fields\n"
+  }, {
     "name" : "COOKIE",
     "qualifiedName" : "io.fluxzero.sdk.web.WebParameterSource.COOKIE",
     "annotations" : [ ],

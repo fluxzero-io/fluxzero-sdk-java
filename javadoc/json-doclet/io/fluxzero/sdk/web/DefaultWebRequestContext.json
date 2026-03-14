@@ -130,6 +130,19 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "jsonBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext.jsonBody",
+    "type" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "metadata",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext.metadata",
     "type" : "io.fluxzero.common.api.Metadata",
@@ -605,6 +618,22 @@
         "annotationType" : "org.jetbrains.annotations.NotNull",
         "values" : {}
       } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseJsonBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#parseJsonBody",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "body",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
