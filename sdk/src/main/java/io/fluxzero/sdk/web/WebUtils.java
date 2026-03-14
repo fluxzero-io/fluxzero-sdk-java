@@ -55,6 +55,7 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
  * of {@link WebPattern} annotations on handler methods annotated with {@link HandleWeb}.
  */
 public class WebUtils {
+    private static final Pattern ABSOLUTE_URL_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z\\d+\\-.]*://.*");
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{([^/}]+)}");
 
     /**
@@ -157,7 +158,7 @@ public class WebUtils {
      * </ul>
      * <p>
      * {@code @Path} values are joined together in the order listed above, with a slash as delimiter. If any of
-     * the {@code @Path} values start with a slash, the chain is reset.
+     * the {@code @Path} values start with a slash or contain an absolute URL, the chain is reset.
      */
     public static String getHandlerPath(Class<?> targetClass, @Nullable Object handler, @Nullable Executable method) {
         var mapper = pathValues();
@@ -170,7 +171,7 @@ public class WebUtils {
                                                                                                    HandleWeb.class).isEmpty())
                         .flatMap(a -> getAnnotatedPropertyValue(handler, Path.class).map(Object::toString).stream()),
                 Optional.ofNullable(method).stream().flatMap(mapper)).toList();
-        return hierarchy.stream().reduce((a, b) -> b.startsWith("/") ? b : concatenateUrlParts(a, b)).orElse("");
+        return hierarchy.stream().reduce((a, b) -> isAbsolutePathOrUrl(b) ? b : concatenateUrlParts(a, b)).orElse("");
     }
 
     static Function<AnnotatedElement, Stream<String>> pathValues() {
@@ -294,15 +295,18 @@ public class WebUtils {
             if (part == null || part.isEmpty()) {
                 continue;
             }
+            if (isAbsoluteUrl(part)) {
+                cleaned.clear();
+                cleaned.add(part.replaceAll("/+$", ""));
+                first = false;
+                startsWithSlash = false;
+                continue;
+            }
             if (first) {
-                if (part.matches("^[a-zA-Z][a-zA-Z\\d+\\-.]*://.*")) {
-                    cleaned.add(part.replaceAll("/+$", ""));
-                } else {
-                    startsWithSlash = part.startsWith("/");
-                    part = part.replaceAll("^/+", "").replaceAll("/+$", "");
-                    if (!part.isEmpty()) {
-                        cleaned.add(part);
-                    }
+                startsWithSlash = part.startsWith("/");
+                part = part.replaceAll("^/+", "").replaceAll("/+$", "");
+                if (!part.isEmpty()) {
+                    cleaned.add(part);
                 }
                 first = false;
             } else {
@@ -317,5 +321,13 @@ public class WebUtils {
             }
         }
         return joined;
+    }
+
+    static boolean isAbsolutePathOrUrl(String value) {
+        return value != null && (value.startsWith("/") || isAbsoluteUrl(value));
+    }
+
+    static boolean isAbsoluteUrl(String value) {
+        return value != null && ABSOLUTE_URL_PATTERN.matcher(value).matches();
     }
 }

@@ -38,6 +38,8 @@ import io.fluxzero.sdk.web.SocketEndpoint.AliveCheck;
 import io.fluxzero.sdk.web.path.ClassPathHandler;
 import io.fluxzero.sdk.web.path.PackagePathHandler;
 import io.fluxzero.sdk.web.path.subpath.ExternalUrlHandler;
+import io.fluxzero.sdk.web.path.subpath.ExternalUrlPathHandler;
+import io.fluxzero.sdk.web.path.subpath.PrefixedExternalUrlHandler;
 import io.fluxzero.sdk.web.path.subpath.ResetPathHandler;
 import io.fluxzero.sdk.web.path.subpath.SubPathHandler;
 import lombok.AccessLevel;
@@ -351,7 +353,14 @@ public class HandleWebTest {
     @Nested
     class PathTests {
 
-        final TestFixture testFixture = TestFixture.create(new ClassPathHandler(), new PackagePathHandler(), new SubPathHandler(), new ResetPathHandler(), new ExternalUrlHandler());
+        final TestFixture testFixture = TestFixture.create(
+                new ClassPathHandler(),
+                new PackagePathHandler(),
+                new SubPathHandler(),
+                new ResetPathHandler(),
+                new ExternalUrlHandler(),
+                new ExternalUrlPathHandler(),
+                new PrefixedExternalUrlHandler());
 
         @Test
         void classPathTest() {
@@ -376,6 +385,16 @@ public class HandleWebTest {
         @Test
         void externalUrlTest() {
             testFixture.whenGet("https://example.com/get-external").expectResult("get-external");
+        }
+
+        @Test
+        void externalUrlPathResetsHierarchyTest() {
+            testFixture.whenGet("https://example.com/from-path/get-via-path").expectResult("get-via-path");
+        }
+
+        @Test
+        void externalUrlHandlerValueOverridesPathPrefixTest() {
+            testFixture.whenGet("https://example.com/get-prefixed-external").expectResult("get-prefixed-external");
         }
 
         @Test
