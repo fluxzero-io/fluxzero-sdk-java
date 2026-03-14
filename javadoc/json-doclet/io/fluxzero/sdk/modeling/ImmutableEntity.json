@@ -269,6 +269,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "assertApplyCompatibility",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyCompatibility",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visitedTypes",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "assertLegal",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertLegal",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
