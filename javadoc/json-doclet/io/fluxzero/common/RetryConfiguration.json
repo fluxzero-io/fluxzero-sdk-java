@@ -10,7 +10,8 @@
   }, {
     "annotationType" : "lombok.Builder",
     "values" : {
-      "builderClassName" : "Builder"
+      "builderClassName" : "Builder",
+      "toBuilder" : "true"
     }
   }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
@@ -74,6 +75,17 @@
       "values" : {}
     } ],
     "documentation" : " Callback invoked when a retryable exception is caught.\n <p>\n Logs the initial retry attempt and, if applicable, the permanent failure after exceeding {@link #maxRetries}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "firstAttemptCountsAsRetry",
+    "qualifiedName" : "io.fluxzero.common.RetryConfiguration.firstAttemptCountsAsRetry",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether the first attempt in this retry cycle should already count as a retry for success logging purposes.\n <p>\n Defaults to {@code false}, so direct success remains silent unless a caller explicitly indicates that entering\n this retry cycle already implies an earlier failure.\n",
     "constantValue" : null
   }, {
     "name" : "maxRetries",

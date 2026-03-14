@@ -7,11 +7,6 @@
   "annotations" : [ {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
-  }, {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {
-      "access" : "PROTECTED"
-    }
   } ],
   "documentation" : " An {@link ErrorHandler} implementation that retries failed operations a configurable number of times, with optional\n propagation or suppression of unrecoverable errors.\n <p>\n This handler is designed for scenarios where transient failures (e.g., network hiccups, temporary service downtime)\n are expected and recovery is possible through retrying the operation. It allows for detailed control over:\n <ul>\n     <li>Which errors should trigger retries (via {@code errorFilter})</li>\n     <li>How many retries to perform and at what delay (via {@link RetryConfiguration})</li>\n     <li>Whether to stop the consumer or continue on final failure</li>\n     <li>Whether functional errors should be logged</li>\n </ul>\n\n <p><strong>Retry Logic:</strong>\n <ul>\n     <li>If the error matches {@code errorFilter}, the {@code retryFunction} is invoked repeatedly up to {@code maxRetries}.</li>\n     <li>If all retries fail:\n       <ul>\n         <li>And {@code stopConsumerOnFailure} is {@code true}, the original error is rethrown, halting tracking.</li>\n         <li>Otherwise, the error is logged and passed through {@link RetryConfiguration#getErrorMapper()}.</li>\n       </ul>\n     </li>\n     <li>If the error does not match the filter, no retries are performed and the handler either continues or propagates, based on configuration.</li>\n </ul>\n\n <p><strong>Logging Behavior:</strong>\n <ul>\n     <li>Technical errors are logged at {@code ERROR} level.</li>\n     <li>{@link FunctionalException}s are logged at {@code WARN} level, if {@code logFunctionalErrors} is {@code true}.</li>\n     <li>Retry success is logged via {@code RetryConfiguration.successLogger}.</li>\n </ul>\n\n <p><strong>Usage Example:</strong>\n <pre>{@code\n @Consumer(name = \"resilientHandler\", errorHandler = RetryingErrorHandler.class)\n public class ResilientCommandHandler {\n     @HandleCommand\n     void handle(PlaceOrder command) {\n         // Retries on technical failures before giving up\n     }\n }\n }</pre>\n\n @see ErrorHandler\n @see RetryConfiguration\n @see FunctionalException\n @see ThrowingErrorHandler\n @see LoggingErrorHandler\n",
   "typeParameters" : [ ],
@@ -24,6 +19,14 @@
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : " Predicate to determine which errors should trigger retries. For example, ignoring {@link FunctionalException}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "handlerRetryConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.RetryingErrorHandler.handlerRetryConfiguration",
+    "type" : "io.fluxzero.common.RetryConfiguration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Retry policy used inside this handler, adjusted so success logging also fires when the first retry succeeds.\n",
     "constantValue" : null
   }, {
     "name" : "logFunctionalErrors",
@@ -185,6 +188,36 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a handler with a custom error filter and optional consumer stop behavior.\n"
+  }, {
+    "name" : "RetryingErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.RetryingErrorHandler#RetryingErrorHandler",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "errorFilter",
+      "type" : "java.util.function.Predicate<java.lang.Throwable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stopConsumerOnFailure",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "logFunctionalErrors",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryConfiguration",
+      "type" : "io.fluxzero.common.RetryConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "handleError",
