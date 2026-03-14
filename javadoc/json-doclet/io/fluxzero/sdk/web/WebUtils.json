@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "ABSOLUTE_URL_PATTERN",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils.ABSOLUTE_URL_PATTERN",
+    "type" : "java.util.regex.Pattern",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "PATH_PARAM_PATTERN",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils.PATH_PARAM_PATTERN",
     "type" : "java.util.regex.Pattern",
@@ -119,7 +127,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Computes the complete {@link Path @Path} value for the given handler. {@code targetClass} is required;\n {@code handler} and {@code method} are not. The path value is determined by inspecting the following elements:\n <ul>\n     <li>sub-packages</li>\n     <li>class package</li>\n     <li>target class</li>\n     <li>handler properties (if the given handler is not null)</li>\n     <li>handler method (if the given method is not null)</li>\n </ul>\n <p>\n {@code @Path} values are joined together in the order listed above, with a slash as delimiter. If any of\n the {@code @Path} values start with a slash, the chain is reset.\n"
+    "documentation" : " Computes the complete {@link Path @Path} value for the given handler. {@code targetClass} is required;\n {@code handler} and {@code method} are not. The path value is determined by inspecting the following elements:\n <ul>\n     <li>sub-packages</li>\n     <li>class package</li>\n     <li>target class</li>\n     <li>handler properties (if the given handler is not null)</li>\n     <li>handler method (if the given method is not null)</li>\n </ul>\n <p>\n {@code @Path} values are joined together in the order listed above, with a slash as delimiter. If any of\n the {@code @Path} values start with a slash or contain an absolute URL, the chain is reset.\n"
   }, {
     "name" : "getHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#getHeader",
@@ -207,6 +215,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Checks if the given path contains a named path parameter.\n"
+  }, {
+    "name" : "isAbsolutePathOrUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#isAbsolutePathOrUrl",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAbsoluteUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#isAbsoluteUrl",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "parseRequestCookieHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#parseRequestCookieHeader",
