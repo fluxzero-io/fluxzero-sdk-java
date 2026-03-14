@@ -10,14 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.sdk.common.exception.FunctionalException;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,7 +78,6 @@ import static java.lang.String.format;
  * @see LoggingErrorHandler
  */
 @Slf4j
-@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class RetryingErrorHandler implements ErrorHandler {
 
     /**
@@ -101,6 +99,27 @@ public class RetryingErrorHandler implements ErrorHandler {
      * Retry policy and associated logging behavior.
      */
     private final RetryConfiguration retryConfiguration;
+
+    /**
+     * Retry policy used inside this handler, adjusted so success logging also fires when the first retry succeeds.
+     */
+    private final RetryConfiguration handlerRetryConfiguration;
+
+    protected RetryingErrorHandler(Predicate<Throwable> errorFilter, boolean stopConsumerOnFailure,
+                                   boolean logFunctionalErrors, RetryConfiguration retryConfiguration) {
+        this.errorFilter = errorFilter;
+        this.stopConsumerOnFailure = stopConsumerOnFailure;
+        this.logFunctionalErrors = logFunctionalErrors;
+        this.retryConfiguration = retryConfiguration;
+        this.handlerRetryConfiguration = retryConfiguration.toBuilder()
+                .firstAttemptCountsAsRetry(true)
+                .successLogger(status -> retryConfiguration.getSuccessLogger().accept(
+                        status.toBuilder()
+                                .numberOfTimesRetried(status.getNumberOfTimesRetried()
+                                                              + (status.getException() == null ? 0 : 1))
+                                .build()))
+                .build();
+    }
 
     /**
      * Constructs a handler that retries on technical exceptions up to 5 times with a 2-second delay. Consumer is not
@@ -148,7 +167,9 @@ public class RetryingErrorHandler implements ErrorHandler {
                                 Function<Throwable, ?> errorMapper) {
         this(errorFilter, stopConsumerOnFailure, logFunctionalErrors,
              RetryConfiguration.builder().delay(delay).maxRetries(maxRetries).errorMapper(errorMapper)
-                     .successLogger(s -> log.info("Message handling was successful on retry"))
+                     .successLogger(s -> log.info("Message handling was successful after {} {}",
+                                                  s.getNumberOfTimesRetried(),
+                                                  s.getNumberOfTimesRetried() == 1 ? "retry" : "retries"))
                      .exceptionLogger(s -> {}).build());
     }
 
@@ -181,7 +202,7 @@ public class RetryingErrorHandler implements ErrorHandler {
             } else {
                 log.warn("{}. Retrying until the errors stop.", errorMessage, error);
             }
-            return retryOnFailure(retryFunction, retryConfiguration);
+            return retryOnFailure(retryFunction, handlerRetryConfiguration);
         } catch (Throwable e) {
             if (stopConsumerOnFailure) {
                 log.error("{}. Not retrying any further. Propagating error.", errorMessage, error);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,8 +175,14 @@ public class TimingUtils {
                 if (result instanceof CompletableFuture<?>) {
                     ((CompletableFuture<?>) result).get();
                 }
-                if (retryStatus != null) {
-                    configuration.getSuccessLogger().accept(retryStatus);
+                if (retryStatus != null || configuration.isFirstAttemptCountsAsRetry()) {
+                    RetryStatus currentStatus = retryStatus == null
+                            ? RetryStatus.builder().retryConfiguration(configuration).task(task).build()
+                            : retryStatus;
+                    RetryStatus successStatus = currentStatus.toBuilder()
+                            .numberOfTimesRetried(currentStatus.getNumberOfTimesRetried() + 1)
+                            .build();
+                    configuration.getSuccessLogger().accept(successStatus);
                 }
                 return result;
             } catch (Throwable e) {

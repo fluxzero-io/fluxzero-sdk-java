@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -31,12 +32,16 @@ class TimingUtilsTest {
         AtomicInteger attempts = new AtomicInteger();
         AtomicInteger successLogCalls = new AtomicInteger();
         AtomicInteger errorLogCalls = new AtomicInteger();
+        AtomicReference<RetryStatus> successStatus = new AtomicReference<>();
 
         RetryConfiguration configuration = RetryConfiguration.builder()
                 .delay(Duration.ofMillis(1))
                 .delayFunction(status -> Duration.ofMillis(1))
                 .maxRetries(5)
-                .successLogger(status -> successLogCalls.incrementAndGet())
+                .successLogger(status -> {
+                    successLogCalls.incrementAndGet();
+                    successStatus.set(status);
+                })
                 .exceptionLogger(status -> errorLogCalls.incrementAndGet())
                 .build();
 
@@ -51,6 +56,7 @@ class TimingUtilsTest {
         assertEquals(3, attempts.get());
         assertEquals(2, errorLogCalls.get());
         assertEquals(1, successLogCalls.get());
+        assertEquals(2, successStatus.get().getNumberOfTimesRetried());
     }
 
     @Test
@@ -148,4 +154,5 @@ class TimingUtilsTest {
         assertEquals("ok", result);
         assertEquals(0, successLogCalls.get());
     }
+
 }

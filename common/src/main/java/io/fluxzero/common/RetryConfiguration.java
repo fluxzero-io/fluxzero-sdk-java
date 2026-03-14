@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import java.util.function.Predicate;
  * @see RetryStatus
  */
 @Value
-@Builder(builderClassName = "Builder")
+@Builder(builderClassName = "Builder", toBuilder = true)
 @Slf4j
 public class RetryConfiguration {
     /**
@@ -99,8 +99,19 @@ public class RetryConfiguration {
      * This can be used to log success, metrics, etc.
      */
     @Default
-    Consumer<RetryStatus> successLogger =
-            status -> log.info("Task {} completed successfully on retry", status.getTask());
+    Consumer<RetryStatus> successLogger = status -> log.info("Task {} completed successfully after {} {}",
+                                                             status.getTask(),
+                                                             status.getNumberOfTimesRetried(),
+                                                             status.getNumberOfTimesRetried() == 1 ? "retry" : "retries");
+
+    /**
+     * Whether the first attempt in this retry cycle should already count as a retry for success logging purposes.
+     * <p>
+     * Defaults to {@code false}, so direct success remains silent unless a caller explicitly indicates that entering
+     * this retry cycle already implies an earlier failure.
+     */
+    @Default
+    boolean firstAttemptCountsAsRetry = false;
 
     /**
      * Callback invoked when a retryable exception is caught.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
 
+import io.fluxzero.common.RetryConfiguration;
+import io.fluxzero.common.RetryStatus;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -27,6 +30,7 @@ import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -95,6 +99,52 @@ public class RetryingErrorHandlerTest {
                 3, Duration.ofMillis(10), e -> true, false, true);
         assertTrue(subject.handleError(exception, "mock exception",
                                        new Repairable("success", 5)) instanceof MockException);
+    }
+
+    @Test
+    void successLoggerRunsWhenFirstRetrySucceeds() {
+        AtomicInteger successLogCalls = new AtomicInteger();
+        AtomicReference<RetryStatus> successStatus = new AtomicReference<>();
+        RetryingErrorHandler subject = new RetryingErrorHandler(
+                e -> true,
+                false,
+                true,
+                RetryConfiguration.builder()
+                        .delay(Duration.ofMillis(10))
+                        .maxRetries(3)
+                        .successLogger(status -> {
+                            successLogCalls.incrementAndGet();
+                            successStatus.set(status);
+                        })
+                        .exceptionLogger(status -> {})
+                        .build());
+
+        assertEquals("success", subject.handleError(exception, "mock exception", () -> "success"));
+        assertEquals(1, successLogCalls.get());
+        assertEquals(1, successStatus.get().getNumberOfTimesRetried());
+    }
+
+    @Test
+    void successLoggerIncludesInitialFailureWhenLaterRetrySucceeds() {
+        AtomicInteger successLogCalls = new AtomicInteger();
+        AtomicReference<RetryStatus> successStatus = new AtomicReference<>();
+        RetryingErrorHandler subject = new RetryingErrorHandler(
+                e -> true,
+                false,
+                true,
+                RetryConfiguration.builder()
+                        .delay(Duration.ofMillis(10))
+                        .maxRetries(3)
+                        .successLogger(status -> {
+                            successLogCalls.incrementAndGet();
+                            successStatus.set(status);
+                        })
+                        .exceptionLogger(status -> {})
+                        .build());
+
+        assertEquals("success", subject.handleError(exception, "mock exception", new Repairable("success", 1)));
+        assertEquals(1, successLogCalls.get());
+        assertEquals(2, successStatus.get().getNumberOfTimesRetried());
     }
 
     @Nested
