@@ -55,6 +55,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.Namespaced",
     "kind" : "interface"
   }, {
+    "file" : "Order.json",
+    "name" : "Order",
+    "qualifiedName" : "io.fluxzero.sdk.common.Order",
+    "kind" : "annotation_type"
+  }, {
     "file" : "UuidFactory.json",
     "name" : "UuidFactory",
     "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory",

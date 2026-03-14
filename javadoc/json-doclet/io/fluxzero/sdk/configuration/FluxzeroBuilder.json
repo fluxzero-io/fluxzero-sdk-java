@@ -31,7 +31,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Registers a {@link BatchInterceptor} that applies to the given message types.\n"
+    "documentation" : " Registers a {@link BatchInterceptor} that applies to the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run before Fluxzero's\n built-in batch interceptors, while zero, positive, or missing values run after them.\n"
   }, {
     "name" : "addConsumerConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration",
@@ -66,11 +66,6 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "highPriority",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
       "name" : "forTypes",
       "type" : "io.fluxzero.common.MessageType[]",
       "varArgs" : true,
@@ -78,28 +73,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link DispatchInterceptor} for specified message types with optional priority.\n"
-  }, {
-    "name" : "addDispatchInterceptor",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor",
-    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
-    "modifiers" : [ "default", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "interceptor",
-      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forTypes",
-      "type" : "io.fluxzero.common.MessageType[]",
-      "varArgs" : true,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : true,
-    "documentation" : " Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch. Shortcut for highPriority =\n false.\n"
+    "documentation" : " Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
   }, {
     "name" : "addHandlerDecorator",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerDecorator",
@@ -113,11 +87,6 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "highPriority",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
       "name" : "forTypes",
       "type" : "io.fluxzero.common.MessageType[]",
       "varArgs" : true,
@@ -125,54 +94,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerDecorator} with control over priority.\n"
-  }, {
-    "name" : "addHandlerDecorator",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerDecorator",
-    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
-    "modifiers" : [ "default", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "decorator",
-      "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forTypes",
-      "type" : "io.fluxzero.common.MessageType[]",
-      "varArgs" : true,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerDecorator} for the given message types.\n"
-  }, {
-    "name" : "addHandlerInterceptor",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerInterceptor",
-    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
-    "modifiers" : [ "default", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "interceptor",
-      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "highPriority",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forTypes",
-      "type" : "io.fluxzero.common.MessageType[]",
-      "varArgs" : true,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerInterceptor} with specified priority.\n"
+    "documentation" : " Adds a {@link HandlerDecorator} for the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the decorator class to influence\n ordering. Lower values have higher priority. Decorators with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
   }, {
     "name" : "addHandlerInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerInterceptor",
@@ -193,7 +115,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n"
+    "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
   }, {
     "name" : "addParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addParameterResolver",

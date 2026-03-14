@@ -37,9 +37,33 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "customBatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.customBatchInterceptors",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "customConsumerConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.customConsumerConfigurations",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.ConsumerConfiguration>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "customDispatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.customDispatchInterceptors",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "customHandlerDecorators",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.customHandlerDecorators",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -197,22 +221,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "highPrioDispatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.highPrioDispatchInterceptors",
-    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "highPrioHandlerDecorators",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.highPrioHandlerDecorators",
-    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "hostMetricsConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.hostMetricsConfiguration",
     "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
@@ -225,22 +233,6 @@
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.identityProvider",
     "type" : "io.fluxzero.sdk.common.IdentityProvider",
     "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "lowPrioDispatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.lowPrioDispatchInterceptors",
-    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "lowPrioHandlerDecorators",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.lowPrioHandlerDecorators",
-    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
-    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -406,11 +398,6 @@
         "values" : {}
       } ]
     }, {
-      "name" : "highPriority",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
       "name" : "forTypes",
       "type" : "io.fluxzero.common.MessageType[]",
       "varArgs" : true,
@@ -437,11 +424,6 @@
         "annotationType" : "lombok.NonNull",
         "values" : {}
       } ]
-    }, {
-      "name" : "highPriority",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
     }, {
       "name" : "forTypes",
       "type" : "io.fluxzero.common.MessageType[]",
@@ -964,6 +946,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasHighPriorityOrder",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#hasHighPriorityOrder",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "interceptor",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "highPriorityInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#highPriorityInterceptors",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "interceptors",
+      "type" : "java.util.List<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "localHandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#localHandlerRegistry",
     "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
@@ -1024,6 +1038,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "mergeBatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#mergeBatchInterceptors",
+    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "customInterceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "internalInterceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "methodInvocationValidator",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#methodInvocationValidator",
     "returnType" : "io.fluxzero.common.handling.MethodInvocationValidator<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
@@ -1052,6 +1087,22 @@
     "parameters" : [ {
       "name" : "userProvider",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "regularPriorityInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#regularPriorityInterceptors",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "interceptors",
+      "type" : "java.util.List<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

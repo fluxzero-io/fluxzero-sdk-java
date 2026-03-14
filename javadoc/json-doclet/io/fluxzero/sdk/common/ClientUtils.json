@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "orderCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.orderCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.lang.Integer>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "searchParametersCache",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.searchParametersCache",
     "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.SearchParameters>",
@@ -57,6 +65,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "computeOrder",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#computeOrder",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "determineSearchCollection",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#determineSearchCollection",
     "returnType" : "java.lang.String",
@@ -433,6 +457,54 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Memoizes the given supplier using a time-based lifespan and Fluxzero’s internal clock.\n"
+  }, {
+    "name" : "orderOf",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#orderOf",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "component",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the configured order for the given component.\n <p>\n This first checks Fluxzero's own {@link Order} annotation and then falls back to Spring's\n {@code org.springframework.core.annotation.Order} when present on the classpath.\n\n @param component the component to inspect\n @return the configured order value, or {@code 0} if no order annotation is present\n"
+  }, {
+    "name" : "readOrderValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#readOrderValue",
+    "returnType" : "java.util.Optional<java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "springOrderOf",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#springOrderOf",
+    "returnType" : "java.util.Optional<java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#truncate",

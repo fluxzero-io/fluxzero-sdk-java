@@ -5,7 +5,7 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " Central configuration interface for a Fluxzero client instance.\n <p>\n This interface exposes all essential configuration components and extension points that influence\n message serialization, handler invocation, scheduling, caching, dispatching, user context, and more.\n <p>\n Implementations of this interface are typically created via {@link FluxzeroBuilder} and can be\n accessed through {@link Fluxzero#configuration()} at runtime.\n </p>\n\n <h2>Responsibilities</h2>\n <ul>\n   <li>Provide serializers for messages, snapshots, and documents.</li>\n   <li>Define consumer tracking and dispatch configuration per {@link MessageType}.</li>\n   <li>Register interceptors and decorators for dispatching, batching, and handling messages.</li>\n   <li>Expose services like clock, caching, scheduling, and task execution.</li>\n   <li>Supply user and identity resolution logic for context-aware operations.</li>\n </ul>\n\n <h2>Custom configuration</h2>\n Many of the returned values (e.g. interceptors, decorators, resolvers) are lists or maps that\n can be extended to modify the behavior of message handling and dispatch. Lists are ordered by priority\n (high or low), and are evaluated in that order during processing.\n\n @see Fluxzero\n @see FluxzeroBuilder\n",
+  "documentation" : " Central configuration interface for a Fluxzero client instance.\n <p>\n This interface exposes all essential configuration components and extension points that influence\n message serialization, handler invocation, scheduling, caching, dispatching, user context, and more.\n <p>\n Implementations of this interface are typically created via {@link FluxzeroBuilder} and can be\n accessed through {@link Fluxzero#configuration()} at runtime.\n </p>\n\n <h2>Responsibilities</h2>\n <ul>\n   <li>Provide serializers for messages, snapshots, and documents.</li>\n   <li>Define consumer tracking and dispatch configuration per {@link MessageType}.</li>\n   <li>Register interceptors and decorators for dispatching, batching, and handling messages.</li>\n   <li>Expose services like clock, caching, scheduling, and task execution.</li>\n   <li>Supply user and identity resolution logic for context-aware operations.</li>\n </ul>\n\n <h2>Custom configuration</h2>\n Many of the returned values (e.g. interceptors, decorators, resolvers) are lists or maps that\n can be extended to modify the behavior of message handling and dispatch. Lists are ordered during\n build time based on their configured precedence.\n\n @see Fluxzero\n @see FluxzeroBuilder\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ ],
@@ -55,6 +55,28 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Provides custom consumer configurations per message type. "
+  }, {
+    "name" : "customDispatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customDispatchInterceptors",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "User-registered dispatch interceptors grouped per message type. "
+  }, {
+    "name" : "customHandlerDecorators",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customHandlerDecorators",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "User-registered handler decorators grouped per message type. "
   }, {
     "name" : "customParameterResolvers",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customParameterResolvers",
@@ -122,28 +144,6 @@
     "varArgs" : false,
     "documentation" : "Interceptors applied to message batches during tracking and dispatch. "
   }, {
-    "name" : "highPrioDispatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#highPrioDispatchInterceptors",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Dispatch interceptors applied before low-priority interceptors. "
-  }, {
-    "name" : "highPrioHandlerDecorators",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#highPrioHandlerDecorators",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Decorators applied to handlers before low-priority decorators. "
-  }, {
     "name" : "identityProvider",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#identityProvider",
     "returnType" : "io.fluxzero.sdk.common.IdentityProvider",
@@ -154,28 +154,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns the provider used to generate or resolve application-specific identities. "
-  }, {
-    "name" : "lowPrioDispatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#lowPrioDispatchInterceptors",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Dispatch interceptors applied after high-priority interceptors. "
-  }, {
-    "name" : "lowPrioHandlerDecorators",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#lowPrioHandlerDecorators",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Decorators applied to handlers after high-priority decorators. "
   }, {
     "name" : "makeApplicationInstance",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#makeApplicationInstance",

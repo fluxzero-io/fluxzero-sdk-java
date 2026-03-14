@@ -1,0 +1,61 @@
+{
+  "name" : "Order",
+  "qualifiedName" : "io.fluxzero.sdk.common.Order",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Declares the relative order in which Fluxzero applies interceptors and decorators.\n <p>\n Lower values have higher priority.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ {
+    "name" : "HIGHEST_PRECEDENCE",
+    "qualifiedName" : "io.fluxzero.sdk.common.Order.HIGHEST_PRECEDENCE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Highest precedence value for Fluxzero ordering.\n",
+    "constantValue" : -2147483648
+  }, {
+    "name" : "LOWEST_PRECEDENCE",
+    "qualifiedName" : "io.fluxzero.sdk.common.Order.LOWEST_PRECEDENCE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Lowest precedence value for Fluxzero ordering.\n",
+    "constantValue" : 2147483647
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.common.Order#value",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The order value of the annotated component.\n <p>\n Lower values have higher priority.\n\n @return the order value\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
