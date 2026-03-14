@@ -177,6 +177,7 @@ public class DefaultTracking implements Tracking {
                         ConsumerConfiguration.configurations(handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
                         this.configurations.stream())
                 .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
+                .map(ConsumerConfiguration::ordered)
                 .map(config -> config.toBuilder().batchInterceptors(generalBatchInterceptors).build())
                 .map(ConsumerConfiguration::substituteProperties)
                 .collect(toMap(ConsumerConfiguration::getName, Function.identity(), (a, b) -> {

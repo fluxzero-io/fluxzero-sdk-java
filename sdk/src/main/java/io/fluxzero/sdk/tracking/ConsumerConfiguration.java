@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -115,12 +116,20 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
 
     /**
      * Interceptors that are invoked before and after a batch of messages is processed.
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their
+     * relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative
+     * orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.
      */
     @Singular
     List<BatchInterceptor> batchInterceptors;
 
     /**
      * Interceptors that wrap handler execution for additional behavior (e.g. logging, metrics, authorization).
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global
+     * handler interceptors configured via {@code FluxzeroBuilder} keep their existing position in the chain; consumer
+     * interceptors are only sorted relative to other interceptors in the same consumer configuration.
      */
     @Singular
     List<HandlerInterceptor> handlerInterceptors;
@@ -242,6 +251,22 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .build();
     }
 
+    /**
+     * Returns a copy with consumer-specific interceptors ordered by {@link io.fluxzero.sdk.common.Order}.
+     */
+    public ConsumerConfiguration ordered() {
+        return toBuilder()
+                .clearBatchInterceptors()
+                .batchInterceptors(batchInterceptors.stream()
+                                           .sorted(Comparator.comparingInt(ClientUtils::orderOf))
+                                           .collect(Collectors.toList()))
+                .clearHandlerInterceptors()
+                .handlerInterceptors(handlerInterceptors.stream()
+                                             .sorted(Comparator.comparingInt(ClientUtils::orderOf))
+                                             .collect(Collectors.toList()))
+                .build();
+    }
+
     /* ---------- Utilities for deriving configuration from annotations ---------- */
 
     /**
@@ -295,6 +320,6 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .passive(consumer.passive())
                 .typeFilter(consumer.typeFilter().isBlank() ? null : consumer.typeFilter())
                 .namespace(consumer.namespace().isBlank() ? null : consumer.namespace())
-                .build();
+                .build().ordered();
     }
 }

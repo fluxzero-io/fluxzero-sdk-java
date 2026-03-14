@@ -16,9 +16,11 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -26,14 +28,19 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Slf4j
 public class ConsumerConfigurationTest {
     private final Clock nowClock = Clock.fixed(Instant.parse("2022-01-01T00:00:00.000Z"), ZoneId.systemDefault());
+    private static final List<String> invocationOrder = new CopyOnWriteArrayList<>();
 
     @Test
     void nonExclusiveConsumerLetsHandlerThrough() {
@@ -144,6 +151,39 @@ public class ConsumerConfigurationTest {
                 .expectResult("consumer-1 consumer-2 common test");
     }
 
+    @Test
+    void orderedHandlerInterceptorsInConsumerConfiguration() {
+        invocationOrder.clear();
+
+        TestFixture.createAsync(
+                        DefaultFluxzero.builder()
+                                .addConsumerConfiguration(
+                                        ConsumerConfiguration.builder().name("test")
+                                                .handlerInterceptor(new PositiveConsumerHandlerInterceptor(invocationOrder))
+                                                .handlerInterceptor(new NegativeConsumerHandlerInterceptor(invocationOrder))
+                                                .build()),
+                        new OrderedHandler())
+                .withClock(nowClock)
+                .whenCommand(new Command())
+                .expectEvents("test")
+                .expectResult("test");
+
+        assertEquals(List.of("negative-handler", "positive-handler", "handler"), invocationOrder);
+    }
+
+    @Test
+    void orderedBatchInterceptorsInConsumerAnnotation() {
+        invocationOrder.clear();
+
+        TestFixture.createAsync(DefaultFluxzero.builder(), new OrderedBatchConsumerHandler())
+                .withClock(nowClock)
+                .whenCommand(new Command())
+                .expectEvents("annotated")
+                .expectResult("annotated");
+
+        assertEquals(List.of("negative-batch", "positive-batch", "annotated-handler"), invocationOrder);
+    }
+
     static class Handler {
         @HandleCommand
         String handle(Command command) {
@@ -154,5 +194,87 @@ public class ConsumerConfigurationTest {
     }
 
     static class Command {
+    }
+
+    static class OrderedHandler {
+        @HandleCommand
+        String handle(Command command) {
+            invocationOrder.add("handler");
+            Fluxzero.publishEvent("test");
+            return "test";
+        }
+    }
+
+    @Consumer(name = "annotated", batchInterceptors = {PositiveConsumerBatchInterceptor.class,
+            NegativeConsumerBatchInterceptor.class})
+    static class OrderedBatchConsumerHandler {
+        @HandleCommand
+        String handle(Command command) {
+            invocationOrder.add("annotated-handler");
+            Fluxzero.publishEvent("annotated");
+            return "annotated";
+        }
+    }
+
+    @Order(10)
+    static class PositiveConsumerHandlerInterceptor implements HandlerInterceptor {
+        private final List<String> invocationOrder;
+
+        PositiveConsumerHandlerInterceptor(List<String> invocationOrder) {
+            this.invocationOrder = invocationOrder;
+        }
+
+        @Override
+        public Function<io.fluxzero.sdk.common.serialization.DeserializingMessage, Object> interceptHandling(
+                Function<io.fluxzero.sdk.common.serialization.DeserializingMessage, Object> function,
+                io.fluxzero.common.handling.HandlerInvoker invoker) {
+            return message -> {
+                invocationOrder.add("positive-handler");
+                return function.apply(message);
+            };
+        }
+    }
+
+    @Order(-10)
+    static class NegativeConsumerHandlerInterceptor implements HandlerInterceptor {
+        private final List<String> invocationOrder;
+
+        NegativeConsumerHandlerInterceptor(List<String> invocationOrder) {
+            this.invocationOrder = invocationOrder;
+        }
+
+        @Override
+        public Function<io.fluxzero.sdk.common.serialization.DeserializingMessage, Object> interceptHandling(
+                Function<io.fluxzero.sdk.common.serialization.DeserializingMessage, Object> function,
+                io.fluxzero.common.handling.HandlerInvoker invoker) {
+            return message -> {
+                invocationOrder.add("negative-handler");
+                return function.apply(message);
+            };
+        }
+    }
+
+    @Order(10)
+    public static class PositiveConsumerBatchInterceptor implements BatchInterceptor {
+        @Override
+        public java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch> intercept(
+                java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch> consumer, Tracker tracker) {
+            return batch -> {
+                invocationOrder.add("positive-batch");
+                consumer.accept(batch);
+            };
+        }
+    }
+
+    @Order(-10)
+    public static class NegativeConsumerBatchInterceptor implements BatchInterceptor {
+        @Override
+        public java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch> intercept(
+                java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch> consumer, Tracker tracker) {
+            return batch -> {
+                invocationOrder.add("negative-batch");
+                consumer.accept(batch);
+            };
+        }
     }
 }

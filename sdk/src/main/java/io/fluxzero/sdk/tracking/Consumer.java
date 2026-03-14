@@ -105,11 +105,19 @@ public @interface Consumer {
 
     /**
      * Interceptors applied to individual handler method invocations.
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global
+     * handler interceptors configured via {@link FluxzeroBuilder} keep their existing position in the chain; consumer
+     * interceptors are only sorted relative to other interceptors declared on the same consumer.
      */
     Class<? extends HandlerInterceptor>[] handlerInterceptors() default {};
 
     /**
      * Interceptors applied at the batch level across all messages in a poll cycle.
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their
+     * relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative
+     * orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.
      */
     Class<? extends BatchInterceptor>[] batchInterceptors() default {};
 
