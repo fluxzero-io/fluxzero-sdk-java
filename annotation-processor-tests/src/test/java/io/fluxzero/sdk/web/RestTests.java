@@ -165,6 +165,56 @@ class RestTests {
         }
     }
 
+    @Nested
+    class FormParamTests {
+
+        final TestFixture testFixture = TestFixture.create(new Handler());
+
+        @Test
+        void testFormParam_rawStringBody_absoluteUrl() {
+            testFixture.whenApplying(fc -> DefaultWebRequestContext.getWebRequestContext(
+                            new DeserializingMessage(
+                                    WebRequest.post("https://mock-google.test/token")
+                                            .contentType("application/x-www-form-urlencoded")
+                                            .body("grant_type=authorization_code&code=google-code"
+                                                  + "&client_id=google-managed-client"
+                                                  + "&client_secret=google-managed-secret"
+                                                  + "&redirect_uri=https%3A%2F%2Fauth.fluxzero.test"
+                                                  + "%2Flogin%2Fcallback%2Fgoogle")
+                                            .build(),
+                                    MessageType.WEBREQUEST, fc.serializer()))
+                    .getFormParameter("client_id").as(String.class))
+                    .expectResult("google-managed-client");
+        }
+
+        @Test
+        void testFormParam_rawStringBody_viaWebRequestGatewaySendAndWait() {
+            testFixture.whenApplying(fc -> fc.webRequestGateway().sendAndWait(
+                                    WebRequest.post("https://mock-google.test/token")
+                                            .contentType("application/x-www-form-urlencoded")
+                                            .body("grant_type=authorization_code&code=google-code"
+                                                  + "&client_id=google-managed-client"
+                                                  + "&client_secret=google-managed-secret"
+                                                  + "&redirect_uri=https%3A%2F%2Fauth.fluxzero.test"
+                                                  + "%2Flogin%2Fcallback%2Fgoogle")
+                                            .build())
+                            .getPayloadAs(String.class))
+                    .expectResult("google-managed-client|google-managed-secret|https://auth.fluxzero.test/login"
+                                  + "/callback/google|google-code");
+        }
+
+        @Path("https://mock-google.test")
+        static class Handler {
+            @HandlePost("/token")
+            String token(@FormParam("client_id") String clientId,
+                         @FormParam("client_secret") String clientSecret,
+                         @FormParam("redirect_uri") String redirectUri,
+                         @FormParam("code") String code) {
+                return clientId + "|" + clientSecret + "|" + redirectUri + "|" + code;
+            }
+        }
+    }
+
     static class SomeId extends Id<Object> {
         public SomeId(String functionalId) {
             super(functionalId);

@@ -55,10 +55,12 @@ import java.io.PrintWriter;
 import java.lang.reflect.Type;
 import java.net.HttpCookie;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.Collections;
@@ -207,7 +209,10 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     Body body = Body.of(this, bodySupplier.get());
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    Formdata form = Formdata.create(getValueFactory());
+    Formdata form = parseForm();
+    @Getter(lazy = true)
+    @Accessors(fluent = true)
+    Map<String, List<String>> formParameters = parseFormParameters(bodySupplier.get());
     @Getter(lazy = true)
     JsonNode jsonBody = parseJsonBody(bodySupplier.get());
 
@@ -233,7 +238,9 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
                 case PATH -> new ParameterValue(lookup(name, ParamSource.PATH));
                 case HEADER -> new ParameterValue(lookup(name, ParamSource.HEADER));
                 case COOKIE -> new ParameterValue(lookup(name, ParamSource.COOKIE));
-                case FORM -> new ParameterValue(lookup(name, ParamSource.FORM));
+                case FORM -> new ParameterValue(Optional.ofNullable(formParameters().get(name))
+                        .map(values -> io.jooby.value.Value.create(getValueFactory(), name, values))
+                        .orElseGet(() -> io.jooby.value.Value.missing(getValueFactory(), name)));
                 case QUERY -> new ParameterValue(lookup(name, ParamSource.QUERY));
                 case BODY -> ReflectionUtils.readProperty(name, getJsonBody())
                         .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
@@ -254,6 +261,41 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    Formdata parseForm() {
+        Formdata result = Formdata.create(getValueFactory());
+        formParameters().forEach((key, formValues) -> {
+            if (formValues.size() == 1) {
+                result.put(key, formValues.getFirst());
+            } else {
+                result.put(key, formValues);
+            }
+        });
+        return result;
+    }
+
+    Map<String, List<String>> parseFormParameters(byte[] body) {
+        String contentType = WebRequest.getHeader(metadata, "Content-Type").map(String::toLowerCase).orElse("");
+        if (!contentType.startsWith("application/x-www-form-urlencoded")) {
+            return Map.of();
+        }
+        if (body == null || body.length == 0) {
+            return Map.of();
+        }
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        for (String pair : new String(body, StandardCharsets.UTF_8).split("&")) {
+            if (pair.isEmpty()) {
+                continue;
+            }
+            int separator = pair.indexOf('=');
+            String rawKey = separator >= 0 ? pair.substring(0, separator) : pair;
+            String rawValue = separator >= 0 ? pair.substring(separator + 1) : "";
+            String key = URLDecoder.decode(rawKey, StandardCharsets.UTF_8);
+            String value = URLDecoder.decode(rawValue, StandardCharsets.UTF_8);
+            values.computeIfAbsent(key, __ -> new java.util.ArrayList<>()).add(value);
+        }
+        return values;
     }
 
     /*
