@@ -19,10 +19,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.BeanDescription;
+import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.type.MapType;
+import com.fasterxml.jackson.databind.ser.ContextualSerializer;
+import com.fasterxml.jackson.databind.ser.ResolvableSerializer;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
@@ -104,6 +108,14 @@ public class JacksonContentFilter implements ContentFilter {
                         return new FilteringSerializer((JsonSerializer<Object>) serializer);
                     }
 
+                    @SuppressWarnings("unchecked")
+                    @Override
+                    public JsonSerializer<?> modifyMapSerializer(SerializationConfig config, MapType valueType,
+                                                                 BeanDescription beanDesc,
+                                                                 JsonSerializer<?> serializer) {
+                        return new FilteringSerializer((JsonSerializer<Object>) serializer);
+                    }
+
                 });
             }
         });
@@ -154,7 +166,8 @@ public class JacksonContentFilter implements ContentFilter {
      */
     @AllArgsConstructor
     @Slf4j
-    protected static class FilteringSerializer extends JsonSerializer<Object> {
+    protected static class FilteringSerializer extends JsonSerializer<Object>
+            implements ContextualSerializer, ResolvableSerializer {
 
         protected static final ThreadLocal<Object> rootValue = new ThreadLocal<>();
 
@@ -187,25 +200,40 @@ public class JacksonContentFilter implements ContentFilter {
          */
         @SneakyThrows
         public void serializeAndThen(Object input, JsonGenerator jsonGenerator, ThrowingConsumer<Object> followUp) {
-            Object value = input;
+            Object value = input instanceof Map<?, ?> map ? filterMapEntries(map) : input;
             try {
-                if (value != null) {
-                    Optional<HandlerInvoker> invoker = matcherCache.apply(value.getClass()).getInvoker(value, rootValue.get());
-                    if (invoker.isPresent()) {
-                        value = invoker.get().invoke();
-                        if (value == null) {
-                            if (!jsonGenerator.getOutputContext().inArray()) {
-                                jsonGenerator.writeNull();
-                            }
-                            return;
-                        }
+                value = filterValue(value);
+                if (value == null) {
+                    if (!jsonGenerator.getOutputContext().inArray()) {
+                        jsonGenerator.writeNull();
                     }
+                    return;
                 }
             } catch (Exception e) {
                 log.warn("Failed to filter content (type {}) for viewer {}", input.getClass(), User.getCurrent(), e);
                 throw e;
             }
             followUp.accept(value);
+        }
+
+        private Map<Object, Object> filterMapEntries(Map<?, ?> map) {
+            Map<Object, Object> result = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                Object filteredValue = filterValue(entry.getValue());
+                if (filteredValue != null) {
+                    result.put(entry.getKey(), filteredValue);
+                }
+            }
+            return result;
+        }
+
+        @SneakyThrows
+        private Object filterValue(Object value) {
+            if (value == null) {
+                return null;
+            }
+            Optional<HandlerInvoker> invoker = matcherCache.apply(value.getClass()).getInvoker(value, rootValue.get());
+            return invoker.isPresent() ? invoker.get().invoke() : value;
         }
 
         /**
@@ -221,6 +249,26 @@ public class JacksonContentFilter implements ContentFilter {
                         .filter(handlerInvoker -> handlerInvoker.invoke() == null).isPresent();
             } catch (Exception ignored) {
                 return false;
+            }
+        }
+
+        @Override
+        @SneakyThrows
+        public JsonSerializer<?> createContextual(SerializerProvider provider, BeanProperty property) {
+            if (defaultSerializer instanceof ContextualSerializer contextualSerializer) {
+                @SuppressWarnings("unchecked")
+                JsonSerializer<Object> contextualized =
+                        (JsonSerializer<Object>) contextualSerializer.createContextual(provider, property);
+                return contextualized == defaultSerializer ? this : new FilteringSerializer(contextualized);
+            }
+            return this;
+        }
+
+        @Override
+        @SneakyThrows
+        public void resolve(SerializerProvider provider) {
+            if (defaultSerializer instanceof ResolvableSerializer resolvableSerializer) {
+                resolvableSerializer.resolve(provider);
             }
         }
     }

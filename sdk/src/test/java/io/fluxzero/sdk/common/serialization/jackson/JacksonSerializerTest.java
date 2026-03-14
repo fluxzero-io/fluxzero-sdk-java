@@ -289,6 +289,22 @@ class JacksonSerializerTest {
             var output = serializer.filterContent(input, new MockUser("admin"));
             assertEquals(input, output);
         }
+
+        @Test
+        void removeFromMapValue() {
+            Map<String, ComplexObject.Child> input = Map.of("child", complex.getChild());
+            var output = serializer.filterContent(new ComplexObjectWithMap(input), new MockUser("unfit"));
+            assertTrue(output.getChildren().isEmpty());
+        }
+
+        @Test
+        void keepFilteredMapValue() {
+            Map<String, ComplexObject.Child> input = Map.of("child", complex.getChild());
+            var output = serializer.filterContent(new ComplexObjectWithMap(input), new MockUser("normal"));
+            assertEquals(1, output.getChildren().size());
+            assertNull(output.getChildren().get("child").getFoo());
+            assertEquals(123, output.getChildren().get("child").getNumber());
+        }
     }
 
     @Value
@@ -308,6 +324,11 @@ class JacksonSerializerTest {
                 return viewer.hasRole("admin") ? this : viewer.hasRole("unfit") ? null : toBuilder().foo(null).build();
             }
         }
+    }
+
+    @Value
+    static class ComplexObjectWithMap {
+        Map<String, ComplexObject.Child> children;
     }
 
 
