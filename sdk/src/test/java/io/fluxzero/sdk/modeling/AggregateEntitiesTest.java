@@ -543,6 +543,25 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testAddSingleton_illegalWhenParentMissing() {
+                MissingChildId childId = new MissingChildId("missing");
+                TestFixture.create()
+                        .registerHandlers(new Object() {
+                            @HandleCommand
+                            void handle(Object command) {
+                                loadAggregate("test", Aggregate.class).apply(command);
+                            }
+                        })
+                        .whenCommand(new AddChild(childId))
+                        .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION)
+                        .andThen()
+                        .withProperty("fluxzero.assert.apply-compatibility.exception.not-found",
+                                      "Parent or child not found")
+                        .whenCommand(new AddChild(childId))
+                        .expectExceptionalResult(new IllegalCommandException("Parent or child not found"));
+            }
+
+            @Test
             void testAddSingletonTwiceNotAllowed() {
                 MissingChildId childId = new MissingChildId("missing");
                 testFixture

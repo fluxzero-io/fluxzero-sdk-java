@@ -38,9 +38,11 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.AccessibleObject;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -213,23 +215,38 @@ public class ImmutableEntity<T> implements Entity<T> {
     }
 
     protected <E extends Exception> void assertApplyCompatibility(DeserializingMessage message, Entity<?> entity) throws E {
+        assertApplyCompatibility(message, entity, new HashSet<>());
+    }
+
+    protected <E extends Exception> void assertApplyCompatibility(DeserializingMessage message, Entity<?> entity,
+                                                                  Set<Class<?>> visitedTypes) throws E {
         entityHelper.applyInvoker(message, entity, false, false)
                 .ifPresent(i -> {
                     Apply apply = ReflectionUtils.getAnnotation(i.getMethod(), Apply.class).orElseThrow();
                     if (!apply.disableCompatibilityCheck()) {
                         if (entity.isPresent()) {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to be empty",
-                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(), entity.type().getSimpleName(), entity.id());
+                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
+                                     entity.type().getSimpleName(), entity.id());
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.already-exists",
                                               IllegalCommandException::new, () -> Entity.ALREADY_EXISTS_EXCEPTION);
                         } else {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to exist",
-                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(), entity.type().getSimpleName(), entity.id());
+                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
+                                     entity.type().getSimpleName(), entity.id());
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.not-found",
                                               IllegalCommandException::new, () -> Entity.NOT_FOUND_EXCEPTION);
                         }
                     }
                 });
+        if (!entity.isEmpty() || entity.type() == null || !visitedTypes.add(entity.type())) {
+            return;
+        }
+        for (AccessibleObject location : getAnnotatedProperties(entity.type(), Member.class)) {
+            ImmutableEntity<?> child = getEntityHolder(entity.type(), location, entityHelper, serializer)
+                    .getEmptyEntity().toBuilder().parent(entity).build();
+            assertApplyCompatibility(message, child, visitedTypes);
+        }
     }
 
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {
