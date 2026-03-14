@@ -980,6 +980,111 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Streams raw search hits (document + metadata). Documents will be fetched in batches of size {@code fetchSize}\n from the backing store. For the {@link DefaultDocumentStore default implementation}, the fetch size is 10,000.\n"
+  }, {
+    "name" : "toInputStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toInputStream",
+    "returnType" : "java.io.InputStream",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "writer",
+      "type" : "io.fluxzero.common.ThrowingBiConsumer<T,java.io.OutputStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Streams matching values of the specified type as a lazily populated {@link InputStream}.\n"
+  }, {
+    "name" : "toInputStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toInputStream",
+    "returnType" : "java.io.InputStream",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "writer",
+      "type" : "io.fluxzero.common.ThrowingBiConsumer<T,java.io.OutputStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Streams matching values of the specified type as a lazily populated {@link InputStream}, fetching documents in\n batches of {@code fetchSize}.\n"
+  }, {
+    "name" : "toNdjsonInputStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toNdjsonInputStream",
+    "returnType" : "java.io.InputStream",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Streams matching values as NDJSON using the stored document types and the default fetch size.\n"
+  }, {
+    "name" : "toUtf8InputStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toUtf8InputStream",
+    "returnType" : "java.io.InputStream",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "io.fluxzero.common.ThrowingFunction<T,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Streams matching values of the specified type as a lazily populated UTF-8 {@link InputStream}.\n"
+  }, {
+    "name" : "toUtf8InputStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#toUtf8InputStream",
+    "returnType" : "java.io.InputStream",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "io.fluxzero.common.ThrowingFunction<T,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Streams matching values of the specified type as a lazily populated UTF-8 {@link InputStream}, fetching\n documents in\n batches of {@code fetchSize}.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

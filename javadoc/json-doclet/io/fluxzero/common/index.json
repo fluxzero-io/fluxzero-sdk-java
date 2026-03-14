@@ -150,6 +150,11 @@
     "qualifiedName" : "io.fluxzero.common.ServicePathBuilder",
     "kind" : "class"
   }, {
+    "file" : "StreamInputStream.json",
+    "name" : "StreamInputStream",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream",
+    "kind" : "class"
+  }, {
     "file" : "TaskScheduler.json",
     "name" : "TaskScheduler",
     "qualifiedName" : "io.fluxzero.common.TaskScheduler",

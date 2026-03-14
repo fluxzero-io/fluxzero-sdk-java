@@ -1,0 +1,190 @@
+{
+  "name" : "StreamInputStream",
+  "qualifiedName" : "io.fluxzero.common.StreamInputStream",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Exposes the mapped contents of a {@link Stream} as an {@link InputStream} without buffering the full stream in\n memory.\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.io.InputStream",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.closed",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentChunk",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.currentChunk",
+    "type" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentIndex",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.currentIndex",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "iterator",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.iterator",
+    "type" : "java.util.Iterator<? extends T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stream",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.stream",
+    "type" : "java.util.stream.Stream<? extends T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "writer",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream.writer",
+    "type" : "io.fluxzero.common.ThrowingBiConsumer<? super T,? super java.io.OutputStream>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "StreamInputStream",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#StreamInputStream",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stream",
+      "type" : "java.util.stream.@lombok.NonNull Stream<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "writer",
+      "type" : "io.fluxzero.common.@lombok.NonNull ThrowingBiConsumer<? super T,? super java.io.OutputStream>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code StreamInputStream} instance that maps the elements of the given {@link Stream}\n to an {@link InputStream} representation using a provided writer function.\n\n @param stream the stream containing the elements to be exposed as an {@link InputStream}; must not be null\n @param writer a {@code ThrowingBiConsumer} that writes each element of the stream to an {@link OutputStream};\n               must not be null\n"
+  } ],
+  "methods" : [ {
+    "name" : "available",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#available",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ensureChunk",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#ensureChunk",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextChunk",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#nextChunk",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#read",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.common.StreamInputStream#read",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "b",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "off",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "len",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
