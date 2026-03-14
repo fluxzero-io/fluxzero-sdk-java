@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -184,6 +185,31 @@ public class ConsumerConfigurationTest {
         assertEquals(List.of("negative-batch", "positive-batch", "annotated-handler"), invocationOrder);
     }
 
+    @Test
+    void orderedDispatchInterceptorsInConsumerConfiguration() {
+        TestFixture.createAsync(
+                        DefaultFluxzero.builder()
+                                .addConsumerConfiguration(
+                                        ConsumerConfiguration.builder().name("dispatch-config")
+                                                .dispatchInterceptor(new PositiveConsumerDispatchInterceptor())
+                                                .dispatchInterceptor(new NegativeConsumerDispatchInterceptor())
+                                                .build()),
+                        new DispatchingHandler("dispatch-config"))
+                .withClock(nowClock)
+                .whenCommand(new Command())
+                .expectEvents("positive negative dispatch-config")
+                .expectResult("positive negative dispatch-config");
+    }
+
+    @Test
+    void orderedDispatchInterceptorsInConsumerAnnotation() {
+        TestFixture.createAsync(DefaultFluxzero.builder(), new AnnotatedDispatchingHandler())
+                .withClock(nowClock)
+                .whenCommand(new Command())
+                .expectEvents("positive negative annotated-dispatch")
+                .expectResult("positive negative annotated-dispatch");
+    }
+
     static class Handler {
         @HandleCommand
         String handle(Command command) {
@@ -205,6 +231,20 @@ public class ConsumerConfigurationTest {
         }
     }
 
+    static class DispatchingHandler {
+        private final String consumerName;
+
+        DispatchingHandler(String consumerName) {
+            this.consumerName = consumerName;
+        }
+
+        @HandleCommand
+        String handle(Command command) {
+            Fluxzero.publishEvent(consumerName);
+            return consumerName;
+        }
+    }
+
     @Consumer(name = "annotated", batchInterceptors = {PositiveConsumerBatchInterceptor.class,
             NegativeConsumerBatchInterceptor.class})
     static class OrderedBatchConsumerHandler {
@@ -213,6 +253,16 @@ public class ConsumerConfigurationTest {
             invocationOrder.add("annotated-handler");
             Fluxzero.publishEvent("annotated");
             return "annotated";
+        }
+    }
+
+    @Consumer(name = "annotated-dispatch", dispatchInterceptors = {PositiveConsumerDispatchInterceptor.class,
+            NegativeConsumerDispatchInterceptor.class})
+    static class AnnotatedDispatchingHandler {
+        @HandleCommand
+        String handle(Command command) {
+            Fluxzero.publishEvent("annotated-dispatch");
+            return "annotated-dispatch";
         }
     }
 
@@ -275,6 +325,24 @@ public class ConsumerConfigurationTest {
                 invocationOrder.add("negative-batch");
                 consumer.accept(batch);
             };
+        }
+    }
+
+    @Order(10)
+    public static class PositiveConsumerDispatchInterceptor implements DispatchInterceptor {
+        @Override
+        public io.fluxzero.sdk.common.Message interceptDispatch(io.fluxzero.sdk.common.Message message,
+                                                                MessageType messageType, String topic) {
+            return message.withPayload("positive " + message.getPayload());
+        }
+    }
+
+    @Order(-10)
+    public static class NegativeConsumerDispatchInterceptor implements DispatchInterceptor {
+        @Override
+        public io.fluxzero.sdk.common.Message interceptDispatch(io.fluxzero.sdk.common.Message message,
+                                                                MessageType messageType, String topic) {
+            return message.withPayload("negative " + message.getPayload());
         }
     }
 }

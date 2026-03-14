@@ -58,4 +58,17 @@ class TrackerMonitorTest {
                 .expectNoMetricsLike(ProcessBatchEvent.class);
     }
 
+    @Test
+    void blockDispatchMetrics() {
+        @Consumer(name = "MetricsBlocked-consumer", dispatchInterceptors = DisableMetrics.class)
+        class Handler {
+            @HandleEvent
+            void handle(String ignored) {
+            }
+        }
+        TestFixture.createAsync(new Handler()).whenEvent("test")
+                .expectNoMetricsLike(HandleMessageEvent.class)
+                .expectNoMetricsLike(ProcessBatchEvent.class);
+    }
+
 }

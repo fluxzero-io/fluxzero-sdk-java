@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.lang.annotation.Documented;
@@ -120,6 +121,16 @@ public @interface Consumer {
      * orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.
      */
     Class<? extends BatchInterceptor>[] batchInterceptors() default {};
+
+    /**
+     * Dispatch interceptors that become active while this consumer is processing a batch or handler.
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are
+     * applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches
+     * performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are
+     * disabled globally, these consumer-scoped dispatch interceptors are inactive.
+     */
+    Class<? extends DispatchInterceptor>[] dispatchInterceptors() default {};
 
     /**
      * Error handler invoked when a message processing error occurs. Default is {@link LoggingErrorHandler} which logs

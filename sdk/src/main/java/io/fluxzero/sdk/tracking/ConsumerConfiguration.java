@@ -20,6 +20,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
@@ -133,6 +134,17 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      */
     @Singular
     List<HandlerInterceptor> handlerInterceptors;
+
+    /**
+     * Dispatch interceptors that become active while this consumer is processing a batch.
+     * <p>
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are
+     * applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches
+     * performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are
+     * disabled globally, these consumer-scoped dispatch interceptors are inactive.
+     */
+    @Singular
+    List<DispatchInterceptor> dispatchInterceptors;
 
     /**
      * If true, only messages that target the current application will be processed. This allows isolating handlers to
@@ -264,6 +276,10 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .handlerInterceptors(handlerInterceptors.stream()
                                              .sorted(Comparator.comparingInt(ClientUtils::orderOf))
                                              .collect(Collectors.toList()))
+                .clearDispatchInterceptors()
+                .dispatchInterceptors(dispatchInterceptors.stream()
+                                             .sorted(Comparator.comparingInt(ClientUtils::orderOf))
+                                             .collect(Collectors.toList()))
                 .build();
     }
 
@@ -309,6 +325,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
                 .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(
                         ReflectionUtils::<HandlerInterceptor>asInstance).collect(Collectors.toList()))
+                .dispatchInterceptors(Arrays.stream(consumer.dispatchInterceptors()).map(
+                        ReflectionUtils::<DispatchInterceptor>asInstance).collect(Collectors.toList()))
                 .filterMessageTarget(consumer.filterMessageTarget())
                 .ignoreSegment(consumer.ignoreSegment())
                 .clientControlledIndex(consumer.clientControlledIndex())

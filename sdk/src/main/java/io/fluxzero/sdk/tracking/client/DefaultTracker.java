@@ -23,6 +23,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -189,7 +191,12 @@ public class DefaultTracker implements Runnable, Registration {
                            TrackingClient trackingClient) {
         this.consumer = consumer;
         this.tracker = tracker;
-        this.processor = join(config.getBatchInterceptors()).intercept(this::process, tracker);
+        Consumer<MessageBatch> processor = join(config.getBatchInterceptors()).intercept(this::process, tracker);
+        DispatchInterceptor consumerDispatchInterceptor = config.getDispatchInterceptors().stream()
+                .reduce(DispatchInterceptor::andThen).orElse(null);
+        this.processor = consumerDispatchInterceptor == null ? processor :
+                batch -> AdhocDispatchInterceptor.runWithAdhocInterceptor(() -> processor.accept(batch),
+                                                                          consumerDispatchInterceptor);
         this.trackingClient = trackingClient;
         this.retryDelay = Duration.ofSeconds(1);
         this.lastProcessedIndex = ofNullable(config.getMinIndex()).map(i -> i - 1).orElse(null);
