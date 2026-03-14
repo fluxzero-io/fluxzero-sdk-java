@@ -65,6 +65,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "normalizeCpuLoad",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.CpuCollector#normalizeCpuLoad",
+    "returnType" : "double",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cpuLoad",
+      "type" : "double",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Normalizes CPU load values reported by the JMX implementation to the documented {@code [0.0, 1.0]} range.\n Some JVM/platform combinations occasionally report values slightly above {@code 1.0} due to timing or rounding.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

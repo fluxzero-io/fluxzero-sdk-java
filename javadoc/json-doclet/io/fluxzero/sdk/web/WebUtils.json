@@ -70,6 +70,37 @@
     "varArgs" : true,
     "documentation" : " Concatenates multiple segments of a URL, ensuring that:\n <ul>\n     <li>Double slashes in schemes like {@code https://} are preserved</li>\n     <li>Duplicate slashes between path segments are removed</li>\n     <li>Null or empty segments are skipped</li>\n </ul>\n\n @param parts URL parts, e.g., {@code \"https://\", \"example.org\", \"/api/\", \"/v1/\"}\n @return A clean, properly concatenated URL, e.g. {@code \"https://example.org/api/v1/\"}\n"
   }, {
+    "name" : "convertPayload",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#convertPayload",
+    "returnType" : "R",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "contentType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a web payload to the requested target type.\n <p>\n This method preserves already-compatible payload instances, supports explicit low-level conversion to\n {@code String} and {@code byte[]}, and only parses raw JSON when the payload is represented as text or bytes and\n the content type indicates JSON.\n\n @param payload     the decoded payload value\n @param type        the requested target type\n @param contentType the associated content type, used to determine whether JSON parsing should be applied\n @param <R>         the expected return type\n @return the converted payload, or {@code null} if the input payload is {@code null}\n"
+  }, {
     "name" : "emptyHeaderMap",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#emptyHeaderMap",
     "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
@@ -247,6 +278,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "isJsonContentType",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#isJsonContentType",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "contentType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks whether a content type should be treated as JSON.\n <p>\n This recognizes the canonical {@code application/json} media type, optional parameters such as charset, and\n structured syntax suffixes such as {@code application/problem+json}.\n\n @param contentType the content type to inspect\n @return {@code true} if the content type denotes JSON; otherwise {@code false}\n"
   }, {
     "name" : "parseRequestCookieHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#parseRequestCookieHeader",
