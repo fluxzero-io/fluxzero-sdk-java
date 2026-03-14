@@ -347,6 +347,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "loadServices",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#loadServices",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "serviceType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads implementations of the given service using Java's {@link ServiceLoader}.\n <p>\n Misconfigured providers that are present in {@code META-INF/services} but missing from the current classpath are\n skipped. This can happen, for example, when test resources contribute service descriptors without also exposing\n the corresponding provider classes to downstream modules.\n\n @param serviceType the service interface to load\n @param <T>         the service type\n @return discovered service implementations, ordered by {@link #orderOf(Object)}\n"
+  }, {
     "name" : "memoize",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#memoize",
     "returnType" : "io.fluxzero.common.MemoizingBiFunction<T,U,R>",

@@ -8,11 +8,19 @@
     "annotationType" : "java.lang.FunctionalInterface",
     "values" : {}
   } ],
-  "documentation" : " Mechanism that enables modification, monitoring, or conditional suppression of messages before they are dispatched to\n local handlers or published to the Fluxzero Runtime.\n <p>\n A {@code DispatchInterceptor} allows observing and transforming messages during the dispatch process. It is typically\n used to inject metadata, rewrite payloads, log outgoing messages, or prevent dispatching certain messages based on\n custom rules.\n\n <p><strong>Key behaviors:</strong>\n <ul>\n   <li>{@link #interceptDispatch} is used for altering or blocking a message before it's handled or published.</li>\n   <li>{@link #modifySerializedMessage} can change the final serialized message before it's stored or sent to the Fluxzero Runtime.</li>\n   <li>{@link #monitorDispatch} is a post-processing hook for monitoring without side effects or blocking.</li>\n </ul>\n\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor\n",
+  "documentation" : " Mechanism that enables modification, monitoring, or conditional suppression of messages before they are dispatched to\n local handlers or published to the Fluxzero Runtime.\n <p>\n A {@code DispatchInterceptor} allows observing and transforming messages during the dispatch process. It is typically\n used to inject metadata, rewrite payloads, log outgoing messages, or prevent dispatching certain messages based on\n custom rules.\n <p>\n Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up\n automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link\n io.fluxzero.sdk.common.Order @Order}.\n\n <p><strong>Key behaviors:</strong>\n <ul>\n   <li>{@link #interceptDispatch} is used for altering or blocking a message before it's handled or published.</li>\n   <li>{@link #modifySerializedMessage} can change the final serialized message before it's stored or sent to the Fluxzero Runtime.</li>\n   <li>{@link #monitorDispatch} is a post-processing hook for monitoring without side effects or blocking.</li>\n </ul>\n\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addDispatchInterceptor\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "defaultInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor.defaultInterceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default dispatch interceptors discovered via Java's service loader, sorted by {@link\n io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.\n",
+    "constantValue" : null
+  }, {
     "name" : "noOp",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor.noOp",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",

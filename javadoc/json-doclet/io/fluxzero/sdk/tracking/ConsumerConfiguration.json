@@ -27,7 +27,7 @@
       "annotationType" : "lombok.Singular",
       "values" : {}
     } ],
-    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n",
+    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their\n relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative\n orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.\n",
     "constantValue" : null
   }, {
     "name" : "clientControlledIndex",
@@ -44,6 +44,17 @@
       }
     } ],
     "documentation" : " If true, the consumer's position in the log will be controlled by the client (not automatically). Allows handling\n messages manually or out of order.\n",
+    "constantValue" : null
+  }, {
+    "name" : "dispatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.dispatchInterceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Singular",
+      "values" : {}
+    } ],
+    "documentation" : " Dispatch interceptors that become active while this consumer is processing a batch.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are\n applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches\n performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are\n disabled globally, these consumer-scoped dispatch interceptors are inactive.\n",
     "constantValue" : null
   }, {
     "name" : "errorHandler",
@@ -131,7 +142,7 @@
       "annotationType" : "lombok.Singular",
       "values" : {}
     } ],
-    "documentation" : " Interceptors that wrap handler execution for additional behavior (e.g. logging, metrics, authorization).\n",
+    "documentation" : " Interceptors that wrap handler execution for additional behavior (e.g. logging, metrics, authorization).\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global\n handler interceptors configured via {@code FluxzeroBuilder} keep their existing position in the chain; consumer\n interceptors are only sorted relative to other interceptors in the same consumer configuration.\n",
     "constantValue" : null
   }, {
     "name" : "ignoreSegment",
@@ -378,6 +389,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "ordered",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#ordered",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a copy with consumer-specific interceptors ordered by {@link io.fluxzero.sdk.common.Order}.\n"
   }, {
     "name" : "packageConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#packageConfigurations",

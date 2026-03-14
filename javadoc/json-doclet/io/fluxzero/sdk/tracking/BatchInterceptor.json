@@ -8,11 +8,19 @@
     "annotationType" : "java.lang.FunctionalInterface",
     "values" : {}
   } ],
-  "documentation" : " Intercepts and decorates batch-level message handling for a {@link Tracker}.\n <p>\n A {@code BatchInterceptor} wraps the execution of a {@code Consumer<MessageBatch>}—typically invoked by a tracker to\n process a group of messages polled from the message log. Interceptors can be used to inject common behavior such as\n logging, metrics, retries, transaction boundaries, or diagnostics at the batch level.\n </p>\n\n <h2>Usage</h2>\n <p>\n Interceptors are applied during consumer configuration via the\n {@link io.fluxzero.sdk.tracking.Consumer#batchInterceptors()} attribute, or programmatically. They are\n composed in a chain using {@link #andThen(BatchInterceptor)} or {@link #join(List)}.\n </p>\n\n <h2>Example</h2>\n <pre>{@code\n public class LoggingBatchInterceptor implements BatchInterceptor {\n     @Override\n     public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {\n         return batch -> {\n             log.info(\"Processing batch of {} messages\", batch.size());\n             consumer.accept(batch);\n             log.info(\"Finished processing batch\");\n         };\n     }\n }\n }</pre>\n\n @see HandlerInterceptor\n @see io.fluxzero.sdk.tracking.Consumer#batchInterceptors()\n",
+  "documentation" : " Intercepts and decorates batch-level message handling for a {@link Tracker}.\n <p>\n A {@code BatchInterceptor} wraps the execution of a {@code Consumer<MessageBatch>}—typically invoked by a tracker to\n process a group of messages polled from the message log. Interceptors can be used to inject common behavior such as\n logging, metrics, retries, transaction boundaries, or diagnostics at the batch level.\n </p>\n\n <p>\n Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up\n automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link\n io.fluxzero.sdk.common.Order @Order}.\n </p>\n\n <h2>Usage</h2>\n <p>\n Interceptors are applied during consumer configuration via the\n {@link io.fluxzero.sdk.tracking.Consumer#batchInterceptors()} attribute, or programmatically. They are\n composed in a chain using {@link #andThen(BatchInterceptor)} or {@link #join(List)}.\n </p>\n\n <h2>Example</h2>\n <pre>{@code\n public class LoggingBatchInterceptor implements BatchInterceptor {\n     @Override\n     public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {\n         return batch -> {\n             log.info(\"Processing batch of {} messages\", batch.size());\n             consumer.accept(batch);\n             log.info(\"Finished processing batch\");\n         };\n     }\n }\n }</pre>\n\n @see HandlerInterceptor\n @see io.fluxzero.sdk.tracking.Consumer#batchInterceptors()\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "defaultInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.BatchInterceptor.defaultInterceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default batch interceptors discovered via Java's service loader, sorted by\n {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.\n",
+    "constantValue" : null
+  } ],
   "constructors" : [ ],
   "methods" : [ {
     "name" : "andThen",

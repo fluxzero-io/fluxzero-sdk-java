@@ -8,11 +8,19 @@
     "annotationType" : "java.lang.FunctionalInterface",
     "values" : {}
   } ],
-  "documentation" : " Intercepts individual message handling operations, enabling cross-cutting behavior around handler invocation.\n <p>\n A {@code HandlerInterceptor} can be used to inspect or modify messages before they are passed to a handler, monitor\n and log handler executions, block certain messages from being handled, or inspect and modify the return value after\n handling.\n </p>\n\n <p>\n Interceptors are typically configured via\n {@link io.fluxzero.sdk.tracking.Consumer#handlerInterceptors()}, or applied programmatically using the\n {@link #wrap(Handler)} method.\n </p>\n\n <h2>Common Use Cases:</h2>\n <ul>\n   <li>Validating or transforming a message before it reaches the handler</li>\n   <li>Adding logging, tracing, or metrics for observability</li>\n   <li>Conditionally suppressing handler invocation</li>\n   <li>Decorating or modifying the result of a handler method</li>\n </ul>\n\n <h2>Example:</h2>\n <pre>{@code\n public class LoggingHandlerInterceptor implements HandlerInterceptor {\n     @Override\n     public Function<DeserializingMessage, Object> interceptHandling(\n             Function<DeserializingMessage, Object> next, HandlerInvoker invoker) {\n         return message -> {\n             log.info(\"Before handling: {}\", message.getPayload());\n             Object result = next.apply(message);\n             log.info(\"After handling: {}\", result);\n             return result;\n         };\n     }\n }\n }</pre>\n\n @see io.fluxzero.sdk.tracking.Consumer#handlerInterceptors()\n @see BatchInterceptor\n",
+  "documentation" : " Intercepts individual message handling operations, enabling cross-cutting behavior around handler invocation.\n <p>\n A {@code HandlerInterceptor} can be used to inspect or modify messages before they are passed to a handler, monitor\n and log handler executions, block certain messages from being handled, or inspect and modify the return value after\n handling.\n </p>\n\n <p>\n Interceptors are typically configured via\n {@link io.fluxzero.sdk.tracking.Consumer#handlerInterceptors()}, or applied programmatically using the\n {@link #wrap(Handler)} method.\n </p>\n\n <p>\n Implementations can also be registered via Java's {@link ServiceLoader}. Service-loaded interceptors are picked up\n automatically by Fluxzero, including when using the {@code TestFixture}, and are ordered using {@link\n io.fluxzero.sdk.common.Order @Order}.\n </p>\n\n <h2>Common Use Cases:</h2>\n <ul>\n   <li>Validating or transforming a message before it reaches the handler</li>\n   <li>Adding logging, tracing, or metrics for observability</li>\n   <li>Conditionally suppressing handler invocation</li>\n   <li>Decorating or modifying the result of a handler method</li>\n </ul>\n\n <h2>Example:</h2>\n <pre>{@code\n public class LoggingHandlerInterceptor implements HandlerInterceptor {\n     @Override\n     public Function<DeserializingMessage, Object> interceptHandling(\n             Function<DeserializingMessage, Object> next, HandlerInvoker invoker) {\n         return message -> {\n             log.info(\"Before handling: {}\", message.getPayload());\n             Object result = next.apply(message);\n             log.info(\"After handling: {}\", result);\n             return result;\n         };\n     }\n }\n }</pre>\n\n @see io.fluxzero.sdk.tracking.Consumer#handlerInterceptors()\n @see BatchInterceptor\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerDecorator" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "defaultInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.defaultInterceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerInterceptor>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default handler interceptors discovered via Java's service loader, sorted by\n {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.\n",
+    "constantValue" : null
+  } ],
   "constructors" : [ ],
   "methods" : [ {
     "name" : "interceptHandling",

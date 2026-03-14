@@ -37,7 +37,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Interceptors applied at the batch level across all messages in a poll cycle.\n"
+    "documentation" : " Interceptors applied at the batch level across all messages in a poll cycle.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their\n relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative\n orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.\n"
   }, {
     "name" : "clientControlledIndex",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#clientControlledIndex",
@@ -49,6 +49,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " If {@code true}, the consumer will not rely on Fluxzero's internal tracking index. Instead, the application\n itself is responsible for determining which messages to process.\n <p>\n This is typically used in combination with {@link #ignoreSegment()} set to {@code true} to ensure that all\n application instances receive every message—rather than a sharded subset.\n </p>\n\n <p>\n This mode is useful for scenarios where message delivery must be broadcast to all instances. For example, a\n WebSocket endpoint that pushes updates to connected clients may need to observe the full message stream, ensuring\n that each client sees every relevant update.\n </p>\n\n <p>\n When {@code false} (the default), Fluxzero tracks message indices and distributes segments to consumer trackers\n for balanced parallel processing.\n </p>\n"
+  }, {
+    "name" : "dispatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#dispatchInterceptors",
+    "returnType" : "java.lang.Class<? extends io.fluxzero.sdk.publishing.DispatchInterceptor>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Dispatch interceptors that become active while this consumer is processing a batch or handler.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are\n applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches\n performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are\n disabled globally, these consumer-scoped dispatch interceptors are inactive. Globally service-loaded dispatch\n interceptors remain part of the normal global dispatch chain.\n"
   }, {
     "name" : "durationUnit",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#durationUnit",
@@ -114,7 +125,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Interceptors applied to individual handler method invocations.\n"
+    "documentation" : " Interceptors applied to individual handler method invocations.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global\n handler interceptors configured via {@link FluxzeroBuilder} keep their existing position in the chain; consumer\n interceptors are only sorted relative to other interceptors declared on the same consumer.\n"
   }, {
     "name" : "ignoreSegment",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#ignoreSegment",

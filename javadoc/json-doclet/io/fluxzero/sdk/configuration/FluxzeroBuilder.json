@@ -31,7 +31,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Registers a {@link BatchInterceptor} that applies to the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run before Fluxzero's\n built-in batch interceptors, while zero, positive, or missing values run after them.\n"
+    "documentation" : " Registers a {@link BatchInterceptor} that applies to the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run before Fluxzero's\n built-in batch interceptors, while zero, positive, or missing values run after them. Interceptors registered via\n Java's {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.\n"
   }, {
     "name" : "addConsumerConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration",
@@ -73,7 +73,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
+    "documentation" : " Adds a {@link DispatchInterceptor} that modifies or monitors message dispatch.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot. Interceptors registered via Java's\n {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.\n"
   }, {
     "name" : "addHandlerDecorator",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerDecorator",
@@ -94,7 +94,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerDecorator} for the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the decorator class to influence\n ordering. Lower values have higher priority. Decorators with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
+    "documentation" : " Adds a {@link HandlerDecorator} for the given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the decorator class to influence\n ordering. Lower values have higher priority. Decorators with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot. Decorators registered via Java's\n {@link java.util.ServiceLoader} are not discovered automatically; automatic service loading applies to\n interceptor interfaces.\n"
   }, {
     "name" : "addHandlerInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addHandlerInterceptor",
@@ -115,7 +115,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot.\n"
+    "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot. Interceptors registered via Java's\n {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.\n"
   }, {
     "name" : "addParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addParameterResolver",
