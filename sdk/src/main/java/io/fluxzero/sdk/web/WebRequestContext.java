@@ -94,4 +94,14 @@ public interface WebRequestContext {
         return getParameter(name, WebParameterSource.FORM);
     }
 
+    /**
+     * Retrieves the value of a parameter from the JSON request body.
+     *
+     * @param name the name or path of the body field to retrieve
+     * @return the value of the body field as a {@code ParameterValue}
+     */
+    default ParameterValue getBodyParameter(String name) {
+        return getParameter(name, WebParameterSource.BODY);
+    }
+
 }

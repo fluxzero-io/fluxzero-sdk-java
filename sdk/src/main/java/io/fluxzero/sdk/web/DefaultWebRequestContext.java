@@ -14,8 +14,10 @@
 
 package io.fluxzero.sdk.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.web.internal.WebUtilsInternal;
@@ -58,7 +60,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
 import java.security.cert.Certificate;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -207,6 +208,8 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     @Getter(lazy = true)
     @Accessors(fluent = true)
     Formdata form = Formdata.create(getValueFactory());
+    @Getter(lazy = true)
+    JsonNode jsonBody = parseJsonBody(bodySupplier.get());
 
     DefaultWebRequestContext(DeserializingMessage message) {
         if (message.getMessageType() != MessageType.WEBREQUEST) {
@@ -225,14 +228,32 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
 
     @Override
     public ParameterValue getParameter(String name, WebParameterSource... sources) {
-        var value = lookup(name, Arrays.stream(sources).map(type -> switch (type) {
-            case PATH -> ParamSource.PATH;
-            case HEADER -> ParamSource.HEADER;
-            case COOKIE -> ParamSource.COOKIE;
-            case FORM -> ParamSource.FORM;
-            case QUERY -> ParamSource.QUERY;
-        }).toArray(ParamSource[]::new));
-        return new ParameterValue(value);
+        for (WebParameterSource source : sources) {
+            ParameterValue value = switch (source) {
+                case PATH -> new ParameterValue(lookup(name, ParamSource.PATH));
+                case HEADER -> new ParameterValue(lookup(name, ParamSource.HEADER));
+                case COOKIE -> new ParameterValue(lookup(name, ParamSource.COOKIE));
+                case FORM -> new ParameterValue(lookup(name, ParamSource.FORM));
+                case QUERY -> new ParameterValue(lookup(name, ParamSource.QUERY));
+                case BODY -> ReflectionUtils.readProperty(name, getJsonBody())
+                        .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
+            };
+            if (value.hasValue()) {
+                return value;
+            }
+        }
+        return new ParameterValue(null);
+    }
+
+    JsonNode parseJsonBody(byte[] body) {
+        if (body == null || body.length == 0) {
+            return null;
+        }
+        try {
+            return JsonUtils.readTree(body);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     /*

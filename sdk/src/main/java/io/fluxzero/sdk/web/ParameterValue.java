@@ -14,17 +14,18 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.serialization.JsonUtils;
 import lombok.Value;
 
 /**
- * Wrapper around a {@link io.jooby.value.Value} representing a resolved parameter value in a web request.
+ * Wrapper around a resolved parameter value in a web request.
  * <p>
  * This class is used internally by Fluxzero to abstract over raw parameter values retrieved
  * from different parts of a {@link WebRequestContext} (such as query strings, form data, path variables,
  * headers, or cookies).
  *
- * <p>The value is backed by Jooby’s {@link io.jooby.value.Value} type, which provides flexible conversion and
- * null-safe access to typed values.
+ * <p>The value may be backed by Jooby’s {@link io.jooby.value.Value} type or by a JSON value extracted from the
+ * request body.
  *
  * <h2>Usage</h2>
  * {@code ParameterValue} instances are returned by methods such as:
@@ -42,9 +43,17 @@ import lombok.Value;
 public class ParameterValue {
 
     /**
-     * The underlying Jooby {@link io.jooby.value.Value} representing the parameter.
+     * The underlying parameter value.
      */
-    io.jooby.value.Value value;
+    Object value;
+
+    public boolean hasValue() {
+        return switch (value) {
+            case null -> false;
+            case io.jooby.value.Value joobyValue -> joobyValue.valueOrNull() != null;
+            default -> true;
+        };
+    }
 
     /**
      * Converts the underlying value to the specified target type.
@@ -56,6 +65,26 @@ public class ParameterValue {
      * @return the converted value or {@code null} if unavailable
      */
     public <V> V as(Class<V> type) {
-        return value.toNullable(type);
+        Object rawValue = value;
+        if (rawValue == null) {
+            return null;
+        }
+        if (type.isInstance(rawValue)) {
+            return type.cast(rawValue);
+        }
+        if (rawValue instanceof io.jooby.value.Value joobyValue) {
+            V converted = joobyValue.toNullable(type);
+            if (converted != null) {
+                return converted;
+            }
+            rawValue = joobyValue.valueOrNull();
+            if (rawValue == null) {
+                return null;
+            }
+            if (type.isInstance(rawValue)) {
+                return type.cast(rawValue);
+            }
+        }
+        return JsonUtils.convertValue(JsonUtils.valueToTree(rawValue), type);
     }
 }

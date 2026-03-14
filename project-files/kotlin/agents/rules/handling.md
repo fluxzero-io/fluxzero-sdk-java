@@ -504,6 +504,7 @@ Use annotations to inject specific parts of the HTTP request:
 - **@QueryParam**: Extracts values from the query string (e.g., `?name=Charlie`).
 - **@HeaderParam**: Extracts values from HTTP headers.
 - **@FormParam**: Extracts values from `application/x-www-form-urlencoded` or `multipart/form-data` bodies.
+- **@BodyParam**: Extracts fields from a JSON request body.
 
 These injected parameters can also use standard validation annotations directly, for example
 `@PathParam @Positive id: Long` or `@QueryParam @NotBlank search: String`.
@@ -526,6 +527,20 @@ fun uploadAvatar(
 @HandleGet("/projects/{id}")
 fun getProject(@PathParam @Positive id: Long): Project {
     // ...
+}
+```
+[//]: # (@formatter:on)
+
+[//]: # (@formatter:off)
+```kotlin
+@HandlePost("/bookings")
+fun createBooking(
+    @BodyParam hotelId: HotelId,
+    @BodyParam roomId: RoomId,
+    @BodyParam details: BookingDetails
+): BookingId {
+    // JSON body contains hotelId, roomId and details
+    TODO()
 }
 ```
 [//]: # (@formatter:on)

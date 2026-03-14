@@ -42,7 +42,8 @@ import java.util.Set;
 
 /**
  * Annotation processor that generates parameter name metadata for web request handler methods annotated with
- * {@code @QueryParam}, {@code @PathParam}, {@code @HeaderParam}, {@code @CookieParam}, or {@code @FormParam}.
+ * {@code @QueryParam}, {@code @PathParam}, {@code @HeaderParam}, {@code @CookieParam}, {@code @FormParam}, or
+ * {@code @BodyParam}.
  * <p>
  * This processor is necessary for Java-based Fluxzero applications where method parameter names are not retained
  * at runtime (due to type erasure and lack of debug metadata). Without this step, the framework cannot reliably bind
@@ -86,7 +87,8 @@ import java.util.Set;
         "io.fluxzero.sdk.web.PathParam",
         "io.fluxzero.sdk.web.CookieParam",
         "io.fluxzero.sdk.web.HeaderParam",
-        "io.fluxzero.sdk.web.FormParam"})
+        "io.fluxzero.sdk.web.FormParam",
+        "io.fluxzero.sdk.web.BodyParam"})
 @AutoService(Processor.class)
 public class WebParameterProcessor extends AbstractProcessor {
 
@@ -104,7 +106,8 @@ public class WebParameterProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         Map<TypeElement, List<ExecutableElement>> methodsMap = new HashMap<>();
         for (Element element : roundEnv.getElementsAnnotatedWithAny(
-                Set.of(QueryParam.class, PathParam.class, CookieParam.class, HeaderParam.class, FormParam.class))) {
+                Set.of(QueryParam.class, PathParam.class, CookieParam.class, HeaderParam.class, FormParam.class,
+                       BodyParam.class))) {
             if (element.getEnclosingElement() instanceof ExecutableElement method) {
                 methodsMap.computeIfAbsent((TypeElement) method.getEnclosingElement(), c -> new ArrayList<>())
                         .add(method);

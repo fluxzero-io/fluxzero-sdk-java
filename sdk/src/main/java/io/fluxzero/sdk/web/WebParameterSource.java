@@ -27,6 +27,7 @@ package io.fluxzero.sdk.web;
  *   <li>{@link #HEADER} – Extracted from HTTP headers</li>
  *   <li>{@link #COOKIE} – Extracted from cookies</li>
  *   <li>{@link #FORM} – Extracted from form fields (URL-encoded or multipart)</li>
+ *   <li>{@link #BODY} – Extracted from a JSON request body</li>
  * </ul>
  *
  * @see WebParam
@@ -55,5 +56,10 @@ public enum WebParameterSource {
     /**
      * Form fields (application/x-www-form-urlencoded or multipart/form-data)
      */
-    FORM
+    FORM,
+
+    /**
+     * JSON request body fields
+     */
+    BODY
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 package io.fluxzero.sdk.web;
 
@@ -19,30 +20,26 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Meta-annotation for parameter annotations used to inject values from an HTTP request.
+ * Injects a field from a JSON request body into a handler method parameter.
  * <p>
- * Used internally by Fluxzero to locate and bind request values to handler method parameters
- * based on the specified {@link WebParameterSource}.
+ * If no explicit field name is provided, the method parameter name is used.
+ * Nested JSON properties may be addressed using dot or slash notation.
  * </p>
  *
- * @see PathParam
- * @see QueryParam
- * @see HeaderParam
- * @see FormParam
- * @see BodyParam
- * @see CookieParam
+ * <h2>Example:</h2>
+ * <pre>{@code
+ * @HandlePost("/bookings")
+ * BookingId createBooking(@BodyParam HotelId hotelId,
+ *                         @BodyParam RoomId roomId,
+ *                         @BodyParam BookingDetails details) { ... }
+ * }</pre>
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.ANNOTATION_TYPE)
-public @interface WebParam {
+@Target(ElementType.PARAMETER)
+@WebParam(type = WebParameterSource.BODY)
+public @interface BodyParam {
     /**
-     * Optional name of the parameter (e.g. path variable or query param).
-     * If empty, defaults to the method parameter's name.
+     * Body field name. If left empty, it defaults to the method parameter's name.
      */
     String value() default "";
-
-    /**
-     * The source of the parameter within the request (e.g. path, query, header).
-     */
-    WebParameterSource type();
 }
