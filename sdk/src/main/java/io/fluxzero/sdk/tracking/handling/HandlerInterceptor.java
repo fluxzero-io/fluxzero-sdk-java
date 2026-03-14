@@ -24,7 +24,6 @@ import lombok.AllArgsConstructor;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.ServiceLoader;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -79,13 +78,10 @@ import java.util.function.Function;
 public interface HandlerInterceptor extends HandlerDecorator {
 
     /**
-     * Default handler interceptors discovered via {@link ServiceLoader}, sorted by
+     * Default handler interceptors discovered via Java's service loader, sorted by
      * {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
      */
-    List<HandlerInterceptor> defaultInterceptors = ServiceLoader.load(HandlerInterceptor.class).stream()
-            .map(ServiceLoader.Provider::get)
-            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
-            .toList();
+    List<HandlerInterceptor> defaultInterceptors = ClientUtils.loadServices(HandlerInterceptor.class);
 
     /**
      * Intercepts the message handling logic.

@@ -19,7 +19,6 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.util.List;
-import java.util.ServiceLoader;
 import java.util.function.Consumer;
 
 /**
@@ -64,13 +63,10 @@ import java.util.function.Consumer;
 public interface BatchInterceptor {
 
     /**
-     * Default batch interceptors discovered via {@link ServiceLoader}, sorted by
+     * Default batch interceptors discovered via Java's service loader, sorted by
      * {@link io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
      */
-    List<BatchInterceptor> defaultInterceptors = ServiceLoader.load(BatchInterceptor.class).stream()
-            .map(ServiceLoader.Provider::get)
-            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
-            .toList();
+    List<BatchInterceptor> defaultInterceptors = ClientUtils.loadServices(BatchInterceptor.class);
 
     /**
      * Returns a no-op interceptor that does not alter the consumer behavior.

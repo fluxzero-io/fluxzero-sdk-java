@@ -56,6 +56,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -215,6 +217,33 @@ public class ClientUtils {
      */
     public static int orderOf(Object component) {
         return orderCache.apply(component.getClass());
+    }
+
+    /**
+     * Loads implementations of the given service using Java's {@link ServiceLoader}.
+     * <p>
+     * Misconfigured providers that are present in {@code META-INF/services} but missing from the current classpath are
+     * skipped. This can happen, for example, when test resources contribute service descriptors without also exposing
+     * the corresponding provider classes to downstream modules.
+     *
+     * @param serviceType the service interface to load
+     * @param <T>         the service type
+     * @return discovered service implementations, ordered by {@link #orderOf(Object)}
+     */
+    public static <T> java.util.List<T> loadServices(Class<T> serviceType) {
+        java.util.List<T> services = new java.util.ArrayList<>();
+        ServiceLoader<T> loader = ServiceLoader.load(serviceType);
+        var iterator = loader.iterator();
+        while (true) {
+            try {
+                if (!iterator.hasNext()) {
+                    return services.stream().sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf)).toList();
+                }
+                services.add(iterator.next());
+            } catch (ServiceConfigurationError e) {
+                log.warn("Skipping misconfigured service provider for {}", serviceType.getName(), e);
+            }
+        }
     }
 
     private static int computeOrder(Class<?> type) {

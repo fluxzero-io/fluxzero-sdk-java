@@ -21,7 +21,6 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 
 import java.util.List;
-import java.util.ServiceLoader;
 
 import static java.util.Optional.ofNullable;
 
@@ -50,13 +49,10 @@ import static java.util.Optional.ofNullable;
 public interface DispatchInterceptor {
 
     /**
-     * Default dispatch interceptors discovered via {@link ServiceLoader}, sorted by {@link
+     * Default dispatch interceptors discovered via Java's service loader, sorted by {@link
      * io.fluxzero.sdk.common.Order}. These interceptors are applied automatically by Fluxzero.
      */
-    List<DispatchInterceptor> defaultInterceptors = ServiceLoader.load(DispatchInterceptor.class).stream()
-            .map(ServiceLoader.Provider::get)
-            .sorted(java.util.Comparator.comparingInt(ClientUtils::orderOf))
-            .toList();
+    List<DispatchInterceptor> defaultInterceptors = ClientUtils.loadServices(DispatchInterceptor.class);
 
     /**
      * No-op implementation of the {@code DispatchInterceptor} that returns the original message unchanged.
