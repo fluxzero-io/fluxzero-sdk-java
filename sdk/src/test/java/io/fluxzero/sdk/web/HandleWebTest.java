@@ -26,6 +26,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -55,6 +56,7 @@ import java.net.HttpCookie;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
@@ -137,6 +139,25 @@ public class HandleWebTest {
             testFixture.whenPost("/string", "payload")
                     .expectResult("payload")
                     .<WebResponse>expectResultMessage(r -> r.getStatus() == 200);
+        }
+
+        @Test
+        void testGetStreamingSearchResponse() {
+            TestFixture.create(new StreamingSearchHandler())
+                    .givenDocument(new StreamingSearchDocument("foo", Instant.parse("2024-01-01T00:00:00Z")))
+                    .givenDocument(new StreamingSearchDocument("bar", Instant.parse("2024-01-01T00:00:01Z")))
+                    .whenGet("/searchStream")
+                    .expectWebResult(r -> {
+                        try (InputStream input = r.getPayload()) {
+                            String expected = JsonUtils.asJson(new StreamingSearchDocument("foo",
+                                                                                           Instant.parse("2024-01-01T00:00:00Z")))
+                                              + "\n"
+                                              + JsonUtils.asJson(new StreamingSearchDocument("bar",
+                                                                                             Instant.parse("2024-01-01T00:00:01Z")))
+                                              + "\n";
+                            return expected.equals(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+                        }
+                    });
         }
 
         @Test
@@ -1155,6 +1176,24 @@ public class HandleWebTest {
                     return request.getCookie("user").orElseThrow().getValue();
                 }
             }).givenPost("signIn", "testUser").whenGet("getUser").expectResult("testUser");
+        }
+    }
+
+    @Value
+    @Searchable(timestampPath = "timestamp")
+    static class StreamingSearchDocument {
+        String id;
+        Instant timestamp;
+    }
+
+    static class StreamingSearchHandler {
+        @HandleGet("/searchStream")
+        WebResponse searchStream() {
+            return WebResponse.ok(
+                    Fluxzero.search(StreamingSearchDocument.class)
+                            .sortByTimestamp()
+                            .toNdjsonInputStream(),
+                    Map.of("Content-Type", "text/plain"));
         }
     }
 }

@@ -58,7 +58,9 @@ import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -143,6 +145,75 @@ public class SearchTest {
                                 .map(SearchHit::getValue).toList())
                 .expectResult(r -> r.size() == 1
                                    && "foobar".equals(new String(r.getFirst().getDocument().getValue())));
+    }
+
+    @Test
+    void streamSearchResultsAsInputStream() {
+        Instant now = Instant.now();
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("foo", now))
+                .givenDocument(new SomeSearchable("bar", now.plusSeconds(1)))
+                .whenApplying(fc -> {
+                    try (InputStream input = Fluxzero.search(SomeSearchable.class)
+                            .sortByTimestamp()
+                            .toUtf8InputStream(SomeSearchable.class, doc -> doc.getId() + "\n", 1)) {
+                        return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                })
+                .expectResult("foo\nbar\n");
+    }
+
+    @Test
+    void streamSearchResultsAsInputStreamWithExplicitType() {
+        Instant now = Instant.now();
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("foo", now))
+                .givenDocument(new SomeSearchable("bar", now.plusSeconds(1)))
+                .whenApplying(fc -> {
+                    try (InputStream input = Fluxzero.search(SomeSearchable.class)
+                            .sortByTimestamp()
+                            .toUtf8InputStream(SomeSearchable.class,
+                                               doc -> doc.getId() + ":" + doc.getTimestamp() + "\n", 1)) {
+                        return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                })
+                .expectResult(result -> result.startsWith("foo:") && result.contains("\nbar:"));
+    }
+
+    @Test
+    void streamSearchResultsAsInputStreamUsingOutputStreamWriter() {
+        Instant now = Instant.now();
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("foo", now))
+                .givenDocument(new SomeSearchable("bar", now.plusSeconds(1)))
+                .whenApplying(fc -> {
+                    try (InputStream input = Fluxzero.search(SomeSearchable.class)
+                            .sortByTimestamp()
+                            .toInputStream(SomeSearchable.class, (doc, outputStream) -> {
+                                outputStream.write(doc.getId().getBytes(StandardCharsets.UTF_8));
+                                outputStream.write('\n');
+                            }, 1)) {
+                        return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                })
+                .expectResult("foo\nbar\n");
+    }
+
+    @Test
+    void streamSearchResultsAsNdjsonInputStream() {
+        Instant now = Instant.now();
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("foo", now))
+                .givenDocument(new SomeSearchable("bar", now.plusSeconds(1)))
+                .whenApplying(fc -> {
+                    try (InputStream input = Fluxzero.search(SomeSearchable.class)
+                            .sortByTimestamp()
+                            .toNdjsonInputStream()) {
+                        return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                })
+                .expectResult(JsonUtils.asJson(new SomeSearchable("foo", now)) + "\n"
+                              + JsonUtils.asJson(new SomeSearchable("bar", now.plusSeconds(1))) + "\n");
     }
 
     @Value

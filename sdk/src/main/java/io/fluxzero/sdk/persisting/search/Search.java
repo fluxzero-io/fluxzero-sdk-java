@@ -15,6 +15,10 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.StreamInputStream;
+import io.fluxzero.common.ThrowingBiConsumer;
+import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.DocumentStats.FieldStats;
 import io.fluxzero.common.api.search.FacetStats;
@@ -30,10 +34,14 @@ import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.api.search.constraints.NotConstraint;
 import io.fluxzero.common.api.search.constraints.QueryConstraint;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.common.serialization.JsonUtils;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -418,6 +426,52 @@ public interface Search {
      */
     default <T> Stream<T> stream(Class<T> type, int fetchSize) {
         return this.streamHits(type, fetchSize).map(SearchHit::getValue);
+    }
+
+    /**
+     * Streams matching values of the specified type as a lazily populated UTF-8 {@link InputStream}.
+     */
+    default <T> InputStream toUtf8InputStream(Class<T> type, ThrowingFunction<T, String> mapper) {
+        return toUtf8InputStream(type, mapper, defaultFetchSize);
+    }
+
+    /**
+     * Streams matching values of the specified type as a lazily populated UTF-8 {@link InputStream}, fetching
+     * documents in
+     * batches of {@code fetchSize}.
+     */
+    default <T> InputStream toUtf8InputStream(Class<T> type, ThrowingFunction<T, String> mapper, int fetchSize) {
+        return toInputStream(type, (doc, outputStream) -> {
+            String value = mapper.apply(doc);
+            if (value != null) {
+                outputStream.write(value.getBytes(StandardCharsets.UTF_8));
+            }
+        }, fetchSize);
+    }
+
+    /**
+     * Streams matching values of the specified type as a lazily populated {@link InputStream}.
+     */
+    default <T> InputStream toInputStream(Class<T> type, ThrowingBiConsumer<T, OutputStream> writer) {
+        return toInputStream(type, writer, defaultFetchSize);
+    }
+
+    /**
+     * Streams matching values of the specified type as a lazily populated {@link InputStream}, fetching documents in
+     * batches of {@code fetchSize}.
+     */
+    default <T> InputStream toInputStream(Class<T> type, ThrowingBiConsumer<T, OutputStream> writer, int fetchSize) {
+        return new StreamInputStream<>(stream(type, fetchSize), writer);
+    }
+
+    /**
+     * Streams matching values as NDJSON using the stored document types and the default fetch size.
+     */
+    default InputStream toNdjsonInputStream() {
+        return new StreamInputStream<>(stream(JsonNode.class), (doc, outputStream) -> {
+            outputStream.write(JsonUtils.asBytes(doc));
+            outputStream.write('\n');
+        });
     }
 
     /**
