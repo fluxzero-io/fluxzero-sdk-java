@@ -1,0 +1,115 @@
+{
+  "name" : "MethodAssociationProperty",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {
+      "staticConstructor" : "of"
+    }
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "associationValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.associationValue",
+    "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "computedRoutingKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.computedRoutingKey",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "propertyName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.propertyName",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#MethodAssociationProperty",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "forComputedRoutingKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forComputedRoutingKey",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "associationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forProperty",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "associationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#getValue",
+    "returnType" : "java.util.Optional<java.lang.Object>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

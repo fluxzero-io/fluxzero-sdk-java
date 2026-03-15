@@ -56,7 +56,7 @@
   }, {
     "name" : "methodAssociationProperties",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.methodAssociationProperties",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue>>",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty>>",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
@@ -211,6 +211,17 @@
       "annotationType" : "lombok.Builder",
       "values" : {
         "toBuilder" : "true"
+      }
+    } ]
+  }, {
+    "name" : "MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {
+        "staticConstructor" : "of"
       }
     } ]
   }, {

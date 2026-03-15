@@ -250,6 +250,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$AssociationValue",
     "kind" : "class"
   }, {
+    "file" : "StatefulHandler.MethodAssociationProperty.json",
+    "name" : "StatefulHandler.MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
+    "kind" : "class"
+  }, {
     "file" : "StatefulHandler.StatefulHandlerInvoker.json",
     "name" : "StatefulHandler.StatefulHandlerInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
