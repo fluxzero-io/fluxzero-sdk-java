@@ -5,10 +5,10 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.RequiredArgsConstructor",
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   }, {
-    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "annotationType" : "lombok.RequiredArgsConstructor",
     "values" : {}
   } ],
   "documentation" : " Default implementation of the {@link RequestHandler} interface.\n <p>\n This handler supports both single and batch request dispatching, tracking responses using an internal\n {@link java.util.concurrent.ConcurrentHashMap} keyed by {@code requestId}. When a request is sent, the handler\n subscribes to a corresponding result log (e.g., result or web response) via a\n {@link io.fluxzero.sdk.tracking.client.TrackingClient}, which listens for responses targeted at this client only.\n\n <p>Each request is assigned a unique {@code requestId} and tagged with the client's {@code source} identifier.\n When a response with a matching {@code requestId} is received, the corresponding {@link CompletableFuture} is\n completed.\n\n <p>If no response is received within the configured timeout (default: 200 seconds), the future is completed\n exceptionally.\n <p>\n This request handle supports chunked responses. Request senders that can deal with chunked responses should use\n {@link #sendRequest(SerializedMessage, Consumer, Duration, Consumer)}}. If a chunked response is received, but the\n request sender expected a single response, the intermediate responses are aggregated before completing the request.\n\n <p>Features:\n <ul>\n   <li>Supports both single and batch request dispatching.</li>\n   <li>Tracks responses via the configured {@link MessageType} and filters using {@code filterMessageTarget = true}.</li>\n   <li>Ensures startup of the underlying result tracker on first request dispatch.</li>\n   <li>Cleans up subscriptions and pending futures on {@link #close()}.</li>\n </ul>\n\n @see RequestHandler\n @see MessageType#RESULT\n @see MessageType#WEBRESPONSE\n",
@@ -64,6 +64,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "responseExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.responseExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "resultType",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.resultType",
     "type" : "io.fluxzero.common.MessageType",
@@ -107,7 +115,37 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200\n seconds.\n <p>\n Uses a default name for the result consumer based on the application name.\n\n @param client     the client responsible for sending and receiving messages\n @param resultType the type of message expected as a result\n"
+    "documentation" : " Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200\n seconds. This constructor creates an internal worker pool for handling requests and responses.\n <p>\n Uses a default name for the result consumer based on the application name.\n\n @param client     the client responsible for sending and receiving messages\n @param resultType the type of message expected as a result\n"
+  }, {
+    "name" : "DefaultRequestHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#DefaultRequestHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseConsumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a DefaultRequestHandler with the specified client, message type, timeout, and response consumer name.\n This constructor creates an internal worker pool for handling requests and responses.\n\n @param client               the client responsible for sending and receiving messages\n @param resultType           the type of message expected as a result\n @param timeout              the maximum duration to wait for a response\n @param responseConsumerName the name of the consumer responsible for handling the response\n"
   } ],
   "methods" : [ {
     "name" : "close",

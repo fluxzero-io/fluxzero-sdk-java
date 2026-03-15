@@ -59,6 +59,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "ownedRequestExecutor",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.ownedRequestExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "requestExecutor",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.requestExecutor",
     "type" : "java.util.concurrent.Executor",

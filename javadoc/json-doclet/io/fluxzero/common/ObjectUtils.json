@@ -502,6 +502,59 @@
     "varArgs" : false,
     "documentation" : " Creates a new {@link ThreadFactory} with a named prefix.\n"
   }, {
+    "name" : "newVirtualThreadFactory",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#newVirtualThreadFactory",
+    "returnType" : "java.util.concurrent.ThreadFactory",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new named virtual-thread {@link ThreadFactory}.\n"
+  }, {
+    "name" : "newWorkerPool",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#newWorkerPool",
+    "returnType" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "poolSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a worker pool that uses virtual threads on Java 25+ and a fixed-size platform pool otherwise.\n"
+  }, {
+    "name" : "newWorkerThreadFactory",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#newWorkerThreadFactory",
+    "returnType" : "java.util.concurrent.ThreadFactory",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a worker thread factory that uses virtual threads on Java 25+ and platform threads otherwise.\n"
+  }, {
     "name" : "noOpBiPredicate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#noOpBiPredicate",
     "returnType" : "java.util.function.BiPredicate<T,U>",
@@ -584,6 +637,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a predicate that silently returns false when the given predicate throws an error.\n"
+  }, {
+    "name" : "supportsVirtualThreadWorkers",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#supportsVirtualThreadWorkers",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsVirtualThreadWorkers",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#supportsVirtualThreadWorkers",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "javaFeatureVersion",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "tryAccept",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#tryAccept",

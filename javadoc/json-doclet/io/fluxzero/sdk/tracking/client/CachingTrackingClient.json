@@ -67,6 +67,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "waitingTrackerExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.waitingTrackerExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "waitingTrackers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.waitingTrackers",
     "type" : "java.util.Map<java.lang.String,java.lang.Runnable>",
