@@ -41,6 +41,11 @@ public enum NoOpSnapshotStore implements SnapshotStore {
     }
 
     @Override
+    public <T> Optional<Entity<T>> getSnapshotBefore(Object aggregateId, long sequenceNumberExclusive) {
+        return Optional.empty();
+    }
+
+    @Override
     public CompletableFuture<Void> deleteSnapshot(Object aggregateId) {
         return CompletableFuture.completedFuture(null);
     }

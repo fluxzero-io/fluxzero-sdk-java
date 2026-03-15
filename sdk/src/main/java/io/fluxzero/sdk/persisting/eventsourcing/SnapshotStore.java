@@ -55,6 +55,16 @@ public interface SnapshotStore {
     <T> Optional<Entity<T>> getSnapshot(Object aggregateId);
 
     /**
+     * Retrieves the most recent snapshot with a sequence number strictly lower than the given value.
+     *
+     * @param aggregateId                The aggregate identifier.
+     * @param sequenceNumberExclusive    Upper bound (exclusive) for the snapshot sequence number.
+     * @param <T>                        The expected aggregate type.
+     * @return An {@link Optional} containing the matching snapshot if present.
+     */
+    <T> Optional<Entity<T>> getSnapshotBefore(Object aggregateId, long sequenceNumberExclusive);
+
+    /**
      * Deletes the snapshot for the specified aggregate ID.
      *
      * @param aggregateId The ID of the aggregate whose snapshot should be deleted.

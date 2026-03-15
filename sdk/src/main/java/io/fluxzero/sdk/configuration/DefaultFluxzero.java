@@ -756,7 +756,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                                dispatchInterceptors,
                                                                                handlerRepositorySupplier,
                                                                                repositorySupplier));
-            var snapshotStore = new DefaultSnapshotStore(client.getKeyValueClient(), snapshotSerializer, eventStore);
+            var snapshotStore = new DefaultSnapshotStore(documentStore.get(), snapshotSerializer, eventStore);
 
             Cache aggregateCache = new NamedCache(cache, id -> "$Aggregate:" + id);
             AggregateRepository aggregateRepository = new DefaultAggregateRepository(

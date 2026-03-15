@@ -510,23 +510,6 @@ class EventSourcingRepositoryTest {
         private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
 
         @Test
-        void testNoSnapshotStoredBeforeThreshold() {
-            testFixture.givenCommands(new CreateSnapshotModel(aggregateId))
-                    .whenCommand(new UpdateModel())
-                    .expectThat(fc -> verify(testFixture.getFluxzero().client().getKeyValueClient(), times(0))
-                            .putValue(anyString(), any(), any()))
-            ;
-        }
-
-        @Test
-        void testSnapshotStoredAfterThreshold() {
-            testFixture.givenCommands(new CreateSnapshotModel(aggregateId), new UpdateModel())
-                    .whenCommand(new UpdateModel())
-                    .expectThat(fc -> verify(testFixture.getFluxzero().client().getKeyValueClient())
-                            .putValue(anyString(), any(), any()));
-        }
-
-        @Test
         void testSnapshotRetrieved() {
             testFixture.givenCommands(new CreateSnapshotModel(aggregateId), new UpdateModel(), new UpdateModel())
                     .whenCommand(new UpdateModel())
@@ -534,10 +517,97 @@ class EventSourcingRepositoryTest {
                                              times(1)).getEvents(aggregateId.toString(), 2L, -1));
         }
 
+        @Test
+        void testPreviousUsesOlderSnapshotWhenAvailable() {
+            SnapshotCounterId counterId = new SnapshotCounterId("counter");
+            testFixture.givenCommands(new CreateSnapshotCounter(counterId),
+                                      new IncrementSnapshotCounter(),
+                                      new IncrementSnapshotCounter(),
+                                      new IncrementSnapshotCounter(),
+                                      new IncrementSnapshotCounter(),
+                                      new IncrementSnapshotCounter(),
+                                      new IncrementSnapshotCounter())
+                    .given(fc -> fc.cache().clear())
+                    .whenApplying(fc -> {
+                        Entity<SnapshotCounterAggregate> aggregate = loadAggregate(counterId, SnapshotCounterAggregate.class);
+                        return aggregate.previous().previous().get().value;
+                    })
+                    .expectResult(4)
+                    .expectThat(fc -> verify(fc.client().getEventStoreClient()).getEvents(counterId.toString(), 2L, 2));
+        }
+
+        @Test
+        void testPreviousFallsBackToEventSourcingFromStartWithoutOlderSnapshot() {
+            SnapshotCounterSingleId counterId = new SnapshotCounterSingleId("single");
+            testFixture.givenCommands(new CreateSingleSnapshotCounter(counterId),
+                                      new IncrementSingleSnapshotCounter(),
+                                      new IncrementSingleSnapshotCounter(),
+                                      new IncrementSingleSnapshotCounter())
+                    .given(fc -> fc.cache().clear())
+                    .whenApplying(fc -> {
+                        Entity<SingleSnapshotCounterAggregate> aggregate =
+                                loadAggregate(counterId, SingleSnapshotCounterAggregate.class);
+                        return aggregate.previous().previous().get().value;
+                    })
+                    .expectResult(1)
+                    .expectThat(fc -> verify(fc.client().getEventStoreClient()).getEvents(counterId.toString(), -1L, 2));
+        }
+
+        @Test
+        void testPreviousUsesOlderSnapshotWhenCachingDepthIsExceeded() {
+            DepthSnapshotCounterId counterId = new DepthSnapshotCounterId("depth");
+            testFixture.givenCommands(new CreateDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId),
+                                      new IncrementDepthSnapshotCounter(counterId))
+                    .given(fc -> fc.cache().clear())
+                    .whenApplying(fc -> {
+                        Entity<DepthSnapshotCounterAggregate> aggregate =
+                                loadAggregate(counterId, DepthSnapshotCounterAggregate.class);
+                        return aggregate.previous().previous().get().value;
+                    })
+                    .expectResult(4)
+                    .expectThat(fc -> verify(fc.client().getEventStoreClient()).getEvents(counterId.toString(), 2L, 2));
+        }
+
         private class Handler {
             @HandleCommand
             void handle(Object command) {
                 loadAggregate(aggregateId).assertLegal(command).apply(command);
+            }
+
+            @HandleCommand
+            void handle(CreateSnapshotCounter command) {
+                loadAggregate(command.id(), SnapshotCounterAggregate.class).assertAndApply(command);
+            }
+
+            @HandleCommand
+            void handle(IncrementSnapshotCounter command) {
+                loadAggregate(new SnapshotCounterId("counter"), SnapshotCounterAggregate.class).assertAndApply(command);
+            }
+
+            @HandleCommand
+            void handle(CreateSingleSnapshotCounter command) {
+                loadAggregate(command.id(), SingleSnapshotCounterAggregate.class).assertAndApply(command);
+            }
+
+            @HandleCommand
+            void handle(IncrementSingleSnapshotCounter command) {
+                loadAggregate(new SnapshotCounterSingleId("single"), SingleSnapshotCounterAggregate.class)
+                        .assertAndApply(command);
+            }
+
+            @HandleCommand
+            void handle(CreateDepthSnapshotCounter command) {
+                loadAggregate(command.id(), DepthSnapshotCounterAggregate.class).assertAndApply(command);
+            }
+
+            @HandleCommand
+            void handle(IncrementDepthSnapshotCounter command) {
+                loadAggregate(command.id(), DepthSnapshotCounterAggregate.class).assertAndApply(command);
             }
 
         }
@@ -569,6 +639,93 @@ class EventSourcingRepositoryTest {
         }
     }
 
+    static class SnapshotCounterId extends Id<SnapshotCounterAggregate> {
+        SnapshotCounterId(String functionalId) {
+            super(functionalId, SnapshotCounterAggregate.class, "counter-", true);
+        }
+    }
+
+    record CreateSnapshotCounter(SnapshotCounterId id) {
+    }
+
+    record IncrementSnapshotCounter() {
+    }
+
+    @Aggregate(snapshotPeriod = 3, maxSnapshotCount = 2, cached = false)
+    @Value
+    static class SnapshotCounterAggregate {
+        SnapshotCounterId id;
+        int value;
+
+        @Apply
+        static SnapshotCounterAggregate create(CreateSnapshotCounter event) {
+            return new SnapshotCounterAggregate(event.id(), 0);
+        }
+
+        @Apply
+        SnapshotCounterAggregate apply(IncrementSnapshotCounter event) {
+            return new SnapshotCounterAggregate(id, value + 1);
+        }
+    }
+
+    static class SnapshotCounterSingleId extends Id<SingleSnapshotCounterAggregate> {
+        SnapshotCounterSingleId(String functionalId) {
+            super(functionalId, SingleSnapshotCounterAggregate.class, "counter-", true);
+        }
+    }
+
+    record CreateSingleSnapshotCounter(SnapshotCounterSingleId id) {
+    }
+
+    record IncrementSingleSnapshotCounter() {
+    }
+
+    @Aggregate(snapshotPeriod = 3, cached = false)
+    @Value
+    static class SingleSnapshotCounterAggregate {
+        SnapshotCounterSingleId id;
+        int value;
+
+        @Apply
+        static SingleSnapshotCounterAggregate create(CreateSingleSnapshotCounter event) {
+            return new SingleSnapshotCounterAggregate(event.id(), 0);
+        }
+
+        @Apply
+        SingleSnapshotCounterAggregate apply(IncrementSingleSnapshotCounter event) {
+            return new SingleSnapshotCounterAggregate(id, value + 1);
+        }
+    }
+
+    static class DepthSnapshotCounterId extends Id<DepthSnapshotCounterAggregate> {
+        DepthSnapshotCounterId(String functionalId) {
+            super(functionalId, DepthSnapshotCounterAggregate.class, "counter-", true);
+        }
+    }
+
+    record CreateDepthSnapshotCounter(DepthSnapshotCounterId id) {
+    }
+
+    record IncrementDepthSnapshotCounter(DepthSnapshotCounterId id) {
+    }
+
+    @Aggregate(snapshotPeriod = 3, maxSnapshotCount = 2, cachingDepth = 0)
+    @Value
+    static class DepthSnapshotCounterAggregate {
+        DepthSnapshotCounterId id;
+        int value;
+
+        @Apply
+        static DepthSnapshotCounterAggregate create(CreateDepthSnapshotCounter event) {
+            return new DepthSnapshotCounterAggregate(event.id(), 0);
+        }
+
+        @Apply
+        DepthSnapshotCounterAggregate apply(IncrementDepthSnapshotCounter event) {
+            return new DepthSnapshotCounterAggregate(id, value + 1);
+        }
+    }
+
     @Nested
     class NotEventSourced {
         private final TestFixture testFixture = TestFixture.create(new Handler()).spy();
@@ -580,8 +737,8 @@ class EventSourcingRepositoryTest {
                     .expectThat(fc -> {
                         verify(testFixture.getFluxzero().client().getEventStoreClient(),
                                times(0)).getEvents(anyString(), anyLong());
-                        verify(testFixture.getFluxzero().client().getKeyValueClient(), times(1))
-                                .putValue(anyString(), any(), any());
+                        assertEquals(1, fc.documentStore().search(DefaultSnapshotStore.SNAPSHOT_COLLECTION)
+                                .fetchAll().size());
                         TestModelNotEventSourced result =
                                 loadAggregate(aggregateId.toString(), TestModelNotEventSourced.class).get();
                         assertTrue(result.getNames().size() == 2

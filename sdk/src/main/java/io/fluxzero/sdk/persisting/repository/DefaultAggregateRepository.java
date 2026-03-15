@@ -31,6 +31,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
+import io.fluxzero.sdk.modeling.LazyAggregateRoot;
 import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
 import io.fluxzero.sdk.modeling.NoOpEntity;
 import io.fluxzero.sdk.modeling.SideEffectFreeEntity;
@@ -339,7 +340,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
                     ? documentStore.<T>fetchDocument(id, collection)
                     .map(d -> builder.value(d).build())
                     : snapshotStore.<T>getSnapshot(id).map(
-                    a -> ImmutableAggregateRoot.from(a, entityHelper, serializer, eventStore)))
+                    a -> withHistoricalSnapshots(restoreSnapshotId(id, a), id)))
                     .filter(a -> {
                         boolean assignable =
                                 a.get() == null
@@ -354,6 +355,36 @@ public class DefaultAggregateRepository implements AggregateRepository {
                     })
                     .map(a -> (Entity<T>) a)
                     .orElseGet(builder::build);
+        }
+
+        protected ImmutableAggregateRoot<T> restoreSnapshotId(Object id, Entity<T> snapshot) {
+            return ImmutableAggregateRoot.from(snapshot, entityHelper, serializer, eventStore)
+                    .toBuilder().id(id).build();
+        }
+
+        protected Entity<T> withHistoricalSnapshots(ImmutableAggregateRoot<T> snapshot, Object aggregateId) {
+            if (snapshot.sequenceNumber() <= 0L || !eventSourced) {
+                return snapshot;
+            }
+            Entity<T> checkpoint = snapshotStore.<T>getSnapshotBefore(aggregateId, snapshot.sequenceNumber())
+                    .map(a -> withHistoricalSnapshots(restoreSnapshotId(aggregateId, a), aggregateId))
+                    .orElseGet(() -> ImmutableAggregateRoot.<T>builder()
+                            .id(aggregateId)
+                            .type(snapshot.type())
+                            .idProperty(snapshot.idProperty())
+                            .entityHelper(entityHelper)
+                            .serializer(serializer)
+                            .eventStore(eventStore)
+                            .sequenceNumber(-1L)
+                            .build());
+            Entity<T> previous = LazyAggregateRoot.from(snapshot.toBuilder()
+                                                                .sequenceNumber(snapshot.sequenceNumber() - 1L)
+                                                                .lastEventId(null)
+                                                                .lastEventIndex(null)
+                                                                .previous(null)
+                                                                .build(),
+                                                        checkpoint);
+            return snapshot.toBuilder().previous(previous).build();
         }
 
         @SuppressWarnings("unchecked")

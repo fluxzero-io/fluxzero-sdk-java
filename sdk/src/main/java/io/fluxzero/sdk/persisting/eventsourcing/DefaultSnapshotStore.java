@@ -14,44 +14,51 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.search.SearchExclude;
+import io.fluxzero.common.search.SearchInclude;
+import io.fluxzero.common.search.Sortable;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
-import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
+import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.Guarantee.STORED;
+import static java.lang.Math.max;
 import static java.lang.String.format;
-import static java.util.Optional.ofNullable;
 
 /**
- * Default implementation of the {@link SnapshotStore} interface, responsible for managing snapshots of aggregate roots
- * in an event-sourced system.
+ * Default implementation of the {@link SnapshotStore} interface.
  *
- * <p>This implementation uses a key-value store ({@link KeyValueClient}) to store snapshots, a {@link Serializer} to
- * handle serialization and deserialization of snapshots, and an {@link EventStore} for managing the associated event
- * data.
- *
- * <p>If deserialization fails, a warning is logged, the snapshot is deleted, and the aggregate is reconstructed from
- * its event history.
+ * <p>Snapshots are stored as documents, keyed by aggregate id and sequence number. The latest snapshot is loaded by
+ * sorting on the stored sequence number, while older snapshots can be retrieved to support historical
+ * {@link io.fluxzero.sdk.modeling.Entity#previous()} traversal.
  */
 @Slf4j
 @AllArgsConstructor
 public class DefaultSnapshotStore implements SnapshotStore {
-    private final KeyValueClient keyValueClient;
+    static final String SNAPSHOT_COLLECTION = "$snapshots";
+
+    private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EventStore eventStore;
 
     @Override
     public <T> CompletableFuture<Void> storeSnapshot(Entity<T> snapshot) {
         try {
-            return keyValueClient.putValue(snapshotKey(snapshot.id()), serializer.serialize(
-                    ImmutableAggregateRoot.from(snapshot, null, null, eventStore)), STORED);
+            return documentStore.prepareIndex(SnapshotDocument.of(snapshot, serializer.serialize(
+                            ImmutableAggregateRoot.from(snapshot, null, null, eventStore))))
+                    .index(STORED)
+                    .thenCompose(v -> trimSnapshots(snapshot));
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to store a snapshot: %s", snapshot), e);
         }
@@ -59,27 +66,81 @@ public class DefaultSnapshotStore implements SnapshotStore {
 
     @Override
     public <T> Optional<Entity<T>> getSnapshot(Object aggregateId) {
-        try {
-            return ofNullable(keyValueClient.getValue(snapshotKey(aggregateId))).map(serializer::deserialize);
-        } catch (DeserializationException e) {
-            log.warn("Failed to deserialize snapshot for {}. Deleting snapshot.", aggregateId, e);
-            deleteSnapshot(aggregateId);
-            return Optional.empty();
-        } catch (Exception e) {
-            throw new EventSourcingException(format("Failed to obtain snapshot for aggregate %s", aggregateId), e);
-        }
+        return findSnapshot(aggregateId, null);
+    }
+
+    @Override
+    public <T> Optional<Entity<T>> getSnapshotBefore(Object aggregateId, long sequenceNumberExclusive) {
+        return findSnapshot(aggregateId, sequenceNumberExclusive);
     }
 
     @Override
     public CompletableFuture<Void> deleteSnapshot(Object aggregateId) {
         try {
-            return keyValueClient.deleteValue(snapshotKey(aggregateId), STORED);
+            return documentStore.search(SNAPSHOT_COLLECTION).match(aggregateId.toString(), true, "aggregateId").delete();
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to delete snapshot for aggregate %s", aggregateId), e);
         }
     }
 
-    protected String snapshotKey(Object aggregateId) {
-        return "$snapshot_" + aggregateId;
+    protected <T> Optional<Entity<T>> findSnapshot(Object aggregateId, Long sequenceNumberExclusive) {
+        try {
+            var search = documentStore.search(SNAPSHOT_COLLECTION).match(aggregateId.toString(), true, "aggregateId")
+                    .sortBy("sequenceNumber", true);
+            if (sequenceNumberExclusive != null) {
+                search = search.below(sequenceNumberExclusive, "sequenceNumber");
+            }
+            return search.fetchFirst(SnapshotDocument.class).flatMap(this::deserializeSnapshot);
+        } catch (Exception e) {
+            throw new EventSourcingException(format("Failed to obtain snapshot for aggregate %s", aggregateId), e);
+        }
+    }
+
+    protected CompletableFuture<Void> trimSnapshots(Entity<?> snapshot) {
+        int maxSnapshotCount = max(1, snapshot.rootAnnotation().maxSnapshotCount());
+        try {
+            var snapshots = documentStore.search(SNAPSHOT_COLLECTION)
+                    .match(snapshot.id().toString(), true, "aggregateId")
+                    .sortBy("sequenceNumber", true)
+                    .fetch(maxSnapshotCount + 1, SnapshotDocument.class);
+            if (snapshots.size() <= maxSnapshotCount) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return CompletableFuture.allOf(
+                    snapshots.subList(maxSnapshotCount, snapshots.size()).stream()
+                            .map(document -> documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION))
+                            .toArray(CompletableFuture[]::new));
+        } catch (Exception e) {
+            throw new EventSourcingException(format("Failed to trim snapshots for aggregate %s", snapshot.id()), e);
+        }
+    }
+
+    protected <T> Optional<Entity<T>> deserializeSnapshot(SnapshotDocument document) {
+        try {
+            return Optional.ofNullable(serializer.deserialize(document.serializedSnapshot()));
+        } catch (DeserializationException e) {
+            log.warn("Failed to deserialize snapshot {} for {}. Deleting snapshot.",
+                     document.id(), document.aggregateId(), e);
+            documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION);
+            return Optional.empty();
+        }
+    }
+
+    @Searchable(collection = SNAPSHOT_COLLECTION, timestampPath = "timestamp")
+    @SearchExclude
+    protected record SnapshotDocument(@EntityId String id, @SearchInclude String aggregateId,
+                                      @Sortable long sequenceNumber, Instant timestamp,
+                                      Data<byte[]> serializedSnapshot) {
+        static SnapshotDocument of(Entity<?> snapshot, Data<byte[]> serializedSnapshot) {
+            return new SnapshotDocument(snapshotKey(snapshot.id(), snapshot.sequenceNumber()),
+                                        snapshot.id().toString(),
+                                        snapshot.sequenceNumber(),
+                                        snapshot.timestamp(),
+                                        serializedSnapshot);
+        }
+    }
+
+    static String snapshotKey(Object aggregateId, long sequenceNumber) {
+        return "$snapshot_" + aggregateId + "_" + sequenceNumber;
     }
 }

@@ -94,6 +94,17 @@ public @interface Aggregate {
     int snapshotPeriod() default 0;
 
     /**
+     * Maximum number of snapshots to retain for this aggregate.
+     * <p>
+     * Defaults to {@code 1}, which preserves the current behavior of keeping only the most recent snapshot.
+     * Use a value greater than {@code 1} to retain older snapshots for historical loading via
+     * {@link io.fluxzero.sdk.modeling.Entity#previous()}.
+     * <p>
+     * Values smaller than {@code 1} are treated as {@code 1}.
+     */
+    int maxSnapshotCount() default 1;
+
+    /**
      * Whether the aggregate should be cached after updates (enabled by default).
      * <p>
      * Aggregates are always cached thread-locally before being committed. This setting controls whether the latest

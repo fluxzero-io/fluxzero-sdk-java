@@ -47,13 +47,19 @@ import java.util.function.UnaryOperator;
 public class LazyAggregateRoot<T> implements AggregateRoot<T> {
     @With
     private final ImmutableAggregateRoot<T> delegate;
+    private final Entity<T> lastCheckpoint;
 
     public static <T> LazyAggregateRoot<T> from(ImmutableAggregateRoot<T> delegate) {
-        return new LazyAggregateRoot<>(delegate.toBuilder().value(null).build());
+        return new LazyAggregateRoot<>(delegate.toBuilder().value(null).build(), null);
     }
 
-    protected LazyAggregateRoot(ImmutableAggregateRoot<T> delegate) {
+    public static <T> LazyAggregateRoot<T> from(ImmutableAggregateRoot<T> delegate, Entity<T> lastCheckpoint) {
+        return new LazyAggregateRoot<>(delegate.toBuilder().value(null).build(), lastCheckpoint);
+    }
+
+    protected LazyAggregateRoot(ImmutableAggregateRoot<T> delegate, Entity<T> lastCheckpoint) {
         this.delegate = delegate;
+        this.lastCheckpoint = lastCheckpoint;
         if (!rootAnnotation().eventSourced()) {
             throw new IllegalStateException("Cannot create lazy aggregate: event sourcing is disabled.");
         }
@@ -61,7 +67,8 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
 
     @Override
     public Entity<T> withEventIndex(Long index, String messageId) {
-        return withDelegate((ImmutableAggregateRoot<T>) delegate.withEventIndex(index, messageId));
+        return new LazyAggregateRoot<>((ImmutableAggregateRoot<T>) delegate.withEventIndex(index, messageId),
+                                       lastCheckpoint);
     }
 
     @Override
@@ -76,7 +83,22 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
 
     @Override
     public Entity<T> previous() {
-        return delegate.previous();
+        if (delegate.previous() != null) {
+            return delegate.previous();
+        }
+        if (lastCheckpoint == null) {
+            return null;
+        }
+        long previousSequenceNumber = sequenceNumber() - 1L;
+        return previousSequenceNumber <= lastCheckpoint.sequenceNumber()
+                ? lastCheckpoint
+                : LazyAggregateRoot.from(delegate.toBuilder()
+                                                 .sequenceNumber(previousSequenceNumber)
+                                                 .lastEventId(null)
+                                                 .lastEventIndex(null)
+                                                 .previous(null)
+                                                 .build(),
+                                         lastCheckpoint);
     }
 
     /*
@@ -108,6 +130,9 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
     }
 
     protected Entity<T> getLastCheckpoint() {
+        if (lastCheckpoint != null) {
+            return lastCheckpoint;
+        }
         Entity<T> result = previous();
         while (result instanceof LazyAggregateRoot<?>) {
             result = result.previous();
