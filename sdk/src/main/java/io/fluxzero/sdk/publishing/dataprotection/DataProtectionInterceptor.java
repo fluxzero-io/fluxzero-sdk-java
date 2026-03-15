@@ -16,6 +16,7 @@ package io.fluxzero.sdk.publishing.dataprotection;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -27,13 +28,19 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
+import java.lang.reflect.AccessibleObject;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedFields;
-import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
+import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
+import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
+import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
+import static io.fluxzero.common.reflection.ReflectionUtils.isLeafValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
+import static java.util.Optional.ofNullable;
 
 /**
  * A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data
@@ -99,17 +106,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     @SuppressWarnings("unchecked")
     public Message interceptDispatch(Message m, MessageType messageType, String topic) {
-        Map<String, String> protectedFields = new HashMap<>();
+        Map<String, String> protectedFields = new LinkedHashMap<>();
         if (m.getMetadata().containsKey(METADATA_KEY)) {
             protectedFields.putAll(m.getMetadata().get(METADATA_KEY, Map.class));
         } else {
-            Object payload = m.getPayload();
-            getAnnotatedFields(payload, ProtectData.class).forEach(
-                    field -> readProperty(field.getName(), payload).ifPresent(value -> {
-                        String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
-                        keyValueStore.store(key, value, Guarantee.STORED);
-                        protectedFields.put(field.getName(), key);
-                    }));
+            protectedFields.putAll(getProtectedFields(m.getPayload()));
             if (!protectedFields.isEmpty()) {
                 m = m.withMetadata(m.getMetadata().with(METADATA_KEY, protectedFields));
             }
@@ -144,5 +145,39 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             }
             return function.apply(m);
         };
+    }
+
+    private Map<String, String> getProtectedFields(Object value) {
+        if (value == null) {
+            return Map.of();
+        }
+        Map<String, String> protectedFields = new LinkedHashMap<>();
+        getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
+                .flatMap(property -> ofNullable(getValue(property, value)).stream()
+                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue)))
+                .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
+        return protectedFields;
+    }
+
+    private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue) {
+        if (propertyValue == null) {
+            return Stream.empty();
+        }
+        String name = getPropertyName(holder);
+        if (isLeafValue(propertyValue)
+            || propertyValue instanceof Data<?>
+            || propertyValue instanceof Iterable<?>
+            || propertyValue instanceof Map<?, ?>
+            || getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
+            return Stream.of(Map.entry(name, storeProtectedValue(propertyValue)));
+        }
+        return getProtectedFields(propertyValue).entrySet().stream()
+                .map(e -> Map.entry("%s/%s".formatted(name, e.getKey()), e.getValue()));
+    }
+
+    private String storeProtectedValue(Object value) {
+        String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
+        keyValueStore.store(key, value, Guarantee.STORED);
+        return key;
     }
 }

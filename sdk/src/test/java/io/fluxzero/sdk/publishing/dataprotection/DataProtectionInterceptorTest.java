@@ -18,6 +18,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -26,6 +27,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -88,6 +91,66 @@ class DataProtectionInterceptorTest {
                 });
     }
 
+    @Test
+    void testNestedProtectedDataRequiresAnnotatedPath() {
+        String payload = "something nested and secret";
+        NestedHandler handler = new NestedHandler();
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new NestedEvent(new SensitiveDetails(payload, "visible"))))
+                .expectEvents(new NestedEvent(new SensitiveDetails(null, "visible")))
+                .expectThat(fc -> {
+                    assertEquals(payload, handler.getLastEvent().getDetails().getSensitiveData());
+                    assertEquals("visible", handler.getLastEvent().getDetails().getPublicData());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("details/sensitiveData"));
+                });
+    }
+
+    @Test
+    void testTypeAnnotationProtectsWholeAnnotatedField() {
+        WholeObjectHandler handler = new WholeObjectHandler();
+        WholeProtectedDetails payload = new WholeProtectedDetails("secret", "visible");
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new WholeObjectEvent(payload)))
+                .expectEvents(new WholeObjectEvent(null))
+                .expectThat(fc -> {
+                    assertEquals(payload, handler.getLastEvent().getDetails());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("details"));
+                });
+    }
+
+    @Test
+    void testIdTypeAnnotationProtectsWholeAnnotatedField() {
+        IdHandler handler = new IdHandler();
+        ProtectedId payload = new ProtectedId("id-123");
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new ProtectedIdEvent(payload)))
+                .expectThat(fc -> {
+                    assertEquals(payload, handler.getLastEvent().getProtectedId());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("protectedId"));
+                    assertFalse(new String(handler.getData().getValue()).contains("id-123"));
+                });
+    }
+
+    @Test
+    void testDataValueIsProtectedAsWholeField() {
+        DataHandler handler = new DataHandler();
+        Data<String> payload = new Data<>("top-secret", String.class.getName(), 0, Data.JSON_FORMAT);
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new ProtectedDataEvent(payload)))
+                .expectEvents(new ProtectedDataEvent(null))
+                .expectThat(fc -> {
+                    assertEquals(payload.getValue(), handler.getLastEvent().getProtectedData().getValue());
+                    assertEquals(payload.getType(), handler.getLastEvent().getProtectedData().getType());
+                    assertEquals(payload.getRevision(), handler.getLastEvent().getProtectedData().getRevision());
+                    assertEquals(payload.getFormat(), handler.getLastEvent().getProtectedData().getFormat());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("protectedData"));
+                });
+    }
+
     @Value
     @Builder(toBuilder = true)
     private static class SomeEvent {
@@ -101,6 +164,56 @@ class DataProtectionInterceptorTest {
         @ProtectData
         @NotNull
         String sensitiveData;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class NestedEvent {
+        @ProtectData
+        SensitiveDetails details;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class SensitiveDetails {
+        @ProtectData
+        String sensitiveData;
+        String publicData;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class WholeObjectEvent {
+        @ProtectData
+        WholeProtectedDetails details;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    @ProtectData
+    private static class WholeProtectedDetails {
+        String sensitiveData;
+        String publicData;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class ProtectedIdEvent {
+        @ProtectData
+        ProtectedId protectedId;
+    }
+
+    private static class ProtectedId extends Id<Object> {
+        private ProtectedId(String functionalId) {
+            super(functionalId, Object.class);
+        }
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class ProtectedDataEvent {
+        @ProtectData
+        Data<String> protectedData;
     }
 
     @Getter
@@ -135,6 +248,56 @@ class DataProtectionInterceptorTest {
         @DropProtectedData
         private void handler(SomeEvent event) {
             lastEvent = event.toBuilder().build();
+        }
+    }
+
+    @Getter
+    private static class NestedHandler {
+        private NestedEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(NestedEvent event, DeserializingMessage message) {
+            lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class WholeObjectHandler {
+        private WholeObjectEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(WholeObjectEvent event, DeserializingMessage message) {
+            lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class IdHandler {
+        private ProtectedIdEvent lastEvent;
+        private Metadata lastMetadata;
+        private Data<byte[]> data;
+
+        @HandleEvent
+        private void handler(ProtectedIdEvent event, DeserializingMessage message) {
+            lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
+            data = message.getSerializedObject().getData();
+        }
+    }
+
+    @Getter
+    private static class DataHandler {
+        private ProtectedDataEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(ProtectedDataEvent event, DeserializingMessage message) {
+            lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
         }
     }
 

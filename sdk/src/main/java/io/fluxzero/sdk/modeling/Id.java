@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fluxzero.common.api.HasId;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.search.Facet;
+import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
@@ -44,6 +45,7 @@ import java.util.Objects;
  *            {@code public class ProjectId extends Id<Project>}.
  */
 @Facet
+@ProtectData
 public abstract class Id<T> implements HasId, Comparable<Id<?>> {
     @JsonValue
     @Getter

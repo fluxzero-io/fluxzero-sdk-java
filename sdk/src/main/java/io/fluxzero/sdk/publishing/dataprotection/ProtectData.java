@@ -15,16 +15,20 @@
 package io.fluxzero.sdk.publishing.dataprotection;
 
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a field within a message payload as containing sensitive information that should be protected.
+ * Marks a field or type within a message payload as containing sensitive information that should be protected.
  * <p>
  * When a field is annotated with {@code @ProtectData}, the value of the field is automatically offloaded and stored
  * separately from the main payload during serialization. This ensures that sensitive data (e.g. social security numbers,
  * access tokens, secret keys, etc.) is not persisted or exposed together with the rest of the message payload.
+ * <p>
+ * For nested values, each property in the path must also be explicitly annotated with {@code @ProtectData}. If a field
+ * is annotated and its value type is also annotated with {@code @ProtectData}, the field is protected as a whole.
  * <p>
  * When a message is later deserialized and passed to a handler, Fluxzero will automatically reinject the protected
  * information into the payload prior to invoking the handler method.
@@ -45,7 +49,8 @@ import java.lang.annotation.Target;
  *
  * @see DropProtectedData
  */
-@Target(ElementType.FIELD)
+@Target({ElementType.FIELD, ElementType.TYPE})
+@Inherited
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ProtectData {
 }
