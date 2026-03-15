@@ -23,12 +23,23 @@ import java.lang.annotation.Target;
 /**
  * Marks a field or type within a message payload as containing sensitive information that should be protected.
  * <p>
- * When a field is annotated with {@code @ProtectData}, the value of the field is automatically offloaded and stored
- * separately from the main payload during serialization. This ensures that sensitive data (e.g. social security numbers,
- * access tokens, secret keys, etc.) is not persisted or exposed together with the rest of the message payload.
+ * When a field is annotated with {@code @ProtectData}, Fluxzero does <strong>not</strong> always protect the entire
+ * object graph rooted at that field. Instead, it applies the following rules:
  * <p>
- * For nested values, each property in the path must also be explicitly annotated with {@code @ProtectData}. If a field
- * is annotated and its value type is also annotated with {@code @ProtectData}, the field is protected as a whole.
+ * 1) The field value is protected as a whole if the value is a leaf value as determined by
+ * {@link io.fluxzero.common.reflection.ReflectionUtils#isLeafValue(Object)}, a
+ * {@link com.fasterxml.jackson.databind.JsonNode}, a {@link io.fluxzero.common.api.Data}, an {@link Iterable}, a
+ * {@link java.util.Map}, or a type annotated with {@code @ProtectData}.
+ * <p>
+ * 2) Otherwise, Fluxzero only traverses into nested properties that are themselves explicitly annotated with
+ * {@code @ProtectData}.
+ * <p>
+ * 3) For nested paths, every property in the path must therefore be explicitly annotated with {@code @ProtectData}.
+ * If any intermediate property is not annotated, traversal stops at that point and nested values below it are not
+ * protected.
+ * <p>
+ * This makes the behavior explicit and opt-in: sensitive nested values are only protected when each step in the path
+ * is marked for protection, while scalar or container-like values are offloaded as a single protected value.
  * <p>
  * When a message is later deserialized and passed to a handler, Fluxzero will automatically reinject the protected
  * information into the payload prior to invoking the handler method.
@@ -46,6 +57,26 @@ import java.lang.annotation.Target;
  *     String socialSecurityNumber;
  * }
  * }</pre>
+ *
+ * <h2>Nested Example</h2>
+ * <pre>{@code
+ * public class RegisterCitizen {
+ *
+ *     @ProtectData
+ *     SensitiveDetails details;
+ * }
+ *
+ * public class SensitiveDetails {
+ *
+ *     @ProtectData
+ *     String socialSecurityNumber;
+ *
+ *     String displayName;
+ * }
+ * }</pre>
+ *
+ * In this example, {@code details/socialSecurityNumber} is protected, while {@code details/displayName} remains part
+ * of the regular payload because it is not annotated.
  *
  * @see DropProtectedData
  */

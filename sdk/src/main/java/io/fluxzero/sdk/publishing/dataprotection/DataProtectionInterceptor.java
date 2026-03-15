@@ -117,8 +117,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             }
         }
         if (!protectedFields.isEmpty()) {
-            Object payloadCopy = serializer.deserialize(serializer.serialize(m.getPayload()));
-            protectedFields.forEach((name, key) -> writeProperty(name, payloadCopy, null));
+            Object payloadCopy = sanitizePayload(m.getPayload(), protectedFields);
             m = m.withPayload(payloadCopy);
         }
         return m;
@@ -133,6 +132,21 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                 Object payload = m.getPayload();
                 Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
                 boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
+                if (payload != null && payload.getClass().isRecord()) {
+                    JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
+                    protectedFields.forEach((fieldName, key) -> {
+                        try {
+                            writeProperty(fieldName, payloadTree, keyValueStore.get(key));
+                        } catch (Exception e) {
+                            log.warn("Failed to set field {}", fieldName, e);
+                        }
+                        if (dropProtectedData) {
+                            keyValueStore.delete(key);
+                        }
+                    });
+                    m = m.withPayload(serializer.convert(payloadTree, payload.getClass()));
+                    return function.apply(m);
+                }
                 protectedFields.forEach((fieldName, key) -> {
                     try {
                         writeProperty(fieldName, payload, keyValueStore.get(key));
@@ -148,6 +162,17 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         };
     }
 
+    private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {
+        if (payload != null && payload.getClass().isRecord()) {
+            JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
+            protectedFields.forEach((name, key) -> writeProperty(name, payloadTree, null));
+            return serializer.convert(payloadTree, payload.getClass());
+        }
+        Object payloadCopy = serializer.deserialize(serializer.serialize(payload));
+        protectedFields.forEach((name, key) -> writeProperty(name, payloadCopy, null));
+        return payloadCopy;
+    }
+
     private Map<String, String> getProtectedFields(Object value) {
         if (value == null) {
             return Map.of();
@@ -160,6 +185,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return protectedFields;
     }
 
+    @SuppressWarnings("ConditionCoveredByFurtherCondition")
     private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue) {
         if (propertyValue == null) {
             return Stream.empty();

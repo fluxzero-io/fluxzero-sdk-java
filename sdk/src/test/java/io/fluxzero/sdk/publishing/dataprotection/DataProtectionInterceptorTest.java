@@ -167,6 +167,20 @@ class DataProtectionInterceptorTest {
                 });
     }
 
+    @Test
+    void testProtectDataOnRecordComponent() {
+        RecordHandler handler = new RecordHandler();
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new ProtectedRecordEvent("top-secret", "visible")))
+                .expectEvents(new ProtectedRecordEvent(null, "visible"))
+                .expectThat(fc -> {
+                    assertEquals("top-secret", handler.getLastEvent().secret());
+                    assertEquals("visible", handler.getLastEvent().visible());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("secret"));
+                });
+    }
+
     @Value
     @Builder(toBuilder = true)
     private static class SomeEvent {
@@ -237,6 +251,9 @@ class DataProtectionInterceptorTest {
     private static class ProtectedJsonNodeEvent {
         @ProtectData
         JsonNode protectedJson;
+    }
+
+    private record ProtectedRecordEvent(@ProtectData String secret, String visible) {
     }
 
     @Getter
@@ -332,6 +349,18 @@ class DataProtectionInterceptorTest {
         @HandleEvent
         private void handler(ProtectedJsonNodeEvent event, DeserializingMessage message) {
             lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class RecordHandler {
+        private ProtectedRecordEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(ProtectedRecordEvent event, DeserializingMessage message) {
+            lastEvent = event;
             lastMetadata = message.getMetadata();
         }
     }
