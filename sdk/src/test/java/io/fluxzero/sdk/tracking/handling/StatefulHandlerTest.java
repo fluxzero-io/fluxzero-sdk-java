@@ -20,6 +20,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.Builder;
 import org.junit.jupiter.api.Nested;
@@ -172,6 +173,20 @@ public class StatefulHandlerTest {
         void handlerIsUpdated_associationOnMethod() {
             testFixture.givenEvents(new SomeEvent("foo"))
                     .whenEvent(new CustomEvent("foo"))
+                    .expectOnlyCommands(2);
+        }
+
+        @Test
+        void handlerIsUpdated_associationOnMethod_usesRoutingKeyIfValueMissing() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new CustomEvent("foo"))
+                    .expectOnlyCommands(2);
+        }
+
+        @Test
+        void handlerIsUpdated_associationOnMethod_usesMessageRoutingKeyIfMethodRoutingKeyMissing() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new RoutingKeyEvent("foo"))
                     .expectOnlyCommands(2);
         }
 
@@ -330,6 +345,21 @@ public class StatefulHandlerTest {
             @HandleEvent
             @Association("customId")
             StaticHandler handle(CustomEvent event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            @Association
+            @RoutingKey("customId")
+            StaticHandler routeViaRoutingKey(CustomEvent event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            @Association
+            StaticHandler routeViaMessageRoutingKey(RoutingKeyEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -591,6 +621,9 @@ public class StatefulHandlerTest {
     }
 
     record CustomEvent(String customId) {
+    }
+
+    record RoutingKeyEvent(@RoutingKey String someId) {
     }
 
     record CustomRightPathEvent(String customId) {

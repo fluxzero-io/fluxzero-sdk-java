@@ -135,16 +135,20 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                             }))
                     .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
 
-    Function<Executable, Map<String, AssociationValue>> methodAssociationProperties = ClientUtils.memoize(
+    Function<Executable, List<MethodAssociationProperty>> methodAssociationProperties = ClientUtils.memoize(
             m -> getAnnotation(m, Association.class).map(
                     association -> {
-                        Map<String, AssociationValue> associations = Arrays.stream(association.value()).collect(
-                                toMap(Function.identity(), v -> AssociationValue.valueOf(association), (a, b) -> a));
-                        if (associations.isEmpty()) {
-                            log.warn("@Association on {} does not define a property. This is probably a mistake.", m);
+                        AssociationValue associationValue = AssociationValue.valueOf(association);
+                        if (association.value().length > 0) {
+                            return Arrays.stream(association.value())
+                                    .map(v -> MethodAssociationProperty.forProperty(v, associationValue)).toList();
                         }
-                        return associations;
-                    }).orElseGet(Collections::emptyMap));
+                        return getAnnotation(m, RoutingKey.class).map(RoutingKey::value)
+                                .filter(v -> !v.isBlank())
+                                .map(v -> List.of(MethodAssociationProperty.forProperty(v, associationValue)))
+                                .orElseGet(() -> List.of(MethodAssociationProperty.forComputedRoutingKey(
+                                        associationValue)));
+                    }).orElseGet(Collections::emptyList));
 
     Function<Executable, Boolean> alwaysAssociateMethods = ClientUtils.memoize(
             m -> getAnnotation(m, Association.class).filter(Association::always).isPresent());
@@ -193,17 +197,23 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
     protected Map<Object, String> associations(DeserializingMessage message) {
         return ofNullable(message.getPayload()).stream()
-                .flatMap(payload -> Stream.concat(
-                                handlerMatcher.matchingMethods(message)
-                                        .flatMap(e -> methodAssociationProperties.apply(e).entrySet().stream()),
-                                getAssociationProperties().entrySet().stream())
-                        .filter(entry -> includedPayload(payload, entry.getValue()))
-                        .flatMap(entry -> ReflectionUtils.readProperty(entry.getKey(), payload)
-                                .or(() -> entry.getValue().isExcludeMetadata() ? empty() :
-                                        ofNullable(message.getMetadata().get(entry.getKey())))
-                                .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v)
-                                .map(v -> Map.entry(v, entry.getValue().getPath()))
-                                .stream()))
+                .flatMap(payload -> {
+                    Stream<Map.Entry<Object, String>> methodAssociations = handlerMatcher.matchingMethods(message)
+                            .flatMap(e -> methodAssociationProperties.apply(e).stream()
+                                    .flatMap(entry -> entry.getValue(message, payload)
+                                            .map(v -> Map.entry(v, entry.associationValue.getPath()))
+                                            .stream()));
+                    Stream<Map.Entry<Object, String>> propertyAssociations = getAssociationProperties().entrySet()
+                            .stream()
+                            .filter(entry -> includedPayload(payload, entry.getValue()))
+                            .flatMap(entry -> ReflectionUtils.readProperty(entry.getKey(), payload)
+                                    .or(() -> entry.getValue().isExcludeMetadata() ? empty() :
+                                            ofNullable(message.getMetadata().get(entry.getKey())))
+                                    .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v)
+                                    .map(v -> Map.entry(v, entry.getValue().getPath()))
+                                    .stream());
+                    return Stream.concat(methodAssociations, propertyAssociations);
+                })
                 .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a.isBlank() ? b : a));
     }
 
@@ -237,6 +247,30 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
         public String getPath() {
             return path == null ? "" : path;
+        }
+    }
+
+    @Value(staticConstructor = "of")
+    protected static class MethodAssociationProperty {
+        String propertyName;
+        boolean computedRoutingKey;
+        AssociationValue associationValue;
+
+        static MethodAssociationProperty forProperty(String propertyName, AssociationValue associationValue) {
+            return of(propertyName, false, associationValue);
+        }
+
+        static MethodAssociationProperty forComputedRoutingKey(AssociationValue associationValue) {
+            return of(null, true, associationValue);
+        }
+
+        Optional<Object> getValue(DeserializingMessage message, Object payload) {
+            return (computedRoutingKey
+                    ? message.computeRoutingKey().map(v -> (Object) v)
+                    : ReflectionUtils.readProperty(propertyName, payload)
+                            .or(() -> associationValue.isExcludeMetadata() ? empty()
+                                    : ofNullable(message.getMetadata().get(propertyName))))
+                    .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
         }
     }
 
