@@ -613,6 +613,23 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testUpdateNestedMemberInRecordOwnerUsingWithMethod() {
+                TestFixture.create().given(fc -> loadAggregate("record", RecordAggregate.class)
+                                .update(s -> new RecordAggregate("record",
+                                                                 new RecordChild("recordChild",
+                                                                                 new RecordGrandChild("gc0")))))
+                        .registerHandlers(new Object() {
+                            @HandleCommand
+                            void handle(Object command) {
+                                loadAggregate("record", RecordAggregate.class).apply(command);
+                            }
+                        })
+                        .whenCommand(new UpdateRecordGrandChild("gc0", "gc1"))
+                        .expectTrue(fc -> "gc1".equals(loadAggregate("record", RecordAggregate.class)
+                                .get().child().grandChild().recordGrandChildId()));
+            }
+
+            @Test
             void testUpdateSingleton_illegalBeforeAdding() {
                 testFixture.whenCommand(new UpdateChild("missing", "data"))
                         .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION)
@@ -1140,6 +1157,21 @@ public class AggregateEntitiesTest {
     record MissingGrandChild(@EntityId String missingGrandChildId) {
     }
 
+    record RecordAggregate(@EntityId String id, @Member RecordChild child) {
+        RecordAggregate withChild(RecordChild child) {
+            return new RecordAggregate(id, child);
+        }
+    }
+
+    record RecordChild(@EntityId String recordChildId, @Member RecordGrandChild grandChild) {
+        RecordChild withGrandChild(RecordGrandChild grandChild) {
+            return new RecordChild(recordChildId, grandChild);
+        }
+    }
+
+    record RecordGrandChild(@EntityId String recordGrandChildId) {
+    }
+
     @Value
     @AllArgsConstructor
     @Builder
@@ -1204,6 +1236,13 @@ public class AggregateEntitiesTest {
             if (child == null) {
                 throw new IllegalCommandException("Expected a child");
             }
+        }
+    }
+
+    record UpdateRecordGrandChild(@RoutingKey String recordGrandChildId, String newGrandChildId) {
+        @Apply
+        RecordGrandChild apply(RecordGrandChild grandChild) {
+            return new RecordGrandChild(newGrandChildId);
         }
     }
 

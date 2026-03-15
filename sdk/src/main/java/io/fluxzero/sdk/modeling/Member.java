@@ -71,6 +71,17 @@ import java.lang.annotation.Target;
  * }</pre>
  * and one product is updated, Fluxzero will replace the {@code products} list with a new list containing the updated
  * entity.
+ * <p>
+ * For record owners, Fluxzero cannot fall back to mutating the member field directly. A record that contains a
+ * {@code @Member} should therefore expose an explicit wither such as {@code withProducts(...)} or configure
+ * {@link #wither()} so Fluxzero knows how to create the updated parent instance.
+ * <pre>{@code
+ * public record Project(@EntityId String id, @Member List<Task> tasks) {
+ *     public Project withTasks(List<Task> tasks) {
+ *         return new Project(id, tasks);
+ *     }
+ * }
+ * }</pre>
  *
  * <h2>Optional attributes</h2>
  * <ul>

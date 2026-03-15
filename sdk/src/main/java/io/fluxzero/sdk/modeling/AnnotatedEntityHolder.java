@@ -170,9 +170,8 @@ public class AnnotatedEntityHolder {
                 }
                 if (field == null) {
                     if (warningIssued.compareAndSet(false, true)) {
-                        log.warn("No update function found for @Member {}. "
-                                 + "Updates to enclosed entities won't automatically update the parent entity.",
-                                 location);
+                        log.warn("No update function found for @Member {}. {}",
+                                 location, updateFunctionAdvice(ownerType, propertyName));
                     }
                 } else {
                     try {
@@ -180,14 +179,22 @@ public class AnnotatedEntityHolder {
                         field.invoke(o, h);
                     } catch (Exception e) {
                         if (warningIssued.compareAndSet(false, true)) {
-                            log.warn("Not able to update @Member {}. Please add a wither or setter method.", location,
-                                     e);
+                            log.warn("Not able to update @Member {}. {}", location,
+                                     updateFunctionAdvice(ownerType, propertyName), e);
                         }
                     }
                 }
                 return o;
             };
         });
+    }
+
+    private static String updateFunctionAdvice(Class<?> ownerType, String propertyName) {
+        if (ownerType.isRecord()) {
+            return "Records require an explicit wither such as with%s(...) or @Member(wither = \"...\") to update the parent entity automatically."
+                    .formatted(Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1));
+        }
+        return "Please add a wither or setter method.";
     }
 
     /**
