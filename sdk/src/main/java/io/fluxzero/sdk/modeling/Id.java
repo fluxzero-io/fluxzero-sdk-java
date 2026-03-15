@@ -17,10 +17,9 @@ package io.fluxzero.sdk.modeling;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import io.fluxzero.common.Leaf;
 import io.fluxzero.common.api.HasId;
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.common.search.Facet;
-import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
@@ -37,6 +36,10 @@ import java.util.Objects;
  * <p>
  * It also allows specifying the entity type which prevents the need for dynamic casting after loading the entity.
  * <p>
+ * Because an {@code Id} represents a scalar domain value rather than a nested object graph, it implements
+ * {@link Leaf}. This ensures Fluxzero treats identifier types as terminal values during reflection-based traversal
+ * for features such as search indexing and data protection.
+ * <p>
  * Note that, by default, this identifier is serialized as a string of the functionalId. Deserialization is done by
  * invoking a constructor on your subtype that accepts a single String argument. If such constructor does not exist,
  * please specify your own deserializer, using e.g. {@link JsonDeserialize @JsonDeserialize} on your type.
@@ -44,9 +47,7 @@ import java.util.Objects;
  * @param <T> the entity type. I.e.: a typical class will look something like
  *            {@code public class ProjectId extends Id<Project>}.
  */
-@Facet
-@ProtectData
-public abstract class Id<T> implements HasId, Comparable<Id<?>> {
+public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
     @JsonValue
     @Getter
     String functionalId;

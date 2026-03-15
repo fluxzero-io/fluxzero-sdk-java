@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.publishing.dataprotection;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
@@ -151,6 +153,20 @@ class DataProtectionInterceptorTest {
                 });
     }
 
+    @Test
+    void testJsonNodeValueIsProtectedAsWholeField() {
+        JsonNodeHandler handler = new JsonNodeHandler();
+        JsonNode payload = JsonNodeFactory.instance.objectNode().put("secret", "top-secret").put("visible", "ok");
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(new ProtectedJsonNodeEvent(payload)))
+                .expectEvents(new ProtectedJsonNodeEvent(null))
+                .expectThat(fc -> {
+                    assertEquals(payload, handler.getLastEvent().getProtectedJson());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("protectedJson"));
+                });
+    }
+
     @Value
     @Builder(toBuilder = true)
     private static class SomeEvent {
@@ -214,6 +230,13 @@ class DataProtectionInterceptorTest {
     private static class ProtectedDataEvent {
         @ProtectData
         Data<String> protectedData;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    private static class ProtectedJsonNodeEvent {
+        @ProtectData
+        JsonNode protectedJson;
     }
 
     @Getter
@@ -296,6 +319,18 @@ class DataProtectionInterceptorTest {
 
         @HandleEvent
         private void handler(ProtectedDataEvent event, DeserializingMessage message) {
+            lastEvent = event.toBuilder().build();
+            lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class JsonNodeHandler {
+        private ProtectedJsonNodeEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(ProtectedJsonNodeEvent event, DeserializingMessage message) {
             lastEvent = event.toBuilder().build();
             lastMetadata = message.getMetadata();
         }

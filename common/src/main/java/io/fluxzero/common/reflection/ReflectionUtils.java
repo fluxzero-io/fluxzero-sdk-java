@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.fluxzero.common.Leaf;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.serialization.DefaultTypeRegistry;
 import io.fluxzero.common.serialization.JsonUtils;
@@ -853,13 +854,33 @@ public class ReflectionUtils {
             java.time.temporal.TemporalAmount.class
     );
 
+    /**
+     * Returns whether the given value should be treated as a terminal scalar during reflective traversal.
+     * <p>
+     * Leaf values are not recursively inspected for nested annotated properties. This is used by infrastructure such
+     * as search indexing and data protection to decide whether a value should be processed as a whole or traversed
+     * further.
+     * <p>
+     * A value is considered a leaf when it is:
+     * <ul>
+     *   <li>{@code null}</li>
+     *   <li>one of the built-in scalar types known to Fluxzero, such as strings, numbers, booleans, temporal values,
+     *       URIs, locales, and similar primitives/value objects</li>
+     *   <li>an enum</li>
+     *   <li>an instance of a type implementing {@link Leaf}</li>
+     * </ul>
+     *
+     * @param value the value to inspect
+     * @return {@code true} if the value should be treated as a leaf, {@code false} otherwise
+     */
     public static boolean isLeafValue(Object value) {
         if (value == null) {
             return true;
         }
         Class<?> type = value.getClass();
         return leafValueTypes.stream().anyMatch(t -> t.isAssignableFrom(type))
-               || type.isEnum();
+               || type.isEnum()
+               || Leaf.class.isAssignableFrom(type);
     }
 
     public static boolean isAnnotationPresent(Parameter parameter, Class<? extends Annotation> annotationType) {

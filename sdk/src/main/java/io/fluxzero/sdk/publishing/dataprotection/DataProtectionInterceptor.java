@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.publishing.dataprotection;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
@@ -165,6 +166,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
         String name = getPropertyName(holder);
         if (isLeafValue(propertyValue)
+            || propertyValue instanceof JsonNode
             || propertyValue instanceof Data<?>
             || propertyValue instanceof Iterable<?>
             || propertyValue instanceof Map<?, ?>
