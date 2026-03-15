@@ -110,7 +110,7 @@ import java.lang.annotation.Target;
  * @see io.fluxzero.sdk.modeling.AssertLegal
  */
 @Documented
-@Target({ElementType.FIELD, ElementType.METHOD})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
 public @interface Member {

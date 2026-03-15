@@ -43,6 +43,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -134,6 +138,14 @@ public class AggregateEntitiesTest {
         void loadEmptyEntityById() {
             testFixture.whenApplying(fc -> loadAggregateFor(new MissingChildId("missing")))
                     .expectResult(e -> e.isEmpty() && e.type().equals(MissingChild.class));
+        }
+
+        @Test
+        void findEntityViaMetaMember() {
+            testFixture.whenApplying(fc -> loadAggregate("meta-test", MetaAggregate.class)
+                            .update(s -> MetaAggregate.builder().build()).allEntities().collect(toList()))
+                    .expectResult(entities -> entities.stream().anyMatch(e -> "meta-child".equals(e.id())
+                            && "metaChildId".equals(e.idProperty())));
         }
     }
 
@@ -1110,6 +1122,32 @@ public class AggregateEntitiesTest {
         @Alias(prefix = "other-")
         @Singular
         List<String> otherReferences;
+    }
+
+    @Member
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.FIELD, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+    private @interface NestedMember {
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    static class MetaAggregate {
+        @Default
+        @EntityId
+        String id = "meta-test";
+
+        @NestedMember
+        @Default
+        MetaChild child = MetaChild.builder().build();
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    static class MetaChild {
+        @Default
+        @EntityId
+        String metaChildId = "meta-child";
     }
 
     @Value

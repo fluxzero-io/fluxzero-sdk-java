@@ -28,14 +28,22 @@ import lombok.experimental.NonFinal;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.AccessibleObject;
 import java.util.List;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.determineCommonAncestors;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.hasProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionUtilsTest {
@@ -196,6 +204,73 @@ class ReflectionUtilsTest {
         private static class ABImpl implements AB {}
         private static class ABImpl2 implements A, B {}
         private static class BCImpl implements B, C {}
+    }
+
+    @Nested
+    class AnnotationTests {
+        @Test
+        void findsMetaAnnotatedField() {
+            AccessibleObject property = getAnnotatedProperty(MetaAnnotatedField.class, Marker.class).orElseThrow();
+            assertInstanceOf(java.lang.reflect.Field.class, property);
+            assertEquals("value", ReflectionUtils.getPropertyName(property));
+        }
+
+        @Test
+        void findsAnnotatedStaticInterfaceMethod() {
+            AccessibleObject property = getAnnotatedProperty(StaticInterfaceMethodImpl.class, Marker.class)
+                    .orElseThrow();
+            assertInstanceOf(java.lang.reflect.Method.class, property);
+            assertEquals("value", ReflectionUtils.getPropertyName(property));
+        }
+
+        @Test
+        void deduplicatesSamePropertyFromFieldAndInterfaceMethod() {
+            List<? extends AccessibleObject> properties = getAnnotatedProperties(DuplicateProperty.class, Marker.class);
+            assertEquals(1, properties.size());
+            assertEquals("value", ReflectionUtils.getPropertyName(properties.getFirst()));
+            assertInstanceOf(java.lang.reflect.Field.class, properties.getFirst());
+        }
+    }
+
+    @Marker
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.FIELD, ElementType.METHOD})
+    private @interface MetaMarker {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.FIELD, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+    private @interface Marker {
+    }
+
+    private static class MetaAnnotatedField {
+        @MetaMarker
+        private final String value = "test";
+    }
+
+    private interface StaticInterfaceMethod {
+        @Marker
+        static String getValue() {
+            return "test";
+        }
+    }
+
+    private static class StaticInterfaceMethodImpl implements StaticInterfaceMethod {
+    }
+
+    private interface DuplicatePropertyContract {
+        @Marker
+        String getValue();
+    }
+
+    private static class DuplicateProperty implements DuplicatePropertyContract {
+        @Marker
+        private final String value = "test";
+
+        @Override
+        public String getValue() {
+            return value;
+        }
     }
 
     @Value

@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.tracking.handling.Association;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -39,5 +41,6 @@ import java.lang.annotation.Target;
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
+@Association
 public @interface EntityId {
 }

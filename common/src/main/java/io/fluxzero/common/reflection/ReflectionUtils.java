@@ -238,7 +238,7 @@ public class ReflectionUtils {
        Adopted from https://stackoverflow.com/questions/28400408/what-is-the-new-way-of-getting-all-methods-of-a-class-including-inherited-defau
     */
     private static List<Method> computeAllMethods(Class<?> type) {
-        Predicate<Method> include = m -> !m.isSynthetic() &&
+        Predicate<Method> include = m -> !m.getDeclaringClass().isHidden() && !m.isSynthetic() &&
                                          Character.isJavaIdentifierStart(m.getName().charAt(0))
                                          && m.getName().chars().skip(1).allMatch(Character::isJavaIdentifierPart);
 
@@ -293,16 +293,20 @@ public class ReflectionUtils {
 
     private static List<? extends AccessibleObject> computeAnnotatedProperties(Class<?> target,
                                                                                Class<? extends Annotation> annotation) {
-        List<AccessibleObject> result =
-                new ArrayList<>(FieldUtils.getFieldsListWithAnnotation(target, annotation));
-        result.addAll(getMethodsListWithAnnotation(target, annotation, true, true).stream()
+        List<AccessibleObject> result = new ArrayList<>(getAnnotatedFields(target, annotation));
+        getAllInterfaces(target).forEach(i -> result.addAll(getAnnotatedFields(i, annotation)));
+        result.addAll(getAnnotatedMethods(target, annotation).stream()
                               .filter(m -> m.getParameterCount() == 0)
                               .filter(ReflectionUtils::hasReturnType)
                               .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType())).toList());
-        getAllInterfaces(target)
-                .forEach(i -> result.addAll(FieldUtils.getFieldsListWithAnnotation(i, annotation)));
-        result.forEach(ReflectionUtils::ensureAccessible);
-        return result;
+        getAllInterfaces(target).forEach(i -> result.addAll(getAnnotatedMethods(i, annotation).stream()
+                              .filter(m -> m.getParameterCount() == 0)
+                              .filter(ReflectionUtils::hasReturnType)
+                              .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType())).toList()));
+        LinkedHashMap<String, AccessibleObject> deduplicated = new LinkedHashMap<>();
+        result.forEach(property -> deduplicated.putIfAbsent(getPropertyName(property), property));
+        deduplicated.values().forEach(ReflectionUtils::ensureAccessible);
+        return new ArrayList<>(deduplicated.values());
     }
 
     public static Optional<? extends AccessibleObject> getAnnotatedProperty(Object target,

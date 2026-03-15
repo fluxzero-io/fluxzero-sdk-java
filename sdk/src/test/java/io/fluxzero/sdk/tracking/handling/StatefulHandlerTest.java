@@ -429,6 +429,49 @@ public class StatefulHandlerTest {
     }
 
     @Nested
+    class EntityIdAssociationTests {
+        private final TestFixture testFixture = TestFixture.create(EntityIdAssociationHandler.class);
+
+        @Test
+        void handlerIsUpdatedViaEntityIdAssociation() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new SomeEvent("foo"))
+                    .expectCommands(2);
+        }
+
+        @Test
+        void handlerAssociationViaEntityIdMetadata() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new Message("whatever", Metadata.of("someId", "foo")))
+                    .expectCommands(2);
+        }
+
+        @Stateful
+        @Builder(toBuilder = true)
+        record EntityIdAssociationHandler(@EntityId String someId,
+                                          int eventCount) {
+
+            @HandleEvent
+            EntityIdAssociationHandler(SomeEvent event) {
+                this(event.someId(), 1);
+                Fluxzero.sendAndForgetCommand(eventCount);
+            }
+
+            @HandleEvent
+            EntityIdAssociationHandler handle(SomeEvent event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            EntityIdAssociationHandler handle(String ignored) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+    }
+
+    @Nested
     class CustomAssociationProperty {
         private final TestFixture testFixture = TestFixture.create(SomeHandler.class);
 
@@ -586,4 +629,3 @@ public class StatefulHandlerTest {
     record EventWithMapPropertyList(Map<String, List<String>> someIds) {
     }
 }
-

@@ -30,6 +30,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.time.Clock;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -107,6 +111,11 @@ class MessageRoutingInterceptorTest {
     }
 
     @Test
+    void testMetaAnnotationOnField() {
+        testInvocation(new AnnotationViaMetaOnField());
+    }
+
+    @Test
     void testStaticInterfaceFieldAnnotation() {
         testInvocation(new AnnotationOnStaticInterfaceField() {
         });
@@ -174,6 +183,17 @@ class MessageRoutingInterceptorTest {
     private static class AnnotationOnStaticField {
         @RoutingKey
         private static final Object foo = "bar";
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.FIELD, ElementType.METHOD, ElementType.TYPE})
+    @RoutingKey
+    private @interface MetaRoutingKey {
+    }
+
+    private static class AnnotationViaMetaOnField {
+        @MetaRoutingKey
+        private final Object foo = "bar";
     }
 
     private interface AnnotationOnInterfaceMethod {
