@@ -1888,7 +1888,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the given value should be treated as a terminal scalar during reflective traversal.\n <p>\n Leaf values are not recursively inspected for nested annotated properties. This is used by infrastructure such\n as search indexing and data protection to decide whether a value should be processed as a whole or traversed\n further.\n <p>\n A value is considered a leaf when it is:\n <ul>\n   <li>{@code null}</li>\n   <li>one of the built-in scalar types known to Fluxzero, such as strings, numbers, booleans, temporal values,\n       URIs, locales, and similar primitives/value objects</li>\n   <li>an enum</li>\n   <li>an instance of a type implementing {@link Leaf}</li>\n </ul>\n\n @param value the value to inspect\n @return {@code true} if the value should be treated as a leaf, {@code false} otherwise\n"
   }, {
     "name" : "isMethodAnnotationPresent",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isMethodAnnotationPresent",

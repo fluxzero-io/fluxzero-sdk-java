@@ -52,6 +52,48 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "getProtectedFields",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#getProtectedFields",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getProtectedFields",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#getProtectedFields",
+    "returnType" : "java.util.stream.Stream<java.util.Map.Entry<java.lang.String,java.lang.String>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"ConditionCoveredByFurtherCondition\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "holder",
+      "type" : "java.lang.reflect.AccessibleObject",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "interceptDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#interceptDispatch",
     "returnType" : "io.fluxzero.sdk.common.Message",
@@ -108,6 +150,43 @@
     }, {
       "name" : "invoker",
       "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sanitizePayload",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#sanitizePayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "protectedFields",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeProtectedValue",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor#storeProtectedValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

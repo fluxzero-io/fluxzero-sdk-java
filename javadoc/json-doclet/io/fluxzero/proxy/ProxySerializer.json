@@ -161,6 +161,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "normalize",
+    "qualifiedName" : "io.fluxzero.proxy.ProxySerializer#normalize",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerDowncasters",
     "qualifiedName" : "io.fluxzero.proxy.ProxySerializer#registerDowncasters",
     "returnType" : "io.fluxzero.common.Registration",

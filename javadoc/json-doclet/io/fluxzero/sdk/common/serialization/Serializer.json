@@ -284,6 +284,22 @@
     "varArgs" : false,
     "documentation" : " Downcasts the given object to a previous revision.\n\n @param object the object to downcast\n @param desiredRevision the target revision\n @return a revisioned form of the object\n"
   }, {
+    "name" : "normalize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#normalize",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<byte[]>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Normalizes an already-serialized object to the target byte-based representation of this serializer.\n\n @param serializedObject the serialized object to normalize\n @return the normalized byte-based serialized object\n"
+  }, {
     "name" : "registerCasters",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#registerCasters",
     "returnType" : "io.fluxzero.common.Registration",

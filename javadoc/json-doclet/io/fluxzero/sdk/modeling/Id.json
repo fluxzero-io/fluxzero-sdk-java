@@ -4,14 +4,11 @@
   "packageName" : "io.fluxzero.sdk.modeling",
   "kind" : "class",
   "modifiers" : [ "abstract", "public" ],
-  "annotations" : [ {
-    "annotationType" : "io.fluxzero.common.search.Facet",
-    "values" : {}
-  } ],
-  "documentation" : " Object that represents the identifier of a specific entity. This object makes it easy to prefix the functional id of\n an entity to with a value before storing or lookup in a repository to prevent clashes with other entities that may\n share the same functional id.\n <p>\n Additionally, this object makes it possible to store and lookup entities using a case-insensitive identifier.\n <p>\n It also allows specifying the entity type which prevents the need for dynamic casting after loading the entity.\n <p>\n Note that, by default, this identifier is serialized as a string of the functionalId. Deserialization is done by\n invoking a constructor on your subtype that accepts a single String argument. If such constructor does not exist,\n please specify your own deserializer, using e.g. {@link JsonDeserialize @JsonDeserialize} on your type.\n\n @param <T> the entity type. I.e.: a typical class will look something like\n            {@code public class ProjectId extends Id<Project>}.\n",
+  "annotations" : [ ],
+  "documentation" : " Object that represents the identifier of a specific entity. This object makes it easy to prefix the functional id of\n an entity to with a value before storing or lookup in a repository to prevent clashes with other entities that may\n share the same functional id.\n <p>\n Additionally, this object makes it possible to store and lookup entities using a case-insensitive identifier.\n <p>\n It also allows specifying the entity type which prevents the need for dynamic casting after loading the entity.\n <p>\n Because an {@code Id} represents a scalar domain value rather than a nested object graph, it implements\n {@link Leaf}. This ensures Fluxzero treats identifier types as terminal values during reflection-based traversal\n for features such as search indexing and data protection.\n <p>\n Note that, by default, this identifier is serialized as a string of the functionalId. Deserialization is done by\n invoking a constructor on your subtype that accepts a single String argument. If such constructor does not exist,\n please specify your own deserializer, using e.g. {@link JsonDeserialize @JsonDeserialize} on your type.\n\n @param <T> the entity type. I.e.: a typical class will look something like\n            {@code public class ProjectId extends Id<Project>}.\n",
   "typeParameters" : [ "T" ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.HasId", "java.lang.Comparable<io.fluxzero.sdk.modeling.Id<?>>" ],
+  "interfaces" : [ "io.fluxzero.common.Leaf", "io.fluxzero.common.api.HasId", "java.lang.Comparable<io.fluxzero.sdk.modeling.Id<?>>" ],
   "fields" : [ {
     "name" : "functionalId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Id.functionalId",

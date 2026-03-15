@@ -7,15 +7,18 @@
   "annotations" : [ {
     "annotationType" : "java.lang.annotation.Target",
     "values" : {
-      "value" : "FIELD"
+      "value" : "FIELD,TYPE"
     }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
   }, {
     "annotationType" : "java.lang.annotation.Retention",
     "values" : {
       "value" : "RUNTIME"
     }
   } ],
-  "documentation" : " Marks a field within a message payload as containing sensitive information that should be protected.\n <p>\n When a field is annotated with {@code @ProtectData}, the value of the field is automatically offloaded and stored\n separately from the main payload during serialization. This ensures that sensitive data (e.g. social security numbers,\n access tokens, secret keys, etc.) is not persisted or exposed together with the rest of the message payload.\n <p>\n When a message is later deserialized and passed to a handler, Fluxzero will automatically reinject the protected\n information into the payload prior to invoking the handler method.\n <p>\n To permanently remove protected data after it is no longer needed, consider using the {@link DropProtectedData}\n annotation on a handler method.\n\n <h2>Example</h2>\n <pre>{@code\n public class RegisterCitizen {\n\n     String name;\n\n     @ProtectData\n     String socialSecurityNumber;\n }\n }</pre>\n\n @see DropProtectedData\n",
+  "documentation" : " Marks a field or type within a message payload as containing sensitive information that should be protected.\n <p>\n When a field is annotated with {@code @ProtectData}, Fluxzero does <strong>not</strong> always protect the entire\n object graph rooted at that field. Instead, it applies the following rules:\n <p>\n 1) The field value is protected as a whole if the value is a leaf value as determined by\n {@link io.fluxzero.common.reflection.ReflectionUtils#isLeafValue(Object)}, a\n {@link com.fasterxml.jackson.databind.JsonNode}, a {@link io.fluxzero.common.api.Data}, an {@link Iterable}, a\n {@link java.util.Map}, or a type annotated with {@code @ProtectData}.\n <p>\n 2) Otherwise, Fluxzero only traverses into nested properties that are themselves explicitly annotated with\n {@code @ProtectData}.\n <p>\n 3) For nested paths, every property in the path must therefore be explicitly annotated with {@code @ProtectData}.\n If any intermediate property is not annotated, traversal stops at that point and nested values below it are not\n protected.\n <p>\n This makes the behavior explicit and opt-in: sensitive nested values are only protected when each step in the path\n is marked for protection, while scalar or container-like values are offloaded as a single protected value.\n <p>\n When a message is later deserialized and passed to a handler, Fluxzero will automatically reinject the protected\n information into the payload prior to invoking the handler method.\n <p>\n To permanently remove protected data after it is no longer needed, consider using the {@link DropProtectedData}\n annotation on a handler method.\n\n <h2>Example</h2>\n <pre>{@code\n public record RegisterCitizen(\n     String name,\n     @ProtectData String socialSecurityNumber\n ) {\n }\n }</pre>\n\n <h2>Nested Example</h2>\n <pre>{@code\n public record RegisterCitizen(\n     @ProtectData SensitiveDetails details\n ) {\n }\n\n public record SensitiveDetails(\n     @ProtectData String socialSecurityNumber,\n     String displayName\n ) {\n }\n }</pre>\n\n In this example, {@code details/socialSecurityNumber} is protected, while {@code details/displayName} remains part\n of the regular payload because it is not annotated.\n\n @see DropProtectedData\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

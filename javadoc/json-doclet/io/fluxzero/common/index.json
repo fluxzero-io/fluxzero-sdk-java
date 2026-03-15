@@ -80,6 +80,11 @@
     "qualifiedName" : "io.fluxzero.common.LazyInputStream",
     "kind" : "class"
   }, {
+    "file" : "Leaf.json",
+    "name" : "Leaf",
+    "qualifiedName" : "io.fluxzero.common.Leaf",
+    "kind" : "interface"
+  }, {
     "file" : "MemoizingBiFunction.json",
     "name" : "MemoizingBiFunction",
     "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction",

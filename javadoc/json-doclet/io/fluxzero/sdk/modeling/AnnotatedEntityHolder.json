@@ -252,6 +252,27 @@
     "varArgs" : false,
     "documentation" : " Retrieves or creates a cached {@code AnnotatedEntityHolder} at the given member location.\n\n @param ownerType    the class that owns the annotated member\n @param location     the accessible field or method annotated with @Member\n @param entityHelper the helper used to apply/validate/apply logic to nested entities\n @param serializer   the serializer used for cloning values during updates\n @return a cached or new instance of {@code AnnotatedEntityHolder}\n"
   }, {
+    "name" : "updateFunctionAdvice",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#updateFunctionAdvice",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ownerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "updateOwner",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#updateOwner",
     "returnType" : "java.lang.Object",

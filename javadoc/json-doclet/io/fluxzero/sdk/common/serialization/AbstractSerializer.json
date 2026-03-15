@@ -436,6 +436,30 @@
     "varArgs" : false,
     "documentation" : " Checks whether a given serialized type is recognized on the classpath.\n"
   }, {
+    "name" : "normalize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#normalize",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerDowncasters",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerDowncasters",
     "returnType" : "io.fluxzero.common.Registration",
@@ -505,11 +529,6 @@
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
-    }, {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
