@@ -20,6 +20,14 @@
     } ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "lastCheckpoint",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot.lastCheckpoint",
+    "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "LazyAggregateRoot",
@@ -30,6 +38,11 @@
     "parameters" : [ {
       "name" : "delegate",
       "type" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastCheckpoint",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -127,6 +140,27 @@
     "parameters" : [ {
       "name" : "delegate",
       "type" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot#from",
+    "returnType" : "io.fluxzero.sdk.modeling.LazyAggregateRoot<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastCheckpoint",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

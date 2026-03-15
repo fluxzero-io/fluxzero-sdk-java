@@ -60,6 +60,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getSnapshotBefore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.NoOpSnapshotStore#getSnapshotBefore",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumberExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "storeSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.NoOpSnapshotStore#storeSnapshot",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

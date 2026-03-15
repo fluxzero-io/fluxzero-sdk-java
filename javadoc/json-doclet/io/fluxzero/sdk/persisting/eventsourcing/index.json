@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore",
     "kind" : "class"
   }, {
+    "file" : "DefaultSnapshotStore.SnapshotDocument.json",
+    "name" : "DefaultSnapshotStore.SnapshotDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore$SnapshotDocument",
+    "kind" : "record"
+  }, {
     "file" : "EventSourcingException.json",
     "name" : "EventSourcingException",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException",

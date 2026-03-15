@@ -263,6 +263,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "restoreSnapshotId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#restoreSnapshotId",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "storeEvents",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#storeEvents",
     "returnType" : "void",
@@ -280,6 +301,27 @@
     }, {
       "name" : "appliedEvents",
       "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withHistoricalSnapshots",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#withHistoricalSnapshots",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

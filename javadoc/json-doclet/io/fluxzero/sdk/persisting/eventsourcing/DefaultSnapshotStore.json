@@ -11,22 +11,30 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " Default implementation of the {@link SnapshotStore} interface, responsible for managing snapshots of aggregate roots\n in an event-sourced system.\n\n <p>This implementation uses a key-value store ({@link KeyValueClient}) to store snapshots, a {@link Serializer} to\n handle serialization and deserialization of snapshots, and an {@link EventStore} for managing the associated event\n data.\n\n <p>If deserialization fails, a warning is logged, the snapshot is deleted, and the aggregate is reconstructed from\n its event history.\n",
+  "documentation" : " Default implementation of the {@link SnapshotStore} interface.\n\n <p>Snapshots are stored as documents, keyed by aggregate id and sequence number. The latest snapshot is loaded by\n sorting on the stored sequence number, while older snapshots can be retrieved to support historical\n {@link io.fluxzero.sdk.modeling.Entity#previous()} traversal.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore" ],
   "fields" : [ {
-    "name" : "eventStore",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.eventStore",
-    "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
+    "name" : "SNAPSHOT_COLLECTION",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.SNAPSHOT_COLLECTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$snapshots"
+  }, {
+    "name" : "documentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.documentStore",
+    "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "keyValueClient",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.keyValueClient",
-    "type" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
+    "name" : "eventStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.eventStore",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -71,6 +79,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeSnapshot",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#deserializeSnapshot",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore.SnapshotDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findSnapshot",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#findSnapshot",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumberExclusive",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#getSnapshot",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
@@ -90,15 +135,44 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getSnapshotBefore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#getSnapshotBefore",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumberExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "snapshotKey",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#snapshotKey",
     "returnType" : "java.lang.String",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "aggregateId",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumber",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -124,8 +198,39 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "trimSnapshots",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore#trimSnapshots",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "SnapshotDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultSnapshotStore$SnapshotDocument",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.persisting.search.Searchable",
+      "values" : {
+        "collection" : "$snapshots",
+        "timestampPath" : "timestamp"
+      }
+    }, {
+      "annotationType" : "io.fluxzero.common.search.SearchExclude",
+      "values" : {}
+    } ]
+  } ]
 }

@@ -44,6 +44,27 @@
     "varArgs" : false,
     "documentation" : " Retrieves the most recent snapshot for a given aggregate ID, if available.\n\n @param aggregateId The ID of the aggregate for which to retrieve a snapshot.\n @param <T>         The expected type of the aggregate.\n @return An {@link Optional} containing the aggregate snapshot if present, otherwise empty.\n"
   }, {
+    "name" : "getSnapshotBefore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore#getSnapshotBefore",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumberExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the most recent snapshot with a sequence number strictly lower than the given value.\n\n @param aggregateId                The aggregate identifier.\n @param sequenceNumberExclusive    Upper bound (exclusive) for the snapshot sequence number.\n @param <T>                        The expected aggregate type.\n @return An {@link Optional} containing the matching snapshot if present.\n"
+  }, {
     "name" : "storeSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore#storeSnapshot",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

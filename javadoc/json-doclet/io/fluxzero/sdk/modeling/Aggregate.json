@@ -130,6 +130,17 @@
     "varArgs" : false,
     "documentation" : " Whether to ignore unknown events during event sourcing (disabled by default).\n <p>\n If disabled and an unknown event is encountered, an error will occur when the aggregate is loaded.\n"
   }, {
+    "name" : "maxSnapshotCount",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#maxSnapshotCount",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maximum number of snapshots to retain for this aggregate.\n <p>\n Defaults to {@code 1}, which preserves the current behavior of keeping only the most recent snapshot.\n Use a value greater than {@code 1} to retain older snapshots for historical loading via\n {@link io.fluxzero.sdk.modeling.Entity#previous()}.\n <p>\n Values smaller than {@code 1} are treated as {@code 1}.\n"
+  }, {
     "name" : "publicationStrategy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#publicationStrategy",
     "returnType" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
