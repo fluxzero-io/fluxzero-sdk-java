@@ -258,14 +258,38 @@ temporarily in an external Key-Value (KV) store.
 When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the value from the KV store back
 into the payload, making it available to the handler.
 
+`@ProtectData` protects the annotated field **as a whole** when its value is:
+
+- a leaf value (see `ReflectionUtils.isLeafValue(...)`)
+- a `JsonNode`
+- a `Data<?>`
+- an `Iterable`
+- a `Map`
+- a type that is itself annotated with `@ProtectData`
+
+Nested protection is also supported, but only when **every segment of the path is annotated** with `@ProtectData`.
+Fluxzero does not recursively scan arbitrary child fields.
+
 [//]: # (@formatter:off)
 ```java
 public record SubmitApplication(
     @NotNull ApplicationId id,
     @ProtectData String socialSecurityNumber
 ) {}
+
+public record SubmitDetails(
+    @ProtectData SensitiveDetails details
+) {}
+
+public record SensitiveDetails(
+    @ProtectData String socialSecurityNumber,
+    String displayName
+) {}
 ```
 [//]: # (@formatter:on)
+
+In the nested example above, `details/socialSecurityNumber` is protected, while `details/displayName` remains part of
+the regular payload.
 
 <a name="drop-protected-data"></a>
 
