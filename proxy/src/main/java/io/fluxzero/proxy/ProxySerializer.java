@@ -32,6 +32,11 @@ public class ProxySerializer implements Serializer {
     }
 
     @Override
+    public SerializedObject<byte[]> normalize(SerializedObject<?> serializedObject) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public <I extends SerializedObject<byte[]>> Stream<DeserializingObject<byte[], I>> deserialize(
             Stream<I> stream, UnknownTypeStrategy unknownTypeStrategy) {
         throw new UnsupportedOperationException();

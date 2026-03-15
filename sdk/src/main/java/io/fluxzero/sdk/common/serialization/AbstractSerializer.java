@@ -110,19 +110,11 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * @return a {@code Data<byte[]>} object containing the serialized bytes
      */
     @Override
-    @SuppressWarnings("unchecked")
     public Data<byte[]> serialize(Object object, String format) {
         if (format == null) {
             format = this.format;
         }
         try {
-            if (object instanceof Data<?> data) {
-                if (data.getValue() instanceof byte[]) {
-                    return (Data<byte[]>) data;
-                }
-                return new Data<>(serialize(data.getValue(), format).getValue(), data.getType(), data.getRevision(),
-                                  format);
-            }
             if (Objects.equals(this.format, format)) {
                 return new Data<>(doSerialize(object), getTypeString(object), getRevisionNumber(object), format);
             } else {
@@ -131,6 +123,23 @@ public abstract class AbstractSerializer<I> implements Serializer {
         } catch (Exception e) {
             throw new SerializationException(String.format("Could not serialize a %s (format %s)",
                                                            formatValue(object), format), e);
+        }
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public SerializedObject<byte[]> normalize(SerializedObject<?> serializedObject) {
+        Data<?> data = serializedObject.data();
+        try {
+            if (data.getValue() instanceof byte[]) {
+                return (SerializedObject<byte[]>) serializedObject;
+            }
+            Data<byte[]> normalized = new Data<>(serialize(data.getValue(), data.getFormat()).getValue(),
+                                                 data.getType(), data.getRevision(), data.getFormat());
+            return (SerializedObject<byte[]>) ((SerializedObject) serializedObject).withData(normalized);
+        } catch (Exception e) {
+            throw new SerializationException(String.format("Could not normalize serialized data of type %s",
+                                                           data.getType()), e);
         }
     }
 

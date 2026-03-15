@@ -24,6 +24,7 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
@@ -1399,7 +1400,8 @@ public class TestFixture implements Given<TestFixture>, When {
             object = fluxzero.serializer().deserializeMessage(s, EVENT).toMessage();
         } else if (object instanceof SerializedObject<?> s) {
             SerializedObject<byte[]> eventBytes = s.data().getValue() instanceof byte[]
-                    ? (SerializedObject<byte[]>) s : fluxzero.serializer().serialize(s);
+                    ? (SerializedObject<byte[]>) s
+                    : fluxzero.serializer().normalize(s);
             object = fluxzero.serializer().deserialize(eventBytes);
         }
         return (T) object;

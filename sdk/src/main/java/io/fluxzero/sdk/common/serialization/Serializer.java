@@ -64,6 +64,14 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Normalizes an already-serialized object to the target byte-based representation of this serializer.
+     *
+     * @param serializedObject the serialized object to normalize
+     * @return the normalized byte-based serialized object
+     */
+    SerializedObject<byte[]> normalize(SerializedObject<?> serializedObject);
+
+    /**
      * Serializes the given object into a {@link Data} wrapper using the specified format.
      *
      * @param object the object to serialize
