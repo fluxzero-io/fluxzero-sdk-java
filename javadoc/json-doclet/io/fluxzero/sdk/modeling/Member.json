@@ -10,7 +10,7 @@
   }, {
     "annotationType" : "java.lang.annotation.Target",
     "values" : {
-      "value" : "FIELD,METHOD"
+      "value" : "FIELD,METHOD,ANNOTATION_TYPE"
     }
   }, {
     "annotationType" : "java.lang.annotation.Retention",
