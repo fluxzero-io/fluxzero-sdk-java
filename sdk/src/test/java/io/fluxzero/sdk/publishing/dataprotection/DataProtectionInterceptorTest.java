@@ -181,6 +181,21 @@ class DataProtectionInterceptorTest {
                 });
     }
 
+    @Test
+    void testNestedProtectDataOnRecordComponents() {
+        NestedRecordHandler handler = new NestedRecordHandler();
+        testFixture.registerHandlers(handler)
+                .whenExecuting(fc -> Fluxzero.publishEvent(
+                        new ProtectedNestedRecordEvent(new ProtectedSensitiveDetails("top-secret", "visible"))))
+                .expectEvents(new ProtectedNestedRecordEvent(new ProtectedSensitiveDetails(null, "visible")))
+                .expectThat(fc -> {
+                    assertEquals("top-secret", handler.getLastEvent().details().socialSecurityNumber());
+                    assertEquals("visible", handler.getLastEvent().details().displayName());
+                    assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
+                            .containsKey("details/socialSecurityNumber"));
+                });
+    }
+
     @Value
     @Builder(toBuilder = true)
     private static class SomeEvent {
@@ -254,6 +269,12 @@ class DataProtectionInterceptorTest {
     }
 
     private record ProtectedRecordEvent(@ProtectData String secret, String visible) {
+    }
+
+    private record ProtectedNestedRecordEvent(@ProtectData ProtectedSensitiveDetails details) {
+    }
+
+    private record ProtectedSensitiveDetails(@ProtectData String socialSecurityNumber, String displayName) {
     }
 
     @Getter
@@ -360,6 +381,18 @@ class DataProtectionInterceptorTest {
 
         @HandleEvent
         private void handler(ProtectedRecordEvent event, DeserializingMessage message) {
+            lastEvent = event;
+            lastMetadata = message.getMetadata();
+        }
+    }
+
+    @Getter
+    private static class NestedRecordHandler {
+        private ProtectedNestedRecordEvent lastEvent;
+        private Metadata lastMetadata;
+
+        @HandleEvent
+        private void handler(ProtectedNestedRecordEvent event, DeserializingMessage message) {
             lastEvent = event;
             lastMetadata = message.getMetadata();
         }

@@ -49,29 +49,24 @@ import java.lang.annotation.Target;
  *
  * <h2>Example</h2>
  * <pre>{@code
- * public class RegisterCitizen {
- *
- *     String name;
- *
- *     @ProtectData
- *     String socialSecurityNumber;
+ * public record RegisterCitizen(
+ *     String name,
+ *     @ProtectData String socialSecurityNumber
+ * ) {
  * }
  * }</pre>
  *
  * <h2>Nested Example</h2>
  * <pre>{@code
- * public class RegisterCitizen {
- *
- *     @ProtectData
- *     SensitiveDetails details;
+ * public record RegisterCitizen(
+ *     @ProtectData SensitiveDetails details
+ * ) {
  * }
  *
- * public class SensitiveDetails {
- *
- *     @ProtectData
- *     String socialSecurityNumber;
- *
- *     String displayName;
+ * public record SensitiveDetails(
+ *     @ProtectData String socialSecurityNumber,
+ *     String displayName
+ * ) {
  * }
  * }</pre>
  *
