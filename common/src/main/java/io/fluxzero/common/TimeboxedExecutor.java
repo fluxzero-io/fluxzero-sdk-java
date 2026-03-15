@@ -28,7 +28,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
+import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static io.fluxzero.common.ObjectUtils.rethrow;
+import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 
 /**
  * Utility for running tasks with a maximum execution duration.
@@ -151,8 +153,8 @@ public final class TimeboxedExecutor implements AutoCloseable {
     }
 
     private static ExecutorService defaultExecutor() {
-        if (Runtime.version().feature() >= 25) {
-            return Executors.newVirtualThreadPerTaskExecutor();
+        if (supportsVirtualThreadWorkers()) {
+            return Executors.newThreadPerTaskExecutor(newVirtualThreadFactory("timeboxed-"));
         }
         return Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r);

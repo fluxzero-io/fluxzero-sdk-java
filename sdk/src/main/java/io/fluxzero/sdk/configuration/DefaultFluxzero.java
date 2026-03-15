@@ -171,11 +171,10 @@ import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -294,7 +293,7 @@ public class DefaultFluxzero implements Fluxzero {
         private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
                 "FluxzeroTaskScheduler", clock,
-                newFixedThreadPool(8, newPlatformThreadFactory("FluxzeroTaskScheduler-worker")));
+                newWorkerPool("FluxzeroTaskScheduler-worker", 8));
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache = new DefaultCache();
         private Cache relationshipsCache = new DefaultCache(100_000);
@@ -853,7 +852,7 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             ThrowingRunnable shutdownHandler = () -> {
-                var shutdownPool = newFixedThreadPool(8, newPlatformThreadFactory("fluxzero-shutdown-pool"));
+                var shutdownPool = newWorkerPool("fluxzero-shutdown-pool", 8);
                 Optional.ofNullable(forwardingWebConsumer).ifPresent(ForwardingWebConsumer::close);
                 shutdownPool.invokeAll(
                         trackingMap.values().stream()

@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -46,6 +47,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -102,6 +104,7 @@ public class CachingTrackingClient implements TrackingClient {
     private final int maxCacheSize;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
+    private final ExecutorService waitingTrackerExecutor = newWorkerPool("CachingTrackingClient-waiting", 8);
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
 
@@ -219,7 +222,7 @@ public class CachingTrackingClient implements TrackingClient {
                                     m.getSegment() % SegmentRange.MAX_SEGMENT))
                     .collect(toMap(SerializedMessage::getIndex, Function.identity()));
             cache.putAll(messageMap);
-            waitingTrackers.values().forEach(Runnable::run);
+            waitingTrackers.values().forEach(waitingTrackerExecutor::execute);
             removeOldMessages();
         }
     }
@@ -276,6 +279,7 @@ public class CachingTrackingClient implements TrackingClient {
     public void close() {
         ofNullable(registration).ifPresent(Registration::cancel);
         scheduler.shutdown();
+        waitingTrackerExecutor.shutdown();
         delegate.close();
     }
 }

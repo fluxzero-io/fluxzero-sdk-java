@@ -65,6 +65,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -74,14 +75,13 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
-import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static jakarta.websocket.CloseReason.CloseCodes.NO_STATUS_CODE;
 import static jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 
 @Slf4j
 public abstract class WebsocketEndpoint extends Endpoint {
@@ -99,6 +99,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
     @Getter(AccessLevel.PROTECTED)
     private final ObjectMapper objectMapper;
     private final Executor requestExecutor;
+    private final ExecutorService ownedRequestExecutor;
 
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
     protected final AtomicBoolean shuttingDown = new AtomicBoolean();
@@ -106,13 +107,15 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     protected WebsocketEndpoint() {
         this.objectMapper = defaultObjectMapper;
-        this.requestExecutor = newFixedThreadPool(64, newPlatformThreadFactory(getClass().getSimpleName()));
+        this.ownedRequestExecutor = newWorkerPool(getClass().getSimpleName(), 64);
+        this.requestExecutor = ownedRequestExecutor;
         getRuntime().addShutdownHook(
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     protected WebsocketEndpoint(@Nullable Executor requestExecutor) {
         this.objectMapper = defaultObjectMapper;
+        this.ownedRequestExecutor = null;
         this.requestExecutor = Optional.ofNullable(requestExecutor).orElse(SameThreadExecutor.INSTANCE);
         getRuntime().addShutdownHook(
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
@@ -296,6 +299,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
                 Thread.currentThread().interrupt();
             } finally {
                 shutDown = true;
+                Optional.ofNullable(ownedRequestExecutor).ifPresent(ExecutorService::shutdown);
                 sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(Session::isOpen).forEach(s -> {
                     try {
                         s.close();

@@ -17,10 +17,13 @@ package io.fluxzero.common;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,5 +68,19 @@ class ObjectUtilsTest {
         verify(mockFunction, times(1)).apply(any());
         assertNull(memoizingFunction.apply(null));
         verify(mockFunction, times(2)).apply(any());
+    }
+
+    @Test
+    void supportsVirtualThreadWorkersOnlyOnJava25AndNewer() {
+        assertFalse(ObjectUtils.supportsVirtualThreadWorkers(24));
+        assertTrue(ObjectUtils.supportsVirtualThreadWorkers(25));
+    }
+
+    @Test
+    void newWorkerPoolUsesVirtualThreadsOnSupportedRuntimes() throws Exception {
+        try (ExecutorService executor = ObjectUtils.newWorkerPool("ObjectUtilsTest-worker-", 2)) {
+            Future<Boolean> isVirtual = executor.submit(() -> Thread.currentThread().isVirtual());
+            assertEquals(ObjectUtils.supportsVirtualThreadWorkers(), isVirtual.get());
+        }
     }
 }

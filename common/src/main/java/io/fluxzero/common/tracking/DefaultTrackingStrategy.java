@@ -36,14 +36,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
-import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedMap;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Streaming strategy that allows multiple clients to concurrently consume a message stream. Messages are routed to
@@ -75,7 +74,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     public DefaultTrackingStrategy(MessageStore source) {
         this(source, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
-                newFixedThreadPool(8, newPlatformThreadFactory("tracking-worker-%s".formatted(source)))));
+                newWorkerPool("tracking-worker-%s".formatted(source), 8)));
     }
 
     public DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler) {

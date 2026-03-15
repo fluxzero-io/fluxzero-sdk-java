@@ -37,6 +37,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -337,6 +339,40 @@ public class ObjectUtils {
      */
     public static ThreadFactory newPlatformThreadFactory(String prefix) {
         return Thread.ofPlatform().name(prefix, 0L).factory();
+    }
+
+    /**
+     * Creates a new named virtual-thread {@link ThreadFactory}.
+     */
+    public static ThreadFactory newVirtualThreadFactory(String prefix) {
+        return Thread.ofVirtual().name(prefix, 0L).factory();
+    }
+
+    /**
+     * Creates a worker thread factory that uses virtual threads on Java 25+ and platform threads otherwise.
+     */
+    public static ThreadFactory newWorkerThreadFactory(String prefix) {
+        return supportsVirtualThreadWorkers() ? newVirtualThreadFactory(prefix) : newPlatformThreadFactory(prefix);
+    }
+
+    /**
+     * Creates a worker pool that uses virtual threads on Java 25+ and a fixed-size platform pool otherwise.
+     */
+    public static ExecutorService newWorkerPool(String prefix, int poolSize) {
+        if (poolSize < 1) {
+            throw new IllegalArgumentException("poolSize must be >= 1");
+        }
+        return supportsVirtualThreadWorkers()
+                ? Executors.newThreadPerTaskExecutor(newVirtualThreadFactory(prefix))
+                : Executors.newFixedThreadPool(poolSize, newPlatformThreadFactory(prefix));
+    }
+
+    public static boolean supportsVirtualThreadWorkers() {
+        return supportsVirtualThreadWorkers(Runtime.version().feature());
+    }
+
+    static boolean supportsVirtualThreadWorkers(int javaFeatureVersion) {
+        return javaFeatureVersion >= 25;
     }
 
     /**

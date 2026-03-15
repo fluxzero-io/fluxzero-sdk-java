@@ -74,7 +74,7 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
-import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
@@ -89,7 +89,6 @@ import static java.lang.System.currentTimeMillis;
 import static java.lang.Thread.currentThread;
 import static java.lang.Thread.sleep;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Abstract base class for all WebSocket-based clients in the Fluxzero Java client.
@@ -199,7 +198,7 @@ public abstract class AbstractWebsocketClient implements AutoCloseable {
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
-        this.resultExecutor = newFixedThreadPool(8, newPlatformThreadFactory(this + "-onMessage"));
+        this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
                 () -> container.connectToServer(this, endpointUri),
                 RetryConfiguration.builder()

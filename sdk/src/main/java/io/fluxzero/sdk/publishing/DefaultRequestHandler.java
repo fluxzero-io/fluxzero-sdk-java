@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +43,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
@@ -78,14 +80,15 @@ import static java.lang.String.format;
  * @see MessageType#RESULT
  * @see MessageType#WEBRESPONSE
  */
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class DefaultRequestHandler implements RequestHandler {
 
     private final Client client;
     private final MessageType resultType;
     private final Duration timeout;
     private final String responseConsumerName;
+    private final ExecutorService responseExecutor;
 
     private final Map<Integer, ResponseCallback> callbacks = new ConcurrentHashMap<>();
     private final AtomicInteger nextId = new AtomicInteger();
@@ -101,8 +104,22 @@ public class DefaultRequestHandler implements RequestHandler {
     }
 
     /**
+     * Constructs a DefaultRequestHandler with the specified client, message type, timeout, and response consumer name.
+     * This constructor creates an internal worker pool for handling requests and responses.
+     *
+     * @param client               the client responsible for sending and receiving messages
+     * @param resultType           the type of message expected as a result
+     * @param timeout              the maximum duration to wait for a response
+     * @param responseConsumerName the name of the consumer responsible for handling the response
+     */
+    public DefaultRequestHandler(Client client, MessageType resultType, Duration timeout, String responseConsumerName) {
+        this(client, resultType, timeout, responseConsumerName,
+             newWorkerPool("request-handler-%s-%s".formatted(client.name(), resultType.name().toLowerCase()), 8));
+    }
+
+    /**
      * Constructs a DefaultRequestHandler with the specified client and message type, and a default timeout of 200
-     * seconds.
+     * seconds. This constructor creates an internal worker pool for handling requests and responses.
      * <p>
      * Uses a default name for the result consumer based on the application name.
      *
@@ -221,11 +238,13 @@ public class DefaultRequestHandler implements RequestHandler {
                          response.getRequestId());
                 return;
             }
-            if (response.lastChunk()) {
-                callback.finalCallback().complete(response);
-            } else {
-                callback.intermediateCallback().accept(response);
-            }
+            responseExecutor.execute(() -> {
+                if (response.lastChunk()) {
+                    callback.finalCallback().complete(response);
+                } else {
+                    callback.intermediateCallback().accept(response);
+                }
+            });
         });
     }
 
@@ -236,6 +255,7 @@ public class DefaultRequestHandler implements RequestHandler {
         if (registration != null) {
             registration.cancel();
         }
+        responseExecutor.shutdown();
     }
 
     /**
