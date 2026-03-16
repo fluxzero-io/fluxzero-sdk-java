@@ -282,8 +282,9 @@ public class DefaultFluxzero implements Fluxzero {
                 stream(MessageType.values()).collect(toMap(identity(), this::getDefaultConsumerConfiguration));
         private final Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> new ArrayList<>()));
-        private final List<ParameterResolver<? super DeserializingMessage>> customParameterResolvers =
+        private final List<ParameterResolver<? super DeserializingMessage>> registeredParameterResolvers =
                 new ArrayList<>();
+        private List<ParameterResolver<? super DeserializingMessage>> parameterResolvers = List.of();
         private final Map<MessageType, List<DispatchInterceptor>> registeredDispatchInterceptors = new HashMap<>();
         private final Map<MessageType, List<HandlerDecorator>> registeredHandlerDecorators = new HashMap<>();
         private final Map<MessageType, List<BatchInterceptor>> registeredBatchInterceptors = new HashMap<>();
@@ -507,7 +508,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public Builder addParameterResolver(
                 @NonNull ParameterResolver<? super DeserializingMessage> parameterResolver) {
-            customParameterResolvers.add(parameterResolver);
+            registeredParameterResolvers.add(parameterResolver);
             return this;
         }
 
@@ -738,7 +739,7 @@ public class DefaultFluxzero implements Fluxzero {
             handlerChains.computeIfPresent(WEBREQUEST, (t, i) -> websocketHandlerDecorator.andThen(i));
 
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers =
-                    new ArrayList<>(customParameterResolvers);
+                    new ArrayList<>(registeredParameterResolvers);
             if (userProvider != null) {
                 parameterResolvers.add(new UserParameterResolver(userProvider));
             }
@@ -753,6 +754,8 @@ public class DefaultFluxzero implements Fluxzero {
                                               new PayloadParameterResolver(),
                                               new JsonPayloadParameterResolver(),
                                               new EntityParameterResolver()));
+            final List<ParameterResolver<? super DeserializingMessage>> runtimeParameterResolvers =
+                    this.parameterResolvers = List.copyOf(parameterResolvers);
 
             var repositorySupplier = new DefaultRepositoryProvider();
             var handlerRepositorySupplier = DefaultHandlerRepository.handlerRepositorySupplier(documentStoreSupplier,
@@ -762,16 +765,16 @@ public class DefaultFluxzero implements Fluxzero {
                     client, documentSerializer,
                     client.getSearchClient() instanceof InMemorySearchStore searchStore
                             ? new LocalDocumentHandlerRegistry(searchStore, localHandlerRegistry(
-                            DOCUMENT, handlerChains, parameterResolvers, dispatchChains,
+                            DOCUMENT, handlerChains, runtimeParameterResolvers, dispatchChains,
                             handlerRepositorySupplier,
                             repositorySupplier), dispatchChains.get(DOCUMENT), serializer)
                             : HandlerRegistry.noOp()));
 
             //event sourcing
-            var entityMatcher = new DefaultEntityHelper(parameterResolvers, disablePayloadValidation);
+            var entityMatcher = new DefaultEntityHelper(runtimeParameterResolvers, disablePayloadValidation);
             EventStore eventStore = new DefaultEventStore(client, serializer, dispatchChains.get(EVENT),
                                                           localHandlerRegistry(EVENT, handlerChains,
-                                                                               parameterResolvers,
+                                                                               runtimeParameterResolvers,
                                                                                dispatchChains,
                                                                                handlerRepositorySupplier,
                                                                                repositorySupplier));
@@ -796,7 +799,7 @@ public class DefaultFluxzero implements Fluxzero {
             ErrorGateway errorGateway =
                     new DefaultErrorGateway(createRequestGateway(client, ERROR, null, defaultRequestHandler,
                                                                  dispatchChains, handlerChains,
-                                                                 parameterResolvers, handlerRepositorySupplier,
+                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
                                                                  repositorySupplier, defaultResponseMapper));
             if (!disableErrorReporting) {
                 ErrorReportingInterceptor interceptor = new ErrorReportingInterceptor(errorGateway);
@@ -810,34 +813,34 @@ public class DefaultFluxzero implements Fluxzero {
             CommandGateway commandGateway =
                     new DefaultCommandGateway(createRequestGateway(client, COMMAND, null, defaultRequestHandler,
                                                                    dispatchChains, handlerChains,
-                                                                   parameterResolvers, handlerRepositorySupplier,
+                                                                   runtimeParameterResolvers, handlerRepositorySupplier,
                                                                    repositorySupplier, defaultResponseMapper));
             QueryGateway queryGateway =
                     new DefaultQueryGateway(createRequestGateway(client, QUERY, null, defaultRequestHandler,
                                                                  dispatchChains, handlerChains,
-                                                                 parameterResolvers, handlerRepositorySupplier,
+                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
                                                                  repositorySupplier, defaultResponseMapper));
             EventGateway eventGateway =
                     new DefaultEventGateway(createRequestGateway(client, EVENT, null, defaultRequestHandler,
                                                                  dispatchChains, handlerChains,
-                                                                 parameterResolvers, handlerRepositorySupplier,
+                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
                                                                  repositorySupplier, defaultResponseMapper));
 
             MetricsGateway metricsGateway =
                     new DefaultMetricsGateway(createRequestGateway(client, METRICS, null, defaultRequestHandler,
                                                                    dispatchChains, handlerChains,
-                                                                   parameterResolvers, handlerRepositorySupplier,
+                                                                   runtimeParameterResolvers, handlerRepositorySupplier,
                                                                    repositorySupplier, defaultResponseMapper));
 
             RequestHandler webRequestHandler = new DefaultRequestHandler(client, WEBRESPONSE);
             WebRequestGateway webRequestGateway =
                     new DefaultWebRequestGateway(createRequestGateway(client, WEBREQUEST, null, webRequestHandler,
                                                                       dispatchChains, handlerChains,
-                                                                      parameterResolvers, handlerRepositorySupplier,
+                                                                      runtimeParameterResolvers, handlerRepositorySupplier,
                                                                       repositorySupplier, webResponseMapper));
             Function<String, GenericGateway> customGateways = memoize(topic -> createRequestGateway(
                     client, CUSTOM, topic, defaultRequestHandler, dispatchChains, handlerChains,
-                    parameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper));
+                    runtimeParameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper));
 
 
             //tracking
@@ -846,7 +849,7 @@ public class DefaultFluxzero implements Fluxzero {
                             m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
                             this.serializer,
                             new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
-                                                      parameterResolvers, methodInvocationValidator(m),
+                                                      runtimeParameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,
                                                       repositorySupplier))));
 
@@ -857,7 +860,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                             dispatchChains.get(COMMAND),
                                                                             localHandlerRegistry(SCHEDULE,
                                                                                                  handlerChains,
-                                                                                                 parameterResolvers,
+                                                                                                 runtimeParameterResolvers,
                                                                                                  dispatchChains,
                                                                                                  handlerRepositorySupplier,
                                                                                                  repositorySupplier));

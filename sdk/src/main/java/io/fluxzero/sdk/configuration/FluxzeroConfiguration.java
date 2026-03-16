@@ -86,8 +86,8 @@ public interface FluxzeroConfiguration {
     /** Provides custom consumer configurations per message type. */
     Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations();
 
-    /** Returns additional resolvers for injecting parameters into message handler methods. */
-    List<ParameterResolver<? super DeserializingMessage>> customParameterResolvers();
+    /** Returns the assembled parameter resolvers used for injecting handler method arguments. */
+    List<ParameterResolver<? super DeserializingMessage>> parameterResolvers();
 
     /** Ordered dispatch interceptors grouped per message type. */
     Map<MessageType, List<DispatchInterceptor>> dispatchInterceptors();

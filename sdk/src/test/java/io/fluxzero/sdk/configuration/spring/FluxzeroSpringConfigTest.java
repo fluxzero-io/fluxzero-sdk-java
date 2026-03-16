@@ -28,7 +28,9 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
+import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import lombok.NonNull;
 import lombok.Value;
@@ -151,6 +153,16 @@ public class FluxzeroSpringConfigTest {
     void testPropertySetUsingCustomizer() {
         assertEquals("firstCustomizerValue", fluxzero.apply(fc -> ApplicationProperties.getProperty("bar")));
         assertEquals("secondCustomizerValue", fluxzero.apply(fc -> ApplicationProperties.getProperty("foo")));
+    }
+
+    @Test
+    void testConfigurationExposesAssembledParameterResolvers() {
+        assertTrue(fluxzero.configuration().parameterResolvers().stream()
+                           .anyMatch(SpringBeanParameterResolver.class::isInstance));
+        assertTrue(fluxzero.configuration().parameterResolvers().stream()
+                           .anyMatch(UserParameterResolver.class::isInstance));
+        assertTrue(fluxzero.configuration().parameterResolvers().stream()
+                           .anyMatch(MessageParameterResolver.class::isInstance));
     }
 
     @Component
