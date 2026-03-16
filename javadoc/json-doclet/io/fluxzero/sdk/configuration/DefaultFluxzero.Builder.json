@@ -53,14 +53,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "customParameterResolvers",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.customParameterResolvers",
-    "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "defaultConsumerConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.defaultConsumerConfigurations",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -245,6 +237,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "parameterResolvers",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.parameterResolvers",
+    "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "propertySource",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.propertySource",
     "type" : "io.fluxzero.common.application.PropertySource",
@@ -272,6 +272,14 @@
     "name" : "registeredHandlerDecorators",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.registeredHandlerDecorators",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registeredParameterResolvers",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.registeredParameterResolvers",
+    "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,

@@ -67,17 +67,6 @@
     "varArgs" : false,
     "documentation" : "Provides custom consumer configurations per message type. "
   }, {
-    "name" : "customParameterResolvers",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customParameterResolvers",
-    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Returns additional resolvers for injecting parameters into message handler methods. "
-  }, {
     "name" : "defaultConsumerConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#defaultConsumerConfigurations",
     "returnType" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -176,6 +165,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Special interceptor used to determine routing of dispatched messages (e.g. for multitenancy). "
+  }, {
+    "name" : "parameterResolvers",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#parameterResolvers",
+    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the assembled parameter resolvers used for injecting handler method arguments. "
   }, {
     "name" : "propertySource",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#propertySource",
