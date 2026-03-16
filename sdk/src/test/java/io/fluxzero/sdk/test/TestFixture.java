@@ -376,15 +376,17 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         fluxzeroBuilder.replacePropertySource(s -> new SimplePropertySource(testProperties).andThen(s));
         this.interceptor = new GivenWhenThenInterceptor(this);
-        client.monitorDispatch(interceptor::interceptClientDispatch);
+        var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
+        client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
-                .addDispatchInterceptor(interceptor)
+                .addDispatchInterceptor(dispatchInterceptor)
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider
                         ? PredictableIdentityProvider.defaultPredictableIdentityProvider() : p)
                 .replaceTaskScheduler(clock -> new InMemoryTaskScheduler(
                         "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
-                .addBatchInterceptor(interceptor).addHandlerInterceptor(interceptor);
+                .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
+                .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
         this.fluxzeroBuilder = fluxzeroBuilder;
         this.fluxzero = fluxzeroBuilder.build(client);
         Fluxzero.instance.set(this.fluxzero);
@@ -425,10 +427,11 @@ public class TestFixture implements Given<TestFixture>, When {
                             .orElse(null));
         }
         (this.interceptor = currentFixture.interceptor).testFixture = this;
+        var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
         var currentClient = currentFixture.fluxzero.client().unwrap();
         var newClient = currentClient instanceof LocalClient
                 ? LocalClient.newInstance(null) : currentClient;
-        newClient.monitorDispatch(interceptor::interceptClientDispatch);
+        newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         this.fluxzero = spying
                 ? new SpyingFluxzero(fluxzeroBuilder.build(new SpyingClient(newClient)))
                 : fluxzeroBuilder.build(newClient);
@@ -1439,8 +1442,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @AllArgsConstructor
-    @Order(-1)
-    protected static class GivenWhenThenInterceptor implements DispatchInterceptor, BatchInterceptor, HandlerInterceptor {
+    protected static class GivenWhenThenInterceptor {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
@@ -1463,12 +1465,10 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
 
-        @Override
         public Message interceptDispatch(Message message, MessageType messageType, String topic) {
             return message;
         }
 
-        @Override
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
             if (testFixture.fixtureResult.isCollectingResults()) {
                 interceptedMessageIds.add(message.getMessageId());
@@ -1531,7 +1531,6 @@ public class TestFixture implements Given<TestFixture>, When {
             messages.add(message);
         }
 
-        @Override
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
             List<Message> messages;
             synchronized (testFixture.consumers) {
@@ -1555,7 +1554,6 @@ public class TestFixture implements Given<TestFixture>, When {
             };
         }
 
-        @Override
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
             return m -> {
@@ -1586,13 +1584,70 @@ public class TestFixture implements Given<TestFixture>, When {
             };
         }
 
-        @Override
         public void shutdown(Tracker tracker) {
             synchronized (testFixture.consumers) {
                 testFixture.consumers.remove(
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()));
             }
             testFixture.checkConsumers();
+        }
+    }
+
+    @Order(Order.LOWEST_PRECEDENCE)
+    private static final class LowPriorityDispatchInterceptor implements DispatchInterceptor {
+        private final GivenWhenThenInterceptor delegate;
+
+        private LowPriorityDispatchInterceptor(GivenWhenThenInterceptor delegate) {
+            this.delegate = delegate;
+        }
+
+        private void interceptClientDispatch(MessageType messageType, String topic, String namespace,
+                                             List<SerializedMessage> messages) {
+            delegate.interceptClientDispatch(messageType, topic, namespace, messages);
+        }
+
+        @Override
+        public Message interceptDispatch(Message message, MessageType messageType, String topic) {
+            return delegate.interceptDispatch(message, messageType, topic);
+        }
+
+        @Override
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+            delegate.monitorDispatch(message, messageType, topic, namespace);
+        }
+    }
+
+    @Order(Order.HIGHEST_PRECEDENCE)
+    private static final class HighPriorityBatchInterceptor implements BatchInterceptor {
+        private final GivenWhenThenInterceptor delegate;
+
+        private HighPriorityBatchInterceptor(GivenWhenThenInterceptor delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
+            return delegate.intercept(consumer, tracker);
+        }
+
+        @Override
+        public void shutdown(Tracker tracker) {
+            delegate.shutdown(tracker);
+        }
+    }
+
+    @Order(Order.HIGHEST_PRECEDENCE)
+    private static final class HighPriorityHandlerInterceptor implements HandlerInterceptor {
+        private final GivenWhenThenInterceptor delegate;
+
+        private HighPriorityHandlerInterceptor(GivenWhenThenInterceptor delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
+                                                                        HandlerInvoker invoker) {
+            return delegate.interceptHandling(function, invoker);
         }
     }
 

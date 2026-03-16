@@ -118,9 +118,9 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     /**
      * Interceptors that are invoked before and after a batch of messages is processed.
      * <p>
-     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their
-     * relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative
-     * orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.
+     * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. When a
+     * tracker is started with a {@link io.fluxzero.sdk.Fluxzero} instance, the ordered consumer interceptors wrap the
+     * globally configured batch interceptors for that message type.
      */
     @Singular
     List<BatchInterceptor> batchInterceptors;

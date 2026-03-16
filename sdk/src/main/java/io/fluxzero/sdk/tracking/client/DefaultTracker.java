@@ -25,6 +25,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -37,6 +38,7 @@ import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -126,9 +128,7 @@ public class DefaultTracker implements Runnable, Registration {
     public static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType, String topic,
                                      ConsumerConfiguration config, Fluxzero fluxzero) {
         return start(
-                consumer, messageType, topic, config.toBuilder().clearBatchInterceptors().batchInterceptors(
-                        Stream.concat(Stream.of(new FluxzeroInterceptor(fluxzero)),
-                                      config.getBatchInterceptors().stream()).collect(toList())).build(),
+                consumer, messageType, topic, withFluxzeroBatchInterceptors(config, messageType, fluxzero),
                 fluxzero.client());
     }
 
@@ -205,6 +205,17 @@ public class DefaultTracker implements Runnable, Registration {
         this.autoStorePosition = !config.storePositionManually();
         this.flowRegulator = config.getFlowRegulator();
         this.metricsGateway = Fluxzero.getOptionally().map(Fluxzero::metricsGateway).orElse(null);
+    }
+
+    private static ConsumerConfiguration withFluxzeroBatchInterceptors(ConsumerConfiguration config,
+                                                                       MessageType messageType,
+                                                                       Fluxzero fluxzero) {
+        ConsumerConfiguration orderedConfig = config.ordered();
+        List<BatchInterceptor> result = new ArrayList<>();
+        result.add(new FluxzeroInterceptor(fluxzero));
+        result.addAll(orderedConfig.getBatchInterceptors());
+        result.addAll(fluxzero.configuration().batchInterceptors().getOrDefault(messageType, List.of()));
+        return orderedConfig.toBuilder().clearBatchInterceptors().batchInterceptors(result).build();
     }
 
     @Override

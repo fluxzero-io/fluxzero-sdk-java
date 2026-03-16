@@ -109,7 +109,6 @@ public class DefaultTracking implements Tracking {
     private final MessageType messageType;
     private final ResultGateway resultGateway;
     private final List<ConsumerConfiguration> configurations;
-    private final List<? extends BatchInterceptor> generalBatchInterceptors;
     private final Serializer serializer;
     private final HandlerFactory handlerFactory;
 
@@ -178,7 +177,6 @@ public class DefaultTracking implements Tracking {
                         this.configurations.stream())
                 .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
                 .map(ConsumerConfiguration::ordered)
-                .map(config -> config.toBuilder().batchInterceptors(generalBatchInterceptors).build())
                 .map(ConsumerConfiguration::substituteProperties)
                 .collect(toMap(ConsumerConfiguration::getName, Function.identity(), (a, b) -> {
                     if (a.equals(b)) {

@@ -89,14 +89,14 @@ public interface FluxzeroConfiguration {
     /** Returns additional resolvers for injecting parameters into message handler methods. */
     List<ParameterResolver<? super DeserializingMessage>> customParameterResolvers();
 
-    /** User-registered dispatch interceptors grouped per message type. */
-    Map<MessageType, List<DispatchInterceptor>> customDispatchInterceptors();
+    /** Ordered dispatch interceptors grouped per message type. */
+    Map<MessageType, List<DispatchInterceptor>> dispatchInterceptors();
 
-    /** User-registered handler decorators grouped per message type. */
-    Map<MessageType, List<HandlerDecorator>> customHandlerDecorators();
+    /** Ordered handler decorators grouped per message type. */
+    Map<MessageType, List<HandlerDecorator>> handlerDecorators();
 
-    /** Interceptors applied to message batches during tracking and dispatch. */
-    Map<MessageType, List<BatchInterceptor>> generalBatchInterceptors();
+    /** Ordered batch interceptors grouped per message type. */
+    Map<MessageType, List<BatchInterceptor>> batchInterceptors();
 
     /** Provides a central clock used throughout the system for timestamps and scheduling. */
     DelegatingClock clock();
