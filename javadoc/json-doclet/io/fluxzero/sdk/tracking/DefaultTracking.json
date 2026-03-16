@@ -24,14 +24,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "generalBatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.generalBatchInterceptors",
-    "type" : "java.util.List<? extends io.fluxzero.sdk.tracking.BatchInterceptor>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "handlerFactory",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.handlerFactory",
     "type" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",

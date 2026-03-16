@@ -12,6 +12,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "batchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#batchInterceptors",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Ordered batch interceptors grouped per message type. "
+  }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#cache",
     "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
@@ -56,28 +67,6 @@
     "varArgs" : false,
     "documentation" : "Provides custom consumer configurations per message type. "
   }, {
-    "name" : "customDispatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customDispatchInterceptors",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "User-registered dispatch interceptors grouped per message type. "
-  }, {
-    "name" : "customHandlerDecorators",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customHandlerDecorators",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "User-registered handler decorators grouped per message type. "
-  }, {
     "name" : "customParameterResolvers",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#customParameterResolvers",
     "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
@@ -111,6 +100,17 @@
     "varArgs" : false,
     "documentation" : "Default response mapper used for converting handler return values into generic responses. "
   }, {
+    "name" : "dispatchInterceptors",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#dispatchInterceptors",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.publishing.DispatchInterceptor>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Ordered dispatch interceptors grouped per message type. "
+  }, {
     "name" : "documentSerializer",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#documentSerializer",
     "returnType" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
@@ -133,16 +133,16 @@
     "varArgs" : false,
     "documentation" : " Internal web consumer that can forward incoming {@code WebRequest} messages\n to a local HTTP server. Typically configured via {@link FluxzeroBuilder#forwardWebRequestsToLocalServer}.\n"
   }, {
-    "name" : "generalBatchInterceptors",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#generalBatchInterceptors",
-    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>>",
+    "name" : "handlerDecorators",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#handlerDecorators",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerDecorator>>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Interceptors applied to message batches during tracking and dispatch. "
+    "documentation" : "Ordered handler decorators grouped per message type. "
   }, {
     "name" : "identityProvider",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#identityProvider",

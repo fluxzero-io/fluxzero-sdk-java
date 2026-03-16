@@ -27,7 +27,7 @@
       "annotationType" : "lombok.Singular",
       "values" : {}
     } ],
-    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Their\n relative position with respect to globally registered batch interceptors is preserved: consumer-specific negative\n orders run before global built-ins for that consumer, while zero, positive, or missing values run after them.\n",
+    "documentation" : " Interceptors that are invoked before and after a batch of messages is processed.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. When a\n tracker is started with a {@link io.fluxzero.sdk.Fluxzero} instance, the ordered consumer interceptors wrap the\n globally configured batch interceptors for that message type.\n",
     "constantValue" : null
   }, {
     "name" : "clientControlledIndex",
