@@ -36,6 +36,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "waitingFromUpdateNotificationVersion",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.waitingFromUpdateNotificationVersion",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WaitingTracker",
@@ -59,6 +67,22 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runIfBehind",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#runIfBehind",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentUpdateNotificationVersion",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

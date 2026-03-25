@@ -21,14 +21,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "lastSeenIndex",
-    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.lastSeenIndex",
-    "type" : "long",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "scheduler",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.scheduler",
     "type" : "io.fluxzero.common.TaskScheduler",
@@ -65,6 +57,30 @@
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.stopped",
     "type" : "boolean",
     "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "updateNotificationPending",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.updateNotificationPending",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "updateNotificationRunning",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.updateNotificationRunning",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "updateNotificationVersion",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.updateNotificationVersion",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -234,6 +250,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "drainUpdateNotifications",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#drainUpdateNotifications",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
