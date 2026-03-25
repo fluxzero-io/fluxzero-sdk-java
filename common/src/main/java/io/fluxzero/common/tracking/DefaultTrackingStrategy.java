@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,12 +33,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
-import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
+import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedMap;
@@ -65,7 +67,9 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final int segments;
     private final Map<Tracker, WaitingTracker> waitingTrackers = synchronizedMap(new HashMap<>());
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
-    private volatile long lastSeenIndex = -1L;
+    private final AtomicBoolean updateNotificationPending = new AtomicBoolean();
+    private final AtomicBoolean updateNotificationRunning = new AtomicBoolean();
+    private final AtomicLong updateNotificationVersion = new AtomicLong();
 
     private final Registration sourceRegistration;
 
@@ -101,7 +105,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             }
             int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
 
-            long lastIndex = lastSeenIndex;
+            long updateVersion = updateNotificationVersion.get();
             List<SerializedMessage> unfiltered, filtered;
             Position position;
             do {
@@ -130,8 +134,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 MessageBatch messageBatch =
                         new MessageBatch(newSegment, filtered, getLastIndex(unfiltered), position, true);
                 waitForMessages(tracker, messageBatch, positionStore);
-                if (lastIndex < lastSeenIndex
-                    && (messageBatch.getLastIndex() == null || messageBatch.getLastIndex() < lastSeenIndex)) {
+                if (updateVersion < updateNotificationVersion.get()) {
                     var task = waitingTrackers.get(tracker);
                     if (task != null && task.tracker == tracker) {
                         task.run();
@@ -188,7 +191,8 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             }
         });
         WaitingTracker existing = waitingTrackers.remove(tracker);
-        waitingTrackers.put(tracker, new WaitingTracker(tracker, scheduleToken, followUp));
+        waitingTrackers.put(tracker, new WaitingTracker(tracker, scheduleToken, followUp,
+                                                        updateNotificationVersion.get()));
         if (existing != null) {
             log.warn("Tracker replaced another waiting tracker. This should normally not happen. New tracker: {}",
                      tracker);
@@ -239,11 +243,13 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     protected void onUpdate(List<SerializedMessage> messages) {
-        if (!stopped) {
-            synchronized (waitingTrackers) {
-                lastSeenIndex = ofNullable(getLastIndex(messages)).orElse(lastSeenIndex);
-                new ArrayList<>(waitingTrackers.values()).forEach(WaitingTracker::run);
-            }
+        if (stopped) {
+            return;
+        }
+        updateNotificationVersion.incrementAndGet();
+        updateNotificationPending.set(true);
+        if (updateNotificationRunning.compareAndSet(false, true)) {
+            scheduler.submit(this::drainUpdateNotifications);
         }
     }
 
@@ -322,6 +328,32 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         return messages.isEmpty() ? null : messages.get(messages.size() - 1).getIndex();
     }
 
+    private void drainUpdateNotifications() {
+        try {
+            while (!stopped) {
+                updateNotificationPending.set(false);
+                long currentUpdateNotificationVersion;
+                List<WaitingTracker> trackers;
+                synchronized (waitingTrackers) {
+                    currentUpdateNotificationVersion = updateNotificationVersion.get();
+                    trackers = new ArrayList<>(waitingTrackers.values());
+                }
+                trackers.forEach(t -> t.runIfBehind(currentUpdateNotificationVersion));
+
+                if (!updateNotificationPending.get()) {
+                    updateNotificationRunning.set(false);
+                    if (!updateNotificationPending.get()
+                        || !updateNotificationRunning.compareAndSet(false, true)) {
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            updateNotificationRunning.set(false);
+            throw e;
+        }
+    }
+
     private static long indexFromMillis(long millisSinceEpoch) {
         return millisSinceEpoch << 16;
     }
@@ -339,6 +371,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         private final Tracker tracker;
         private final Registration scheduleToken;
         private final Runnable followUp;
+        private final long waitingFromUpdateNotificationVersion;
 
         @Override
         public void run() {
@@ -349,6 +382,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 }
             } catch (Throwable e) {
                 log.error("Failed to execute tracker fetch / follow up", e);
+            }
+        }
+
+        void runIfBehind(long currentUpdateNotificationVersion) {
+            if (waitingFromUpdateNotificationVersion < currentUpdateNotificationVersion) {
+                run();
             }
         }
     }
