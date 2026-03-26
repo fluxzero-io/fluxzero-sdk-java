@@ -117,6 +117,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTriggerMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getTriggerMessage",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "index",
       "type" : "long",
       "varArgs" : false,

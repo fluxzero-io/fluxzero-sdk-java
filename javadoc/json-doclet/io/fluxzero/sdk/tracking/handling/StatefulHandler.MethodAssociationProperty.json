@@ -31,6 +31,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "parameterValueResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.parameterValueResolver",
+    "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "propertyName",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.propertyName",
     "type" : "java.lang.String",
@@ -60,6 +68,32 @@
     "parameters" : [ {
       "name" : "associationValue",
       "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forParameterProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forParameterProperty",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "associationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterValueResolver",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
