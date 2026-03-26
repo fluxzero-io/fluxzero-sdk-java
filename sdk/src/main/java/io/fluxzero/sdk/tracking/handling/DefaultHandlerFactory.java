@@ -173,8 +173,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
             {
                 Stateful handler = ReflectionUtils.getTypeAnnotation(targetClass, Stateful.class);
                 if (handler != null) {
+                    var statefulConfig = config;
                     return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
-                                               handlerRepositorySupplier.apply(targetClass));
+                                               handlerRepositorySupplier.apply(targetClass),
+                                               parameterResolvers,
+                                               e -> statefulConfig.getAnnotation(e).orElse(null));
                 }
             }
 

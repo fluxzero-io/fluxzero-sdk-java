@@ -177,6 +177,21 @@ public class StatefulHandlerTest {
         }
 
         @Test
+        void handlerIsUpdated_associationOnParameter() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new ParameterAssociationEvent("foo"))
+                    .expectOnlyCommands(2);
+        }
+
+        @Test
+        void handlerIsNotUpdated_associationOnParameter_wrongValue() {
+            testFixture.givenEvents(new SomeEvent("foo"))
+                    .whenEvent(new ParameterAssociationEvent("bar"))
+                    .expectNoCommands()
+                    .expectNoErrors();
+        }
+
+        @Test
         void handlerIsUpdated_associationOnMethod_usesRoutingKeyIfValueMissing() {
             testFixture.givenEvents(new SomeEvent("foo"))
                     .whenEvent(new CustomEvent("foo"))
@@ -345,6 +360,12 @@ public class StatefulHandlerTest {
             @HandleEvent
             @Association("customId")
             StaticHandler handle(CustomEvent event) {
+                Fluxzero.sendAndForgetCommand(eventCount + 1);
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            StaticHandler handle(@Association("customId") ParameterAssociationEvent event) {
                 Fluxzero.sendAndForgetCommand(eventCount + 1);
                 return toBuilder().eventCount(eventCount + 1).build();
             }
@@ -593,6 +614,56 @@ public class StatefulHandlerTest {
         }
     }
 
+    @Nested
+    class TriggerAssociationTests {
+        private final TestFixture testFixture = TestFixture.createAsync(
+                TriggerAssociationHandler.class, new TriggerAssociationCommandHandler());
+
+        @Test
+        void resultHandlerIsMatchedViaTriggerAssociation() {
+            testFixture.givenStateful(new TriggerAssociationHandler("foo", 0))
+                    .whenCommand(new SendOrder("foo"))
+                    .expectOnlyCommands("result:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(TriggerAssociationHandler.class)
+                            .<TriggerAssociationHandler>fetchFirst())
+                    .expectResult(r -> r.map(TriggerAssociationHandler::retryCount).orElse(0) == 1);
+        }
+
+        @Test
+        void resultHandlerIsNotMatchedViaTriggerAssociation_wrongValue() {
+            testFixture.givenStateful(new TriggerAssociationHandler("foo", 0))
+                    .whenCommand(new SendOrder("bar"))
+                    .expectResult("bar")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(TriggerAssociationHandler.class)
+                            .<TriggerAssociationHandler>fetchFirst())
+                    .expectResult(r -> r.map(TriggerAssociationHandler::retryCount).orElse(0) == 0);
+        }
+
+        @Stateful
+        @Builder(toBuilder = true)
+        record TriggerAssociationHandler(@EntityId @Association String orderId,
+                                         int retryCount) {
+
+            @HandleResult
+            TriggerAssociationHandler retry(String result,
+                                            @Trigger @Association("orderId") SendOrder command) {
+                Fluxzero.sendAndForgetCommand("result:" + (retryCount + 1));
+                return toBuilder().retryCount(retryCount + 1).build();
+            }
+        }
+
+        static class TriggerAssociationCommandHandler {
+            @HandleCommand
+            String handle(SendOrder command) {
+                return command.orderId();
+            }
+        }
+    }
+
     record SomeEvent(String someId) {
     }
 
@@ -623,7 +694,13 @@ public class StatefulHandlerTest {
     record CustomEvent(String customId) {
     }
 
+    record ParameterAssociationEvent(String customId) {
+    }
+
     record RoutingKeyEvent(@RoutingKey String someId) {
+    }
+
+    record SendOrder(String orderId) {
     }
 
     record CustomRightPathEvent(String customId) {

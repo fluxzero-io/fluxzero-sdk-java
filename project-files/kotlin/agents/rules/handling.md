@@ -625,11 +625,13 @@ When using multiple classes, the payload is typically not injected as a paramete
 [//]: # (@formatter:off)
 ```kotlin
 @HandleEvent(allowedClasses = [OrderCancelled::class, OrderExpired::class])
-fun onOrderFinished(@Association orderId: String) {
+fun onOrderFinished(@Association("orderId") event: OrderEvent) {
     // Logic to handle any of the specified event types
 }
 ```
 [//]: # (@formatter:on)
+
+The same works for resolved parameters such as `@Trigger @Association("orderId") command: SendOrder`.
 
 ---
 

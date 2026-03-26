@@ -179,16 +179,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
      */
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
-        return m -> ofNullable(m.getMetadata().get(correlationDataProvider.getCorrelationIdKey()))
-                .flatMap(s -> {
-                    try {
-                        return Optional.of(Long.valueOf(s));
-                    } catch (Exception ignored) {
-                        return Optional.empty();
-                    }
-                }).flatMap(index -> getTriggerMessage(index, getTriggerClass(m).orElseThrow(),
-                                                      getTriggerMessageType(m).orElseThrow())).
-                        <Object>map(triggerMessage -> {
+        return m -> getTriggerMessage(m).<Object>map(triggerMessage -> {
                     var parameterType = p.getType();
                     if (DeserializingMessage.class.isAssignableFrom(parameterType)) {
                         return triggerMessage;
@@ -198,6 +189,19 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
                     }
                     return triggerMessage.getPayload();
                 }).orElse(null);
+    }
+
+    protected Optional<DeserializingMessage> getTriggerMessage(HasMessage message) {
+        return ofNullable(message.getMetadata().get(correlationDataProvider.getCorrelationIdKey()))
+                .flatMap(s -> {
+                    try {
+                        return Optional.of(Long.valueOf(s));
+                    } catch (Exception ignored) {
+                        return Optional.empty();
+                    }
+                }).flatMap(index -> getTriggerClass(message).flatMap(
+                        triggerClass -> getTriggerMessageType(message).flatMap(
+                                triggerType -> getTriggerMessage(index, triggerClass, triggerType))));
     }
 
     protected Optional<Class<?>> getTriggerClass(HasMessage message) {

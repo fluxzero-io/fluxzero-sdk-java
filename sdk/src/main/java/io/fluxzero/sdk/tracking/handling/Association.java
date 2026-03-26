@@ -36,6 +36,8 @@ import java.lang.annotation.Target;
  *     is used for association.</li>
  *     <li>A <strong>handler method</strong> — this declares which message field(s) should be matched against
  *     handler state.</li>
+ *     <li>A <strong>handler parameter</strong> — this declares which property of the handled message should be used
+ *     for matching while keeping the handler signature explicit.</li>
  * </ul>
  *
  * <h2>Matching Semantics</h2>
@@ -72,6 +74,15 @@ import java.lang.annotation.Target;
  * }</pre>
  * Associates based on the `userId` field in the message payload.
  *
+ * <h3>Example: Parameter-level association</h3>
+ * <pre>{@code
+ * @HandleError
+ * void retry(Throwable error, @Trigger @Association("orderId") SendOrder command) {
+ *     ...
+ * }
+ * }</pre>
+ * On parameters, {@code @Association} reads the association property from the resolved parameter value.
+ *
  * <h2>Advanced Configuration</h2>
  * <ul>
  *     <li>{@link #path()} can be used to match nested or computed properties in the handler state.</li>
@@ -83,7 +94,7 @@ import java.lang.annotation.Target;
  * @see Stateful
  */
 @Documented
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
 @SearchInclude

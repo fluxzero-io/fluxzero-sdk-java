@@ -18,6 +18,8 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
@@ -31,6 +33,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.experimental.FieldDefaults;
@@ -38,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -115,6 +119,14 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     Class<?> targetClass;
     HandlerMatcher<Object, DeserializingMessage> handlerMatcher;
     HandlerRepository repository;
+    List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
+    Function<Executable, ? extends java.lang.annotation.Annotation> methodAnnotationProvider;
+
+    public StatefulHandler(Class<?> targetClass,
+                           HandlerMatcher<Object, DeserializingMessage> handlerMatcher,
+                           HandlerRepository repository) {
+        this(targetClass, handlerMatcher, repository, List.of(), e -> null);
+    }
 
     @Getter(lazy = true)
     Map<String, AssociationValue> associationProperties =
@@ -136,19 +148,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
 
     Function<Executable, List<MethodAssociationProperty>> methodAssociationProperties = ClientUtils.memoize(
-            m -> getAnnotation(m, Association.class).map(
-                    association -> {
-                        AssociationValue associationValue = AssociationValue.valueOf(association);
-                        if (association.value().length > 0) {
-                            return Arrays.stream(association.value())
-                                    .map(v -> MethodAssociationProperty.forProperty(v, associationValue)).toList();
-                        }
-                        return getAnnotation(m, RoutingKey.class).map(RoutingKey::value)
-                                .filter(v -> !v.isBlank())
-                                .map(v -> List.of(MethodAssociationProperty.forProperty(v, associationValue)))
-                                .orElseGet(() -> List.of(MethodAssociationProperty.forComputedRoutingKey(
-                                        associationValue)));
-                    }).orElseGet(Collections::emptyList));
+            m -> Stream.concat(executableAssociationProperties(m).stream(), parameterAssociationProperties(m).stream())
+                    .toList());
 
     Function<Executable, Boolean> alwaysAssociateMethods = ClientUtils.memoize(
             m -> getAnnotation(m, Association.class).filter(Association::always).isPresent());
@@ -255,22 +256,103 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         String propertyName;
         boolean computedRoutingKey;
         AssociationValue associationValue;
+        Function<DeserializingMessage, Object> parameterValueResolver;
 
         static MethodAssociationProperty forProperty(String propertyName, AssociationValue associationValue) {
-            return of(propertyName, false, associationValue);
+            return of(propertyName, false, associationValue, null);
+        }
+
+        static MethodAssociationProperty forParameterProperty(
+                String propertyName, AssociationValue associationValue,
+                Function<DeserializingMessage, Object> parameterValueResolver) {
+            return of(propertyName, false, associationValue, parameterValueResolver);
         }
 
         static MethodAssociationProperty forComputedRoutingKey(AssociationValue associationValue) {
-            return of(null, true, associationValue);
+            return of(null, true, associationValue, null);
         }
 
         Optional<Object> getValue(DeserializingMessage message, Object payload) {
-            return (computedRoutingKey
-                    ? message.computeRoutingKey().map(v -> (Object) v)
-                    : ReflectionUtils.readProperty(propertyName, payload)
+            if (computedRoutingKey) {
+                return message.computeRoutingKey().map(v -> (Object) v)
+                        .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
+            }
+            Object source = parameterValueResolver == null ? payload : parameterValueResolver.apply(message);
+            return ofNullable(source).flatMap(resolvedValue -> ReflectionUtils.readProperty(propertyName, resolvedValue)
                             .or(() -> associationValue.isExcludeMetadata() ? empty()
                                     : ofNullable(message.getMetadata().get(propertyName))))
                     .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
+        }
+    }
+
+    protected List<MethodAssociationProperty> executableAssociationProperties(Executable executable) {
+        return getAnnotation(executable, Association.class).map(
+                association -> {
+                    AssociationValue associationValue = AssociationValue.valueOf(association);
+                    if (association.value().length > 0) {
+                        return Arrays.stream(association.value())
+                                .map(v -> MethodAssociationProperty.forProperty(v, associationValue)).toList();
+                    }
+                    return getAnnotation(executable, RoutingKey.class).map(RoutingKey::value)
+                            .filter(v -> !v.isBlank())
+                            .map(v -> List.of(MethodAssociationProperty.forProperty(v, associationValue)))
+                            .orElseGet(() -> List.of(MethodAssociationProperty.forComputedRoutingKey(
+                                    associationValue)));
+                }).orElseGet(Collections::emptyList);
+    }
+
+    protected List<MethodAssociationProperty> parameterAssociationProperties(Executable executable) {
+        var methodAnnotation = methodAnnotationProvider.apply(executable);
+        return Arrays.stream(executable.getParameters())
+                .flatMap(parameter -> getAnnotation(parameter, Association.class).stream()
+                        .flatMap(association -> associationPropertyNames(parameter, association)
+                                .map(name -> MethodAssociationProperty.forParameterProperty(
+                                        name, AssociationValue.valueOf(association),
+                                        message -> resolveParameterValue(
+                                                executable, parameter, methodAnnotation, message)))))
+                .toList();
+    }
+
+    protected Object resolveParameterValue(Executable executable,
+                                           Parameter parameter,
+                                           java.lang.annotation.Annotation methodAnnotation,
+                                           DeserializingMessage message) {
+        return applicableParameterResolvers(executable).stream()
+                .filter(r -> r.matches(parameter, methodAnnotation, message))
+                .filter(r -> r.test(message, parameter))
+                .findFirst()
+                .map(r -> r.resolve(parameter, methodAnnotation).apply(message))
+                .orElse(null);
+    }
+
+    protected List<ParameterResolver<? super DeserializingMessage>> applicableParameterResolvers(Executable executable) {
+        return parameterResolvers.stream().filter(r -> mayApply(r, executable)).toList();
+    }
+
+    protected boolean mayApply(ParameterResolver<? super DeserializingMessage> resolver, Executable executable) {
+        try {
+            return resolver.mayApply(executable, targetClass);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    protected Stream<String> associationPropertyNames(Parameter parameter, Association association) {
+        if (association.value().length > 0) {
+            return Arrays.stream(association.value());
+        }
+        return resolveParameterName(parameter).stream();
+    }
+
+    protected Optional<String> resolveParameterName(Parameter parameter) {
+        if (parameter.isNamePresent()) {
+            return Optional.of(parameter.getName());
+        }
+        try {
+            return Optional.of(ParameterRegistry.of(parameter.getDeclaringExecutable().getDeclaringClass())
+                                       .getParameterName(parameter));
+        } catch (RuntimeException ignored) {
+            return Optional.empty();
         }
     }
 

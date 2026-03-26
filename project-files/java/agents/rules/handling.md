@@ -617,10 +617,12 @@ When using multiple classes, the payload is typically not injected as a paramete
 ```java
 
 @HandleEvent(allowedClasses = {OrderCancelled.class, OrderExpired.class})
-void onOrderFinished(@Association String orderId) {
+void onOrderFinished(@Association("orderId") OrderEvent event) {
     // Logic to handle any of the specified event types
 }
 ```
+
+The same works for resolved parameters such as `@Trigger @Association("orderId") SendOrder command`.
 
 ---
 

@@ -140,6 +140,8 @@ Fields marked with **@Association** correlate incoming messages to saga instance
 - **Multiple Properties**: You can associate with multiple properties using `@Association(["property1", "property2"])`.
 - **Method-level Override**: `@Association("someProperty")` can also be placed on a handler method to select a specific
   field from the payload for that specific handler.
+- **Parameter-level Association**: `@Association` can also be placed on a handler parameter and uses the resolved
+  parameter value, including `@Trigger` parameters.
 - **Multiple Instances**: Multiple instances can match a single message.
 
 ---
