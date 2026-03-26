@@ -1,0 +1,42 @@
+{
+  "name" : "UpcastRepeatable",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.UpcastRepeatable",
+  "packageName" : "io.fluxzero.sdk.common.serialization.casting",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD"
+    }
+  } ],
+  "documentation" : " Annotation indicating a collection of {@link Upcast} methods grouped together for bulk registration. For internal use\n in the SDK.\n\n @see Upcast\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.UpcastRepeatable#value",
+    "returnType" : "io.fluxzero.sdk.common.serialization.casting.Upcast[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the collection of {@link Upcast} annotations associated with a method.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

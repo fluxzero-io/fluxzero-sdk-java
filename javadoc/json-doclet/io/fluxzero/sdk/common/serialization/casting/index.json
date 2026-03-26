@@ -55,6 +55,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Downcast",
     "kind" : "annotation_type"
   }, {
+    "file" : "DowncastRepeatable.json",
+    "name" : "DowncastRepeatable",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DowncastRepeatable",
+    "kind" : "annotation_type"
+  }, {
     "file" : "HasSource.json",
     "name" : "HasSource",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.HasSource",
@@ -63,6 +68,11 @@
     "file" : "Upcast.json",
     "name" : "Upcast",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.Upcast",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "UpcastRepeatable.json",
+    "name" : "UpcastRepeatable",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.UpcastRepeatable",
     "kind" : "annotation_type"
   } ],
   "subdirectories" : [ ]

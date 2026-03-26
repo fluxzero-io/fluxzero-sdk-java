@@ -22,6 +22,11 @@
     "values" : {
       "revisionDelta" : "-1"
     }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.common.serialization.casting.DowncastRepeatable"
+    }
   } ],
   "documentation" : " Declares a method that transforms an object from a newer revision to an older one.\n <p>\n Downcasters are used to emit legacy-compatible objects (e.g. for persistence or external systems).\n </p>\n\n <p>\n Like {@link Upcast}, this annotation applies to methods that take a single argument and return a transformed object\n of an earlier revision.\n </p>\n\n <p>\n <strong>Spring Integration:</strong> Any Spring bean containing methods annotated with {@code @Downcast}\n is automatically discovered and registered with the serializer at startup.\n </p>\n\n @see Cast\n @see Upcast\n @see Serializer#registerDowncasters(Object...)\n",
   "typeParameters" : [ ],

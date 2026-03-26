@@ -53,9 +53,9 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "createCaster",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector#createCaster",
-    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster<T>>",
+    "name" : "createCasters",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CastInspector#createCasters",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster<T>>",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ "T" ],

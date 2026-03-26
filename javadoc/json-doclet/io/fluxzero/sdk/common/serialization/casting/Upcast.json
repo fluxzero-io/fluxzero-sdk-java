@@ -22,6 +22,11 @@
     "values" : {
       "revisionDelta" : "1"
     }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.common.serialization.casting.UpcastRepeatable"
+    }
   } ],
   "documentation" : " Declares a method that transforms an object from a previous revision to a newer one.\n <p>\n Upcasters are invoked during deserialization when a serialized object's revision is older than the current revision.\n They enable seamless version evolution of domain objects.\n </p>\n\n <p>\n This annotation must be placed on a method that takes a single argument (the older object) and returns the\n transformed object. The method must be side-effect-free and deterministic.\n </p>\n\n <p>\n <strong>Spring Integration:</strong> Any Spring bean containing methods annotated with {@code @Upcast}\n is automatically discovered and registered with the serializer at startup.\n </p>\n\n @see Cast\n @see Downcast\n @see Serializer#registerUpcasters(Object...)\n",
   "typeParameters" : [ ],
