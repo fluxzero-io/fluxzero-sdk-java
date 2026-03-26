@@ -59,7 +59,8 @@ public class CastInspector {
      * @return true if at least one casting method is present, false otherwise
      */
     public static boolean hasCasterMethods(Class<?> type) {
-        return getAllMethods(type).stream().anyMatch(m -> ReflectionUtils.has(Cast.class, m));
+        return getAllMethods(type).stream().anyMatch(
+                m -> m.getAnnotationsByType(Upcast.class).length > 0 || m.getAnnotationsByType(Downcast.class).length > 0);
     }
 
     /**
@@ -78,19 +79,19 @@ public class CastInspector {
         for (Object caster : candidateTargets) {
             var casterInstance = ReflectionUtils.asInstance(caster);
             getAllMethods(casterInstance.getClass()).forEach(
-                    m -> createCaster(casterInstance, m, dataType, castAnnotation)
-                            .ifPresent(result::add));
+                    m -> createCasters(casterInstance, m, dataType, castAnnotation)
+                            .forEach(result::add));
         }
         return result;
     }
 
-    private static <T> Optional<AnnotatedCaster<T>> createCaster(Object target, Method m, Class<T> dataType,
-                                                                 Class<? extends Annotation> castAnnotation) {
-        if (!ReflectionUtils.has(castAnnotation, m)) {
-            return Optional.empty();
-        }
-        return ReflectionUtils.getAnnotationAs(m, Cast.class, CastParameters.class).map(
-                params -> createCaster(params, m, target, dataType));
+    private static <T> Stream<AnnotatedCaster<T>> createCasters(Object target, Method m, Class<T> dataType,
+                                                                Class<? extends Annotation> castAnnotation) {
+        return Arrays.stream(m.getAnnotationsByType(castAnnotation))
+                .map(annotation -> ReflectionUtils.getAnnotationAs(annotation, Cast.class, CastParameters.class)
+                        .map(params -> createCaster(params, m, target, dataType))
+                        .orElseThrow(() -> new DeserializationException(
+                                "Caster annotation is missing @Cast metadata: " + annotation.annotationType())));
     }
 
     private static <T> AnnotatedCaster<T> createCaster(CastParameters castParameters, Method method, Object target,

@@ -130,6 +130,14 @@ class UpcasterChainTest {
         assertEquals(singletonList(nonConflictingUpcaster.chainEnd(input)), result.collect(toList()));
     }
 
+    @Test
+    void testRepeatableUpcastAnnotations() {
+        Caster<Data<String>, Data<String>> subject = create(List.of(new RepeatableUpcaster()));
+        Data<String> input = new Data<>("input", "repeatable", 0, null);
+        Stream<? extends Data<String>> result = subject.cast(Stream.of(input));
+        assertEquals(singletonList(new Data<>("input!!", "repeatable", 2, null)), result.collect(toList()));
+    }
+
     /*
         Unknown types/revisions
      */
@@ -263,6 +271,15 @@ class UpcasterChainTest {
             return new Data<>("chainEnd", "chainEnd", 1, null);
         }
 
+    }
+
+    private static class RepeatableUpcaster {
+
+        @Upcast(type = "repeatable", revision = 0)
+        @Upcast(type = "repeatable", revision = 1)
+        public String repeatable(String input) {
+            return input + "!";
+        }
     }
 
     private static class NonConflictingUpcaster {

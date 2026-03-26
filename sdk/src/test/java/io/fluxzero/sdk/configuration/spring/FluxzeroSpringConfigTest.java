@@ -191,13 +191,13 @@ public class FluxzeroSpringConfigTest {
     @Component
     public static class StringUpcaster {
         @Upcast(type = "java.lang.String", revision = 0)
-        public TextNode upcastResult(TextNode node, @NonNull SerializedMessage message) {
-            return TextNode.valueOf(node.asText().equals("result") ? "intermediate result" : node.asText());
-        }
-
         @Upcast(type = "java.lang.String", revision = 1)
-        public TextNode upcastIntermediateResult(TextNode node, @NonNull SerializedMessage message) {
-            return TextNode.valueOf(node.asText().equals("intermediate result") ? "upcasted result" : node.asText());
+        public TextNode upcastResult(TextNode node, @NonNull SerializedMessage message) {
+            return TextNode.valueOf(switch (node.asText()) {
+                case "result" -> "intermediate result";
+                case "intermediate result" -> "upcasted result";
+                default -> node.asText();
+            });
         }
     }
 

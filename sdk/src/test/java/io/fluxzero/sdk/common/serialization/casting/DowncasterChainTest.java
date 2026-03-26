@@ -36,6 +36,15 @@ class DowncasterChainTest {
                                         "mapPayload", 0, null)), result.collect(toList()));
     }
 
+    @Test
+    void repeatableDowncastAnnotationsAreAppliedSequentially() {
+        Caster<Data<String>, Data<String>> subject =
+                DefaultCasterChain.createDowncaster(List.of(new RepeatableDowncasters()), String.class);
+        Data<String> input = new Data<>("bar", "repeatable", 2, null);
+        Stream<? extends Data<String>> result = subject.cast(Stream.of(input));
+        assertEquals(List.of(new Data<>("bar!!", "repeatable", 0, null)), result.collect(toList()));
+    }
+
     private static class Downcasters {
 
         @Downcast(type = "mapPayload", revision = 1)
@@ -43,6 +52,15 @@ class DowncasterChainTest {
             return "foo";
         }
 
+    }
+
+    private static class RepeatableDowncasters {
+
+        @Downcast(type = "repeatable", revision = 2)
+        @Downcast(type = "repeatable", revision = 1)
+        public String mapPayload(String input) {
+            return input + "!";
+        }
     }
 
 
