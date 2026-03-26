@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.api.search;
@@ -40,6 +41,8 @@ import static io.fluxzero.common.search.Document.Path.isLongPath;
  *
  * <p><strong>Sorting:</strong> Use {@link #sorting} to specify the fields used for ordering results. Each entry should
  * refer to a field name, optionally prefixed with {@code -} to indicate descending order (e.g., {@code -timestamp}).
+ * A sort entry may also end with {@code :nullsFirst} or {@code :nullsLast} to override the default null ordering
+ * (e.g., {@code name:nullsFirst}, {@code -age:nullsLast}).
  *
  * <p><strong>Pagination:</strong> Use {@link #skip} to offset the result window. The {@link #maxSize} limits the
  * number of results returned. If {@link #lastHit} is provided, the search will continue from the given last result

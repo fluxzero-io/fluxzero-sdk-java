@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Member;
+import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.Given;
@@ -761,6 +762,48 @@ public class SearchTest {
                     .whenApplying(
                             fc -> fc.documentStore().search("test").sortBy("ts", true).fetchAll())
                     .expectResult(List.of(nullFields, b, a));
+        }
+
+        @Test
+        void sortOnFieldWithExplicitNullOrderingViaString() {
+            SomeDocument nullFields = new SomeDocument().toBuilder().someId("nullFields").symbols(null).someNumber(null).ts(null).build();
+            testFixture
+                    .givenDocument(nullFields, nullFields.getSomeId(), "test", now)
+                    .whenApplying(
+                            fc -> fc.client().getSearchClient().search(SearchDocuments.builder()
+                                            .query(SearchQuery.builder().collections(List.of("test")).build())
+                                            .sorting(List.of("symbols:nullsFirst"))
+                                            .build(), 100)
+                                    .map(SearchHit::getId)
+                                    .toList())
+                    .expectResult(List.of(nullFields.getSomeId(), "id1", "id2"))
+                    .andThen()
+                    .whenApplying(
+                            fc -> fc.client().getSearchClient().search(SearchDocuments.builder()
+                                            .query(SearchQuery.builder().collections(List.of("test")).build())
+                                            .sorting(List.of("-someNumber:nullsLast"))
+                                            .build(), 100)
+                                    .map(SearchHit::getId)
+                                    .toList())
+                    .expectResult(List.of("id1", "id2", nullFields.getSomeId()));
+        }
+
+        @Test
+        void sortOnFieldWithExplicitNullOrderingViaSearchInterface() {
+            SomeDocument nullFields = new SomeDocument().toBuilder().someId("nullFields").symbols(null).someNumber(null).ts(null).build();
+            testFixture
+                    .givenDocument(nullFields, nullFields.getSomeId(), "test", now)
+                    .whenApplying(
+                            fc -> fc.documentStore().search("test")
+                                    .sortBy("symbols", Search.NullOrder.FIRST)
+                                    .fetchAll())
+                    .expectResult(List.of(nullFields, a, b))
+                    .andThen()
+                    .whenApplying(
+                            fc -> fc.documentStore().search("test")
+                                    .sortBy("someNumber", true, Search.NullOrder.LAST)
+                                    .fetchAll())
+                    .expectResult(List.of(a, b, nullFields));
         }
 
         @Test

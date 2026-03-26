@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -189,32 +189,61 @@ public class Document {
      * Constructs a {@link Comparator} to sort documents based on the sorting options in {@link SearchDocuments}.
      */
     public static Comparator<Document> createComparator(SearchDocuments searchDocuments) {
-        return searchDocuments.getSorting().stream().map(s -> {
-                    switch (s) {
-                        case "-timestamp":
-                            return Comparator.comparing(Document::getTimestamp, Comparator.nullsFirst(naturalOrder()))
-                                    .reversed();
-                        case "timestamp":
-                            return Comparator.comparing(Document::getTimestamp, Comparator.nullsFirst(naturalOrder()));
-                        case "-end":
-                            return Comparator.comparing(Document::getEnd, Comparator.nullsLast(naturalOrder())).reversed();
-                        case "end":
-                            return Comparator.comparing(Document::getEnd, Comparator.nullsLast(naturalOrder()));
-                        default:
-                            boolean reversed = s.startsWith("-");
-                            String queryPath = reversed ? s.substring(1) : s;
-                            Predicate<Path> pathPredicate = Path.pathPredicate(queryPath);
-                            Comparator<Document> valueComparator =
-                                    Comparator.nullsLast(Comparator.comparing(d -> {
-                                        Stream<Entry> matchingEntries = d.getMatchingEntries(pathPredicate);
-                                        return (reversed ? matchingEntries.max(naturalOrder()) :
-                                                matchingEntries.min(naturalOrder())).orElse(null);
-                                    }, Comparator.nullsLast(naturalOrder())));
-                            return reversed ? valueComparator.reversed() : valueComparator;
-                    }
-                }).reduce(Comparator::thenComparing)
-                .orElseGet(() -> Comparator.comparing(Document::getTimestamp, Comparator.nullsLast(naturalOrder()))
-                        .reversed());
+        return searchDocuments.getSorting().stream().map(Document::parseSortInstruction).map(sort -> switch (sort.path()) {
+            case "timestamp" -> Comparator.comparing(Document::getTimestamp,
+                                                     comparator(sort.descending(), sort.nullHandling(),
+                                                                NullHandling.FIRST, NullHandling.LAST));
+            case "end" -> Comparator.comparing(Document::getEnd,
+                                               comparator(sort.descending(), sort.nullHandling(),
+                                                          NullHandling.LAST, NullHandling.FIRST));
+            default -> {
+                Predicate<Path> pathPredicate = Path.pathPredicate(sort.path());
+                yield Comparator.comparing((Document d) -> extractSortValue(d, pathPredicate, sort.descending()), comparator
+                        (sort.descending(), sort.nullHandling(), NullHandling.LAST, NullHandling.FIRST));
+            }
+        }).reduce(Comparator::thenComparing).orElseGet(
+                () -> Comparator.comparing(Document::getTimestamp, Comparator.nullsLast(naturalOrder())).reversed());
+    }
+
+    private static Entry extractSortValue(Document document, Predicate<Path> pathPredicate, boolean descending) {
+        Stream<Entry> matchingEntries = document.getMatchingEntries(pathPredicate)
+                .filter(entry -> entry.getType() != EntryType.NULL);
+        return (descending ? matchingEntries.max(naturalOrder()) : matchingEntries.min(naturalOrder())).orElse(null);
+    }
+
+    private static SortInstruction parseSortInstruction(String sortInstruction) {
+        boolean descending = sortInstruction.startsWith("-");
+        String value = descending ? sortInstruction.substring(1) : sortInstruction;
+        NullHandling nullHandling = NullHandling.DEFAULT;
+        if (value.endsWith(":nullsFirst")) {
+            value = value.substring(0, value.length() - ":nullsFirst".length());
+            nullHandling = NullHandling.FIRST;
+        } else if (value.endsWith(":nullsLast")) {
+            value = value.substring(0, value.length() - ":nullsLast".length());
+            nullHandling = NullHandling.LAST;
+        }
+        return new SortInstruction(value, descending, nullHandling);
+    }
+
+    private static <T extends Comparable<? super T>> Comparator<T> comparator(
+            boolean descending, NullHandling nullHandling, NullHandling defaultAscending,
+            NullHandling defaultDescending) {
+        Comparator<T> valueComparator = descending ? Comparator.<T>naturalOrder().reversed() : Comparator.naturalOrder();
+        NullHandling resolved = nullHandling == NullHandling.DEFAULT
+                ? (descending ? defaultDescending : defaultAscending)
+                : nullHandling;
+        return resolved == NullHandling.FIRST
+                ? Comparator.nullsFirst(valueComparator)
+                : Comparator.nullsLast(valueComparator);
+    }
+
+    private record SortInstruction(String path, boolean descending, NullHandling nullHandling) {
+    }
+
+    private enum NullHandling {
+        DEFAULT,
+        FIRST,
+        LAST
     }
 
     /**

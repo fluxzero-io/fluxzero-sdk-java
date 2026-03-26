@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,15 +33,15 @@ import io.fluxzero.common.api.search.constraints.LookAheadConstraint;
 import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.api.search.constraints.NotConstraint;
 import io.fluxzero.common.api.search.constraints.QueryConstraint;
-import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.Fluxzero;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +82,21 @@ import static java.util.stream.Collectors.toList;
  * @see Fluxzero#search
  */
 public interface Search {
+    enum NullOrder {
+        FIRST("nullsFirst"),
+        LAST("nullsLast");
+
+        private final String suffix;
+
+        NullOrder(String suffix) {
+            this.suffix = suffix;
+        }
+
+        public String suffix() {
+            return suffix;
+        }
+    }
+
     /**
      * The default number of records to fetch in a single batch during search operations. Primarily used in streaming
      * and batch-fetching methods to control the size of each data retrieval operation.
@@ -296,6 +311,13 @@ public interface Search {
     Search sortByTimestamp(boolean descending);
 
     /**
+     * Sorts results by timestamp, with explicit null ordering.
+     */
+    default Search sortByTimestamp(boolean descending, NullOrder nullOrder) {
+        return sortBy("timestamp", descending, nullOrder);
+    }
+
+    /**
      * Sorts results by full-text relevance score.
      */
     Search sortByScore();
@@ -311,6 +333,20 @@ public interface Search {
      * Sorts results by a field, with control over the sort direction.
      */
     Search sortBy(String path, boolean descending);
+
+    /**
+     * Sorts results by a specific document field, with explicit null ordering.
+     */
+    default Search sortBy(String path, NullOrder nullOrder) {
+        return sortBy(path, false, nullOrder);
+    }
+
+    /**
+     * Sorts results by a field, with control over both sort direction and null ordering.
+     */
+    default Search sortBy(String path, boolean descending, NullOrder nullOrder) {
+        return sortBy(path + ":" + nullOrder.suffix(), descending);
+    }
 
     /*
         Content filtering
