@@ -55,6 +55,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search",
     "kind" : "interface"
   }, {
+    "file" : "Search.NullOrder.json",
+    "name" : "Search.NullOrder",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder",
+    "kind" : "enum"
+  }, {
     "file" : "SearchHit.json",
     "name" : "SearchHit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.SearchHit",

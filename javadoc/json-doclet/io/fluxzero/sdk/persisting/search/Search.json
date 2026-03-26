@@ -815,6 +815,53 @@
     "varArgs" : false,
     "documentation" : " Sorts results by a field, with control over the sort direction.\n"
   }, {
+    "name" : "sortBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullOrder",
+      "type" : "io.fluxzero.sdk.persisting.search.Search.NullOrder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sorts results by a field, with control over both sort direction and null ordering.\n"
+  }, {
+    "name" : "sortBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullOrder",
+      "type" : "io.fluxzero.sdk.persisting.search.Search.NullOrder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sorts results by a specific document field, with explicit null ordering.\n"
+  }, {
     "name" : "sortByScore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortByScore",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search",
@@ -852,6 +899,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sorts results by timestamp.\n\n @param descending whether to sort in descending order\n"
+  }, {
+    "name" : "sortByTimestamp",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortByTimestamp",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullOrder",
+      "type" : "io.fluxzero.sdk.persisting.search.Search.NullOrder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sorts results by timestamp, with explicit null ordering.\n"
   }, {
     "name" : "stream",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#stream",
@@ -1088,5 +1156,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "NullOrder",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

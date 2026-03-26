@@ -25,10 +25,20 @@
     "qualifiedName" : "io.fluxzero.common.search.Document$EntryType",
     "kind" : "enum"
   }, {
+    "file" : "Document.NullHandling.json",
+    "name" : "Document.NullHandling",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling",
+    "kind" : "enum"
+  }, {
     "file" : "Document.Path.json",
     "name" : "Document.Path",
     "qualifiedName" : "io.fluxzero.common.search.Document$Path",
     "kind" : "class"
+  }, {
+    "file" : "Document.SortInstruction.json",
+    "name" : "Document.SortInstruction",
+    "qualifiedName" : "io.fluxzero.common.search.Document$SortInstruction",
+    "kind" : "record"
   }, {
     "file" : "Facet.json",
     "name" : "Facet",

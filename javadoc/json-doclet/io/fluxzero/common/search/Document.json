@@ -139,6 +139,37 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "comparator",
+    "qualifiedName" : "io.fluxzero.common.search.Document#comparator",
+    "returnType" : "java.util.Comparator<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullHandling",
+      "type" : "io.fluxzero.common.search.Document.NullHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultAscending",
+      "type" : "io.fluxzero.common.search.Document.NullHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultDescending",
+      "type" : "io.fluxzero.common.search.Document.NullHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createComparator",
     "qualifiedName" : "io.fluxzero.common.search.Document#createComparator",
     "returnType" : "java.util.Comparator<io.fluxzero.common.search.Document>",
@@ -154,6 +185,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a {@link Comparator} to sort documents based on the sorting options in {@link SearchDocuments}.\n"
+  }, {
+    "name" : "extractSortValue",
+    "qualifiedName" : "io.fluxzero.common.search.Document#extractSortValue",
+    "returnType" : "io.fluxzero.common.search.Document.Entry",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathPredicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.search.Document.Path>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "filterPaths",
     "qualifiedName" : "io.fluxzero.common.search.Document#filterPaths",
@@ -243,6 +300,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves the summary of the document or {@code null} if no summary is available.\n <p>\n A summary describes the document contents as a single string concatenating all property values.\n"
+  }, {
+    "name" : "parseSortInstruction",
+    "qualifiedName" : "io.fluxzero.common.search.Document#parseSortInstruction",
+    "returnType" : "io.fluxzero.common.search.Document.SortInstruction",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sortInstruction",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
@@ -265,6 +338,12 @@
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ]
   }, {
+    "name" : "NullHandling",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling",
+    "kind" : "enum",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "Path",
     "qualifiedName" : "io.fluxzero.common.search.Document$Path",
     "kind" : "class",
@@ -273,5 +352,11 @@
       "annotationType" : "lombok.Value",
       "values" : {}
     } ]
+  }, {
+    "name" : "SortInstruction",
+    "qualifiedName" : "io.fluxzero.common.search.Document$SortInstruction",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   } ]
 }
