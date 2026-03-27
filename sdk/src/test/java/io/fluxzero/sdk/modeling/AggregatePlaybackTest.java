@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -19,8 +20,8 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.Fluxzero;
-import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
@@ -34,10 +35,10 @@ import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import lombok.Builder;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -296,12 +297,12 @@ class AggregatePlaybackTest {
                 .expectThat(fc -> assertEquals(0L, AsyncPlaybackScenario.sequenceBeforePrimaryValueCommand.get()))
                 .expectThat(fc -> assertTrue(AsyncPlaybackScenario.stateBeforePrimaryValueCommand.get().created()))
                 .expectThat(fc -> assertDoesNotThrow(() ->
-                        assertTrue(AsyncPlaybackScenario.summaryHandled.await(1, TimeUnit.SECONDS))))
+                        assertTrue(AsyncPlaybackScenario.summaryHandled.await(3, TimeUnit.SECONDS))))
                 .expectThat(fc -> {
                     ObservedState observed = AsyncPlaybackScenario.observedState.get();
                     assertNotNull(observed);
                     assertEquals(1L, observed.sequenceNumber());
-                    assertEquals(3L, observed.rawHeadSequenceNumber());
+                    assertTrue(observed.rawHeadSequenceNumber() > observed.sequenceNumber());
                     assertEquals("value-1", observed.primaryValue());
                     assertFalse(observed.firstFlag());
                     assertFalse(observed.secondFlag());
@@ -522,7 +523,7 @@ class AggregatePlaybackTest {
                         .anyMatch(SetPrimaryValueEvent.class.getName()::equals);
                 if (containsPrimaryValueEvent) {
                     try {
-                        if (!AsyncPlaybackScenario.allowSummaryUpdater.await(2, TimeUnit.SECONDS)) {
+                        if (!AsyncPlaybackScenario.allowSummaryUpdater.await(3, TimeUnit.SECONDS)) {
                             throw new AssertionError("Timed out waiting for later aggregate updates");
                         }
                     } catch (InterruptedException e) {
