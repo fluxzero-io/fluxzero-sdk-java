@@ -15,8 +15,10 @@
 package io.fluxzero.sdk.common.serialization.jackson;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.FileUtils;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.common.search.JacksonInverter;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +40,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JacksonInverterTest {
 
@@ -141,6 +144,19 @@ class JacksonInverterTest {
         var document = subject.toDocument(value, "test", "test", Instant.now(), Instant.now());
         String json = JsonUtils.asPrettyJson(document);
 
+    }
+
+    @Test
+    void testMetadataIsIndexedButFilteredDuringDeserialization() {
+        Map<String, Object> value = Map.of("foo", "bar");
+        var document = subject.toDocument(value, "test", "test", Instant.now(), Instant.now(),
+                                          Metadata.of("requestId", "123"));
+
+        assertTrue(document.deserializeDocument().getEntries().values().stream()
+                           .flatMap(List::stream)
+                           .anyMatch(path -> JacksonInverter.isMetadataPath(path.getValue())));
+        assertTrue(document.deserializeDocument().getSummary().contains("123"));
+        assertEquals(value, subject.fromDocument(document));
     }
 
     private void testReversion(Object value) {

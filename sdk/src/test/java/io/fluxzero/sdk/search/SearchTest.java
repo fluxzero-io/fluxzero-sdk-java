@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.Constraint;
@@ -111,6 +112,64 @@ public class SearchTest {
                 .expectResult(r -> r.size() == 1)
                 .mapResult(List::getFirst)
                 .expectResult(s -> Objects.equals(s.getId(), "foo"));
+    }
+
+    @Test
+    void metadataCanBeReadFromSearchHitAndSerializedDocument() {
+        TestFixture.create().given(fc -> prepareIndex(new SomeSearchable("foo", Instant.now()))
+                        .addMetadata("metafoo", "metabar")
+                        .addMetadata("metaObject", Map.of("nested", "value"))
+                        .indexAndWait())
+                .whenApplying(fc -> Fluxzero.search(SomeSearchable.class)
+                        .streamHits(SerializedDocument.class)
+                        .findFirst()
+                        .orElseThrow())
+                .expectResult(hit -> {
+                    Metadata hitMetadata = hit.getMetadata();
+                    SerializedDocument document = hit.getValue();
+                    return "metabar".equals(hitMetadata.get("metafoo"))
+                           && "metabar".equals(document.getMetadata().get("metafoo"))
+                           && "value".equals(document.deserializeDocument().getMetadata().get("metaObject", Map.class)
+                                   .get("nested"));
+                });
+    }
+
+    @Test
+    void metadataSupportsKeysWithDotsAndSlashes() {
+        String trickyKey = "meta.foo/bar";
+        TestFixture.create().given(fc -> prepareIndex(new SomeSearchable("foo", Instant.now()))
+                        .addMetadata(trickyKey, "metabar")
+                        .indexAndWait())
+                .whenSearching(SomeSearchable.class, s -> s.matchMetadata(trickyKey, "metabar"))
+                .expectResult(r -> r.size() == 1)
+                .andThen()
+                .whenApplying(fc -> Fluxzero.search(SomeSearchable.class)
+                        .streamHits(SerializedDocument.class)
+                        .findFirst()
+                        .orElseThrow())
+                .expectResult(hit -> "metabar".equals(hit.getMetadata().get(trickyKey))
+                                     && "metabar".equals(hit.getValue().getMetadata().get(trickyKey))
+                                     && "metabar".equals(hit.getValue().deserializeDocument().getMetadata()
+                                             .get(trickyKey)));
+    }
+
+    @Test
+    void metadataSupportsPurelyNumericKeys() {
+        String trickyKey = "123";
+        TestFixture.create().given(fc -> prepareIndex(new SomeSearchable("foo", Instant.now()))
+                        .addMetadata(trickyKey, "metabar")
+                        .indexAndWait())
+                .whenSearching(SomeSearchable.class, s -> s.matchMetadata(trickyKey, "metabar"))
+                .expectResult(r -> r.size() == 1)
+                .andThen()
+                .whenApplying(fc -> Fluxzero.search(SomeSearchable.class)
+                        .streamHits(SerializedDocument.class)
+                        .findFirst()
+                        .orElseThrow())
+                .expectResult(hit -> "metabar".equals(hit.getMetadata().get(trickyKey))
+                                     && "metabar".equals(hit.getValue().getMetadata().get(trickyKey))
+                                     && "metabar".equals(hit.getValue().deserializeDocument().getMetadata()
+                                             .get(trickyKey)));
     }
 
     @Test

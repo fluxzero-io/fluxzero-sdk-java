@@ -15,7 +15,9 @@
 
 package io.fluxzero.common.api.search;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.search.DefaultDocumentSerializer;
 import io.fluxzero.common.search.Document;
 import lombok.AccessLevel;
@@ -98,6 +100,17 @@ public class SerializedDocument {
      * Structured sortable entries used for sorting or filtering.
      */
     Set<SortableEntry> indexes;
+
+    /**
+     * Returns the document metadata reconstructed from the serialized document entries.
+     * <p>
+     * The metadata is computed lazily and is ignored during JSON serialization of the {@code SerializedDocument}
+     * itself, so exposing it locally does not change the wire format sent to Fluxzero services.
+     */
+    @Getter(lazy = true, onMethod_ = @JsonIgnore)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    Metadata metadata = deserializeDocument().getMetadata();
 
     /**
      * Constructs a new instance of the SerializedDocument class with the specified parameters.

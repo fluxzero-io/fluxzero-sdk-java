@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.common.Entry;
 import lombok.AccessLevel;
@@ -56,7 +57,7 @@ public class SearchHit<T> implements Entry<T> {
         return new SearchHit<>(document.getId(), document.getCollection(),
                                document.getTimestamp() == null ? null : Instant.ofEpochMilli(document.getTimestamp()),
                                document.getEnd() == null ? null : Instant.ofEpochMilli(document.getEnd()),
-                               () -> document);
+                               () -> document, document::getMetadata);
     }
 
     /**
@@ -82,6 +83,9 @@ public class SearchHit<T> implements Entry<T> {
     @Getter(AccessLevel.NONE)
     Supplier<T> valueSupplier;
 
+    @Getter(AccessLevel.NONE)
+    Supplier<Metadata> metadataSupplier;
+
     /**
      * Returns the actual value of the hit, deserialized or computed via the internal {@code valueSupplier}.
      *
@@ -89,6 +93,15 @@ public class SearchHit<T> implements Entry<T> {
      */
     public T getValue() {
         return valueSupplier.get();
+    }
+
+    /**
+     * Returns the metadata associated with the underlying document hit.
+     * <p>
+     * Metadata keys remain flat keys, even when they contain dots, slashes, or purely numeric names.
+     */
+    public Metadata getMetadata() {
+        return metadataSupplier.get();
     }
 
     /**
@@ -100,6 +113,6 @@ public class SearchHit<T> implements Entry<T> {
      * @return A new {@code SearchHit} instance with the transformed value.
      */
     public <V> SearchHit<V> map(Function<T, V> mapper) {
-        return new SearchHit<>(id, collection, timestamp, end, () -> mapper.apply(getValue()));
+        return new SearchHit<>(id, collection, timestamp, end, () -> mapper.apply(getValue()), metadataSupplier);
     }
 }

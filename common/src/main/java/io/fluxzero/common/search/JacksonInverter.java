@@ -91,6 +91,8 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 @Getter(AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class JacksonInverter implements Inverter<JsonNode> {
+    public static final String METADATA_PATH_PREFIX = "$metadata";
+
     private final JsonMapper objectMapper;
     private final ThrowingFunction<Object, String> summarizer;
 
@@ -152,9 +154,12 @@ public class JacksonInverter implements Inverter<JsonNode> {
     public SerializedDocument toDocument(Object value, String type, int revision, String id, String collection,
                                          Instant timestamp, Instant end, Metadata metadata) {
         byte[] data = objectMapper.writeValueAsBytes(value);
+        Map<Entry, List<Path>> entries = new LinkedHashMap<>(invert(data));
+        addMetadataEntries(entries, metadata);
+        String summary = combineSummary(summarize(value), summarizeMetadata(metadata));
         return new SerializedDocument(new Document(id, type, revision, collection,
-                                                   timestamp, end, invert(data), () -> summarize(value),
-                                                   getFacets(value, metadata),
+                                                   timestamp, end, entries, () -> summary,
+                                                   getFacets(value),
                                                    getSortables(value)));
     }
 
@@ -162,17 +167,11 @@ public class JacksonInverter implements Inverter<JsonNode> {
         Facets
      */
 
-    protected Set<FacetEntry> getFacets(Object value, Metadata metadata) {
-        return Stream.concat(getFacets(value), asFacets(metadata))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+    protected Set<FacetEntry> getFacets(Object value) {
+        return getFacetsStream(value).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    protected Stream<FacetEntry> asFacets(Metadata metadata) {
-        return metadata == null ? Stream.empty()
-                : metadata.entrySet().stream().map(e -> new FacetEntry("$metadata/" + e.getKey(), e.getValue()));
-    }
-
-    protected Stream<FacetEntry> getFacets(Object value) {
+    protected Stream<FacetEntry> getFacetsStream(Object value) {
         if (value == null) {
             return Stream.empty();
         }
@@ -195,9 +194,136 @@ public class JacksonInverter implements Inverter<JsonNode> {
                     String stringValue = propertyValue.toString();
                     yield stringValue.isBlank() ? Stream.empty() : Stream.of(new FacetEntry(name, stringValue));
                 }
-                yield getFacets(propertyValue).map(
+                yield getFacetsStream(propertyValue).map(
                         f -> f.toBuilder().name("%s/%s".formatted(name, f.getName())).build());
             }
+        };
+    }
+
+    protected void addMetadataEntries(Map<Entry, List<Path>> valueMap, Metadata metadata) {
+        if (metadata == null || metadata.getEntries().isEmpty()) {
+            return;
+        }
+        metadata.getEntries().forEach((key, value) -> {
+            try {
+                JsonNode metadataNode = parseMetadataValue(value);
+                Map<Entry, List<Path>> metadataEntries = invert(objectMapper.writeValueAsBytes(metadataNode));
+                String root = metadataPath(key);
+                metadataEntries.forEach((entry, paths) -> {
+                    List<Path> locations = valueMap.computeIfAbsent(entry, ignored -> new ArrayList<>());
+                    if (paths.isEmpty()) {
+                        locations.add(new Path(root));
+                    } else {
+                        paths.stream().map(path -> new Path(root + "/" + path.getValue())).forEach(locations::add);
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Failed to index document metadata entry {}", key, e);
+            }
+        });
+    }
+
+    protected String summarizeMetadata(Metadata metadata) {
+        if (metadata == null || metadata.getEntries().isEmpty()) {
+            return "";
+        }
+        return metadata.getEntries().values().stream().map(this::parseMetadataValue)
+                .flatMap(node -> invert(writeJson(node)).keySet().stream())
+                .map(Entry::asPhrase)
+                .distinct()
+                .collect(joining(" "));
+    }
+
+    @SneakyThrows
+    private byte[] writeJson(JsonNode node) {
+        return objectMapper.writeValueAsBytes(node);
+    }
+
+    protected String combineSummary(String summary, String metadataSummary) {
+        if (metadataSummary == null || metadataSummary.isBlank()) {
+            return summary;
+        }
+        if (summary == null || summary.isBlank()) {
+            return metadataSummary;
+        }
+        return summary + " " + metadataSummary;
+    }
+
+    protected JsonNode parseMetadataValue(String value) {
+        if (value == null) {
+            return NullNode.getInstance();
+        }
+        try {
+            return objectMapper.readTree(value);
+        } catch (Exception ignored) {
+            return TextNode.valueOf(value);
+        }
+    }
+
+    public static String metadataPath(String key) {
+        return METADATA_PATH_PREFIX + "/" + SearchUtils.escapeFieldName(key);
+    }
+
+    public static boolean isMetadataPath(String path) {
+        return path != null && (path.equals(METADATA_PATH_PREFIX) || path.startsWith(METADATA_PATH_PREFIX + "/"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Metadata extractMetadata(Map<Entry, List<Path>> entries) {
+        SortedMap<Object, Object> tree = new TreeMap<>();
+        entries.forEach((entry, paths) -> paths.stream().map(Path::getValue).filter(JacksonInverter::isMetadataPath)
+                .forEach(path -> {
+                    String relativePath = path.substring(METADATA_PATH_PREFIX.length()).replaceFirst("^/", "");
+                    if (relativePath.isEmpty()) {
+                        return;
+                    }
+                    SortedMap<Object, Object> parent = tree;
+                    Iterator<String> iterator = Path.split(relativePath).iterator();
+                    while (iterator.hasNext()) {
+                        String rawSegment = iterator.next();
+                        Object segment = parent == tree
+                                ? SearchUtils.unescapeFieldName(rawSegment)
+                                : asIntegerOrString(rawSegment);
+                        if (iterator.hasNext()) {
+                            parent = (SortedMap<Object, Object>) parent.computeIfAbsent(segment, s -> new TreeMap<>());
+                        } else {
+                            parent.put(segment, toJsonNode(entry));
+                        }
+                    }
+                }));
+        Map<String, String> result = new LinkedHashMap<>();
+        tree.forEach((key, value) -> {
+            JsonNode node = toJsonNode(value);
+            result.put(SearchUtils.unescapeFieldName(key.toString()),
+                       node.isTextual() ? node.asText() : Metadata.objectMapper.valueToTree(node).toString());
+        });
+        return Metadata.of(result);
+    }
+
+    private static JsonNode toJsonNode(Object struct) {
+        if (struct instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked") SortedMap<Object, Object> map = (SortedMap<Object, Object>) struct;
+            return map.keySet().stream().findFirst().<JsonNode>map(firstKey -> firstKey instanceof Integer
+                    ? new ArrayNode(JsonUtils.writer.getNodeFactory(),
+                                    map.values().stream().map(JacksonInverter::toJsonNode).collect(toList()))
+                    : new ObjectNode(JsonUtils.writer.getNodeFactory(), map.entrySet().stream().collect(
+                    toMap(e -> SearchUtils.unescapeFieldName(e.getKey().toString()),
+                          e -> toJsonNode(e.getValue()))))).orElse(NullNode.getInstance());
+        }
+        if (struct instanceof JsonNode node) {
+            return node;
+        }
+        throw new IllegalArgumentException("Unrecognized structure: " + struct);
+    }
+
+    private static JsonNode toJsonNode(Entry entry) {
+        return switch (entry.getType()) {
+            case TEXT -> new TextNode(entry.getValue());
+            case NUMERIC -> new DecimalNode(new BigDecimal(entry.getValue()));
+            case BOOLEAN -> BooleanNode.valueOf(Boolean.parseBoolean(entry.getValue()));
+            case NULL -> NullNode.getInstance();
+            case EMPTY_ARRAY -> new ArrayNode(JsonUtils.writer.getNodeFactory());
+            case EMPTY_OBJECT -> new ObjectNode(JsonUtils.writer.getNodeFactory());
         };
     }
 
@@ -353,6 +479,9 @@ public class JacksonInverter implements Inverter<JsonNode> {
                 return toJsonData(valueNode, data);
             }
             paths.forEach(path -> {
+                if (isMetadataPath(path.getValue())) {
+                    return;
+                }
                 Map<Object, Object> parent = tree;
                 Iterator<String> iterator = Path.split(path.getValue()).iterator();
                 while (iterator.hasNext()) {
@@ -375,33 +504,22 @@ public class JacksonInverter implements Inverter<JsonNode> {
         return new Data<>(node, data.getType(), data.getRevision(), JSON_FORMAT);
     }
 
-    protected JsonNode toJsonNode(Object struct) {
+    protected JsonNode toJsonNodeInstance(Object struct) {
         if (struct instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked") SortedMap<Object, Object> map = (SortedMap<Object, Object>) struct;
             return map.keySet().stream().findFirst().<JsonNode>map(firstKey -> firstKey instanceof Integer
                     ? new ArrayNode(objectMapper.getNodeFactory(),
-                                    map.values().stream().map(this::toJsonNode).collect(toList()))
+                                    map.values().stream().map(this::toJsonNodeInstance).collect(toList()))
                     : new ObjectNode(objectMapper.getNodeFactory(), map.entrySet().stream().collect(
                     toMap(e -> {
                         String key = e.getKey().toString();
                         key = SearchUtils.unescapeFieldName(key);
                         return key;
-                    }, e -> toJsonNode(e.getValue()))))).orElse(NullNode.getInstance());
+                    }, e -> toJsonNodeInstance(e.getValue()))))).orElse(NullNode.getInstance());
         }
         if (struct instanceof JsonNode) {
             return (JsonNode) struct;
         }
         throw new IllegalArgumentException("Unrecognized structure: " + struct);
-    }
-
-    protected JsonNode toJsonNode(Entry entry) {
-        return switch (entry.getType()) {
-            case TEXT -> new TextNode(entry.getValue());
-            case NUMERIC -> new DecimalNode(new BigDecimal(entry.getValue()));
-            case BOOLEAN -> BooleanNode.valueOf(Boolean.parseBoolean(entry.getValue()));
-            case NULL -> NullNode.getInstance();
-            case EMPTY_ARRAY -> new ArrayNode(objectMapper.getNodeFactory());
-            case EMPTY_OBJECT -> new ObjectNode(objectMapper.getNodeFactory());
-        };
     }
 }

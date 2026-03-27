@@ -17,6 +17,7 @@ package io.fluxzero.common.search;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.SearchUtils;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -132,6 +133,17 @@ public class Document {
      */
     @Builder.Default
     Set<SortableEntry> sortables = Collections.emptySet();
+
+    /**
+     * Returns the document metadata reconstructed from internally stored metadata entries.
+     * <p>
+     * Metadata keys are treated as flat keys, even when they contain characters such as dots or slashes.
+     * The metadata is reconstructed lazily and is not part of the regular document JSON returned by deserialization.
+     */
+    @Getter(lazy = true)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    Metadata metadata = JacksonInverter.extractMetadata(entries);
 
     /**
      * Retrieves the summary of the document or {@code null} if no summary is available.

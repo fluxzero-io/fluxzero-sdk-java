@@ -235,7 +235,14 @@ public interface Search {
      * Matches a metadata key to a value.
      */
     default Search matchMetadata(String key, Object value) {
-        return matchFacet("$metadata/" + key, value);
+        return match(value, true, "$metadata/" + escapeMetadataKey(key));
+    }
+
+    private static String escapeMetadataKey(String key) {
+        if (key == null) {
+            return null;
+        }
+        return key.replace(".", "\\.").replace("/", "\\/").replace("\"", "\\\"");
     }
 
     /**
