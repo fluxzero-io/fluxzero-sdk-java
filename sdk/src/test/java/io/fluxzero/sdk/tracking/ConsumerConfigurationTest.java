@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -129,6 +130,7 @@ public class ConsumerConfigurationTest {
                                         .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
                                 new Handler())
                 .withClock(nowClock)
+                .consumerTimeout(Duration.ofMillis(100))
 
                 .whenCommand(new Command())
                 .expectEvents("minIndex")

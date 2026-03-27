@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -57,7 +58,7 @@ class DefaultTrackerTest {
         Registration registration = DefaultTracker.start(messages -> {
         }, config, trackingClient);
         try {
-            verify(trackingClient, timeout(1000)).getPosition("consumer");
+            verify(trackingClient, timeout(1000).atLeastOnce()).getPosition("consumer");
             verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
             verify(trackingClient, never()).readAndWait(anyString(), any(), same(config));
         } finally {
@@ -84,14 +85,55 @@ class DefaultTrackerTest {
                                  Position.newPosition(), true));
         when(trackingClient.storePosition(eq("consumer"), any(), eq(config.getMaxIndexExclusive()))).thenReturn(
                 CompletableFuture.completedFuture(null));
-        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false), any())).thenReturn(
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
                 CompletableFuture.completedFuture(null));
 
         Registration registration = DefaultTracker.start(messages -> {
         }, config, trackingClient);
         try {
-            verify(trackingClient, timeout(1000)).getPosition("consumer");
-            verify(trackingClient, timeout(1000)).readAndWait(anyString(), eq(firstReadIndex), same(config));
+            verify(trackingClient, timeout(1000).atLeastOnce()).getPosition("consumer");
+            verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(firstReadIndex),
+                                                                            same(config));
+        } finally {
+            registration.cancel();
+        }
+    }
+
+    @Test
+    void resetPositionRevivesTrackerAfterMaxIndexWasReached() {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .threads(1)
+                .minIndex(IndexUtils.indexFromTimestamp(Instant.parse("2020-01-01T00:00:00Z")))
+                .maxIndexExclusive(IndexUtils.indexFromTimestamp(Instant.parse("2021-01-01T00:00:00Z")))
+                .build();
+        long firstReadIndex = config.getMinIndex() - 1;
+        long resetIndex = config.getMaxIndexExclusive() - 2;
+
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.getPosition("consumer")).thenReturn(
+                new Position(config.getMaxIndexExclusive() - 1),
+                new Position(resetIndex));
+        when(trackingClient.readAndWait(anyString(), eq(firstReadIndex), same(config))).thenReturn(
+                new MessageBatch(new int[]{0, 128}, List.of(), config.getMaxIndexExclusive(),
+                                 Position.newPosition(), true));
+        when(trackingClient.readAndWait(anyString(), eq(resetIndex), same(config))).thenReturn(
+                new MessageBatch(new int[]{0, 128}, List.of(), resetIndex, Position.newPosition(), true));
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(config.getMaxIndexExclusive()))).thenReturn(
+                CompletableFuture.completedFuture(null));
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(resetIndex))).thenReturn(
+                CompletableFuture.completedFuture(null));
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
+                CompletableFuture.completedFuture(null));
+
+        Registration registration = DefaultTracker.start(messages -> {
+        }, config, trackingClient);
+        try {
+            verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(firstReadIndex),
+                                                                            same(config));
+            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
+            verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(resetIndex), same(config));
         } finally {
             registration.cancel();
         }

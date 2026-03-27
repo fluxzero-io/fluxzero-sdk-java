@@ -21,6 +21,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
@@ -48,7 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
 import static io.fluxzero.sdk.tracking.BatchInterceptor.join;
@@ -83,6 +83,8 @@ import static java.util.stream.Collectors.toList;
 public class DefaultTracker implements Runnable, Registration {
 
     private static final ThreadGroup threadGroup = new ThreadGroup("DefaultTracker");
+    private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
+    private static final Duration suspendedPollDelay = Duration.ofSeconds(10);
 
     private final Consumer<List<SerializedMessage>> consumer;
     private final Tracker tracker;
@@ -208,25 +210,6 @@ public class DefaultTracker implements Runnable, Registration {
         this.metricsGateway = Fluxzero.getOptionally().map(Fluxzero::metricsGateway).orElse(null);
     }
 
-    private boolean shouldBootstrapFromStoredPosition() {
-        return maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
-                Fluxzero.currentTime());
-    }
-
-    private boolean hasReachedMaxIndexBeforeFirstRead() {
-        if (!shouldBootstrapFromStoredPosition()) {
-            return false;
-        }
-        try {
-            return isMaxIndexReached(trackingClient.getPosition(tracker.getName())
-                                             .lowestIndexForSegment(new int[]{0, 128}).orElse(null));
-        } catch (Exception e) {
-            log.warn("Failed to fetch current position for tracker {}, consumer {}. Continuing with regular reads.",
-                     tracker.getTrackerId(), tracker.getName(), e);
-            return false;
-        }
-    }
-
     private static ConsumerConfiguration withFluxzeroBatchInterceptors(ConsumerConfiguration config,
                                                                        MessageType messageType,
                                                                        Fluxzero fluxzero) {
@@ -244,9 +227,10 @@ public class DefaultTracker implements Runnable, Registration {
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
-                if (hasReachedMaxIndexBeforeFirstRead()) {
-                    cancelAndDisconnect();
-                    return;
+                Long storedLowestIndex = currentStoredLowestIndex();
+                if (maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
+                        Fluxzero.currentTime()) && isMaxIndexReached(storedLowestIndex)) {
+                    suspendUntilReset(storedLowestIndex);
                 }
                 while (running.get()) {
                     pauseFetchIfNeeded();
@@ -262,6 +246,45 @@ public class DefaultTracker implements Runnable, Registration {
                 thread.set(null);
                 Tracker.current.remove();
             }
+        }
+    }
+
+    protected Long currentStoredLowestIndex() {
+        try {
+            return trackingClient.getPosition(tracker.getName()).lowestIndexForSegment(FULL_SEGMENT).orElse(null);
+        } catch (Exception e) {
+            log.warn("Failed to fetch current position for tracker {}, consumer {}.",
+                     tracker.getTrackerId(), tracker.getName(), e);
+            return null;
+        }
+    }
+
+    @SuppressWarnings("BusyWait")
+    protected void suspendUntilReset(Long suspendedIndex) {
+        try {
+            processing = false;
+            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            while (running.get()) {
+                Long storedLowestIndex = currentStoredLowestIndex();
+                Long minLastProcessedIndex = ofNullable(minIndex).map(i -> i - 1).orElse(null);
+                if (storedLowestIndex == null || (!isMaxIndexReached(storedLowestIndex)
+                                                  && !storedLowestIndex.equals(suspendedIndex))) {
+                    if (storedLowestIndex == null || minLastProcessedIndex == null) {
+                        lastProcessedIndex = storedLowestIndex == null ? minLastProcessedIndex : storedLowestIndex;
+                    } else {
+                        lastProcessedIndex = Math.max(minLastProcessedIndex, storedLowestIndex);
+                    }
+                    return;
+                }
+                try {
+                    Thread.sleep(suspendedPollDelay.toMillis());
+                } catch (InterruptedException e) {
+                    currentThread().interrupt();
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            throw new TrackingException(format("Failed to suspend tracker %s after reaching max index", tracker), e);
         }
     }
 
@@ -318,7 +341,7 @@ public class DefaultTracker implements Runnable, Registration {
         } finally {
             processing = false;
             if (isMaxIndexReached(lastIndex)) {
-                cancelAndDisconnect();
+                suspendUntilReset(lastProcessedIndex);
             }
         }
     }
