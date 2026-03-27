@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,12 +102,10 @@ public class SerializedDocument {
     Set<SortableEntry> indexes;
 
     /**
-     * Returns the document metadata reconstructed from the serialized document entries.
-     * <p>
-     * The metadata is computed lazily and is ignored during JSON serialization of the {@code SerializedDocument}
-     * itself, so exposing it locally does not change the wire format sent to Fluxzero services.
+     * The document metadata reconstructed from the serialized document entries.
      */
-    @Getter(lazy = true, onMethod_ = @JsonIgnore)
+    @Getter(lazy = true)
+    @JsonIgnore
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     Metadata metadata = deserializeDocument().getMetadata();
