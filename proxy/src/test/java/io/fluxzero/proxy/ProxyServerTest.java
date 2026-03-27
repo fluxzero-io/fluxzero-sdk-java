@@ -51,6 +51,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
@@ -58,6 +61,7 @@ import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 class ProxyServerTest {
@@ -299,16 +303,22 @@ class ProxyServerTest {
 
         @Test
         void closeProxy() {
+            CountDownLatch socketOpened = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
+                        @HandleSocketOpen("/")
+                        void open() {
+                            socketOpened.countDown();
+                        }
+
                         @HandleSocketClose("/")
                         void close(Integer code) {
                             Fluxzero.publishEvent("ws closed with " + code);
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
-                        Thread.sleep(100);
+                        assertTrue(socketOpened.await(5, TimeUnit.SECONDS),
+                                   "Timed out waiting for the websocket open handler");
                         proxyRequestHandler.close();
-                        Thread.sleep(100);
                     }))
                     .expectEvents("ws closed with 1001");
         }
@@ -323,7 +333,11 @@ class ProxyServerTest {
                 CompletableFuture<String> result = new CompletableFuture<>();
                 WebSocket webSocket = openSocket(result, protocols);
                 followUp.accept(webSocket);
-                return result.get();
+                try {
+                    return result.get(5, TimeUnit.SECONDS);
+                } catch (TimeoutException e) {
+                    throw new AssertionError("Timed out waiting for websocket result", e);
+                }
             };
         }
 
