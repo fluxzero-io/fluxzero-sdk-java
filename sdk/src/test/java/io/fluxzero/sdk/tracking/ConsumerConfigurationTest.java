@@ -35,8 +35,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.COMMAND;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Slf4j
@@ -138,6 +139,47 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
+    void splitConsumerTakesOverFromMinIndex() {
+        Long nowIndex = 107544261427200000L;
+        ConditionalExclusiveHandler.invocations.clear();
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .addConsumerConfiguration(ConsumerConfiguration.builder()
+                                                                          .name("split")
+                                                                          .minIndex(nowIndex)
+                                                                          .exclusiveBeforeMinIndex(false)
+                                                                          .build(), MessageType.COMMAND)
+                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                                new ConditionalExclusiveHandler())
+                .withClock(nowClock)
+                .consumerTimeout(Duration.ofMillis(100))
+
+                .whenCommand(new Command())
+                .expectThat(fc -> assertEquals(List.of("split"), ConditionalExclusiveHandler.invocations));
+    }
+
+    @Test
+    void mergedConsumerTakesOverAfterMaxIndex() {
+        Long nowIndex = 107544261427200000L;
+        ConditionalExclusiveHandler.invocations.clear();
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .addConsumerConfiguration(ConsumerConfiguration.builder()
+                                                                          .name("merge")
+                                                                          .maxIndexExclusive(nowIndex)
+                                                                          .exclusiveAfterMaxIndex(false)
+                                                                          .build(), MessageType.COMMAND)
+                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                                new ConditionalExclusiveHandler())
+                .withClock(nowClock)
+                .consumerTimeout(Duration.ofMillis(100))
+
+                .whenCommand(new Command())
+                .expectThat(fc -> {
+                    assertEquals(1, ConditionalExclusiveHandler.invocations.size());
+                    assertTrue(ConditionalExclusiveHandler.invocations.getFirst().endsWith("default"));
+                });
+    }
+
+    @Test
     void interceptorInConsumerTest() {
         TestFixture.createAsync(
                         DefaultFluxzero.builder()
@@ -218,6 +260,15 @@ public class ConsumerConfigurationTest {
             String consumerName = Tracker.current().orElseThrow().getConfiguration().getName();
             Fluxzero.publishEvent(consumerName);
             return consumerName;
+        }
+    }
+
+    static class ConditionalExclusiveHandler {
+        static final List<String> invocations = new CopyOnWriteArrayList<>();
+
+        @HandleCommand
+        void handle(Command command) {
+            invocations.add(Tracker.current().orElseThrow().getConfiguration().getName());
         }
     }
 

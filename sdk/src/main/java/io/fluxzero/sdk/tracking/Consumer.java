@@ -272,6 +272,34 @@ public @interface Consumer {
     long maxIndexExclusive() default -1L;
 
     /**
+     * Whether this consumer should remain exclusive for shared handlers before {@link #minIndex()} is reached.
+     * <p>
+     * Set to {@code false} to allow another consumer to handle the same shared handler before this consumer's minimum
+     * index takes effect.
+     * <p>
+     * This is mainly useful during a consumer split, where a new consumer should take over from a specific index
+     * onward, while an existing consumer remains responsible for older messages. In that scenario, the new consumer
+     * typically sets {@link #minIndex()} and {@code exclusiveBeforeMinIndex = false}.
+     * <p>
+     * In regular single-consumer setups this should usually remain {@code true}.
+     */
+    boolean exclusiveBeforeMinIndex() default true;
+
+    /**
+     * Whether this consumer should remain exclusive for shared handlers from {@link #maxIndexExclusive()} onward.
+     * <p>
+     * Set to {@code false} to allow another consumer to take over shared handler invocation once this consumer's
+     * exclusive upper bound has been reached.
+     * <p>
+     * This is mainly useful during a consumer merge or handover, where an existing consumer should keep handling
+     * messages only up to a certain point, after which another consumer takes over. In that scenario, the retiring
+     * consumer typically sets {@link #maxIndexExclusive()} and {@code exclusiveAfterMaxIndex = false}.
+     * <p>
+     * In regular single-consumer setups this should usually remain {@code true}.
+     */
+    boolean exclusiveAfterMaxIndex() default true;
+
+    /**
      * Optional regular expression used to filter message payload types on the Fluxzero Runtime.
      * <p>
      * When specified, this filter is applied server-side to restrict the messages delivered to the consumer based on

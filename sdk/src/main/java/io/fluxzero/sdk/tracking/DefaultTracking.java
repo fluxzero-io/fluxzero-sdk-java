@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
+import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -133,14 +135,22 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
         return fluxzero.apply(fc -> {
+            Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(handlers);
+            Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
+            assignedHandlers.forEach((config, matches) ->
+                    matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
+                            .add(config)));
             Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> consumers =
-                    assignHandlersToConsumers(handlers).entrySet().stream().flatMap(e -> {
+                    assignedHandlers.entrySet().stream().flatMap(e -> {
                         List<Handler<DeserializingMessage>> converted = e.getValue().stream().flatMap(target -> {
-                            if (target instanceof Handler<?>) {
-                                return Stream.of((Handler<DeserializingMessage>) target);
+                            HandlerDecorator decorator =
+                                    conditionalExclusivityDecorator(e.getKey(), consumersByHandler.get(target));
+                            if (target instanceof Handler<?> handler) {
+                                return Stream.of(decorator.wrap((Handler<DeserializingMessage>) handler));
                             }
                             return handlerFactory.createHandler(target, handlerFilter,
-                                                                e.getKey().getHandlerInterceptors()).stream();
+                                                                e.getKey().getHandlerInterceptors())
+                                    .map(decorator::wrap).stream();
                         }).collect(toList());
                         return converted.isEmpty() ? Stream.empty() :
                                 Stream.of(new SimpleEntry<>(e.getKey(), converted));
@@ -187,7 +197,7 @@ public class DefaultTracking implements Tracking {
         var result = configurations.values().stream().map(config -> {
             var matches =
                     unassignedHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
-            if (config.exclusive()) {
+            if (config.exclusive() && !config.conditionallyExclusive()) {
                 unassignedHandlers.removeAll(matches);
             }
             return Map.entry(config, matches);
@@ -198,6 +208,34 @@ public class DefaultTracking implements Tracking {
             throw new TrackingException(format("Failed to find consumer for %s", h));
         });
         return result;
+    }
+
+    private HandlerDecorator conditionalExclusivityDecorator(ConsumerConfiguration currentConfig,
+                                                             List<ConsumerConfiguration> handlerConsumers) {
+        if (handlerConsumers == null || handlerConsumers.stream().noneMatch(ConsumerConfiguration::conditionallyExclusive)) {
+            return HandlerDecorator.noOp;
+        }
+        return handler -> new Handler<>() {
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                var index = message.getIndex();
+                ConsumerConfiguration selected = null;
+                int highestPriority = Integer.MIN_VALUE;
+                for (ConsumerConfiguration config : handlerConsumers) {
+                    int priority = config.exclusivityPriority(index);
+                    if (priority > highestPriority) {
+                        highestPriority = priority;
+                        selected = config;
+                    }
+                }
+                return Objects.equals(selected, currentConfig) ? handler.getInvoker(message) : Optional.empty();
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return handler.getTargetClass();
+            }
+        };
     }
 
     protected Registration startTracking(ConsumerConfiguration configuration,

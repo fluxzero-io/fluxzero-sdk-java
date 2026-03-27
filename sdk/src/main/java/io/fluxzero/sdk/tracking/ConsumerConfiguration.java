@@ -208,6 +208,25 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     Long maxIndexExclusive = null;
 
     /**
+     * Whether this consumer remains exclusive for shared handlers before {@link #getMinIndex()}.
+     * <p>
+     * Intended primarily for consumer split scenarios. Set this to {@code false} on the new consumer when it should
+     * only become exclusively responsible from {@code minIndex} onward, while another consumer continues to handle
+     * older messages.
+     */
+    @Default
+    boolean exclusiveBeforeMinIndex = true;
+
+    /**
+     * Whether this consumer remains exclusive for shared handlers from {@link #getMaxIndexExclusive()} onward.
+     * <p>
+     * Intended primarily for consumer merge or handover scenarios. Set this to {@code false} on the retiring consumer
+     * when another consumer should take over once {@code maxIndexExclusive} has been reached.
+     */
+    @Default
+    boolean exclusiveAfterMaxIndex = true;
+
+    /**
      * If true (default), ensures this consumer is exclusive — no other consumers with the same name will run
      * concurrently.
      */
@@ -283,6 +302,27 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .build();
     }
 
+    public boolean conditionallyExclusive() {
+        return exclusive && ((minIndex != null && !exclusiveBeforeMinIndex)
+                             || (maxIndexExclusive != null && !exclusiveAfterMaxIndex));
+    }
+
+    public int exclusivityPriority(Long index) {
+        if (!exclusive) {
+            return -1;
+        }
+        if (index == null) {
+            return conditionallyExclusive() ? 2 : 1;
+        }
+        if (minIndex != null && index < minIndex) {
+            return exclusiveBeforeMinIndex ? 0 : -1;
+        }
+        if (maxIndexExclusive != null && index >= maxIndexExclusive) {
+            return exclusiveAfterMaxIndex ? 0 : -1;
+        }
+        return minIndex != null || maxIndexExclusive != null ? 2 : 1;
+    }
+
     /* ---------- Utilities for deriving configuration from annotations ---------- */
 
     /**
@@ -334,6 +374,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .singleTracker(consumer.singleTracker())
                 .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())
                 .maxIndexExclusive(consumer.maxIndexExclusive() < 0 ? null : consumer.maxIndexExclusive())
+                .exclusiveBeforeMinIndex(consumer.exclusiveBeforeMinIndex())
+                .exclusiveAfterMaxIndex(consumer.exclusiveAfterMaxIndex())
                 .exclusive(consumer.exclusive())
                 .passive(consumer.passive())
                 .typeFilter(consumer.typeFilter().isBlank() ? null : consumer.typeFilter())
