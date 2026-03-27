@@ -75,6 +75,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.common.search.Document.metadata",
+    "type" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " Returns the document metadata reconstructed from internally stored metadata entries.\n <p>\n Metadata keys are treated as flat keys, even when they contain characters such as dots or slashes.\n The metadata is reconstructed lazily and is not part of the regular document JSON returned by deserialization.\n",
+    "constantValue" : null
+  }, {
     "name" : "revision",
     "qualifiedName" : "io.fluxzero.common.search.Document.revision",
     "type" : "int",

@@ -37,6 +37,19 @@
     "documentation" : " The document's unique identifier.\n",
     "constantValue" : null
   }, {
+    "name" : "metadataSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.SearchHit.metadataSupplier",
+    "type" : "java.util.function.Supplier<io.fluxzero.common.api.Metadata>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "timestamp",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.SearchHit.timestamp",
     "type" : "java.time.Instant",
@@ -85,6 +98,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a {@code SearchHit} instance from a raw {@link SerializedDocument}.\n <p>\n This is useful when dealing with lower-level deserialization logic or constructing hits manually\n in test environments or in-memory stores.\n\n @param document The serialized document from which to construct the search hit.\n @return A new {@code SearchHit} instance wrapping the serialized document.\n"
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.SearchHit#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the metadata associated with the underlying document hit.\n <p>\n Metadata keys remain flat keys, even when they contain dots, slashes, or purely numeric names.\n"
   }, {
     "name" : "getValue",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.SearchHit#getValue",

@@ -259,6 +259,22 @@
     "varArgs" : false,
     "documentation" : " Deletes all matching documents in the current search.\n"
   }, {
+    "name" : "escapeMetadataKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#escapeMetadataKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "exclude",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#exclude",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search",

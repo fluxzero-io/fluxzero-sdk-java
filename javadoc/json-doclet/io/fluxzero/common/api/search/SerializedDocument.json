@@ -99,6 +99,28 @@
     "documentation" : " Structured sortable entries used for sorting or filtering.\n",
     "constantValue" : null
   }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.metadata",
+    "type" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " The document metadata reconstructed from the serialized document entries.\n",
+    "constantValue" : null
+  }, {
     "name" : "summary",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.summary",
     "type" : "java.lang.String",

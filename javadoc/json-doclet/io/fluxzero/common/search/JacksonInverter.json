@@ -21,6 +21,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.search.Inverter<com.fasterxml.jackson.databind.JsonNode>" ],
   "fields" : [ {
+    "name" : "METADATA_PATH_PREFIX",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.METADATA_PATH_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$metadata"
+  }, {
     "name" : "objectMapper",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.objectMapper",
     "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
@@ -77,15 +85,41 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "asFacets",
-    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#asFacets",
-    "returnType" : "java.util.stream.Stream<io.fluxzero.common.api.search.FacetEntry>",
+    "name" : "addMetadataEntries",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#addMetadataEntries",
+    "returnType" : "void",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "valueMap",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "metadata",
       "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "combineSummary",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#combineSummary",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "summary",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadataSummary",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -147,6 +181,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "extractMetadata",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#extractMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entries",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fromData",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#fromData",
     "returnType" : "io.fluxzero.common.api.Data<com.fasterxml.jackson.databind.JsonNode>",
@@ -186,22 +241,6 @@
   }, {
     "name" : "getFacets",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#getFacets",
-    "returnType" : "java.util.stream.Stream<io.fluxzero.common.api.search.FacetEntry>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "value",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getFacets",
-    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#getFacets",
     "returnType" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
@@ -209,11 +248,6 @@
     "parameters" : [ {
       "name" : "value",
       "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "metadata",
-      "type" : "io.fluxzero.common.api.Metadata",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -234,6 +268,22 @@
       "annotations" : [ ]
     }, {
       "name" : "propertyValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getFacetsStream",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#getFacetsStream",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.common.api.search.FacetEntry>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
@@ -328,6 +378,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isMetadataPath",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#isMetadataPath",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metadataPath",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#metadataPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "parseArray",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#parseArray",
     "returnType" : "void",
@@ -349,6 +431,22 @@
       "annotations" : [ ]
     }, {
       "name" : "root",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseMetadataValue",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#parseMetadataValue",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -470,6 +568,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "summarizeMetadata",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#summarizeMetadata",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toDocument",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#toDocument",
     "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
@@ -551,7 +665,7 @@
     "name" : "toJsonNode",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#toJsonNode",
     "returnType" : "com.fasterxml.jackson.databind.JsonNode",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -567,12 +681,47 @@
     "name" : "toJsonNode",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#toJsonNode",
     "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "struct",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toJsonNodeInstance",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#toJsonNodeInstance",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "struct",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeJson",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#writeJson",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
