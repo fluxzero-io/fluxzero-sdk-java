@@ -31,6 +31,7 @@ import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.FlowRegulator;
 import io.fluxzero.sdk.tracking.FluxzeroInterceptor;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent;
@@ -199,12 +200,31 @@ public class DefaultTracker implements Runnable, Registration {
                                                                           consumerDispatchInterceptor);
         this.trackingClient = trackingClient;
         this.retryDelay = Duration.ofSeconds(1);
-        this.lastProcessedIndex = ofNullable(config.getMinIndex()).map(i -> i - 1).orElse(null);
         this.minIndex = config.getMinIndex();
         this.maxIndexExclusive = config.getMaxIndexExclusive();
+        this.lastProcessedIndex = ofNullable(config.getMinIndex()).map(i -> i - 1).orElse(null);
         this.autoStorePosition = !config.storePositionManually();
         this.flowRegulator = config.getFlowRegulator();
         this.metricsGateway = Fluxzero.getOptionally().map(Fluxzero::metricsGateway).orElse(null);
+    }
+
+    private boolean shouldBootstrapFromStoredPosition() {
+        return maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
+                Fluxzero.currentTime());
+    }
+
+    private boolean hasReachedMaxIndexBeforeFirstRead() {
+        if (!shouldBootstrapFromStoredPosition()) {
+            return false;
+        }
+        try {
+            return isMaxIndexReached(trackingClient.getPosition(tracker.getName())
+                                             .lowestIndexForSegment(new int[]{0, 128}).orElse(null));
+        } catch (Exception e) {
+            log.warn("Failed to fetch current position for tracker {}, consumer {}. Continuing with regular reads.",
+                     tracker.getTrackerId(), tracker.getName(), e);
+            return false;
+        }
     }
 
     private static ConsumerConfiguration withFluxzeroBatchInterceptors(ConsumerConfiguration config,
@@ -224,6 +244,10 @@ public class DefaultTracker implements Runnable, Registration {
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
+                if (hasReachedMaxIndexBeforeFirstRead()) {
+                    cancelAndDisconnect();
+                    return;
+                }
                 while (running.get()) {
                     pauseFetchIfNeeded();
                     if (running.get()) {
