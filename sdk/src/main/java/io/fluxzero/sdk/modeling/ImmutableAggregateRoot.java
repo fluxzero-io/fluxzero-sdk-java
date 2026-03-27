@@ -144,8 +144,27 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
 
     @Override
     public Entity<T> withEventIndex(Long index, String messageId) {
+        if (index == null) {
+            return this;
+        }
         if (Objects.equals(messageId, lastEventId())) {
-            return lastEventIndex() == null ? toBuilder().lastEventIndex(index).build() : this;
+            if (lastEventIndex() != null) {
+                return this;
+            }
+            ImmutableAggregateRoot<T> updated = toBuilder().lastEventIndex(index).build();
+            Entity<T> previous = updated.previous();
+            if (previous != null && previous.sequenceNumber() >= 0L) {
+                Long previousIndex = previous.lastEventIndex();
+                if (previousIndex == null && previous.lastEventId() != null) {
+                    throw new IllegalStateException("Cannot assign an event index to a cached version while an older"
+                                                    + " cached version still has no event index.");
+                }
+                if (previousIndex != null && previousIndex >= index) {
+                    throw new IllegalStateException("Cannot assign event index %s after cached previous version index %s."
+                                                            .formatted(index, previousIndex));
+                }
+            }
+            return updated;
         }
         return toBuilder().previous(previous().withEventIndex(index, messageId)).build();
     }
