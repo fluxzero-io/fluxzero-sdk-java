@@ -25,6 +25,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
   "fields" : [ {
+    "name" : "associations",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.associations",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "repository",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler.repository",
     "type" : "java.util.Map<java.lang.Object,io.fluxzero.sdk.web.SocketEndpointHandler.SocketEndpointWrapper>",
@@ -94,6 +102,46 @@
     }, {
       "name" : "repositoryProvider",
       "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "SocketEndpointHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketEndpointHandler#SocketEndpointHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "wrapperMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repositoryProvider",
+      "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotationProvider",
+      "type" : "java.util.function.Function<java.lang.reflect.Executable,? extends java.lang.annotation.Annotation>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

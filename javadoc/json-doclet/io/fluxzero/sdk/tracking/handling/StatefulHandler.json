@@ -33,16 +33,11 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "associationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.associationProperties",
-    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue>",
+    "name" : "handlerAssociations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.handlerAssociations",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Getter",
-      "values" : {
-        "lazy" : "true"
-      }
-    } ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -57,14 +52,6 @@
     "name" : "methodAnnotationProvider",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.methodAnnotationProvider",
     "type" : "java.util.function.Function<java.lang.reflect.Executable,? extends java.lang.annotation.Annotation>",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "methodAssociationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.methodAssociationProperties",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty>>",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
@@ -119,6 +106,41 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "StatefulHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#StatefulHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.modeling.HandlerRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotationProvider",
+      "type" : "java.util.function.Function<java.lang.reflect.Executable,? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "alreadyFiltered",
@@ -130,43 +152,6 @@
     "parameters" : [ {
       "name" : "i",
       "type" : "io.fluxzero.common.handling.HandlerInvoker",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "applicableParameterResolvers",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#applicableParameterResolvers",
-    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "associationPropertyNames",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#associationPropertyNames",
-    "returnType" : "java.util.stream.Stream<java.lang.String>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parameter",
-      "type" : "java.lang.reflect.Parameter",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "association",
-      "type" : "io.fluxzero.sdk.tracking.handling.Association",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -211,22 +196,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "executableAssociationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#executableAssociationProperties",
-    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -237,111 +206,6 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "includedPayload",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#includedPayload",
-    "returnType" : "boolean",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "association",
-      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "mayApply",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#mayApply",
-    "returnType" : "boolean",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "resolver",
-      "type" : "io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "parameterAssociationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#parameterAssociationProperties",
-    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveParameterName",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#resolveParameterName",
-    "returnType" : "java.util.Optional<java.lang.String>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parameter",
-      "type" : "java.lang.reflect.Parameter",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveParameterValue",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#resolveParameterValue",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "parameter",
-      "type" : "java.lang.reflect.Parameter",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "methodAnnotation",
-      "type" : "java.lang.annotation.Annotation",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
@@ -368,31 +232,6 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "AssociationValue",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$AssociationValue",
-    "kind" : "class",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.Builder",
-      "values" : {
-        "toBuilder" : "true"
-      }
-    } ]
-  }, {
-    "name" : "MethodAssociationProperty",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
-    "kind" : "class",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {
-        "staticConstructor" : "of"
-      }
-    } ]
-  }, {
     "name" : "StatefulHandlerInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
     "kind" : "class",

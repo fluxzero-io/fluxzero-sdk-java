@@ -29,7 +29,7 @@
       "value" : "prototype"
     }
   } ],
-  "documentation" : " Declares a WebSocket endpoint that represents a single active client session.\n <p>\n This annotation is used on handler classes with annotations like {@link HandleSocketMessage} that manage WebSocket\n communication and lifecycle events (e.g. handshake, open, message, close).\n </p>\n\n <p>\n Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.\n </p>\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n",
+  "documentation" : " Declares a WebSocket endpoint that represents a single active client session.\n <p>\n This annotation is used on handler classes with annotations like {@link HandleSocketMessage} that manage WebSocket\n communication and lifecycle events (e.g. handshake, open, message, close).\n </p>\n\n <p>\n Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.\n Non-socket handlers on the same endpoint, such as {@code @HandleEvent}, may also use\n {@link io.fluxzero.sdk.tracking.handling.Association} to target only endpoint instances whose state matches the\n incoming message instead of invoking every active session.\n </p>\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

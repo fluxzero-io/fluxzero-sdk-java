@@ -105,6 +105,21 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleSchedule",
     "kind" : "annotation_type"
   }, {
+    "file" : "HandlerAssociations.json",
+    "name" : "HandlerAssociations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerAssociations.AssociationValue.json",
+    "name" : "HandlerAssociations.AssociationValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$AssociationValue",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerAssociations.MethodAssociationProperty.json",
+    "name" : "HandlerAssociations.MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty",
+    "kind" : "class"
+  }, {
     "file" : "HandlerDecorator.json",
     "name" : "HandlerDecorator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
@@ -243,16 +258,6 @@
     "file" : "StatefulHandler.json",
     "name" : "StatefulHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler",
-    "kind" : "class"
-  }, {
-    "file" : "StatefulHandler.AssociationValue.json",
-    "name" : "StatefulHandler.AssociationValue",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$AssociationValue",
-    "kind" : "class"
-  }, {
-    "file" : "StatefulHandler.MethodAssociationProperty.json",
-    "name" : "StatefulHandler.MethodAssociationProperty",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
     "kind" : "class"
   }, {
     "file" : "StatefulHandler.StatefulHandlerInvoker.json",

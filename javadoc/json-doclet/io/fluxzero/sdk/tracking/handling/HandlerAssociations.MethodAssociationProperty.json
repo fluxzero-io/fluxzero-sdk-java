@@ -1,9 +1,9 @@
 {
   "name" : "MethodAssociationProperty",
-  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty",
   "packageName" : "io.fluxzero.sdk.tracking.handling",
   "kind" : "class",
-  "modifiers" : [ "protected", "static" ],
+  "modifiers" : [ "public", "static" ],
   "annotations" : [ {
     "annotationType" : "lombok.Value",
     "values" : {
@@ -16,15 +16,15 @@
   "interfaces" : [ ],
   "fields" : [ {
     "name" : "associationValue",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.associationValue",
-    "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty.associationValue",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationValue",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "computedRoutingKey",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.computedRoutingKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty.computedRoutingKey",
     "type" : "boolean",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -32,7 +32,7 @@
     "constantValue" : null
   }, {
     "name" : "parameterValueResolver",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.parameterValueResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty.parameterValueResolver",
     "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -40,7 +40,7 @@
     "constantValue" : null
   }, {
     "name" : "propertyName",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty.propertyName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty.propertyName",
     "type" : "java.lang.String",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -49,8 +49,8 @@
   } ],
   "constructors" : [ {
     "name" : "MethodAssociationProperty",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#MethodAssociationProperty",
-    "modifiers" : [ "protected" ],
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty#MethodAssociationProperty",
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -60,14 +60,14 @@
   } ],
   "methods" : [ {
     "name" : "forComputedRoutingKey",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forComputedRoutingKey",
-    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty#forComputedRoutingKey",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty",
     "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "associationValue",
-      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationValue",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -76,8 +76,8 @@
     "documentation" : null
   }, {
     "name" : "forParameterProperty",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forParameterProperty",
-    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty#forParameterProperty",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty",
     "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -88,7 +88,7 @@
       "annotations" : [ ]
     }, {
       "name" : "associationValue",
-      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationValue",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -102,8 +102,8 @@
     "documentation" : null
   }, {
     "name" : "forProperty",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#forProperty",
-    "returnType" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.MethodAssociationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty#forProperty",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty",
     "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -114,7 +114,7 @@
       "annotations" : [ ]
     }, {
       "name" : "associationValue",
-      "type" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.AssociationValue",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationValue",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -123,7 +123,7 @@
     "documentation" : null
   }, {
     "name" : "getValue",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$MethodAssociationProperty#getValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty#getValue",
     "returnType" : "java.util.Optional<java.lang.Object>",
     "modifiers" : [ ],
     "annotations" : [ ],
