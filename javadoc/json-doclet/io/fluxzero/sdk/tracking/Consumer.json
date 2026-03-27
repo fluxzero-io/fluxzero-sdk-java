@@ -94,6 +94,28 @@
     "varArgs" : false,
     "documentation" : " Determines whether handlers assigned to this consumer are excluded from other consumers.\n <p>\n If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may\n be active in multiple consumers simultaneously. This enables advanced scenarios such as parallel replays\n alongside live processing.\n </p>\n"
   }, {
+    "name" : "exclusiveAfterMaxIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#exclusiveAfterMaxIndex",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this consumer should remain exclusive for shared handlers from {@link #maxIndexExclusive()} onward.\n <p>\n Set to {@code false} to allow another consumer to take over shared handler invocation once this consumer's\n exclusive upper bound has been reached.\n <p>\n This is mainly useful during a consumer merge or handover, where an existing consumer should keep handling\n messages only up to a certain point, after which another consumer takes over. In that scenario, the retiring\n consumer typically sets {@link #maxIndexExclusive()} and {@code exclusiveAfterMaxIndex = false}.\n <p>\n In regular single-consumer setups this should usually remain {@code true}.\n"
+  }, {
+    "name" : "exclusiveBeforeMinIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#exclusiveBeforeMinIndex",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this consumer should remain exclusive for shared handlers before {@link #minIndex()} is reached.\n <p>\n Set to {@code false} to allow another consumer to handle the same shared handler before this consumer's minimum\n index takes effect.\n <p>\n This is mainly useful during a consumer split, where a new consumer should take over from a specific index\n onward, while an existing consumer remains responsible for older messages. In that scenario, the new consumer\n typically sets {@link #minIndex()} and {@code exclusiveBeforeMinIndex = false}.\n <p>\n In regular single-consumer setups this should usually remain {@code true}.\n"
+  }, {
     "name" : "filterMessageTarget",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#filterMessageTarget",
     "returnType" : "boolean",

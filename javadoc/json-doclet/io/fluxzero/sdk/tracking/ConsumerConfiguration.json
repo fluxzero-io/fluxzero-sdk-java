@@ -90,6 +90,28 @@
     "documentation" : " If true (default), ensures this consumer is exclusive — no other consumers with the same name will run\n concurrently.\n",
     "constantValue" : null
   }, {
+    "name" : "exclusiveAfterMaxIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.exclusiveAfterMaxIndex",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether this consumer remains exclusive for shared handlers from {@link #getMaxIndexExclusive()} onward.\n <p>\n Intended primarily for consumer merge or handover scenarios. Set this to {@code false} on the retiring consumer\n when another consumer should take over once {@code maxIndexExclusive} has been reached.\n",
+    "constantValue" : null
+  }, {
+    "name" : "exclusiveBeforeMinIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.exclusiveBeforeMinIndex",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether this consumer remains exclusive for shared handlers before {@link #getMinIndex()}.\n <p>\n Intended primarily for consumer split scenarios. Set this to {@code false} on the new consumer when it should\n only become exclusively responsible from {@code minIndex} onward, while another consumer continues to handle\n older messages.\n",
+    "constantValue" : null
+  }, {
     "name" : "filterMessageTarget",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.filterMessageTarget",
     "type" : "boolean",
@@ -353,6 +375,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "conditionallyExclusive",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#conditionallyExclusive",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "configurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#configurations",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -368,6 +401,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a stream of {@code ConsumerConfiguration}s by inspecting the given handler classes and their packages.\n Includes both class-level and package-level {@code @Consumer} annotations.\n"
+  }, {
+    "name" : "exclusivityPriority",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#exclusivityPriority",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "getConfiguration",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#getConfiguration",

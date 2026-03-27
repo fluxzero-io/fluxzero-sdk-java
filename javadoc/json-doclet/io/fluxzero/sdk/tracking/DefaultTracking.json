@@ -133,6 +133,27 @@
     "varArgs" : false,
     "documentation" : " Shuts down all started trackers and waits briefly for asynchronous results (e.g. command responses) to complete.\n"
   }, {
+    "name" : "conditionalExclusivityDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#conditionalExclusivityDecorator",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentConfig",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerConsumers",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createConsumer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#createConsumer",
     "returnType" : "java.util.function.Consumer<java.util.List<io.fluxzero.common.api.SerializedMessage>>",
