@@ -580,6 +580,9 @@ Use `@SocketEndpoint` for bi-directional communication. Unlike other components,
 `records` to hold the `SocketSession` state. The `@SocketEndpoint` handles session lifecycle events and message
 processing, while typically being reached via a path like `/api/ws/...`.
 
+Non-socket handlers on the same endpoint, such as `@HandleEvent`, can also use `@Association` to route only to
+matching open endpoint instances. Parameter-level `@Association` works here too and uses the resolved parameter value.
+
 [//]: # (@formatter:off)
 ```java
 @SocketEndpoint
@@ -615,9 +618,8 @@ particularly useful for generic actions (e.g., deleting a stateful saga if any o
 When using multiple classes, the payload is typically not injected as a parameter.
 
 ```java
-
 @HandleEvent(allowedClasses = {OrderCancelled.class, OrderExpired.class})
-void onOrderFinished(@Association("orderId") OrderEvent event) {
+void onOrderFinished() {
     // Logic to handle any of the specified event types
 }
 ```

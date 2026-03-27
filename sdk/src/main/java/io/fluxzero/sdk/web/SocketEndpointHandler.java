@@ -20,8 +20,10 @@ import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.HandlerAssociations;
 import io.fluxzero.sdk.tracking.handling.MutableHandler;
 import io.fluxzero.sdk.tracking.handling.RepositoryProvider;
 import lombok.AccessLevel;
@@ -32,10 +34,13 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.lang.reflect.Executable;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
@@ -78,6 +83,7 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
     Class<?> targetClass;
     HandlerMatcher<Object, DeserializingMessage> targetMatcher, wrapperMatcher;
     Map<Object, SocketEndpointWrapper> repository;
+    HandlerAssociations associations;
 
     @Getter(lazy = true)
     SocketEndpoint socketEndpoint = getTypeAnnotation(targetClass, SocketEndpoint.class);
@@ -86,10 +92,20 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
                                  HandlerMatcher<Object, DeserializingMessage> targetMatcher,
                                  HandlerMatcher<Object, DeserializingMessage> wrapperMatcher,
                                  RepositoryProvider repositoryProvider) {
+        this(targetClass, targetMatcher, wrapperMatcher, repositoryProvider, List.of(), e -> null);
+    }
+
+    public SocketEndpointHandler(Class<?> targetClass,
+                                 HandlerMatcher<Object, DeserializingMessage> targetMatcher,
+                                 HandlerMatcher<Object, DeserializingMessage> wrapperMatcher,
+                                 RepositoryProvider repositoryProvider,
+                                 List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                 Function<Executable, ? extends java.lang.annotation.Annotation> methodAnnotationProvider) {
         this.targetClass = targetClass;
         this.targetMatcher = targetMatcher;
         this.wrapperMatcher = wrapperMatcher;
         this.repository = repositoryProvider.getRepository(SocketEndpointWrapper.class);
+        this.associations = new HandlerAssociations(targetClass, parameterResolvers, methodAnnotationProvider);
     }
 
     @Override
@@ -125,11 +141,15 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
                 }
             }
         }
-        return targetMatcher.canHandle(message)
-                ? HandlerInvoker.join(concat(
-                targetMatcher.getInvoker(null, message).stream(), repository.values().stream().flatMap(
-                        i -> targetMatcher.getInvoker(i.unwrap(), message).stream())).toList())
-                : Optional.empty();
+        if (!targetMatcher.canHandle(message)) {
+            return Optional.empty();
+        }
+        var messageAssociations = associations.associations(message, targetMatcher.matchingMethods(message));
+        var wrapperInvokers = repository.values().stream()
+                .filter(wrapper -> messageAssociations.isEmpty()
+                                   || associations.matchesTarget(wrapper.unwrap(), messageAssociations))
+                .flatMap(wrapper -> targetMatcher.getInvoker(wrapper.unwrap(), message).stream());
+        return HandlerInvoker.join(concat(targetMatcher.getInvoker(null, message).stream(), wrapperInvokers).toList());
     }
 
     @Override

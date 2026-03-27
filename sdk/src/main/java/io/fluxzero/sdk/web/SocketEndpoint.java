@@ -37,6 +37,9 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  *
  * <p>
  * Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.
+ * Non-socket handlers on the same endpoint, such as {@code @HandleEvent}, may also use
+ * {@link io.fluxzero.sdk.tracking.handling.Association} to target only endpoint instances whose state matches the
+ * incoming message instead of invoking every active session.
  * </p>
  *
  * @see HandleSocketOpen

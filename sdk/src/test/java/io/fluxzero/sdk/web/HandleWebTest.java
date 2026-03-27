@@ -28,6 +28,7 @@ import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.tracking.handling.authentication.FixedUserProvider;
@@ -820,6 +821,69 @@ public class HandleWebTest {
             }
 
             @Nested
+            class AssociationTests {
+
+                @BeforeEach
+                void setUp() {
+                    testFixture.registerHandlers(Endpoint.class);
+                }
+
+                @Test
+                void testEventOnlyReachesAssociatedSession() {
+                    testFixture
+                            .givenWebRequest(toWebRequest(WS_OPEN, "session-a", new OpenOrderEndpoint("order-1")))
+                            .givenWebRequest(toWebRequest(WS_OPEN, "session-b", new OpenOrderEndpoint("order-2")))
+                            .whenEvent(new OrderFinished("order-2"))
+                            .expectEvents("matched: order-2")
+                            .expectNoWebResponses();
+                }
+
+                @Test
+                void testEventWithoutAssociationStillReachesAllSessions() {
+                    testFixture
+                            .givenWebRequest(toWebRequest(WS_OPEN, "session-a", new OpenOrderEndpoint("order-1")))
+                            .givenWebRequest(toWebRequest(WS_OPEN, "session-b", new OpenOrderEndpoint("order-2")))
+                            .whenEvent(123)
+                            .expectEvents("all: order-1", "all: order-2")
+                            .expectNoWebResponses();
+                }
+
+                @Value
+                static class OpenOrderEndpoint {
+                    String orderId;
+                }
+
+                @Value
+                static class OrderFinished {
+                    String orderId;
+                }
+
+                @SocketEndpoint
+                @Path(endpointUrl)
+                @Value
+                static class Endpoint {
+                    @Association
+                    String orderId;
+
+                    @HandleSocketOpen
+                    static Endpoint onOpen(SocketSession session, OpenOrderEndpoint event) {
+                        session.sendMessage("open: " + session.sessionId());
+                        return new Endpoint(event.getOrderId());
+                    }
+
+                    @HandleEvent
+                    void onOrderFinished(@Association("orderId") OrderFinished event) {
+                        Fluxzero.publishEvent("matched: " + orderId);
+                    }
+
+                    @HandleEvent
+                    void onAnyInteger(Integer event) {
+                        Fluxzero.publishEvent("all: " + orderId);
+                    }
+                }
+            }
+
+            @Nested
             class PingTests {
 
                 static final int pingDelay = 30, pingTimeout = 10;
@@ -1072,8 +1136,12 @@ public class HandleWebTest {
             }
 
             private WebRequest toWebRequest(String method, Object payload) {
+                return toWebRequest(method, "testSession", payload);
+            }
+
+            private WebRequest toWebRequest(String method, String sessionId, Object payload) {
                 return WebRequest.builder().method(method).url(endpointUrl)
-                        .metadata(Metadata.of("sessionId", "testSession"))
+                        .metadata(Metadata.of("sessionId", sessionId))
                         .payload(payload).build();
             }
         }

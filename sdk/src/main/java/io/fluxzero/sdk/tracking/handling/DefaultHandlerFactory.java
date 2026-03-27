@@ -184,10 +184,12 @@ public class DefaultHandlerFactory implements HandlerFactory {
             {
                 SocketEndpoint handler = ReflectionUtils.getTypeAnnotation(targetClass, SocketEndpoint.class);
                 if (handler != null) {
+                    var socketConfig = config;
                     return new SocketEndpointHandler(
-                            targetClass, createHandlerMatcher(targetClass, config),
-                            createHandlerMatcher(SocketEndpointHandler.SocketEndpointWrapper.class, config),
-                            repositoryProvider);
+                            targetClass, createHandlerMatcher(targetClass, socketConfig),
+                            createHandlerMatcher(SocketEndpointHandler.SocketEndpointWrapper.class, socketConfig),
+                            repositoryProvider, parameterResolvers,
+                            e -> socketConfig.getAnnotation(e).orElse(null));
                 }
             }
 

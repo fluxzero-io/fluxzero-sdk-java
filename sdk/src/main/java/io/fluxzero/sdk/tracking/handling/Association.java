@@ -24,15 +24,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declares how a message should be routed to a stateful handler instance (typically annotated with {@link Stateful}).
+ * Declares how a message should be associated with handler instances.
  * <p>
- * {@code @Association} enables matching of incoming messages with persisted handler instances. Matching handlers are
- * automatically loaded and the message is applied to them.
+ * {@code @Association} enables matching of incoming messages with handler instances whose state matches the incoming
+ * message. Matching handlers are then selected and the message is applied to them. This is currently used for
+ * persisted handlers annotated with {@link Stateful} and for active session instances of {@link
+ * io.fluxzero.sdk.web.SocketEndpoint}.
  *
  * <h2>Usage</h2>
  * This annotation can be placed on:
  * <ul>
- *     <li>A <strong>field or getter</strong> in a stateful handler — this declares which part of the handler's state
+ *     <li>A <strong>field or getter</strong> in a handler instance — this declares which part of the handler's state
  *     is used for association.</li>
  *     <li>A <strong>handler method</strong> — this declares which message field(s) should be matched against
  *     handler state.</li>
@@ -41,7 +43,7 @@ import java.lang.annotation.Target;
  * </ul>
  *
  * <h2>Matching Semantics</h2>
- * A message is associated with a handler if:
+ * A message is associated with a handler instance if:
  * <ul>
  *     <li>The value of the property in the message equals the value in the handler's state, and</li>
  *     <li>The name of the message property matches the name (or explicitly declared {@link #value()}) of the handler field.</li>
