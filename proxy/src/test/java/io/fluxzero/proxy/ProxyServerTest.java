@@ -304,6 +304,7 @@ class ProxyServerTest {
         @Test
         void closeProxy() {
             CountDownLatch socketOpened = new CountDownLatch(1);
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketOpen("/")
                         void open() {
@@ -313,12 +314,15 @@ class ProxyServerTest {
                         @HandleSocketClose("/")
                         void close(Integer code) {
                             Fluxzero.publishEvent("ws closed with " + code);
+                            socketClosed.countDown();
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
                         assertTrue(socketOpened.await(5, TimeUnit.SECONDS),
                                    "Timed out waiting for the websocket open handler");
                         proxyRequestHandler.close();
+                        assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
+                                   "Timed out waiting for the websocket close handler");
                     }))
                     .expectEvents("ws closed with 1001");
         }
