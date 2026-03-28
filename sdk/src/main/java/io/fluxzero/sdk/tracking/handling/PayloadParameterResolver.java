@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
@@ -52,6 +53,9 @@ public class PayloadParameterResolver implements ParameterResolver<HasMessage> {
 
     @Override
     public boolean test(HasMessage message, Parameter parameter) {
+        if (message instanceof ChunkedDeserializingMessage) {
+            return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+        }
         return message.getPayload() != null || ReflectionUtils.isNullable(parameter); //may be the case after upcasting
     }
 

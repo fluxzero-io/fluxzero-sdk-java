@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.web.internal.WebUtilsInternal;
 import io.jooby.Body;
@@ -70,8 +71,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -212,7 +213,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     Formdata form = parseForm();
     @Getter(lazy = true)
     @Accessors(fluent = true)
-    Map<String, List<String>> formParameters = parseFormParameters(bodySupplier.get());
+    Map<String, List<Object>> formParameters = parseFormParameters(bodySupplier.get());
     @Getter(lazy = true)
     JsonNode jsonBody = parseJsonBody(bodySupplier.get());
 
@@ -220,7 +221,9 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
         if (message.getMessageType() != MessageType.WEBREQUEST) {
             throw new IllegalArgumentException("Invalid message type: " + message.getMessageType());
         }
-        bodySupplier = () -> message.getSerializedObject().getData().getValue();
+        bodySupplier = () -> message instanceof ChunkedDeserializingMessage chunked
+                ? chunked.getAggregatedPayloadBytes()
+                : message.getSerializedObject().getData().getValue();
         metadata = message.getMetadata();
         method = WebRequest.getMethod(metadata);
     }
@@ -239,8 +242,8 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
                 case HEADER -> new ParameterValue(lookup(name, ParamSource.HEADER));
                 case COOKIE -> new ParameterValue(lookup(name, ParamSource.COOKIE));
                 case FORM -> new ParameterValue(Optional.ofNullable(formParameters().get(name))
-                        .map(values -> io.jooby.value.Value.create(getValueFactory(), name, values))
-                        .orElseGet(() -> io.jooby.value.Value.missing(getValueFactory(), name)));
+                        .map(values -> values.size() == 1 ? values.getFirst() : values)
+                        .orElse(null));
                 case QUERY -> new ParameterValue(lookup(name, ParamSource.QUERY));
                 case BODY -> ReflectionUtils.readProperty(name, getJsonBody())
                         .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
@@ -266,24 +269,65 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     Formdata parseForm() {
         Formdata result = Formdata.create(getValueFactory());
         formParameters().forEach((key, formValues) -> {
-            if (formValues.size() == 1) {
-                result.put(key, formValues.getFirst());
+            List<String> stringValues = formValues.stream().filter(String.class::isInstance).map(String.class::cast)
+                    .toList();
+            if (stringValues.isEmpty()) {
+                return;
+            }
+            if (stringValues.size() == 1) {
+                result.put(key, stringValues.getFirst());
             } else {
-                result.put(key, formValues);
+                result.put(key, stringValues);
             }
         });
         return result;
     }
 
-    Map<String, List<String>> parseFormParameters(byte[] body) {
-        String contentType = WebRequest.getHeader(metadata, "Content-Type").map(String::toLowerCase).orElse("");
-        if (!contentType.startsWith("application/x-www-form-urlencoded")) {
-            return Map.of();
+    Map<String, Object> formObject() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        formParameters().forEach((key, values) -> {
+            Object value = values.size() == 1 ? values.getFirst() : values;
+            result.put(key, value);
+            String camelCaseKey = toCamelCase(key);
+            if (!camelCaseKey.equals(key)) {
+                result.putIfAbsent(camelCaseKey, value);
+            }
+        });
+        return result;
+    }
+
+    String toCamelCase(String key) {
+        StringBuilder result = new StringBuilder(key.length());
+        boolean upperNext = false;
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            if (c == '_' || c == '-' || c == ' ') {
+                upperNext = true;
+                continue;
+            }
+            result.append(upperNext ? Character.toUpperCase(c) : c);
+            upperNext = false;
         }
+        return result.toString();
+    }
+
+    Map<String, List<Object>> parseFormParameters(byte[] body) {
+        String contentType = WebRequest.getHeader(metadata, "Content-Type").orElse("");
+        String normalizedContentType = contentType.toLowerCase();
         if (body == null || body.length == 0) {
             return Map.of();
         }
-        Map<String, List<String>> values = new LinkedHashMap<>();
+        if (normalizedContentType.startsWith("application/x-www-form-urlencoded")) {
+            return parseUrlEncodedFormParameters(body);
+        }
+        if (normalizedContentType.startsWith("multipart/form-data")) {
+            return parseMultipartFormParameters(body, contentType);
+        }
+        return Map.of();
+    }
+
+    Map<String, List<Object>> parseUrlEncodedFormParameters(byte[] body) {
+        Map<String, List<Object>> values = new LinkedHashMap<>();
         for (String pair : new String(body, StandardCharsets.UTF_8).split("&")) {
             if (pair.isEmpty()) {
                 continue;
@@ -296,6 +340,128 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
             values.computeIfAbsent(key, __ -> new java.util.ArrayList<>()).add(value);
         }
         return values;
+    }
+
+    Map<String, List<Object>> parseMultipartFormParameters(byte[] body, String contentType) {
+        String boundary = extractMultipartBoundary(contentType);
+        if (boundary == null || boundary.isBlank()) {
+            return Map.of();
+        }
+        String payload = new String(body, StandardCharsets.ISO_8859_1);
+        String delimiter = "--" + boundary;
+        Map<String, List<Object>> values = new LinkedHashMap<>();
+        int boundaryStart = findMultipartBoundary(payload, delimiter, 0);
+        while (boundaryStart >= 0) {
+            int afterDelimiter = boundaryStart + delimiter.length();
+            if (payload.startsWith("--", afterDelimiter)) {
+                break;
+            }
+            if (!payload.startsWith("\r\n", afterDelimiter)) {
+                boundaryStart = findMultipartBoundary(payload, delimiter, afterDelimiter);
+                continue;
+            }
+            int partStart = afterDelimiter + 2;
+            int nextBoundary = findMultipartBoundary(payload, delimiter, partStart);
+            if (nextBoundary < 0) {
+                break;
+            }
+            String part = payload.substring(partStart, nextBoundary >= 2 ? nextBoundary - 2 : nextBoundary);
+            int separator = part.indexOf("\r\n\r\n");
+            if (separator < 0) {
+                boundaryStart = nextBoundary;
+                continue;
+            }
+            String headers = part.substring(0, separator);
+            String bodyPart = part.substring(separator + 4);
+            String name = extractMultipartFieldName(headers);
+            if (name == null) {
+                boundaryStart = nextBoundary;
+                continue;
+            }
+            String filename = extractMultipartFilename(headers);
+            byte[] bytes = bodyPart.getBytes(StandardCharsets.ISO_8859_1);
+            Object value = filename == null
+                    ? new String(bytes, extractMultipartCharset(headers))
+                    : new MultipartFormPart(name, filename, extractMultipartContentType(headers), bytes);
+            values.computeIfAbsent(name, __ -> new java.util.ArrayList<>()).add(value);
+            boundaryStart = nextBoundary;
+        }
+        return values;
+    }
+
+    int findMultipartBoundary(String payload, String delimiter, int fromIndex) {
+        int index = Math.max(0, fromIndex);
+        while (index < payload.length()) {
+            int candidate = payload.indexOf(delimiter, index);
+            if (candidate < 0) {
+                return -1;
+            }
+            boolean validStart = candidate == 0
+                                 || (candidate >= 2 && payload.charAt(candidate - 2) == '\r'
+                                     && payload.charAt(candidate - 1) == '\n');
+            int afterDelimiter = candidate + delimiter.length();
+            boolean validEnd = afterDelimiter == payload.length()
+                               || payload.startsWith("\r\n", afterDelimiter)
+                               || payload.startsWith("--", afterDelimiter);
+            if (validStart && validEnd) {
+                return candidate;
+            }
+            index = candidate + delimiter.length();
+        }
+        return -1;
+    }
+
+    String extractMultipartBoundary(String contentType) {
+        for (String part : contentType.split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.startsWith("boundary=")) {
+                String boundary = trimmed.substring("boundary=".length()).trim();
+                if (boundary.startsWith("\"") && boundary.endsWith("\"") && boundary.length() >= 2) {
+                    return boundary.substring(1, boundary.length() - 1);
+                }
+                return boundary;
+            }
+        }
+        return null;
+    }
+
+    String extractMultipartFieldName(String headers) {
+        return extractMultipartContentDispositionParameter(headers, "name");
+    }
+
+    String extractMultipartFilename(String headers) {
+        return extractMultipartContentDispositionParameter(headers, "filename");
+    }
+
+    String extractMultipartContentType(String headers) {
+        Matcher matcher = Pattern.compile("(?i)content-type:\\s*([^\\r\\n;]+(?:;[^\\r\\n]+)?)").matcher(headers);
+        return matcher.find() ? matcher.group(1).trim() : "application/octet-stream";
+    }
+
+    String extractMultipartContentDispositionParameter(String headers, String parameterName) {
+        return headers.lines()
+                .filter(line -> line.regionMatches(true, 0, "Content-Disposition:", 0, "Content-Disposition:".length()))
+                .findFirst()
+                .flatMap(line -> Stream.of(line.substring("Content-Disposition:".length()).split(";"))
+                        .map(String::trim)
+                        .filter(part -> part.regionMatches(true, 0, parameterName + "=", 0, parameterName.length() + 1))
+                        .map(part -> part.substring(parameterName.length() + 1).trim())
+                        .findFirst())
+                .map(value -> value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2
+                        ? value.substring(1, value.length() - 1)
+                        : value)
+                .orElse(null);
+    }
+
+    Charset extractMultipartCharset(String headers) {
+        Matcher matcher = Pattern.compile("(?i)content-type:.*charset=([A-Za-z0-9_\\-]+)").matcher(headers);
+        if (matcher.find()) {
+            try {
+                return Charset.forName(matcher.group(1));
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return StandardCharsets.UTF_8;
     }
 
     /*

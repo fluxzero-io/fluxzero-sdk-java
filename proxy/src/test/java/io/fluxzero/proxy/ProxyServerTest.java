@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,13 @@
 package io.fluxzero.proxy;
 
 import com.sun.net.httpserver.HttpServer;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -30,8 +33,10 @@ import io.fluxzero.sdk.web.HandleSocketClose;
 import io.fluxzero.sdk.web.HandleSocketMessage;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleSocketPong;
+import io.fluxzero.sdk.web.PathParam;
 import io.fluxzero.sdk.web.SocketSession;
 import io.fluxzero.sdk.web.WebRequest;
+import io.fluxzero.sdk.web.WebUtils;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -39,7 +44,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -47,20 +58,26 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
@@ -115,6 +132,353 @@ class ProxyServerTest {
                     .expectResult("Hello Fluxzero");
         }
 
+        @Test
+        void postChunkedOctetStreamUpload() {
+            byte[] payload = "a".repeat(WebUtils.DEFAULT_CHUNK_SIZE + 1024).getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":books");
+        }
+
+        @Test
+        void postChunkedBinaryUploadAsByteArrayMatchesExpectedPayload() {
+            byte[] payload = new byte[WebUtils.DEFAULT_CHUNK_SIZE + 4096];
+            for (int i = 0; i < payload.length; i++) {
+                payload[i] = (byte) (i % 251);
+            }
+            String expected = Base64.getEncoder().encodeToString(payload) + ":books";
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(byte[] body, @PathParam("library") String library) {
+                            return Base64.getEncoder().encodeToString(body) + ":" + library;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "application/pdf")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(expected);
+        }
+
+        @Test
+        void postLargePlainTextUploadIsChunkedBySize() {
+            byte[] payload = "a".repeat(WebUtils.DEFAULT_CHUNK_SIZE + 1024).getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "text/plain")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":books");
+        }
+
+        @Test
+        void postChunkedOctetStreamUploadBuffersSmallPublisherPartsIntoTwoRequests() {
+            byte[] payload = "a".repeat((int) (WebUtils.DEFAULT_CHUNK_SIZE * 1.75)).getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library;
+                        }
+                    })
+                    .whenApplying(fc -> {
+                        AtomicInteger webRequestDispatches = new AtomicInteger();
+                        var registration = fc.client().getGatewayClient(MessageType.WEBREQUEST)
+                                .registerMonitor(messages -> webRequestDispatches.addAndGet(messages.size()));
+                        try {
+                            String result = httpClient.send(
+                                    newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                            .header("Content-Type", "application/octet-stream")
+                                            .POST(chunkedBodyPublisher(payload, 8192))
+                                            .build(),
+                                    BodyHandlers.ofString()).body();
+                            assertEquals(payload.length + ":books", result);
+                            assertEquals(2, webRequestDispatches.get());
+                            return result;
+                        } finally {
+                            registration.cancel();
+                        }
+                    })
+                    .expectResult(payload.length + ":books");
+        }
+
+        @Test
+        void postSmallOctetStreamUploadWithoutChunkMetadata() {
+            byte[] payload = "small upload".getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, DeserializingMessage message,
+                                      @PathParam("library") String library)
+                                throws Exception {
+                            return stream.readAllBytes().length + ":" + library + ":"
+                                   + (message instanceof ChunkedDeserializingMessage);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .verifyResult(result -> {
+                        assertTrue(result.startsWith(payload.length + ":books:"),
+                                   () -> "Unexpected result: " + result);
+                        assertEquals(payload.length + ":books:false", result);
+                    });
+        }
+
+        @Test
+        void postThresholdMinusOneUploadWithoutChunkMetadata() {
+            assertChunkedFlagForPayloadSize(WebUtils.DEFAULT_CHUNK_SIZE - 1, false);
+        }
+
+        @Test
+        void postExactThresholdUploadWithoutChunkMetadata() {
+            assertChunkedFlagForPayloadSize(WebUtils.DEFAULT_CHUNK_SIZE, false);
+        }
+
+        @Test
+        void postThresholdPlusOneUploadWithChunkMetadata() {
+            assertChunkedFlagForPayloadSize(WebUtils.DEFAULT_CHUNK_SIZE + 1, true);
+        }
+
+        @Test
+        void postSmallVideoUploadWithoutChunkMetadata() {
+            byte[] payload = "small video".getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, DeserializingMessage message,
+                                      @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library + ":"
+                                   + (message instanceof ChunkedDeserializingMessage);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/videos", proxyPort)))
+                                    .header("Content-Type", "video/mp4")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":videos:false");
+        }
+
+        @Test
+        void postEmptyChunkedOctetStreamUpload() {
+            byte[] payload = new byte[0];
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":books");
+        }
+
+        @Test
+        void postChunkedOctetStreamUploadWithAsyncResponse() {
+            byte[] payload = "a".repeat(WebUtils.DEFAULT_CHUNK_SIZE + 1024).getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        CompletionStage<String> upload(InputStream stream, @PathParam("library") String library) {
+                            return CompletableFuture.supplyAsync(() -> {
+                                try {
+                                    return stream.readAllBytes().length + ":" + library;
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }).completeOnTimeout("timeout", 1, TimeUnit.SECONDS);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":books");
+        }
+
+        @Test
+        void requestChunkSizeCanBeConfiguredWithProxyProperty() {
+            String previous = System.getProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY);
+            System.setProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, "1024");
+            ProxyRequestHandler configuredHandler = new ProxyRequestHandler(testFixture.getFluxzero().client());
+            ProxyServer configuredServer = ProxyServer.start(0, configuredHandler);
+            try {
+                byte[] payload = "a".repeat(1500).getBytes(StandardCharsets.UTF_8);
+                AtomicInteger webRequestDispatches = new AtomicInteger();
+                var registration = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                        .registerMonitor(messages -> webRequestDispatches.addAndGet(messages.size()));
+                try {
+                    testFixture.registerHandlers(new Object() {
+                                @HandlePost("/upload")
+                                String upload(InputStream stream) throws Exception {
+                                    return String.valueOf(stream.readAllBytes().length);
+                                }
+                            })
+                            .whenApplying(fc -> httpClient.send(
+                                    newBuilder(URI.create(format("http://0.0.0.0:%s/upload", configuredServer.getPort())))
+                                            .header("Content-Type", "text/plain")
+                                            .POST(BodyPublishers.ofByteArray(payload))
+                                            .build(),
+                                    BodyHandlers.ofString()).body())
+                            .expectResult(String.valueOf(payload.length));
+                    assertEquals(2, webRequestDispatches.get());
+                } finally {
+                    registration.cancel();
+                }
+            } finally {
+                configuredServer.cancel();
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, previous);
+            }
+        }
+
+        @Test
+        void postChunkedStreamUploadPreservesExactPayloadWithSmallConfiguredChunks() {
+            String previous = System.getProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY);
+            System.setProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, "1024");
+            ProxyRequestHandler configuredHandler = new ProxyRequestHandler(testFixture.getFluxzero().client());
+            ProxyServer configuredServer = ProxyServer.start(0, configuredHandler);
+            try {
+                byte[] payload = new byte[10 * 1024 + 333];
+                for (int i = 0; i < payload.length; i++) {
+                    payload[i] = (byte) (i % 251);
+                }
+                String expected = Base64.getEncoder().encodeToString(payload);
+                testFixture.registerHandlers(new Object() {
+                            @HandlePost("/upload")
+                            String upload(InputStream stream) throws Exception {
+                                return Base64.getEncoder().encodeToString(stream.readAllBytes());
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format("http://0.0.0.0:%s/upload", configuredServer.getPort())))
+                                        .header("Content-Type", "application/octet-stream")
+                                        .POST(BodyPublishers.ofByteArray(payload))
+                                        .build(),
+                                BodyHandlers.ofString()).body())
+                        .expectResult(expected);
+            } finally {
+                configuredServer.cancel();
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, previous);
+            }
+        }
+
+        @Test
+        void invalidRequestChunkSizePropertyIsRejected() {
+            String previous = System.getProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY);
+            System.setProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, "0");
+            try {
+                IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                                                              () -> new ProxyRequestHandler(
+                                                                      testFixture.getFluxzero().client()));
+                assertEquals(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY + " must be greater than 0",
+                             error.getMessage());
+            } finally {
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, previous);
+            }
+        }
+
+        @Test
+        void stalledChunkedUploadTimesOut() throws Exception {
+            ProxyRequestHandler timeoutHandler =
+                    new ProxyRequestHandler(testFixture.getFluxzero().client(), 1024, java.time.Duration.ofMillis(200));
+            ProxyServer timeoutServer = ProxyServer.start(0, timeoutHandler);
+            try (Socket socket = new Socket("0.0.0.0", timeoutServer.getPort())) {
+                socket.setSoTimeout(3000);
+                OutputStream output = socket.getOutputStream();
+                output.write(("POST /upload HTTP/1.1\r\n"
+                              + "Host: localhost\r\n"
+                              + "Content-Type: application/octet-stream\r\n"
+                              + "Content-Length: 2048\r\n"
+                              + "\r\n").getBytes(StandardCharsets.UTF_8));
+                output.write(new byte[1024]);
+                output.flush();
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(),
+                                                                                 StandardCharsets.UTF_8));
+                assertEquals("HTTP/1.1 504 Gateway Time-out", reader.readLine());
+            } finally {
+                timeoutServer.cancel();
+            }
+        }
+
+        @Test
+        void disconnectedChunkedUploadDoesNotInvokeTypedPayloadHandler() throws Exception {
+            ProxyRequestHandler timeoutHandler =
+                    new ProxyRequestHandler(testFixture.getFluxzero().client(), 1024, java.time.Duration.ofMillis(200));
+            ProxyServer timeoutServer = ProxyServer.start(0, timeoutHandler);
+            CountDownLatch handled = new CountDownLatch(1);
+            try {
+                testFixture.registerHandlers(new Object() {
+                    @HandlePost("/upload")
+                    String upload(byte[] body) {
+                        handled.countDown();
+                        return String.valueOf(body.length);
+                    }
+                });
+
+                try (Socket socket = new Socket("0.0.0.0", timeoutServer.getPort())) {
+                    OutputStream output = socket.getOutputStream();
+                    output.write(("POST /upload HTTP/1.1\r\n"
+                                  + "Host: localhost\r\n"
+                                  + "Content-Type: application/octet-stream\r\n"
+                                  + "Content-Length: 2048\r\n"
+                                  + "\r\n").getBytes(StandardCharsets.UTF_8));
+                    output.write(new byte[1024]);
+                    output.flush();
+                }
+
+                assertFalse(handled.await(500, TimeUnit.MILLISECONDS),
+                            "Typed payload handler should not be invoked for a disconnected chunked upload");
+            } finally {
+                timeoutServer.cancel();
+            }
+        }
+
+        private void assertChunkedFlagForPayloadSize(int size, boolean expectedChunked) {
+            byte[] payload = "a".repeat(size).getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/upload/{library}")
+                        String upload(InputStream stream, DeserializingMessage message,
+                                      @PathParam("library") String library) throws Exception {
+                            return stream.readAllBytes().length + ":" + library + ":"
+                                   + (message instanceof ChunkedDeserializingMessage);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/upload/books", proxyPort)))
+                                    .header("Content-Type", "text/plain")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(),
+                            BodyHandlers.ofString()).body())
+                    .expectResult(payload.length + ":books:" + expectedChunked);
+        }
+
         private HttpRequest.Builder newRequest() {
             return newBuilder(baseUri());
         }
@@ -122,6 +486,66 @@ class ProxyServerTest {
         private URI baseUri() {
             return URI.create(format("http://0.0.0.0:%s/", proxyPort));
         }
+    }
+
+    private static void restoreProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
+
+    private static HttpRequest.BodyPublisher chunkedBodyPublisher(byte[] payload, int publisherChunkSize) {
+        return new HttpRequest.BodyPublisher() {
+            @Override
+            public long contentLength() {
+                return payload.length;
+            }
+
+            @Override
+            public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    private int offset;
+                    private boolean cancelled;
+                    private boolean completed;
+                    private long demand;
+                    private boolean draining;
+
+                    @Override
+                    public synchronized void request(long n) {
+                        if (cancelled || completed || n <= 0) {
+                            return;
+                        }
+                        demand = Math.addExact(demand, n);
+                        if (draining) {
+                            return;
+                        }
+                        draining = true;
+                        try {
+                            while (!cancelled && !completed && demand > 0 && offset < payload.length) {
+                                demand--;
+                                int start = offset;
+                            int length = Math.min(publisherChunkSize, payload.length - offset);
+                                offset += length;
+                                subscriber.onNext(ByteBuffer.wrap(Arrays.copyOfRange(payload, start, start + length)));
+                            }
+                            if (!cancelled && !completed && offset >= payload.length) {
+                                completed = true;
+                                subscriber.onComplete();
+                            }
+                        } finally {
+                            draining = false;
+                        }
+                    }
+
+                    @Override
+                    public synchronized void cancel() {
+                        cancelled = true;
+                    }
+                });
+            }
+        };
     }
 
     @Nested
@@ -268,15 +692,18 @@ class ProxyServerTest {
 
         @Test
         void closeSocketExternally() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
                         ws.sendClose(1000, "bla");
-                        Thread.sleep(100);
+                        assertTrue(socketClosed.await(1, TimeUnit.SECONDS),
+                                   "Timed out waiting for websocket close callback");
                     }))
                     .expectResult("1000")
                     .expectEvents("ws closed with 1000");
@@ -284,6 +711,7 @@ class ProxyServerTest {
 
         @Test
         void closeSocketFromApplication() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketOpen("/")
                         void open(SocketSession session) {
@@ -294,9 +722,11 @@ class ProxyServerTest {
                         void close(Integer reason) {
                             log.info("ws closed with " + reason);
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
-                    .whenApplying(openSocketAnd(ws -> Thread.sleep(100)))
+                    .whenApplying(openSocketAnd(ws -> assertTrue(socketClosed.await(1, TimeUnit.SECONDS),
+                                                                 "Timed out waiting for websocket close callback")))
                     .expectResult("1001")
                     .expectEvents("ws closed with 1001");
         }

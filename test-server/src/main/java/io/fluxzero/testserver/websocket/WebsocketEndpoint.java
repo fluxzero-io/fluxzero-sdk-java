@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package io.fluxzero.testserver.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.api.BooleanResult;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ConnectEvent;
@@ -38,7 +40,6 @@ import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.testserver.metrics.MetricsLog;
 import io.fluxzero.testserver.metrics.NoOpMetricsLog;
-import io.undertow.util.SameThreadExecutor;
 import jakarta.annotation.Nullable;
 import jakarta.websocket.CloseReason;
 import jakarta.websocket.Endpoint;
@@ -62,19 +63,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY;
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
@@ -85,6 +89,7 @@ import static java.lang.String.format;
 
 @Slf4j
 public abstract class WebsocketEndpoint extends Endpoint {
+    private static final int DEFAULT_COMMAND_REQUEST_STRIPES = 16;
 
     private static final ObjectMapper defaultObjectMapper = JsonMapper.builder()
             .findAndAddModules().disable(WRITE_DATES_AS_TIMESTAMPS)
@@ -98,25 +103,26 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     @Getter(AccessLevel.PROTECTED)
     private final ObjectMapper objectMapper;
-    private final Executor requestExecutor;
-    private final ExecutorService ownedRequestExecutor;
+    private final ExecutorService queryExecutor;
+    private final ExecutorService[] commandExecutors;
 
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
+    private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
     protected final AtomicBoolean shuttingDown = new AtomicBoolean();
     protected volatile boolean shutDown;
 
     protected WebsocketEndpoint() {
         this.objectMapper = defaultObjectMapper;
-        this.ownedRequestExecutor = newWorkerPool(getClass().getSimpleName(), 64);
-        this.requestExecutor = ownedRequestExecutor;
+        this.queryExecutor = newWorkerPool(getClass().getSimpleName(), 64);
+        this.commandExecutors = newRequestStripeExecutors(DEFAULT_COMMAND_REQUEST_STRIPES);
         getRuntime().addShutdownHook(
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
-    protected WebsocketEndpoint(@Nullable Executor requestExecutor) {
+    protected WebsocketEndpoint(@Nullable ExecutorService queryExecutor) {
         this.objectMapper = defaultObjectMapper;
-        this.ownedRequestExecutor = null;
-        this.requestExecutor = Optional.ofNullable(requestExecutor).orElse(SameThreadExecutor.INSTANCE);
+        this.queryExecutor = Optional.ofNullable(queryExecutor).orElseGet(DirectExecutorService::newInstance);
+        this.commandExecutors = newRequestStripeExecutors(DEFAULT_COMMAND_REQUEST_STRIPES);
         getRuntime().addShutdownHook(
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
@@ -147,77 +153,96 @@ public abstract class WebsocketEndpoint extends Endpoint {
         if (shuttingDown.get()) {
             throw new IllegalStateException("Cannot accept client. Endpoint is shutting down");
         }
+        activeSessionIds.add(session.getId());
         sessionBacklogs.put(session.getId(), new SessionBacklog(
                 Backlog.forConsumer(results -> sendResultBatch(session, results)), session));
 
         session.addMessageHandler(byte[].class, bytes -> {
-            Runnable task = () -> {
-                try {
-                    JsonType request = deserializeRequest(session, bytes);
-                    if (shutDown) {
-                        throw new IllegalStateException(
-                                format("Rejecting request %s from client %s with id %s because the service is shutting down",
-                                       request, getClientName(session), getClientId(session)));
-                    }
-                    if (shuttingDown.get()) {
-                        log.info(
-                                "Silently ignoring request {} from client {} with id {} because the service is shutting down",
-                                request, getClientName(session), getClientId(session));
-                        return;
-                    }
-                    handleMessage(session, request);
-                } catch (Throwable e) {
-                    log.error("Failed to handle request", e);
-                }
-            };
-            requestExecutor.execute(task);
+            try {
+                dispatchRequest(session, deserializeRequest(session, bytes));
+            } catch (Throwable e) {
+                log.error("Failed to handle request", e);
+            }
         });
         registerMetrics(new ConnectEvent(getClientName(session), getClientId(session), session.getId(), toString()),
                         session);
     }
 
-    @SneakyThrows
-    protected JsonType deserializeRequest(Session session, byte[] bytes) {
-        return objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
+    protected void dispatchRequest(Session session, JsonType request) {
+        if (request instanceof RequestBatch<?> batch) {
+            batch.getRequests().forEach(r -> dispatchRequest(session, r));
+        } else {
+            submitRequestTask(session, request, () -> processRequest(session, request));
+        }
+    }
+
+    protected void submitRequestTask(Session session, @Nullable JsonType request, Runnable task) {
+        if (!activeSessionIds.contains(session.getId())) {
+            log.info("Ignoring request for closed websocket session {}", session.getId());
+        } else {
+            try {
+                executorFor(request).execute(task);
+            } catch (RejectedExecutionException ignored) {
+            }
+        }
+    }
+
+    private Executor executorFor(@Nullable JsonType request) {
+        return request instanceof Command command && command.routingKey() != null
+                ? commandExecutors[ConsistentHashing.computeSegment(command.routingKey(),
+                                                                    commandExecutors.length)]
+                : queryExecutor;
+    }
+
+    private void processRequest(Session session, JsonType request) {
+        try {
+            if (shutDown) {
+                throw new IllegalStateException(
+                        format("Rejecting request %s from client %s with id %s because the service is shutting down",
+                               request, getClientName(session), getClientId(session)));
+            }
+            if (shuttingDown.get()) {
+                log.info(
+                        "Silently ignoring request {} from client {} with id {} because the service is shutting down",
+                        request, getClientName(session), getClientId(session));
+                return;
+            }
+            handleMessage(session, request);
+        } catch (Throwable e) {
+            log.error("Failed to handle request", e);
+        }
     }
 
     protected void handleMessage(Session session, JsonType message) {
-        if (message instanceof RequestBatch<?> batch) {
-            createTasks(batch, session).forEach(requestExecutor::execute);
-        } else {
-            try {
-                Object result = handler.getInvoker(new ClientMessage(message, session)).orElseThrow().invoke();
-                trySendResult(session, message, result);
-            } catch (Throwable e) {
-                log.error("Could not handle request {}", message, e);
-            }
+        try {
+            Object result = handler.getInvoker(new ClientMessage(message, session)).orElseThrow().invoke();
+            trySendResult(session, message, result);
+        } catch (Throwable e) {
+            log.error("Could not handle request {}", message, e);
         }
     }
 
     private void trySendResult(Session session, JsonType message, Object result) {
         if (message instanceof Request request && (!(request instanceof Command command)
                                                    || command.getGuarantee().compareTo(STORED) >= 0)) {
-            if (result instanceof RequestResult response) {
-                doSendResult(session, response);
-            } else if (result == null) {
-                if (request instanceof Command) {
-                    doSendResult(session, new VoidResult(request.getRequestId()));
+            switch (result) {
+                case RequestResult response -> doSendResult(session, response);
+                case null -> {
+                    if (request instanceof Command) {
+                        doSendResult(session, new VoidResult(request.getRequestId()));
+                    }
                 }
-            } else if (result instanceof Boolean v) {
-                doSendResult(session, new BooleanResult(request.getRequestId(), v));
-            } else if (result instanceof String v) {
-                doSendResult(session, new StringResult(request.getRequestId(), v));
-            } else if (result instanceof CompletableFuture<?> future) {
-                future.whenComplete((r, e) -> {
+                case Boolean v -> doSendResult(session, new BooleanResult(request.getRequestId(), v));
+                case String v -> doSendResult(session, new StringResult(request.getRequestId(), v));
+                case CompletableFuture<?> future -> future.whenComplete((r, e) -> {
                     if (e != null) {
                         log.error("Request {} failed. Not sending back result to client.", message, e);
                     } else {
                         trySendResult(session, message, r);
                     }
                 });
-            } else {
-                log.warn("Not able to send back result of type {} to client. Contents: {}. Request: {}",
-                         result.getClass(), result, request);
+                default -> log.warn("Not able to send back result of type {} to client. Contents: {}. Request: {}",
+                                    result.getClass(), result, request);
             }
         }
     }
@@ -227,10 +252,6 @@ public abstract class WebsocketEndpoint extends Endpoint {
                 .ifPresentOrElse(backlog -> backlog.add(result), () ->
                         log.info("Not sending result {}. Could not find any suitable sessions for client {}.",
                                  result, getClientId(session)));
-    }
-
-    protected Stream<Runnable> createTasks(RequestBatch<?> batch, Session session) {
-        return batch.getRequests().stream().map(r -> () -> handleMessage(session, r));
     }
 
     protected void sendResultBatch(Session session, List<RequestResult> results) {
@@ -263,9 +284,25 @@ public abstract class WebsocketEndpoint extends Endpoint {
                         .equals(b.getSession().getId())).findFirst();
     }
 
+    @SuppressWarnings({"SameParameterValue", "resource"})
+    protected ExecutorService[] newRequestStripeExecutors(int stripes) {
+        ExecutorService[] result = new ExecutorService[stripes];
+        for (int i = 0; i < stripes; i++) {
+            result[i] = Executors.newSingleThreadExecutor(newPlatformThreadFactory(
+                    getClass().getSimpleName() + "-command-stripe-" + i));
+        }
+        return result;
+    }
+
+    @SneakyThrows
+    protected JsonType deserializeRequest(Session session, byte[] bytes) {
+        return objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
+    }
+
     @Override
     public void onClose(Session session, CloseReason closeReason) {
         sessionBacklogs.remove(session.getId());
+        activeSessionIds.remove(session.getId());
         if (!shuttingDown.get()) {
             if (closeReason.getCloseCode() != UNEXPECTED_CONDITION
                 && closeReason.getCloseCode().getCode() > NO_STATUS_CODE.getCode()) {
@@ -299,7 +336,8 @@ public abstract class WebsocketEndpoint extends Endpoint {
                 Thread.currentThread().interrupt();
             } finally {
                 shutDown = true;
-                Optional.ofNullable(ownedRequestExecutor).ifPresent(ExecutorService::shutdown);
+                Optional.ofNullable(queryExecutor).ifPresent(ExecutorService::shutdown);
+                Arrays.stream(commandExecutors).forEach(ExecutorService::shutdownNow);
                 sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(Session::isOpen).forEach(s -> {
                     try {
                         s.close();

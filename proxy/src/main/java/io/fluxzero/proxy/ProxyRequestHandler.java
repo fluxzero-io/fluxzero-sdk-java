@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,11 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -47,7 +50,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.xnio.OptionMap;
 import org.xnio.Options;
 import org.xnio.Xnio;
+import org.xnio.channels.Channels;
+import org.xnio.channels.StreamSourceChannel;
 
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -58,11 +65,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.undertow.servlet.Servlets.deployment;
 import static java.lang.String.format;
@@ -72,16 +85,23 @@ import static java.util.Optional.ofNullable;
 public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
 
     public static final String CORS_DOMAINS_PROPERTY = "FLUXZERO_CORS_DOMAINS";
+    public static final String REQUEST_CHUNK_SIZE_PROPERTY = "FLUXZERO_PROXY_REQUEST_CHUNK_SIZE";
+    public static final String LOG_CHUNK_DISPATCHES_PROPERTY = "FLUXZERO_PROXY_LOG_CHUNK_DISPATCHES";
+    public static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(200);
 
     @Getter
     private final Client client;
 
+    private final int maxRequestSize;
+    private final Duration requestTimeout;
     private final ProxySerializer serializer = new ProxySerializer();
     private final GatewayClient requestGateway;
     private final RequestHandler requestHandler;
     private final WebsocketEndpoint websocketEndpoint;
     private final HttpHandler websocketHandler;
     private final NamespaceSelector namespaceSelector;
+    private final ExecutorService chunkedResponseExecutor;
+    private final boolean logChunkDispatches;
 
     private final AtomicBoolean closed = new AtomicBoolean();
     @Getter(lazy = true)
@@ -89,23 +109,42 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             .filter(d -> !d.isEmpty()).collect(Collectors.toSet()), Set::of);
 
     public ProxyRequestHandler(Client client) {
-        this(client, new NamespaceSelector());
+        this(client, new NamespaceSelector(),
+             validateRequestChunkSize(getIntegerProperty(REQUEST_CHUNK_SIZE_PROPERTY, WebUtils.DEFAULT_CHUNK_SIZE)),
+             DEFAULT_REQUEST_TIMEOUT);
     }
 
-    private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {
+    protected ProxyRequestHandler(Client client, int maxRequestSize, Duration requestTimeout) {
+        this(client, new NamespaceSelector(), validateRequestChunkSize(maxRequestSize), requestTimeout);
+    }
+
+    private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector, int maxRequestSize,
+                                Duration requestTimeout) {
         this.client = client;
+        this.maxRequestSize = maxRequestSize;
+        this.requestTimeout = requestTimeout;
         requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
-        requestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE, Duration.ofSeconds(200),
+        requestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE, requestTimeout,
                                                    format("%s_%s", client.name(), "$proxy-request-handler"));
+        chunkedResponseExecutor = newWorkerPool(format("%s_%s", client.name(), "$proxy-chunked-response"), 8);
         websocketEndpoint = new WebsocketEndpoint(client);
         websocketHandler = createWebsocketHandler();
         this.namespaceSelector = namespaceSelector;
+        logChunkDispatches = getBooleanProperty(LOG_CHUNK_DISPATCHES_PROPERTY);
+    }
+
+    protected static int validateRequestChunkSize(int chunkSize) {
+        if (chunkSize <= 0) {
+            throw new IllegalArgumentException(REQUEST_CHUNK_SIZE_PROPERTY + " must be greater than 0");
+        }
+        return chunkSize;
     }
 
     @Override
     protected ProxyRequestHandler createForNamespace(String namespace) {
         return Objects.equals(client.namespace(), namespace)
-                ? this : new ProxyRequestHandler(client.forNamespace(namespace), namespaceSelector);
+                ? this : new ProxyRequestHandler(client.forNamespace(namespace), namespaceSelector, maxRequestSize,
+                                                 requestTimeout);
     }
 
     @Override
@@ -121,10 +160,19 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         if (handleCorsPreflight(exchange)) {
             return;
         }
+        if (shouldChunkRequest(exchange)) {
+            try {
+                sendWebRequest(exchange, createWebRequest(exchange, new byte[0]), true);
+            } catch (Throwable e) {
+                log.error("Failed to stream incoming message", e);
+                sendServerError(exchange);
+            }
+            return;
+        }
         exchange.getRequestReceiver().receiveFullBytes(
                 (se, payload) -> se.dispatch(() -> {
                     try {
-                        sendWebRequest(se, createWebRequest(se, payload));
+                        sendWebRequest(se, createWebRequest(se, payload), false);
                     } catch (Throwable e) {
                         log.error("Failed to create request", e);
                         sendServerError(se);
@@ -144,6 +192,11 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         se.getRequestHeaders().forEach(
                 header -> header.forEach(value -> builder.header(header.getHeaderName().toString(), value)));
         return tryUpgrade(builder.build(), se);
+    }
+
+    protected boolean shouldChunkRequest(HttpServerExchange exchange) {
+        long contentLength = exchange.getRequestContentLength();
+        return contentLength < 0 || contentLength > maxRequestSize;
     }
 
     protected WebRequest tryUpgrade(WebRequest webRequest, HttpServerExchange se) {
@@ -240,7 +293,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         return false;
     }
 
-    protected void sendWebRequest(HttpServerExchange se, WebRequest webRequest) {
+    protected void sendWebRequest(HttpServerExchange se, WebRequest webRequest, boolean chunked) {
         String namespace;
         try {
             namespace = namespaceSelector.select(webRequest);
@@ -250,10 +303,18 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             return;
         }
         if (namespace != null) {
-            forNamespace(namespace).doSendWebRequest(se, webRequest);
+            forNamespace(namespace).sendResolvedWebRequest(se, webRequest, chunked);
             return;
         }
-        doSendWebRequest(se, webRequest);
+        sendResolvedWebRequest(se, webRequest, chunked);
+    }
+
+    protected void sendResolvedWebRequest(HttpServerExchange se, WebRequest webRequest, boolean chunked) {
+        if (chunked) {
+            doSendChunkedWebRequest(se, webRequest);
+        } else {
+            doSendWebRequest(se, webRequest);
+        }
     }
 
     protected void doSendWebRequest(HttpServerExchange se, WebRequest webRequest) {
@@ -261,25 +322,276 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         requestHandler.sendRequest(
                         requestMessage, m -> requestGateway.append(Guarantee.SENT, m),
                         intermediateResponse -> handleResponse(intermediateResponse, webRequest, se))
-                .whenComplete((r, e) -> {
-                    try {
-                        e = unwrapException(e);
-                        if (e == null) {
-                            handleResponse(r, webRequest, se);
-                        } else if (e instanceof TimeoutException) {
-                            log.warn("Request {} timed out (messageId: {}). This is possibly due to a missing handler.",
-                                     webRequest, webRequest.getMessageId(), e);
-                            sendGatewayTimeout(se);
-                        } else {
-                            log.error("Failed to complete {} (messageId: {})",
-                                      webRequest, webRequest.getMessageId(), e);
-                            sendServerError(se);
-                        }
-                    } catch (Throwable t) {
-                        log.error("Failed to process response {} to request {}", e == null ? r : e, webRequest, t);
-                        sendServerError(se);
+                .whenComplete((r, e) -> completeResponse(r, e, webRequest, se));
+    }
+
+    protected void doSendChunkedWebRequest(HttpServerExchange se, WebRequest webRequest) {
+        se.dispatch(chunkedResponseExecutor, () -> readChunkedWebRequest(se, webRequest));
+    }
+
+    protected void readChunkedWebRequest(HttpServerExchange se, WebRequest webRequest) {
+        AtomicReference<ChunkedProxyRequest> chunkedRequest = new AtomicReference<>();
+        AtomicReference<ByteArrayOutputStream> pendingBuffer =
+                new AtomicReference<>(new ByteArrayOutputStream(maxRequestSize));
+        AtomicBoolean failed = new AtomicBoolean();
+        long expectedContentLength = se.getRequestContentLength();
+        long totalRead = 0;
+        try {
+            StreamSourceChannel requestChannel = se.getRequestChannel();
+            ByteBuffer readBuffer = ByteBuffer.allocate(Math.min(maxRequestSize, 64 * 1024));
+            long readTimeoutMillis = Math.max(1L, Math.min(requestTimeout.toMillis(), 100L));
+            while (!failed.get()) {
+                readBuffer.clear();
+                int read = Channels.readBlocking(requestChannel, readBuffer, readTimeoutMillis,
+                                                 java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (read < 0) {
+                    if (expectedContentLength >= 0 && totalRead < expectedContentLength) {
+                        throw new EOFException(format("Request ended early after %s of %s bytes",
+                                                      totalRead, expectedContentLength));
+                    }
+                    break;
+                }
+                if (read == 0) {
+                    continue;
+                }
+                totalRead += read;
+                processChunkedRequestBytes(se, webRequest, readBuffer.array(), read, false, chunkedRequest,
+                                           pendingBuffer, failed);
+                awaitChunkDispatch(se, webRequest, chunkedRequest.get(), false, failed);
+            }
+            if (failed.get()) {
+                return;
+            }
+            processChunkedRequestBytes(se, webRequest, new byte[0], 0, true, chunkedRequest, pendingBuffer, failed);
+            awaitChunkDispatch(se, webRequest, chunkedRequest.get(), true, failed);
+        } catch (Throwable error) {
+            if (failed.compareAndSet(false, true)) {
+                log.error("Failed to read incoming message", error);
+                completeResponse(null, error, webRequest, se);
+            }
+        }
+    }
+
+    protected void processChunkedRequestBytes(HttpServerExchange se, WebRequest webRequest, byte[] bytes,
+                                              int length, boolean last,
+                                              AtomicReference<ChunkedProxyRequest> chunkedRequest,
+                                              AtomicReference<ByteArrayOutputStream> pendingBuffer,
+                                              AtomicBoolean failed) {
+        if (failed.get()) {
+            return;
+        }
+        try {
+            ByteArrayOutputStream buffer = pendingBuffer.get();
+            if (length > 0) {
+                buffer.write(bytes, 0, length);
+            }
+            ChunkedProxyRequest currentRequest = chunkedRequest.get();
+            boolean dispatchedFinalChunk = false;
+            if (currentRequest == null && last && buffer.size() <= maxRequestSize) {
+                doSendWebRequest(se, webRequest.withPayload(buffer.toByteArray()));
+                buffer.reset();
+                return;
+            }
+            while (buffer.size() >= maxRequestSize || (last && buffer.size() > 0)) {
+                if (currentRequest == null) {
+                    currentRequest = new ChunkedProxyRequest(webRequest, se);
+                    currentRequest.watchForEarlyFailure(failed);
+                }
+                boolean finalChunk = last && buffer.size() <= maxRequestSize;
+                currentRequest.append(takeChunk(buffer, Math.min(maxRequestSize, buffer.size())), finalChunk);
+                dispatchedFinalChunk |= finalChunk;
+            }
+            if (last && buffer.size() == 0 && currentRequest != null
+                && !dispatchedFinalChunk && !currentRequest.hasDispatchedFinalChunk()) {
+                currentRequest.append(new byte[0], true);
+            }
+            if (currentRequest != null) {
+                chunkedRequest.set(currentRequest);
+            }
+        } catch (Throwable e) {
+            if (failed.compareAndSet(false, true)) {
+                completeResponse(null, e, webRequest, se);
+            }
+        }
+    }
+
+    protected byte[] takeChunk(ByteArrayOutputStream buffer, int length) {
+        byte[] allBytes = buffer.toByteArray();
+        byte[] chunk = Arrays.copyOfRange(allBytes, 0, length);
+        buffer.reset();
+        if (allBytes.length > length) {
+            buffer.write(allBytes, length, allBytes.length - length);
+        }
+        return chunk;
+    }
+
+    protected void awaitChunkDispatch(HttpServerExchange se, WebRequest webRequest, ChunkedProxyRequest currentRequest,
+                                      boolean last, AtomicBoolean failed) {
+        if (failed.get() || currentRequest == null) {
+            return;
+        }
+        try {
+            currentRequest.dispatchFuture().join();
+        } catch (Throwable error) {
+            if (failed.compareAndSet(false, true)) {
+                completeResponse(null, error, webRequest, se);
+            }
+            return;
+        }
+        if (last) {
+            currentRequest.responseFuture().whenComplete((response, responseError) -> se.dispatch(
+                    chunkedResponseExecutor, () -> completeResponse(response, responseError, webRequest, se)));
+        }
+    }
+
+    protected SerializedMessage createChunkedRequestMessage(WebRequest webRequest, byte[] chunk, long chunkIndex,
+                                                            boolean firstChunk, boolean finalChunk) {
+        var metadata = webRequest.getMetadata()
+                .with(HasMetadata.CHUNK_INDEX, chunkIndex)
+                .with(HasMetadata.FIRST_CHUNK, Boolean.toString(firstChunk))
+                .with(HasMetadata.FINAL_CHUNK, Boolean.toString(finalChunk));
+        SerializedMessage chunkMessage = new SerializedMessage(
+                new Data<>(chunk, byte[].class.getName(), 0, "application/octet-stream"),
+                metadata, webRequest.getMessageId(), webRequest.getTimestamp().toEpochMilli());
+        return chunkMessage;
+    }
+
+    protected void logChunkDispatch(WebRequest webRequest, SerializedMessage chunkMessage) {
+        if (!logChunkDispatches || !log.isInfoEnabled()) {
+            return;
+        }
+        log.info(
+                "Dispatching proxy chunk for request {} (messageId={}, chunkIndex={}, firstChunk={}, finalChunk={}, bytes={})",
+                webRequest.getPath(), chunkMessage.getMessageId(), chunkMessage.getMetadata().get(HasMetadata.CHUNK_INDEX),
+                chunkMessage.firstChunk(), chunkMessage.lastChunk(),
+                chunkMessage.getData() == null || chunkMessage.getData().getValue() == null
+                        ? 0 : chunkMessage.getData().getValue().length);
+    }
+
+    protected class ChunkedProxyRequest {
+        private final WebRequest webRequest;
+        private final HttpServerExchange exchange;
+        private final CompletableFuture<SerializedMessage> responseFuture = new CompletableFuture<>();
+        private final AtomicReference<CompletableFuture<Void>> lastDispatch =
+                new AtomicReference<>(CompletableFuture.completedFuture(null));
+        private final AtomicBoolean watchingFailure = new AtomicBoolean();
+        private final AtomicBoolean finalChunkDispatched = new AtomicBoolean();
+        private long nextChunkIndex;
+        private SerializedMessage firstChunk;
+
+        protected ChunkedProxyRequest(WebRequest webRequest, HttpServerExchange exchange) {
+            this.webRequest = webRequest;
+            this.exchange = exchange;
+        }
+
+        protected synchronized void append(byte[] chunk, boolean finalChunk) {
+            if (responseFuture.isDone()) {
+                throw new IllegalStateException("Cannot append chunks after the request has already completed");
+            }
+            if (finalChunkDispatched.get()) {
+                throw new IllegalStateException("Cannot append chunks after the final chunk has been dispatched");
+            }
+            if (firstChunk == null) {
+                sendFirstChunk(chunk, finalChunk);
+                return;
+            }
+            SerializedMessage continuation = prepareContinuation(createChunkedRequestMessage(
+                    webRequest, chunk, nextChunkIndex++, false, finalChunk));
+            if (finalChunk) {
+                finalChunkDispatched.set(true);
+            }
+            dispatch(lastDispatch.get().thenCompose(ignored -> {
+                logChunkDispatch(webRequest, continuation);
+                return requestGateway.append(Guarantee.SENT, continuation);
+            }));
+        }
+
+        protected CompletableFuture<Void> dispatchFuture() {
+            return lastDispatch.get();
+        }
+
+        protected boolean hasDispatchedFinalChunk() {
+            return finalChunkDispatched.get();
+        }
+
+        protected CompletableFuture<SerializedMessage> responseFuture() {
+            return responseFuture;
+        }
+
+        protected void watchForEarlyFailure(AtomicBoolean failed) {
+            if (watchingFailure.compareAndSet(false, true)) {
+                responseFuture.whenComplete((response, error) -> {
+                    if (error != null && failed.compareAndSet(false, true)) {
+                        exchange.dispatch(chunkedResponseExecutor,
+                                          () -> completeResponse(null, error, webRequest, exchange));
                     }
                 });
+            }
+        }
+
+        private void sendFirstChunk(byte[] chunk, boolean finalChunk) {
+            firstChunk = createChunkedRequestMessage(webRequest, chunk, nextChunkIndex++, true, finalChunk);
+            if (finalChunk) {
+                finalChunkDispatched.set(true);
+            }
+            firstChunk.setSegment(ConsistentHashing.computeSegment(firstChunk.getMessageId()));
+            AtomicReference<CompletableFuture<Void>> initialDispatch =
+                    new AtomicReference<>(CompletableFuture.completedFuture(null));
+            requestHandler.sendRequest(firstChunk, message -> {
+                try {
+                    logChunkDispatch(webRequest, message);
+                    initialDispatch.set(requestGateway.append(Guarantee.SENT, message));
+                } catch (Throwable e) {
+                    initialDispatch.set(CompletableFuture.failedFuture(e));
+                    throw e;
+                }
+            }, null, intermediateResponse -> handleResponse(intermediateResponse, webRequest, exchange))
+                    .whenComplete((response, error) -> {
+                        if (error == null) {
+                            responseFuture.complete(response);
+                        } else {
+                            responseFuture.completeExceptionally(unwrapException(error));
+                        }
+                    });
+            dispatch(initialDispatch.get());
+        }
+
+        private SerializedMessage prepareContinuation(SerializedMessage chunk) {
+            chunk.setMessageId(firstChunk.getMessageId());
+            chunk.setRequestId(firstChunk.getRequestId());
+            chunk.setSource(firstChunk.getSource());
+            chunk.setSegment(firstChunk.getSegment());
+            return chunk;
+        }
+
+        private void dispatch(CompletableFuture<Void> future) {
+            lastDispatch.set(future);
+            future.whenComplete((r, e) -> {
+                if (e != null) {
+                    responseFuture.completeExceptionally(unwrapException(e));
+                }
+            });
+        }
+    }
+
+    protected void completeResponse(SerializedMessage response, Throwable error, WebRequest webRequest,
+                                    HttpServerExchange se) {
+        try {
+            error = unwrapException(error);
+            if (error == null) {
+                handleResponse(response, webRequest, se);
+            } else if (error instanceof TimeoutException) {
+                log.warn("Request {} timed out (messageId: {}). This is possibly due to a missing handler.",
+                         webRequest, webRequest.getMessageId(), error);
+                sendGatewayTimeout(se);
+            } else {
+                log.error("Failed to complete {} (messageId: {})", webRequest, webRequest.getMessageId(), error);
+                sendServerError(se);
+            }
+        } catch (Throwable t) {
+            log.error("Failed to process response {} to request {}", error == null ? response : error, webRequest, t);
+            sendServerError(se);
+        }
     }
 
     @SuppressWarnings("resource")
@@ -353,6 +665,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             websocketEndpoint.shutDown();
             requestHandler.close();
             requestGateway.close();
+            chunkedResponseExecutor.shutdown();
             super.close();
         }
     }

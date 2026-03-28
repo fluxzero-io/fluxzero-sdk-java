@@ -30,7 +30,20 @@ package io.fluxzero.common.api;
  */
 public interface HasMetadata {
 
+    /**
+     * Metadata key that marks the final part of a chunked message.
+     */
     String FINAL_CHUNK = "$finalChunk";
+
+    /**
+     * Metadata key that marks the first part of a chunked message.
+     */
+    String FIRST_CHUNK = "$firstChunk";
+
+    /**
+     * Metadata key that stores the zero-based position of a chunk within a chunked message.
+     */
+    String CHUNK_INDEX = "$chunkIndex";
 
     /**
      * Returns the {@link Metadata} associated with this object.
@@ -58,5 +71,15 @@ public interface HasMetadata {
      */
     default boolean lastChunk() {
         return "true".equalsIgnoreCase(getMetadata().getOrDefault(FINAL_CHUNK, "true"));
+    }
+
+    /**
+     * Determines if the data associated with this metadata is the first part of the data. If the
+     * {@code FIRST_CHUNK} key is missing or set to {@code true}, this method returns {@code true}.
+     *
+     * @return true if the metadata value for the {@code FIRST_CHUNK} key is {@code true}, false otherwise.
+     */
+    default boolean firstChunk() {
+        return "true".equalsIgnoreCase(getMetadata().getOrDefault(FIRST_CHUNK, "true"));
     }
 }

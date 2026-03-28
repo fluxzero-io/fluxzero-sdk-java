@@ -20,19 +20,34 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Injects an individual form field or a complete form object into a handler method parameter.
+ * Injects form data from {@code application/x-www-form-urlencoded} or {@code multipart/form-data}
+ * requests into a handler method parameter.
  * <p>
- * The request must use {@code application/x-www-form-urlencoded} or {@code multipart/form-data}.
+ * {@code @FormParam} can resolve:
+ * <ul>
+ *   <li>text form fields such as {@code String}, numbers, enums, or custom value objects</li>
+ *   <li>multipart file parts as {@link MultipartFormPart}, {@code byte[]}, or {@code InputStream}</li>
+ *   <li>repeated form keys as collection types such as {@code List<String>} or
+ *   {@code List<MultipartFormPart>}</li>
+ * </ul>
+ * For chunked web requests, form values are materialized only after the full request body has arrived,
+ * while the handler itself is still invoked off the tracker thread.
+ * <p>
  * Standard validation annotations may be declared directly on the injected parameter.
- * </p>
  *
- * <h2>Examples:</h2>
+ * <h2>Examples</h2>
  * <pre>{@code
  * @HandlePost("/newsletter")
  * void subscribe(@FormParam @NotBlank String email) { ... }
  *
- * @HandlePost("/user")
- * UserId createUser(@FormParam UserForm form) { ... }
+ * @HandlePost("/token")
+ * void token(@FormParam("client_id") String clientId) { ... }
+ *
+ * @HandlePost("/upload")
+ * void upload(@FormParam("document") MultipartFormPart document) { ... }
+ *
+ * @HandlePost("/upload-many")
+ * void upload(@FormParam("document") List<MultipartFormPart> documents) { ... }
  * }</pre>
  */
 @Retention(RetentionPolicy.RUNTIME)
@@ -41,7 +56,7 @@ import java.lang.annotation.Target;
 public @interface FormParam {
 
     /**
-     * Form parameter name. If left empty, it defaults to the method parameter's name;
+     * Form parameter name. If left empty, it defaults to the method parameter's name.
      */
     String value() default "";
 }

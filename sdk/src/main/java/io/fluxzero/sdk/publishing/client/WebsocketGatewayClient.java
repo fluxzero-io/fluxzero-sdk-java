@@ -28,8 +28,12 @@ import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -114,7 +118,12 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
     @Override
     public CompletableFuture<Void> append(Guarantee guarantee, SerializedMessage... messages) {
         try {
-            return sendCommand(new Append(messageType, Arrays.asList(messages), guarantee));
+            if (messages.length == 0) {
+                return CompletableFuture.completedFuture(null);
+            }
+            List<CompletableFuture<Void>> futures = partitionByRoutingKey(Arrays.asList(messages)).stream()
+                    .map(batch -> sendCommand(new Append(messageType, batch, guarantee))).toList();
+            return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
         } finally {
             if (!monitors.isEmpty()) {
                 monitors.forEach(m -> m.accept(Arrays.asList(messages)));
@@ -141,5 +150,30 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
     public Registration registerMonitor(Consumer<List<SerializedMessage>> monitor) {
         monitors.add(monitor);
         return () -> monitors.remove(monitor);
+    }
+
+    static List<List<SerializedMessage>> partitionByRoutingKey(List<SerializedMessage> messages) {
+        if (messages.isEmpty()) {
+            return List.of();
+        }
+        if (messages.size() == 1) {
+            return List.of(messages);
+        }
+        String firstKey = Append.routingKeyFor(messages.getFirst());
+        for (int i = 1; i < messages.size(); i++) {
+            SerializedMessage message = messages.get(i);
+            String key = Append.routingKeyFor(message);
+            if (!Objects.equals(firstKey, key)) {
+                Map<String, List<SerializedMessage>> partitions = new LinkedHashMap<>();
+                partitions.put(firstKey, new ArrayList<>(messages.subList(0, i)));
+                partitions.computeIfAbsent(key, k -> new ArrayList<>()).add(message);
+                for (int j = i + 1; j < messages.size(); j++) {
+                    SerializedMessage remaining = messages.get(j);
+                    partitions.computeIfAbsent(Append.routingKeyFor(remaining), k -> new ArrayList<>()).add(remaining);
+                }
+                return new ArrayList<>(partitions.values());
+            }
+        }
+        return List.of(messages);
     }
 }

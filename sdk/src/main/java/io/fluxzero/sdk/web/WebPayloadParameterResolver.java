@@ -17,13 +17,21 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
@@ -60,7 +68,8 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
-            Object payload = m.getPayloadAs(p.getType());
+            optimizeForStreamingHandler(m, p);
+            Object payload = resolvePayload(m, p, p.getParameterizedType());
             if (payload != null) {
                 if (validatePayload) {
                     assertValid(payload);
@@ -75,8 +84,11 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
 
     @Override
     public boolean test(HasMessage m, Parameter p) {
+        if (m instanceof ChunkedDeserializingMessage) {
+            return !authoriseUser || !ignoreSilently(p.getType(), User.getCurrent());
+        }
         if (authoriseUser) {
-            Object payload = m.getPayloadAs(p.getType());
+            Object payload = resolvePayload(m, p, p.getParameterizedType());
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
@@ -101,5 +113,66 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
+    }
+
+    protected void optimizeForStreamingHandler(HasMessage message, Parameter parameter) {
+        if (message instanceof ChunkedDeserializingMessage chunked
+            && chunked.getMessageType() == io.fluxzero.common.MessageType.WEBREQUEST
+            && isStreamingOnlyWebHandler(parameter.getDeclaringExecutable())) {
+            chunked.enableStreamingOnlyMode();
+        }
+    }
+
+    Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
+        if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
+            return DefaultWebRequestContext.getWebRequestContext(m).formObject()
+                    .isEmpty() ? null : JsonUtils.convertValue(DefaultWebRequestContext.getWebRequestContext(m).formObject(), type);
+        }
+        return message.getPayloadAs(type);
+    }
+
+    boolean shouldBindFormPayload(DeserializingMessage message, Parameter parameter) {
+        String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
+        Class<?> type = parameter.getType();
+        return WebUtils.isFormContentType(contentType)
+               && !type.isPrimitive()
+               && !type.isArray()
+               && !type.isEnum()
+               && !String.class.isAssignableFrom(type)
+               && !Number.class.isAssignableFrom(type)
+               && !Boolean.class.isAssignableFrom(type)
+               && !Character.class.isAssignableFrom(type)
+               && !Collection.class.isAssignableFrom(type)
+               && !java.io.InputStream.class.isAssignableFrom(type)
+               && !MultipartFormPart.class.isAssignableFrom(type)
+               && !type.getPackageName().startsWith("java.");
+    }
+
+    protected boolean isStreamingOnlyWebHandler(Executable method) {
+        boolean hasInputStream = false;
+        for (Parameter parameter : method.getParameters()) {
+            if (java.io.InputStream.class.isAssignableFrom(parameter.getType())) {
+                hasInputStream = true;
+                continue;
+            }
+            if (WebRequest.class.isAssignableFrom(parameter.getType())
+                || WebResponse.class.isAssignableFrom(parameter.getType())
+                || DeserializingMessage.class.isAssignableFrom(parameter.getType())
+                || SerializedMessage.class.isAssignableFrom(parameter.getType())
+                || User.class.isAssignableFrom(parameter.getType())
+                || Instant.class.isAssignableFrom(parameter.getType())) {
+                continue;
+            }
+            Annotation webParam = Arrays.stream(parameter.getAnnotations())
+                    .filter(a -> ReflectionUtils.isOrHas(a.annotationType(), WebParam.class))
+                    .findFirst().orElse(null);
+            if (webParam != null
+                && !ReflectionUtils.isOrHas(webParam.annotationType(), BodyParam.class)
+                && !ReflectionUtils.isOrHas(webParam.annotationType(), FormParam.class)) {
+                continue;
+            }
+            return false;
+        }
+        return hasInputStream;
     }
 }

@@ -43,6 +43,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @ExtendWith(SpringExtension.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @ContextConfiguration(classes = {FluxzeroTestConfig.class, TestServerTest.FooConfig.class, TestServerTest.BarConfig.class})
@@ -122,7 +127,6 @@ class TestServerTest {
         }
         testFixture.registerHandlers(new Handler()).whenExecuting(fc -> {
                     fc.eventGateway().publish("test");
-                    Thread.sleep(100);
                 })
                 .expectNoMetricsLike(SearchDocumentsResult.Metric.class)
                 .expectNoMetricsLike(SearchDocuments.class)
@@ -132,8 +136,20 @@ class TestServerTest {
     @Test
     void handleDocument() {
         testFixture.whenExecuting(fc -> {
+                    CountDownLatch published = new CountDownLatch(1);
+                    var registration = fc.client().getGatewayClient(io.fluxzero.common.MessageType.EVENT)
+                            .registerMonitor(messages -> {
+                                if (!messages.isEmpty()) {
+                                    published.countDown();
+                                }
+                            });
                     Fluxzero.index("testDoc", "test").get();
-                    Thread.sleep(100);
+                    try {
+                        assertTrue(published.await(1, TimeUnit.SECONDS),
+                                   "Timed out waiting for document handler event");
+                    } finally {
+                        registration.cancel();
+                    }
                 })
                 .expectEvents("testDoc");
     }
@@ -148,8 +164,20 @@ class TestServerTest {
     void handleSchedule() {
         testFixture
                 .whenExecuting(fc -> {
+                    CountDownLatch published = new CountDownLatch(1);
+                    var registration = fc.client().getGatewayClient(io.fluxzero.common.MessageType.EVENT)
+                            .registerMonitor(messages -> {
+                                if (!messages.isEmpty()) {
+                                    published.countDown();
+                                }
+                            });
                     Fluxzero.schedule("foo", Fluxzero.currentTime().minusSeconds(1));
-                    Thread.sleep(500);
+                    try {
+                        assertTrue(published.await(1, TimeUnit.SECONDS),
+                                   "Timed out waiting for scheduling handler event");
+                    } finally {
+                        registration.cancel();
+                    }
                 })
                 .expectEvents("foo");
     }
@@ -244,4 +272,3 @@ class TestServerTest {
     }
 
 }
-
