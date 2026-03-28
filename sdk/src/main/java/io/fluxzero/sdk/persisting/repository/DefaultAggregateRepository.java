@@ -145,8 +145,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             return new NoOpEntity<>(() -> (Entity<T>) delegates.apply(knownType).load(aggregateId));
         }
         return (Entity<T>) delegates.apply(knownType).load(aggregateId);
-    }
-
+}
     @SuppressWarnings("unchecked")
     @Override
     public <T> Entity<T> loadFor(@NonNull Object entityId, Class<?> defaultType) {
@@ -432,11 +431,14 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 delegates.apply(after.type()).commit(after, unpublishedEvents, before);
                 return;
             }
+            if (after == before && unpublishedEvents.isEmpty()) {
+                return;
+            }
             try {
                 aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
-                        current == null || Objects.equals(before.lastEventId(), current.lastEventId())
-                        || unpublishedEvents.isEmpty() ? after : current.apply(
-                                unpublishedEvents.stream().map(AppliedEvent::getEvent).toList()));
+                        current == null || current == before ? after
+                                : unpublishedEvents.isEmpty() ? null
+                                : current.apply(unpublishedEvents.stream().map(AppliedEvent::getEvent).toList()));
                 Set<Relationship> associations = after.associations(before), dissociations =
                         after.dissociations(before);
                 dissociations.forEach(
@@ -497,4 +499,5 @@ public class DefaultAggregateRepository implements AggregateRepository {
             }
         }
     }
+
 }

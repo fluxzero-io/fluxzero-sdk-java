@@ -238,6 +238,65 @@ class AggregatePlaybackTest {
     }
 
     @Test
+    void staleCommitPreservesExistingBackfilledIndicesInCache() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load("sample", SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents("sample").findFirst().orElseThrow();
+            Entity<SampleAggregate> stale = delegateRepository.load("sample", SampleAggregate.class);
+            assertNull(stale.lastEventIndex());
+
+            invokeCachingAggregateTracker(fc, List.of(createEvent.getSerializedObject()));
+            assertEquals(createEvent.getIndex(),
+                         fc.aggregateRepository().load("sample", SampleAggregate.class).lastEventIndex());
+
+            stale.apply(new SetPrimaryValue("value-1"));
+
+            Entity<SampleAggregate> latest = fc.aggregateRepository().load("sample", SampleAggregate.class);
+            assertNull(latest.lastEventIndex());
+            assertNotNull(latest.previous());
+            assertEquals(createEvent.getMessageId(), latest.previous().lastEventId());
+            assertEquals(createEvent.getIndex(), latest.previous().lastEventIndex());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void noEventCommitAfterBackfillClearsCache() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load("sample", SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents("sample").findFirst().orElseThrow();
+            Entity<SampleAggregate> stale = delegateRepository.load("sample", SampleAggregate.class);
+
+            invokeCachingAggregateTracker(fc, List.of(createEvent.getSerializedObject()));
+            Entity<SampleAggregate> indexedHead = fc.aggregateRepository().load("sample", SampleAggregate.class);
+            assertEquals(createEvent.getMessageId(), indexedHead.lastEventId());
+            assertEquals(createEvent.getIndex(), indexedHead.lastEventIndex());
+            assertFalse(indexedHead == stale);
+
+            stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
+            assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+        }).expectNoErrors();
+    }
+
+    @Test
+    void noEventCommitAgainstDifferentCachedHeadClearsCache() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load("sample", SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            Entity<SampleAggregate> stale = delegateRepository.load("sample", SampleAggregate.class);
+            delegateRepository.load("sample", SampleAggregate.class).apply(new SetPrimaryValue("value-1"));
+
+            assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
+            stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
+            assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+        }).expectNoErrors();
+    }
+
+    @Test
     void foreignTrackerEventEvictsCachedAggregateButResolverStillReloadsAndRewinds() throws Exception {
         Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
         Parameter parameter = method.getParameters()[0];
