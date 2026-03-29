@@ -16,6 +16,8 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.MemoizingFunction;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.undertow.Undertow;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
@@ -33,6 +35,7 @@ import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
@@ -45,6 +48,12 @@ import static java.util.Optional.ofNullable;
  * sessions.
  */
 public class WebsocketDeploymentUtils {
+    public static final String HANDSHAKE_HEADERS_USER_PROPERTY =
+            WebsocketDeploymentUtils.class.getName() + ".handshakeHeaders";
+    public static final String RUNTIME_SESSION_ID_USER_PROPERTY =
+            WebsocketDeploymentUtils.class.getName() + ".runtimeSessionId";
+    public static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
+            WebsocketDeploymentUtils.class.getName() + ".selectedCompressionAlgorithm";
 
     private static final ByteBufferPool bufferPool =
             new DefaultByteBufferPool(false, 1024, 100, 12);
@@ -87,6 +96,27 @@ public class WebsocketDeploymentUtils {
                             @Override
                             public <T> T getEndpointInstance(Class<T> endpointClass) {
                                 return endpointClass.cast(endpoint);
+                            }
+
+                            @Override
+                            public void modifyHandshake(ServerEndpointConfig sec,
+                                                        jakarta.websocket.server.HandshakeRequest request,
+                                                        jakarta.websocket.HandshakeResponse response) {
+                                super.modifyHandshake(sec, request, response);
+                                Map<String, List<String>> requestHeaders = copyHeaders(request.getHeaders());
+                                sec.getUserProperties().put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
+                                String runtimeSessionId = WebSocketCapabilities.newShortSessionId();
+                                sec.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, runtimeSessionId);
+                                response.getHeaders().put(WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER,
+                                                          List.of(runtimeSessionId));
+                                WebSocketCapabilities.getPreferredCompressionAlgorithm(requestHeaders).ifPresent(
+                                        compressionAlgorithm -> {
+                                            sec.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
+                                                                        compressionAlgorithm);
+                                            response.getHeaders().put(
+                                                    WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER,
+                                                    List.of(compressionAlgorithm.name()));
+                                        });
                             }
                         }
                 )
@@ -131,5 +161,11 @@ public class WebsocketDeploymentUtils {
     @SneakyThrows
     private static XnioWorker createWorker() {
         return Xnio.getInstance().createWorker(OptionMap.create(Options.THREAD_DAEMON, true));
+    }
+
+    private static Map<String, List<String>> copyHeaders(Map<String, List<String>> headers) {
+        var copy = new java.util.LinkedHashMap<String, List<String>>();
+        headers.forEach((name, values) -> copy.put(name, List.copyOf(values)));
+        return copy;
     }
 }

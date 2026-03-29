@@ -22,7 +22,6 @@ import io.fluxzero.common.api.search.*;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.search.SearchHit;
-import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.util.Collection;
@@ -42,7 +41,6 @@ import java.util.stream.Stream;
  *
  * @see WebSocketClient
  */
-@ClientEndpoint
 public class WebSocketSearchClient extends AbstractWebsocketClient implements SearchClient {
 
     public WebSocketSearchClient(String endPointUrl, WebSocketClient client) {

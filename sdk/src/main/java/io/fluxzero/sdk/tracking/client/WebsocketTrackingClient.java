@@ -35,7 +35,6 @@ import io.fluxzero.common.api.tracking.StorePosition;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
-import jakarta.websocket.ClientEndpoint;
 import lombok.Getter;
 
 import java.net.URI;
@@ -59,7 +58,6 @@ import static io.fluxzero.common.MessageType.METRICS;
  *
  * @see WebSocketClient
  */
-@ClientEndpoint
 @Getter
 public class WebsocketTrackingClient extends AbstractWebsocketClient implements TrackingClient {
 

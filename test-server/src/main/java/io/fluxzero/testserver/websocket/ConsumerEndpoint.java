@@ -57,14 +57,14 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Handle
     void handle(Read read, Session session) {
         trackingStrategy.getBatch(
-                new WebSocketTracker(read, messageType, getClientId(session), session.getId(), batch
+                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch
                         -> doSendResult(session, new ReadResult(read.getRequestId(), batch))), positionStore);
     }
 
     @Handle
     void handle(ClaimSegment read, Session session) {
         trackingStrategy.claimSegment(
-                new WebSocketTracker(read, messageType, getClientId(session), session.getId(), batch ->
+                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch ->
                         doSendResult(session, new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
                                                                      batch.getSegment()))), positionStore);
     }
@@ -103,7 +103,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     public void onClose(Session session, CloseReason closeReason) {
         var trackers = trackingStrategy.disconnectTrackers(t -> t instanceof WebSocketTracker
                                                                 && ((WebSocketTracker) t).getSessionId()
-                                                                        .equals(session.getId()),
+                                                                        .equals(getNegotiatedSessionId(session)),
                                                            false);
         trackers.forEach(t -> metricsLog.registerMetrics(
                 new DisconnectTracker(messageType, t.getConsumerName(), t.getTrackerId(),

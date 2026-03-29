@@ -31,7 +31,6 @@ import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
-import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.util.List;
@@ -66,7 +65,6 @@ import static io.fluxzero.common.ObjectUtils.iterate;
  * @see io.fluxzero.sdk.persisting.eventsourcing.EventStore
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  */
-@ClientEndpoint
 public class WebSocketEventStoreClient extends AbstractWebsocketClient implements EventStoreClient {
 
     private final int fetchBatchSize;

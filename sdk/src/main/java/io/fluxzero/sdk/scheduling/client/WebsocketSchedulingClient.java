@@ -24,7 +24,6 @@ import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
-import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -43,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
  * @see MessageScheduler
  * @see SerializedSchedule
  */
-@ClientEndpoint
 public class WebsocketSchedulingClient extends AbstractWebsocketClient implements SchedulingClient {
 
     /**
