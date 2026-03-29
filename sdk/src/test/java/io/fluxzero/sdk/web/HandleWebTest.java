@@ -58,6 +58,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
@@ -187,6 +188,15 @@ public class HandleWebTest {
             var object = new Payload();
             testFixture.whenWebRequest(WebRequest.builder().method(POST).url("/payload")
                                                .payload(JsonUtils.asPrettyJson(object)).build()).expectResult(object);
+        }
+
+        @Test
+        void testGenericPayloadType() {
+            var payload = List.of(new GenericPayload("a"), new GenericPayload("b"));
+            testFixture.whenWebRequest(WebRequest.builder().method(POST).url("/genericPayload")
+                                               .contentType("application/json")
+                                               .payload(JsonUtils.asJson(payload)).build())
+                    .expectResult(List.of("a", "b"));
         }
 
         @Test
@@ -334,6 +344,11 @@ public class HandleWebTest {
                 return body;
             }
 
+            @HandleWeb(value = "/genericPayload", method = POST)
+            List<String> post(List<GenericPayload> body) {
+                return body.stream().map(GenericPayload::getValue).toList();
+            }
+
             @HandleWeb(value = "/requiresUser", method = POST)
             Object post(PayloadRequiringUser body) {
                 return body;
@@ -365,6 +380,11 @@ public class HandleWebTest {
 
     @Value
     static class Payload {
+    }
+
+    @Value
+    static class GenericPayload {
+        String value;
     }
 
     @RequiresUser

@@ -60,7 +60,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
-            Object payload = m.getPayloadAs(p.getType());
+            Object payload = m.getPayloadAs(p.getParameterizedType());
             if (payload != null) {
                 if (validatePayload) {
                     assertValid(payload);
@@ -76,7 +76,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public boolean test(HasMessage m, Parameter p) {
         if (authoriseUser) {
-            Object payload = m.getPayloadAs(p.getType());
+            Object payload = m.getPayloadAs(p.getParameterizedType());
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
