@@ -28,7 +28,7 @@ class FlowRegulatorTest {
 
     @Nested
     class Pausing {
-        final TestFixture testFixture = TestFixture.createAsync().suppressPendingConsumerWarning();
+        final TestFixture testFixture = TestFixture.createAsync();
 
         @Test
         void consumerIsPaused() {
