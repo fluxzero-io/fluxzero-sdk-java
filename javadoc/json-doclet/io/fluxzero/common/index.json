@@ -229,5 +229,8 @@
   }, {
     "name" : "tracking",
     "path" : "tracking"
+  }, {
+    "name" : "websocket",
+    "path" : "websocket"
   } ]
 }

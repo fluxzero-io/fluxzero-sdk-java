@@ -275,6 +275,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getNegotiatedSessionId",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getNegotiatedSessionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRequestHeaders",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getRequestHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleMessage",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#handleMessage",
     "returnType" : "void",

@@ -7,9 +7,41 @@
   "annotations" : [ ],
   "documentation" : " Abstract base class for all WebSocket-based clients in the Fluxzero Java client.\n <p>\n This class provides robust connection management, message dispatching, result handling, batching, metrics publishing,\n and ping-based health checking. It underpins core components such as {@code WebsocketGatewayClient}, providing the\n shared infrastructure needed for durable, resilient WebSocket communication with the Fluxzero Runtime.\n\n <h2>Core Responsibilities</h2>\n <ul>\n   <li>Establishing and maintaining WebSocket connections with automatic reconnection support</li>\n   <li>Managing message sending and batching via {@link Request} and {@link RequestBatch}</li>\n   <li>Receiving and processing incoming {@link RequestResult} and {@link ResultBatch} messages</li>\n   <li>Supporting command guarantees (e.g., SENT, STORED) with retries and backpressure handling</li>\n   <li>Sending periodic ping frames to detect connection drops</li>\n   <li>Integrating with the Fluxzero metrics infrastructure for custom performance telemetry</li>\n </ul>\n\n <h2>Key Features</h2>\n <ul>\n   <li><b>Session Pooling:</b> Maintains multiple concurrent sessions to handle high-throughput scenarios</li>\n   <li><b>Request Backlogs:</b> Each session has a backlog to buffer and batch outgoing requests</li>\n   <li><b>Ping Scheduling:</b> Scheduled tasks detect broken sessions using WebSocket pings</li>\n   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly</li>\n   <li><b>Async Result Handling:</b> Responses are handled on a separate thread pool to avoid blocking I/O</li>\n   <li><b>Metrics Publishing:</b> Optional emission of message-related metrics based on configuration</li>\n </ul>\n\n @see WebsocketGatewayClient\n @see Command\n @see WebSocketRequest\n @see SessionPool\n @see Request\n @see RequestResult\n @see ResultBatch\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
+  "superClass" : "jakarta.websocket.Endpoint",
   "interfaces" : [ "java.lang.AutoCloseable" ],
   "fields" : [ {
+    "name" : "CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CLIENT_SESSION_ID_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "RUNTIME_SESSION_ID_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "allowMetrics",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.allowMetrics",
     "type" : "boolean",
@@ -302,6 +334,54 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createConnectionSetup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#createConnectionSetup",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ConnectionSetup",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getCompressionAlgorithm",
+    "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getNegotiatedSessionId",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getNegotiatedSessionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleResult",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handleResult",
     "returnType" : "void",
@@ -344,7 +424,7 @@
     "returnType" : "void",
     "modifiers" : [ "public" ],
     "annotations" : [ {
-      "annotationType" : "jakarta.websocket.OnClose",
+      "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
@@ -368,7 +448,7 @@
     "returnType" : "void",
     "modifiers" : [ "public" ],
     "annotations" : [ {
-      "annotationType" : "jakarta.websocket.OnError",
+      "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
@@ -391,10 +471,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#onMessage",
     "returnType" : "void",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "jakarta.websocket.OnMessage",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "bytes",
@@ -416,13 +493,18 @@
     "returnType" : "void",
     "modifiers" : [ "public" ],
     "annotations" : [ {
-      "annotationType" : "jakarta.websocket.OnOpen",
+      "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
       "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "jakarta.websocket.EndpointConfig",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -434,10 +516,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#onPong",
     "returnType" : "void",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "jakarta.websocket.OnMessage",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "message",
@@ -671,6 +750,21 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "ClientHandshakeConfigurator",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.RequiredArgsConstructor",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ConnectionSetup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "PingRegistration",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration",
     "kind" : "class",

@@ -17,6 +17,7 @@ io.fluxzero.common.search
 io.fluxzero.common.serialization
 io.fluxzero.common.serialization.compression
 io.fluxzero.common.tracking
+io.fluxzero.common.websocket
 io.fluxzero.proxy
 io.fluxzero.sdk
 io.fluxzero.sdk.common

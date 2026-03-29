@@ -10,6 +10,16 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
     "kind" : "class"
   }, {
+    "file" : "AbstractWebsocketClient.ClientHandshakeConfigurator.json",
+    "name" : "AbstractWebsocketClient.ClientHandshakeConfigurator",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator",
+    "kind" : "class"
+  }, {
+    "file" : "AbstractWebsocketClient.ConnectionSetup.json",
+    "name" : "AbstractWebsocketClient.ConnectionSetup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup",
+    "kind" : "record"
+  }, {
     "file" : "AbstractWebsocketClient.PingRegistration.json",
     "name" : "AbstractWebsocketClient.PingRegistration",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration",

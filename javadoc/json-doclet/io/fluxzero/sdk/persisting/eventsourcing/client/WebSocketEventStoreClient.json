@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " WebSocket-based implementation of the {@link EventStoreClient}, enabling interaction with the Fluxzero Runtime's event\n store via a persistent WebSocket connection.\n\n <p>This implementation supports:\n <ul>\n   <li>Storing events for event-sourced aggregates</li>\n   <li>Efficient, paginated retrieval of aggregate event streams</li>\n   <li>Deleting aggregate event streams</li>\n   <li>Maintaining aggregate/entity relationships</li>\n </ul>\n\n <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading\n an aggregate's event history. This ensures efficient memory usage while still supporting large aggregates.\n\n <p>End users rarely interact with this client directly. Instead, they typically use higher-level abstractions\n such as {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} or\n {@link io.fluxzero.sdk.persisting.repository.AggregateRepository}.\n\n @see EventStoreClient\n @see io.fluxzero.sdk.persisting.eventsourcing.EventStore\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",

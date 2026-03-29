@@ -10,6 +10,30 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "HANDSHAKE_HEADERS_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "RUNTIME_SESSION_ID_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "bufferPool",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.bufferPool",
     "type" : "io.undertow.connector.ByteBufferPool",
@@ -30,6 +54,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "copyHeaders",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#copyHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createWebsocketDeploymentInfo",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWebsocketDeploymentInfo",
     "returnType" : "io.undertow.websockets.jsr.WebSocketDeploymentInfo",

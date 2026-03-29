@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.persisting.search.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " WebSocket-based implementation of the {@link SearchClient} that connects to the Fluxzero Runtime.\n <p>\n All operations (indexing, searching, deletion, statistics, etc.) are executed via a WebSocket protocol\n using a standardized API. This is the default production implementation used in deployed applications.\n <p>\n Requires an active connection to the Fluxzero Runtime's search module.\n\n @see WebSocketClient\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",

@@ -1,0 +1,14 @@
+{
+  "package" : {
+    "name" : "websocket",
+    "qualifiedName" : "io.fluxzero.common.websocket",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "WebSocketCapabilities.json",
+    "name" : "WebSocketCapabilities",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

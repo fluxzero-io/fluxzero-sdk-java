@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.scheduling.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " WebSocket-based implementation of the {@link SchedulingClient} interface that communicates with the Fluxzero Runtime.\n <p>\n This client is responsible for scheduling, cancelling, and querying deferred messages (schedules) over a WebSocket\n connection. It acts as the transport layer for the {@link io.fluxzero.sdk.scheduling.MessageScheduler}.\n\n <p>Usage is typically indirect via high-level APIs like {@code Fluxzero.schedule(...)} or the\n {@link MessageScheduler}. Direct interaction with this client is uncommon in most application code.\n\n @see SchedulingClient\n @see MessageScheduler\n @see SerializedSchedule\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",

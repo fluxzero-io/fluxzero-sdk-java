@@ -1,0 +1,124 @@
+{
+  "name" : "ConnectionSetup",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "protected", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "configurator",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup.configurator",
+    "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ClientHandshakeConfigurator",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "endpointConfig",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup.endpointConfig",
+    "type" : "jakarta.websocket.ClientEndpointConfig",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConnectionSetup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#ConnectionSetup",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointConfig",
+      "type" : "jakarta.websocket.ClientEndpointConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configurator",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ClientHandshakeConfigurator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "configurator",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#configurator",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ClientHandshakeConfigurator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "endpointConfig",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#endpointConfig",
+    "returnType" : "jakarta.websocket.ClientEndpointConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ConnectionSetup#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "configurator",
+    "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ClientHandshakeConfigurator",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "endpointConfig",
+    "type" : "jakarta.websocket.ClientEndpointConfig",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

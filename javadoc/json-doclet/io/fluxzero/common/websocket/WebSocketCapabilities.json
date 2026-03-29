@@ -1,0 +1,204 @@
+{
+  "name" : "WebSocketCapabilities",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Utility methods for exchanging Fluxzero websocket client capabilities through handshake headers.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "CLIENT_SESSION_ID_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.CLIENT_SESSION_ID_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Client-Session-Id"
+  }, {
+    "name" : "RUNTIME_SESSION_ID_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Runtime-Session-Id"
+  }, {
+    "name" : "SELECTED_COMPRESSION_ALGORITHM_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Selected-Compression-Algorithm"
+  }, {
+    "name" : "SUPPORTED_COMPRESSION_ALGORITHMS_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_COMPRESSION_ALGORITHMS_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Supported-Compression-Algorithms"
+  } ],
+  "constructors" : [ {
+    "name" : "WebSocketCapabilities",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#WebSocketCapabilities",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asHeaders",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#asHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "supportedCompressionAlgorithms",
+      "type" : "java.util.Collection<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes the supplied compression capabilities into websocket request headers.\n\n @param supportedCompressionAlgorithms ordered list of supported compression algorithms, most preferred first\n @return websocket request headers representing the supplied capabilities\n"
+  }, {
+    "name" : "getClientSessionId",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getClientSessionId",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getHeaderValue",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getHeaderValue",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "headerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPreferredCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getPreferredCompressionAlgorithm",
+    "returnType" : "java.util.Optional<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the most preferred compression algorithm advertised via request headers, if available.\n"
+  }, {
+    "name" : "getRuntimeSessionId",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeSessionId",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSelectedCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSelectedCompressionAlgorithm",
+    "returnType" : "java.util.Optional<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSupportedCompressionAlgorithms",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSupportedCompressionAlgorithms",
+    "returnType" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts the ordered list of compression algorithms from websocket request headers.\n"
+  }, {
+    "name" : "newShortSessionId",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#newShortSessionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#parseCompressionAlgorithm",
+    "returnType" : "java.util.Optional<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

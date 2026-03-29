@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.publishing.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " A {@link GatewayClient} implementation that sends serialized messages to the Fluxzero Runtime over a WebSocket\n connection.\n <p>\n This client is used internally by the Fluxzero framework to publish messages (commands, events, queries, etc.)\n to the Fluxzero Runtime in a reliable, asynchronous manner. It wraps around a WebSocket transport managed by\n {@link AbstractWebsocketClient} and uses a low-level protocol to dispatch messages as {@link SerializedMessage}\n objects.\n\n <p><strong>Usage:</strong> Users typically do not use this class directly. Instead, messages are dispatched using\n higher-level APIs like {@link io.fluxzero.sdk.publishing.CommandGateway} or static functions in\n {@link io.fluxzero.sdk.Fluxzero}.\n\n <p>Each {@code WebsocketGatewayClient} instance is bound to a specific {@link MessageType} and topic.\n Metrics are optionally sent with each dispatch (enabled by default except for METRICS message gateway clients to\n prevent infinite recursion).\n\n <p>Features:\n <ul>\n   <li>Supports append operations with configurable delivery {@link Guarantee}.</li>\n   <li>Tracks sent messages via registered monitors for observability or auditing purposes.</li>\n   <li>Allows retention time settings to be adjusted on the gateway (if supported).</li>\n </ul>\n\n @see GatewayClient\n @see SerializedMessage\n @see WebSocketClient\n @see AbstractWebsocketClient\n @see io.fluxzero.sdk.Fluxzero\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",

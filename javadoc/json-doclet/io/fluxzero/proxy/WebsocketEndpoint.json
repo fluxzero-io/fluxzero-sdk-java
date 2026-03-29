@@ -163,6 +163,9 @@
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -302,7 +305,7 @@
   }, {
     "name" : "sendRequest",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#sendRequest",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

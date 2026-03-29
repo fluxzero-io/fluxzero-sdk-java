@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.Getter",
     "values" : {}
   } ],

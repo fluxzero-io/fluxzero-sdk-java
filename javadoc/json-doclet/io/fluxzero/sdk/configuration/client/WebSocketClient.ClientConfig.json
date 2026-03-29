@@ -29,20 +29,6 @@
     "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to property\n {@code FLUXZERO_APPLICATION_ID}.\n",
     "constantValue" : null
   }, {
-    "name" : "compression",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.compression",
-    "type" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.NonNull",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
-    } ],
-    "documentation" : " The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.\n",
-    "constantValue" : null
-  }, {
     "name" : "disableMetrics",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.disableMetrics",
     "type" : "boolean",
@@ -170,6 +156,17 @@
     "documentation" : " Number of WebSocket sessions allocated for the search subsystem. Defaults to {@code 2}.\n",
     "constantValue" : null
   }, {
+    "name" : "supportedCompressionAlgorithms",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.supportedCompressionAlgorithms",
+    "type" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Ordered list of compression algorithms the client supports for websocket communication, with the preferred\n algorithm first. Should not be empty.\n",
+    "constantValue" : null
+  }, {
     "name" : "trackingConfigs",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.trackingConfigs",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
@@ -222,6 +219,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getPreferredCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getPreferredCompressionAlgorithm",
+    "returnType" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the most preferred compression algorithm supported by the client.\n"
   }, {
     "name" : "withGatewaySessions",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withGatewaySessions",

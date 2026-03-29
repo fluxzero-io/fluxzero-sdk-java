@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.persisting.keyvalue.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "jakarta.websocket.ClientEndpoint",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " WebSocket-based implementation of the {@link KeyValueClient} interface for interacting with the Fluxzero Runtime.\n <p>\n This client is responsible for storing, retrieving, and deleting binary key-value data over a WebSocket connection.\n It sends encoded requests to the Runtime's key-value gateway endpoint, which persists and manages the data on the\n server-side.\n\n <p>Operations supported:\n <ul>\n     <li>{@link #putValue(String, Data, Guarantee)} - Store a value with a given guarantee.</li>\n     <li>{@link #putValueIfAbsent(String, Data)} - Conditionally store a value only if the key is not yet present.</li>\n     <li>{@link #getValue(String)} - Retrieve a previously stored value.</li>\n     <li>{@link #deleteValue(String, Guarantee)} - Remove a value associated with a given key.</li>\n </ul>\n\n <p>This class is typically used internally by the Fluxzero Java SDK and not accessed directly by most applications.\n Higher-level abstractions like {@link KeyValueStore} are preferred.\n\n @see KeyValueClient\n @see KeyValueStore\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
