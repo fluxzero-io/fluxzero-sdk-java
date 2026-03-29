@@ -14,8 +14,16 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import lombok.Value;
+
+import java.io.InputStream;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Wrapper around a resolved parameter value in a web request.
@@ -65,26 +73,66 @@ public class ParameterValue {
      * @return the converted value or {@code null} if unavailable
      */
     public <V> V as(Class<V> type) {
+        return as((Type) type);
+    }
+
+    /**
+     * Converts the underlying value to the specified target type, including parameterized collection types.
+     */
+    @SuppressWarnings("unchecked")
+    public <V> V as(Type type) {
         Object rawValue = value;
         if (rawValue == null) {
             return null;
         }
-        if (type.isInstance(rawValue)) {
-            return type.cast(rawValue);
+        if (isSingleValueTarget(type) && rawValue instanceof List<?> list && list.size() == 1) {
+            rawValue = list.getFirst();
+        }
+        if (type instanceof Class<?> c && c.isInstance(rawValue)) {
+            return (V) c.cast(rawValue);
+        }
+        if (type instanceof ParameterizedType pt && rawValue instanceof List<?> list
+                && pt.getRawType() instanceof Class<?> rawClass && Collection.class.isAssignableFrom(rawClass)) {
+            Type elementType = ReflectionUtils.getFirstTypeArgument(type);
+            List<Object> converted = new ArrayList<>(list.size());
+            for (Object element : list) {
+                converted.add(new ParameterValue(element).as(elementType));
+            }
+            return (V) converted;
+        }
+        if (rawValue instanceof MultipartFormPart part) {
+            if (type == byte[].class) {
+                return (V) part.getBytes();
+            }
+            if (type instanceof Class<?> c && InputStream.class.isAssignableFrom(c)) {
+                return (V) c.cast(part.asInputStream());
+            }
         }
         if (rawValue instanceof io.jooby.value.Value joobyValue) {
-            V converted = joobyValue.toNullable(type);
-            if (converted != null) {
-                return converted;
+            if (type instanceof Class<?> c) {
+                Object converted = joobyValue.toNullable(c);
+                if (converted != null) {
+                    return (V) converted;
+                }
             }
             rawValue = joobyValue.valueOrNull();
             if (rawValue == null) {
                 return null;
             }
-            if (type.isInstance(rawValue)) {
-                return type.cast(rawValue);
+            if (type instanceof Class<?> c && c.isInstance(rawValue)) {
+                return (V) c.cast(rawValue);
             }
         }
         return JsonUtils.convertValue(JsonUtils.valueToTree(rawValue), type);
+    }
+
+    boolean isSingleValueTarget(Type type) {
+        if (type instanceof Class<?> c) {
+            return !Collection.class.isAssignableFrom(c);
+        }
+        if (type instanceof ParameterizedType pt && pt.getRawType() instanceof Class<?> c) {
+            return !Collection.class.isAssignableFrom(c);
+        }
+        return true;
     }
 }

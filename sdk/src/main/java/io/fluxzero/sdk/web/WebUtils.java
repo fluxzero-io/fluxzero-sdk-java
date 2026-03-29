@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Type;
@@ -44,8 +46,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.ObjectUtils.concat;
+import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
@@ -59,6 +61,13 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
  * of {@link WebPattern} annotations on handler methods annotated with {@link HandleWeb}.
  */
 public class WebUtils {
+    /**
+     * Default chunk size, in bytes, used when splitting streamed web request and response payloads.
+     * <p>
+     * The current default is 2 MiB and is shared by the proxy upload path and chunked web responses.
+     */
+    public static final int DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
+
     private static final Pattern ABSOLUTE_URL_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z\\d+\\-.]*://.*");
     private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{([^/}]+)}");
 
@@ -261,6 +270,10 @@ public class WebUtils {
             return (R) (payload instanceof byte[] bytes ? bytes
                     : payload instanceof String s ? s.getBytes(StandardCharsets.UTF_8) : JsonUtils.asBytes(payload));
         }
+        if (type instanceof Class<?> c && InputStream.class.isAssignableFrom(c)) {
+            return (R) new ByteArrayInputStream(payload instanceof byte[] bytes ? bytes
+                    : payload instanceof String s ? s.getBytes(StandardCharsets.UTF_8) : JsonUtils.asBytes(payload));
+        }
         return isJsonContentType(contentType) && (payload instanceof byte[] || payload instanceof String)
                 ? payload instanceof byte[] bytes ? JsonUtils.fromJson(bytes, type) : JsonUtils.fromJson((String) payload, type)
                 : JsonUtils.convertValue(payload, type);
@@ -286,6 +299,23 @@ public class WebUtils {
         }
         normalized = normalized.trim();
         return JSON_FORMAT.equals(normalized) || normalized.endsWith("+json");
+    }
+
+    /**
+     * Checks whether a content type denotes HTML form data.
+     */
+    public static boolean isFormContentType(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String normalized = contentType.toLowerCase(Locale.ROOT);
+        int separatorIndex = normalized.indexOf(';');
+        if (separatorIndex >= 0) {
+            normalized = normalized.substring(0, separatorIndex);
+        }
+        normalized = normalized.trim();
+        return "application/x-www-form-urlencoded".equals(normalized)
+               || "multipart/form-data".equals(normalized);
     }
 
     /**

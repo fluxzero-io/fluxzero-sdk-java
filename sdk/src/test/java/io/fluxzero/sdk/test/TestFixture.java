@@ -1469,6 +1469,11 @@ public class TestFixture implements Given<TestFixture>, When {
                             .map(DeserializingMessage::toMessage)
                             .forEach(m -> monitorDispatch(m, messageType, topic, namespace));
                 } catch (Exception ignored) {
+                    if (messages.stream().allMatch(SerializedMessage::chunked)) {
+                        // Chunked messages may be published as partial serialized frames that are only meaningful once
+                        // the consumer-side tracker stitches them back together.
+                        return;
+                    }
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
             }

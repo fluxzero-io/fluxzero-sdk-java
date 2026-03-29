@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,7 +159,11 @@ public class DefaultRequestHandler implements RequestHandler {
                                                             Consumer<SerializedMessage> intermediateCallback) {
         ensureStarted();
         CompletableFuture<SerializedMessage> future = prepareRequest(request, timeout, intermediateCallback);
-        requestSender.accept(request);
+        try {
+            requestSender.accept(request);
+        } catch (Throwable e) {
+            future.completeExceptionally(e);
+        }
         return future;
     }
 

@@ -28,13 +28,11 @@ import static java.util.Optional.ofNullable;
 /**
  * Command to publish messages to a specific log in Fluxzero (e.g., commands, events, metrics, etc.).
  * <p>
- * The messages are written to the log associated with the given {@link #messageType}.
- * Each message is represented as a {@link SerializedMessage} and is appended to the log
- * in the order provided.
+ * The messages are written to the log associated with the given {@link #messageType}. Each message is represented as a
+ * {@link SerializedMessage} and is appended to the log in the order provided.
  * <p>
- * This operation is typically used by low-level clients (such as {@code GatewayClient})
- * that need full control over message serialization and targeting. High-level APIs usually
- * delegate to this command internally.
+ * This operation is typically used by low-level clients (such as {@code GatewayClient}) that need full control over
+ * message serialization and targeting. High-level APIs usually delegate to this command internally.
  *
  * @see MessageType
  * @see SerializedMessage
@@ -73,7 +71,7 @@ public class Append extends Command {
 
     @Override
     public String routingKey() {
-        return messageType.name();
+        return messages.isEmpty() ? null : routingKeyFor(messages.getFirst());
     }
 
     @Override
@@ -84,6 +82,14 @@ public class Append extends Command {
     @Override
     public Metric toMetric() {
         return new Metric(getMessageType(), getSize(), getBytes(), getGuarantee());
+    }
+
+    /**
+     * Generates a routing key for the specified serialized message. The routing key is based on the segment of the
+     * message if it is available; otherwise, it defaults to the unique message identifier.
+     */
+    public static String routingKeyFor(SerializedMessage message) {
+        return ofNullable(message.getSegment()).map(s -> Integer.toString(s)).orElseGet(message::getMessageId);
     }
 
     /**

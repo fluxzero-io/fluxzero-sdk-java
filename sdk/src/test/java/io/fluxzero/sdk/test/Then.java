@@ -30,7 +30,6 @@ import lombok.SneakyThrows;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ObjectUtils.run;
@@ -993,7 +992,7 @@ public interface Then<R> {
      *
      * @param check a consumer that performs assertions using the Fluxzero instance
      */
-    Then<R> expectThat(Consumer<Fluxzero> check);
+    Then<R> expectThat(ThrowingConsumer<Fluxzero> check);
 
     /**
      * Asserts that the provided {@link Predicate} evaluates to {@code true} when applied to the current Fluxzero

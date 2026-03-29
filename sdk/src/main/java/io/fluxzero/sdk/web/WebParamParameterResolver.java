@@ -17,8 +17,8 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.AllArgsConstructor;
@@ -91,7 +91,7 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
                             name = value;
                         }
                         return context.getParameter(name, f.getType());
-                    }).map(v -> v.as(p.getType())).orElse(null);
+                    }).map(v -> v.as(p.getParameterizedType())).orElse(null);
         };
     }
 

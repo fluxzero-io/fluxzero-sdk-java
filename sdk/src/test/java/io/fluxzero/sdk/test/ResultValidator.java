@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.test;
 
+import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.common.ThrowingPredicate;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -29,7 +30,6 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.hamcrest.Matcher;
 
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -453,7 +453,7 @@ public class ResultValidator<R> implements Then<R> {
     }
 
     @Override
-    public ResultValidator<R> expectThat(Consumer<Fluxzero> check) {
+    public ResultValidator<R> expectThat(ThrowingConsumer<Fluxzero> check) {
         return fluxzero.apply(fc -> {
             try {
                 check.accept(fc);

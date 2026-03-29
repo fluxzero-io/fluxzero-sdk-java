@@ -53,7 +53,7 @@ import static io.fluxzero.common.MessageType.WEBRESPONSE;
 @AllArgsConstructor
 public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implements ResultGateway {
 
-    public static final int MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
+    public static final int MAX_RESPONSE_SIZE = WebUtils.DEFAULT_CHUNK_SIZE;
 
     @With
     private final Client client;
@@ -104,11 +104,17 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                                                    Function<SerializedMessage, CompletableFuture<Void>> dispatcher) {
         if (response.getPayload() instanceof InputStream inputStream) {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
+            var firstChunk = new boolean[]{true};
+            var chunkIndex = new long[]{0};
             try (OutputStreamCapturer capturer = new OutputStreamCapturer(MAX_RESPONSE_SIZE, (chunk, last) -> {
-                Metadata metadata = response.getMetadata().with(HasMetadata.FINAL_CHUNK, last.toString());
+                Metadata metadata = response.getMetadata()
+                        .with(HasMetadata.CHUNK_INDEX, Long.toString(chunkIndex[0]++))
+                        .with(HasMetadata.FINAL_CHUNK, last.toString())
+                        .with(HasMetadata.FIRST_CHUNK, Boolean.toString(firstChunk[0]));
                 SerializedMessage message = new SerializedMessage(new Data<>(chunk, null, 0),
                                                                   metadata, response.getMessageId(),
                                                                   response.getTimestamp().toEpochMilli());
+                firstChunk[0] = false;
                 futures.add(dispatcher.apply(message));
             })) {
                 try (inputStream) {

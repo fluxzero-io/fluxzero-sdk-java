@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import java.util.function.Consumer;
 /**
  * Handles the lifecycle of request/response interactions in a Fluxzero client.
  * <p>
- * A {@code RequestHandler} is responsible for sending requests—such as commands, queries, or web requests—
- * and asynchronously completing them when a corresponding response is received. Requests may be handled locally
- * or remotely via the Fluxzero Runtime.
+ * A {@code RequestHandler} is responsible for sending requests—such as commands, queries, or web requests— and
+ * asynchronously completing them when a corresponding response is received. Requests may be handled locally or remotely
+ * via the Fluxzero Runtime.
  *
  * <h2>Handling Strategies</h2>
  * <ul>
@@ -108,6 +108,17 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
                                                             Consumer<List<SerializedMessage>> requestSender,
                                                             @Nullable Duration timeout);
 
+    /**
+     * Sends a single request and returns a future that completes when the corresponding response is received.
+     * <p>
+     * The request is assigned a unique identifier and dispatched using the provided sender. During processing, a
+     * callback can optionally handle intermediate results.
+     *
+     * @param request              The request message to be sent.
+     * @param requestSender        A callback used to dispatch the request (e.g., to a gateway or transport layer).
+     * @param intermediateCallback A callback invoked with intermediate results while waiting for the response.
+     * @return A {@link CompletableFuture} that completes with the response message or fails on timeout.
+     */
     default CompletableFuture<SerializedMessage> sendRequest(
             SerializedMessage request,
             Consumer<SerializedMessage> requestSender,
@@ -115,6 +126,16 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
         return sendRequest(request, requestSender, null, intermediateCallback);
     }
 
+    /**
+     * Sends a single request with a custom timeout and allows processing of intermediate responses, returning a future
+     * that completes when the corresponding response is received.
+     *
+     * @param request              The request message to be sent.
+     * @param requestSender        A callback used to dispatch the request (e.g., to a gateway or transport layer).
+     * @param timeout              The maximum duration to wait for a response. A negative value disables the timeout.
+     * @param intermediateCallback A callback invoked with intermediate results while waiting for the response.
+     * @return A {@link CompletableFuture} that completes with the response message or fails on timeout.
+     */
     CompletableFuture<SerializedMessage> sendRequest(
             SerializedMessage request,
             Consumer<SerializedMessage> requestSender, Duration timeout,
