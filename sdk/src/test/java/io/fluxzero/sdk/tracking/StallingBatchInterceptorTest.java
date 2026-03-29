@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking;
@@ -42,7 +43,8 @@ class StallingBatchInterceptorTest {
                             StallingBatchInterceptor.builder()
                                     .desiredBatchSize(2).maximumStallingDuration(stallingDuration)
                                     .retryFrequency(Duration.ofMillis(10)).build())
-                            .build())).spy().consumerTimeout(Duration.ofMillis(100)).registerHandlers(handler);
+                            .build())).suppressPendingConsumerWarning()
+                    .spy().consumerTimeout(Duration.ofMillis(100)).registerHandlers(handler);
 
     @Test
     void testLargeBatchPassed() {
