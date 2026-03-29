@@ -71,7 +71,6 @@ import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.sdk.web.WebUtils;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -88,6 +87,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -103,6 +103,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -329,6 +330,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final GivenWhenThenInterceptor interceptor;
     private Duration resultTimeout = defaultResultTimeout;
     private Duration consumerTimeout = defaultConsumerTimeout;
+    private boolean warnOnPendingConsumers = true;
     private boolean ignoreErrorsInGiven;
     private boolean skipScheduleDeadlines;
     private final boolean synchronous;
@@ -337,6 +339,8 @@ public class TestFixture implements Given<TestFixture>, When {
     private Registration registration = Registration.noOp();
 
     private final Map<ActiveConsumer, List<Message>> consumers = new ConcurrentHashMap<>();
+    private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
+    private final Set<String> interceptedMessageIds = new CopyOnWriteArraySet<>();
 
     private FixtureResult fixtureResult = new FixtureResult();
 
@@ -354,7 +358,7 @@ public class TestFixture implements Given<TestFixture>, When {
         var fixtures = activeFixtures.get();
         if (!fixtures.isEmpty()) {
             activeFixtures.remove();
-            fixtures.forEach(fixture -> shutdownExecutor.execute(
+            fixtures.stream().filter(fixture -> fixture.fluxzero != null).forEach(fixture -> shutdownExecutor.execute(
                     tryCatch(() -> fixture.fluxzero.execute(
                             fc -> fixture.fluxzero.close(true)))));
             ofNullable(Fluxzero.instance.get()).ifPresent(fc -> Fluxzero.instance.remove());
@@ -375,10 +379,10 @@ public class TestFixture implements Given<TestFixture>, When {
             fluxzeroBuilder.disableScheduledCommandHandler();
         }
         fluxzeroBuilder.replacePropertySource(s -> new SimplePropertySource(testProperties).andThen(s));
-        this.interceptor = new GivenWhenThenInterceptor(this);
-        var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
+        this.interceptor = new GivenWhenThenInterceptor();
+        var dispatchInterceptor = new LowPriorityDispatchInterceptor(this, interceptor);
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
-        fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
+        FluxzeroBuilder configuredBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
                 .addDispatchInterceptor(dispatchInterceptor)
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider
@@ -387,8 +391,8 @@ public class TestFixture implements Given<TestFixture>, When {
                         "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
                 .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
                 .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
-        this.fluxzeroBuilder = fluxzeroBuilder;
-        this.fluxzero = fluxzeroBuilder.build(client);
+        this.fluxzeroBuilder = configuredBuilder;
+        this.fluxzero = interceptor.buildFluxzero(this, () -> configuredBuilder.build(client));
         Fluxzero.instance.set(this.fluxzero);
         if (synchronous) {
             localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
@@ -426,15 +430,16 @@ public class TestFixture implements Given<TestFixture>, When {
                                     ? provider : new TestUserProvider(provider))
                             .orElse(null));
         }
-        (this.interceptor = currentFixture.interceptor).testFixture = this;
-        var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
+        this.interceptor = currentFixture.interceptor;
+        var dispatchInterceptor = new LowPriorityDispatchInterceptor(this, interceptor);
         var currentClient = currentFixture.fluxzero.client().unwrap();
         var newClient = currentClient instanceof LocalClient
                 ? LocalClient.newInstance(null) : currentClient;
         newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
-        this.fluxzero = spying
-                ? new SpyingFluxzero(fluxzeroBuilder.build(new SpyingClient(newClient)))
-                : fluxzeroBuilder.build(newClient);
+        Client buildClient = spying ? new SpyingClient(newClient) : newClient;
+        this.fluxzero = interceptor.buildFluxzero(this, () -> spying
+                ? new SpyingFluxzero(fluxzeroBuilder.build(buildClient))
+                : fluxzeroBuilder.build(buildClient));
         Fluxzero.instance.set(this.fluxzero);
         localHandlerRegistries(this.fluxzero).forEach(r -> r.setSelfHandlerFilter(
                 synchronous ? HandlerFilter.ALWAYS_HANDLE : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
@@ -461,6 +466,15 @@ public class TestFixture implements Given<TestFixture>, When {
      */
     public TestFixture consumerTimeout(Duration consumerTimeout) {
         return modifyFixture(fixture -> fixture.consumerTimeout = consumerTimeout);
+    }
+
+    /**
+     * Disables the warning that is logged when {@code given}/{@code when} times out while consumers are still pending.
+     * <p>
+     * Useful for tests that intentionally verify paused or stalled consumers.
+     */
+    public TestFixture suppressPendingConsumerWarning() {
+        return modifyFixture(fixture -> fixture.warnOnPendingConsumers = false);
     }
 
     /**
@@ -1220,7 +1234,7 @@ public class TestFixture implements Given<TestFixture>, When {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (!checkConsumers()) {
+            if (warnOnPendingConsumers && !checkConsumers()) {
                 log.warn("Some consumers in the test fixture did not finish processing all messages. "
                          + "This may cause your test to fail. Waiting consumers: {}",
                          consumers.entrySet().stream()
@@ -1441,49 +1455,68 @@ public class TestFixture implements Given<TestFixture>, When {
         return false;
     }
 
-    @AllArgsConstructor
     protected static class GivenWhenThenInterceptor {
-        private TestFixture testFixture;
+        private final ThreadLocal<TestFixture> constructingFixture = new ThreadLocal<>();
+        private final Map<Fluxzero, TestFixture> fixturesByFluxzero = Collections.synchronizedMap(new IdentityHashMap<>());
+        private final Map<String, TestFixture> fixturesByTrackerId = new ConcurrentHashMap<>();
 
-        private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
-        private final Set<String> interceptedMessageIds = new CopyOnWriteArraySet<>();
+        protected Fluxzero buildFluxzero(TestFixture fixture, Supplier<Fluxzero> supplier) {
+            TestFixture previous = constructingFixture.get();
+            constructingFixture.set(fixture);
+            try {
+                Fluxzero fluxzero = supplier.get();
+                fixturesByFluxzero.put(fluxzero, fixture);
+                fluxzero.beforeShutdown(() -> unregisterFixture(fluxzero, fixture));
+                return fluxzero;
+            } finally {
+                if (previous == null) {
+                    constructingFixture.remove();
+                } else {
+                    constructingFixture.set(previous);
+                }
+            }
+        }
 
-        protected void interceptClientDispatch(MessageType messageType, String topic,
+        private void unregisterFixture(Fluxzero fluxzero, TestFixture fixture) {
+            synchronized (fixturesByFluxzero) {
+                fixturesByFluxzero.remove(fluxzero);
+            }
+            fixturesByTrackerId.entrySet().removeIf(e -> e.getValue() == fixture);
+        }
+
+        protected void interceptClientDispatch(TestFixture fixture, MessageType messageType, String topic,
                                                String namespace, List<SerializedMessage> messages) {
-            if (testFixture.fixtureResult.isCollectingResults()) {
+            if (fixture.fixtureResult.isCollectingResults()) {
                 try {
-                    testFixture.fluxzero.serializer()
+                    fixture.fluxzero.serializer()
                             .deserializeMessages(messages.stream()
-                                                         .filter(m -> !interceptedMessageIds.contains(
+                                                         .filter(m -> !fixture.interceptedMessageIds.contains(
                                                                  m.getMessageId())),
                                                  messageType)
                             .map(DeserializingMessage::toMessage)
-                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace));
+                            .forEach(m -> monitorDispatch(fixture, m, messageType, topic, namespace));
                 } catch (Exception ignored) {
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
             }
         }
 
-        public Message interceptDispatch(Message message, MessageType messageType, String topic) {
-            return message;
-        }
-
-        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-            if (testFixture.fixtureResult.isCollectingResults()) {
-                interceptedMessageIds.add(message.getMessageId());
+        public void monitorDispatch(TestFixture fixture, Message message, MessageType messageType, String topic,
+                                    String namespace) {
+            if (fixture.fixtureResult.isCollectingResults()) {
+                fixture.interceptedMessageIds.add(message.getMessageId());
             }
 
             if (messageType == SCHEDULE) {
-                addMessage(publishedSchedules, (Schedule) message);
+                addMessage(fixture.publishedSchedules, (Schedule) message);
             }
 
-            synchronized (testFixture.consumers) {
-                testFixture.consumers.entrySet().stream()
+            synchronized (fixture.consumers) {
+                fixture.consumers.entrySet().stream()
                         .filter(t -> {
                             var consumer = t.getKey();
                             String consumerNamespace = ofNullable(consumer.getConfiguration().getNamespace()).orElseGet(
-                                    () -> testFixture.getFluxzero().client().namespace());
+                                    () -> fixture.getFluxzero().client().namespace());
                             return (
 
                                     //message type and topic match
@@ -1503,24 +1536,20 @@ public class TestFixture implements Given<TestFixture>, When {
                         }).forEach(e -> addMessage(e.getValue(), message));
             }
 
-            if (captureMessage(message)) {
+            if (fixture.fixtureResult.isCollectingResults()
+                && ofNullable(fixture.getFixtureResult().getTracedMessage())
+                        .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true)) {
                 switch (messageType) {
-                    case COMMAND -> testFixture.registerCommand(message);
-                    case QUERY -> testFixture.registerQuery(message);
-                    case EVENT -> testFixture.registerEvent(message);
-                    case SCHEDULE -> testFixture.registerSchedule((Schedule) message);
-                    case WEBREQUEST -> testFixture.registerWebRequest(message);
-                    case WEBRESPONSE -> testFixture.registerWebResponse((WebResponse) message);
-                    case METRICS -> testFixture.registerMetric(message);
-                    case CUSTOM -> testFixture.registerCustom(topic, message);
+                    case COMMAND -> fixture.registerCommand(message);
+                    case QUERY -> fixture.registerQuery(message);
+                    case EVENT -> fixture.registerEvent(message);
+                    case SCHEDULE -> fixture.registerSchedule((Schedule) message);
+                    case WEBREQUEST -> fixture.registerWebRequest(message);
+                    case WEBRESPONSE -> fixture.registerWebResponse((WebResponse) message);
+                    case METRICS -> fixture.registerMetric(message);
+                    case CUSTOM -> fixture.registerCustom(topic, message);
                 }
             }
-        }
-
-        protected Boolean captureMessage(Message message) {
-            return testFixture.fixtureResult.isCollectingResults()
-                   && ofNullable(testFixture.getFixtureResult().getTracedMessage())
-                           .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true);
         }
 
         protected <T extends Message> void addMessage(List<T> messages, T message) {
@@ -1532,12 +1561,15 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
+            TestFixture fixture = currentFixture().orElseThrow(() -> new IllegalStateException(
+                    "Test fixture not set while intercepting tracker " + tracker.getTrackerId()));
+            fixturesByTrackerId.put(tracker.getTrackerId(), fixture);
             List<Message> messages;
-            synchronized (testFixture.consumers) {
-                messages = testFixture.consumers.computeIfAbsent(
+            synchronized (fixture.consumers) {
+                messages = fixture.consumers.computeIfAbsent(
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()),
                         c -> (c.getMessageType() == SCHEDULE
-                                ? publishedSchedules : Collections.<Message>emptyList()).stream().filter(
+                                ? fixture.publishedSchedules : Collections.<Message>emptyList()).stream().filter(
                                         m -> ofNullable(c.getConfiguration().getTypeFilter())
                                                 .map(f -> m.getPayload().getClass()
                                                         .getName().matches(f)).orElse(true))
@@ -1547,14 +1579,14 @@ public class TestFixture implements Given<TestFixture>, When {
                 consumer.accept(b);
                 Collection<String> messageIds =
                         b.getMessages().stream().map(SerializedMessage::getMessageId).collect(toSet());
-                synchronized (testFixture.consumers) {
-                    b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
+                synchronized (fixture.consumers) {
+                    b.getMessages().forEach(m -> fixture.consumers.entrySet().stream()
                             .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
                                          && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
                                          && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
                             .forEach(e -> e.getValue().removeIf(m2 -> m.getMessageId().equals(m2.getMessageId()))));
                     messages.removeIf(m -> messageIds.contains(m.getMessageId()));
-                    testFixture.checkConsumers();
+                    fixture.checkConsumers();
                 }
             };
         }
@@ -1568,13 +1600,17 @@ public class TestFixture implements Given<TestFixture>, When {
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
             return m -> {
+                TestFixture fixture = currentFixture(Tracker.current().map(Tracker::getTrackerId).orElse(null))
+                        .or(this::currentFixture).orElse(null);
                 try {
                     return function.apply(m);
                 } catch (Throwable e) {
-                    testFixture.registerError(e);
+                    ofNullable(fixture).ifPresent(f -> f.registerError(e));
                     throw e;
                 } finally {
                     if (
+                            fixture != null
+                            &&
                             m.getMessageType().isRequest()
                             && Tracker.current().map(Tracker::getMessageBatch).map(batch -> batch.getMessages().stream()
                                             .noneMatch(bm -> bm.getMessageId().equals(m.getMessageId())))
@@ -1583,48 +1619,70 @@ public class TestFixture implements Given<TestFixture>, When {
                                     invoker.getTargetClass(), invoker.getMethod())
                                     .map(l -> !l.logMessage()).orElse(true)
                     ) {
-                        synchronized (testFixture.consumers) {
-                            testFixture.consumers.entrySet().stream()
+                        synchronized (fixture.consumers) {
+                            fixture.consumers.entrySet().stream()
                                     .filter(t -> t.getKey().getMessageType() == m.getMessageType())
                                     .forEach(e -> e.getValue().removeIf(
                                             m2 -> m2.getMessageId().equals(m.getMessageId())));
                         }
-                        testFixture.checkConsumers();
+                        fixture.checkConsumers();
                     }
                 }
             };
         }
 
         public void shutdown(Tracker tracker) {
-            synchronized (testFixture.consumers) {
-                testFixture.consumers.remove(
+            currentFixture(tracker.getTrackerId()).ifPresent(fixture -> {
+                synchronized (fixture.consumers) {
+                    fixture.consumers.remove(
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()));
-            }
-            testFixture.checkConsumers();
+                }
+                fixturesByTrackerId.remove(tracker.getTrackerId(), fixture);
+                fixture.checkConsumers();
+            });
+        }
+
+        private Optional<TestFixture> currentFixture() {
+            return ofNullable(constructingFixture.get()).or(
+                    () -> Fluxzero.getOptionally().flatMap(this::currentFixture));
+        }
+
+        private Optional<TestFixture> currentFixture(Fluxzero fluxzero) {
+            return Optional.ofNullable(fixturesByFluxzero.get(fluxzero));
+        }
+
+        private Optional<TestFixture> currentFixture(String trackerId) {
+            return Optional.ofNullable(trackerId).map(fixturesByTrackerId::get);
         }
     }
 
     @Order(Order.LOWEST_PRECEDENCE)
     private static final class LowPriorityDispatchInterceptor implements DispatchInterceptor {
+        private final TestFixture fixture;
         private final GivenWhenThenInterceptor delegate;
 
-        private LowPriorityDispatchInterceptor(GivenWhenThenInterceptor delegate) {
+        private LowPriorityDispatchInterceptor(TestFixture fixture, GivenWhenThenInterceptor delegate) {
+            this.fixture = fixture;
             this.delegate = delegate;
         }
 
         private void interceptClientDispatch(MessageType messageType, String topic, String namespace,
                                              List<SerializedMessage> messages) {
-            delegate.interceptClientDispatch(messageType, topic, namespace, messages);
+            delegate.interceptClientDispatch(fixture, messageType, topic, namespace, messages);
         }
 
         @Override
         public Message interceptDispatch(Message message, MessageType messageType, String topic) {
-            return delegate.interceptDispatch(message, messageType, topic);
+            return message;
         }
 
         @Override
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-            delegate.monitorDispatch(message, messageType, topic, namespace);
+            delegate.monitorDispatch(currentFixture(), message, messageType, topic, namespace);
+        }
+
+        private TestFixture currentFixture() {
+            return delegate.currentFixture().orElse(fixture);
         }
     }
 
