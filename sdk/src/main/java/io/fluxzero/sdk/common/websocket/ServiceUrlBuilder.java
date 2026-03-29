@@ -130,7 +130,7 @@ public class ServiceUrlBuilder {
         if (clientConfig.getNamespace() != null) {
             result = String.format("%s&projectId=%s", result, URLEncoder.encode(clientConfig.getNamespace(), UTF_8));
         }
-        result = String.format("%s&compression=%s", result, clientConfig.getCompression());
+        result = String.format("%s&compression=%s", result, clientConfig.getPreferredCompressionAlgorithm());
         return result;
     }
 

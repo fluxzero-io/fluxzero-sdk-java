@@ -1,8 +1,25 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.RequestBatch;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketCapabilities;
 import jakarta.websocket.CloseReason;
 import jakarta.websocket.EndpointConfig;
 import jakarta.websocket.MessageHandler;
@@ -12,6 +29,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +45,42 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WebsocketEndpointTest {
+
+    @Test
+    void capabilityHeaderTakesPrecedenceOverLegacyCompressionParameter() {
+        Session session = mock(Session.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
+                WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
+                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)))));
+        when(session.getRequestParameterMap()).thenReturn(
+                Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
+
+        assertEquals(CompressionAlgorithm.GZIP, new TestEndpoint().getCompressionAlgorithm(session));
+    }
+
+    @Test
+    void selectedCompressionAlgorithmTakesPrecedenceOverSupportedList() {
+        Session session = mock(Session.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
+                WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
+                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)),
+                WebsocketDeploymentUtils.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
+                CompressionAlgorithm.LZ4)));
+        when(session.getRequestParameterMap()).thenReturn(
+                Map.of("compression", List.of("GZIP"), "clientId", List.of("client"), "clientName", List.of("test-client")));
+
+        assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithm(session));
+    }
+
+    @Test
+    void legacyCompressionParameterRemainsFallbackWhenNoCapabilitiesAreSent() {
+        Session session = mock(Session.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
+        when(session.getRequestParameterMap()).thenReturn(
+                Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
+
+        assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithm(session));
+    }
 
     @Test
     void requestBatchWithSameRoutingKeyIsHandledInOrder() throws Exception {
@@ -170,6 +224,8 @@ class WebsocketEndpointTest {
         when(session.getId()).thenReturn("session");
         when(session.getRequestParameterMap()).thenReturn(
                 Map.of("clientId", List.of("client"), "clientName", List.of("test-client")));
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
+                WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime-session")));
         doNothing().when(session).addMessageHandler(any(Class.class), any(MessageHandler.Whole.class));
     }
 
@@ -182,6 +238,11 @@ class WebsocketEndpointTest {
         private final List<String> handled;
         private final CountDownLatch secondHandled;
         private final CountDownLatch allowFirstToFinish;
+
+        TestEndpoint() {
+            this(Executors.newSingleThreadExecutor(), new CopyOnWriteArrayList<>(), new CountDownLatch(0),
+                 new CountDownLatch(0));
+        }
 
         private TestEndpoint(ExecutorService executor, List<String> handled, CountDownLatch secondHandled,
                              CountDownLatch allowFirstToFinish) {
@@ -201,6 +262,11 @@ class WebsocketEndpointTest {
         void handle(SecondCommand command) {
             handled.add("second");
             secondHandled.countDown();
+        }
+
+        @Override
+        protected CompressionAlgorithm getCompressionAlgorithm(Session session) {
+            return super.getCompressionAlgorithm(session);
         }
 
         void openSessionForTest(Session session) {

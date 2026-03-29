@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -88,10 +90,11 @@ public class WebsocketEndpoint extends Endpoint {
     }
 
     @Override
+    @SneakyThrows
     public void onClose(Session session, CloseReason closeReason) {
         openSessions.remove(session.getId());
         sendRequest(session, HttpRequestMethod.WS_CLOSE,
-                    String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
+                    String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8)).get(1, TimeUnit.SECONDS);
     }
 
     @Override
@@ -99,7 +102,7 @@ public class WebsocketEndpoint extends Endpoint {
         log.warn("Error in session {}", session.getId(), error);
     }
 
-    protected void sendRequest(Session session, String method, byte[] payload) {
+    protected CompletableFuture<?> sendRequest(Session session, String method, byte[] payload) {
         Metadata metadata = getContext(session).metadata().with(WebRequest.methodKey, method);
         var request = new SerializedMessage(new Data<>(payload == null ? new byte[0] : payload,
                                                        null, 0, "unknown"),
@@ -107,7 +110,7 @@ public class WebsocketEndpoint extends Endpoint {
                                             Fluxzero.currentClock().millis());
         request.setSource(client.id());
         request.setTarget(getContext(session).trackerId());
-        requestGateway.append(Guarantee.SENT, request);
+        return requestGateway.append(Guarantee.STORED, request);
     }
 
     protected void handleResultMessages(List<SerializedMessage> resultMessages) {

@@ -26,7 +26,6 @@ import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
-import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.util.List;
@@ -53,7 +52,6 @@ import java.util.concurrent.CompletableFuture;
  * @see KeyValueClient
  * @see KeyValueStore
  */
-@ClientEndpoint
 public class WebsocketKeyValueClient extends AbstractWebsocketClient implements KeyValueClient {
 
     /**

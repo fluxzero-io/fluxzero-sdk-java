@@ -254,7 +254,8 @@ class AggregatePlaybackTest {
             stale.apply(new SetPrimaryValue("value-1"));
 
             Entity<SampleAggregate> latest = fc.aggregateRepository().load("sample", SampleAggregate.class);
-            assertNull(latest.lastEventIndex());
+            DeserializingMessage valueEvent = fc.eventStore().getEvents("sample").skip(1).findFirst().orElseThrow();
+            assertEquals(valueEvent.getMessageId(), latest.lastEventId());
             assertNotNull(latest.previous());
             assertEquals(createEvent.getMessageId(), latest.previous().lastEventId());
             assertEquals(createEvent.getIndex(), latest.previous().lastEventIndex());

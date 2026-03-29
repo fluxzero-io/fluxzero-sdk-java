@@ -30,6 +30,7 @@ public class MultiClientEndpoint extends Endpoint {
 
     @Override
     public void onOpen(Session session, EndpointConfig config) {
+        session.getUserProperties().putAll(config.getUserProperties());
         endpointSupplier.apply(session).onOpen(session, config);
     }
 

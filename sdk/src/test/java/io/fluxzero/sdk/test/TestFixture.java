@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
-import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
@@ -40,6 +39,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Downcast;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
@@ -47,7 +47,6 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
-import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
@@ -329,6 +328,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final GivenWhenThenInterceptor interceptor;
     private Duration resultTimeout = defaultResultTimeout;
     private Duration consumerTimeout = defaultConsumerTimeout;
+    private boolean warnOnPendingConsumers = true;
     private boolean ignoreErrorsInGiven;
     private boolean skipScheduleDeadlines;
     private final boolean synchronous;
@@ -461,6 +461,15 @@ public class TestFixture implements Given<TestFixture>, When {
      */
     public TestFixture consumerTimeout(Duration consumerTimeout) {
         return modifyFixture(fixture -> fixture.consumerTimeout = consumerTimeout);
+    }
+
+    /**
+     * Disables the warning that is logged when {@code given}/{@code when} times out while consumers are still pending.
+     * <p>
+     * Useful for tests that intentionally verify paused or stalled consumers.
+     */
+    public TestFixture suppressPendingConsumerWarning() {
+        return modifyFixture(fixture -> fixture.warnOnPendingConsumers = false);
     }
 
     /**
@@ -1220,7 +1229,7 @@ public class TestFixture implements Given<TestFixture>, When {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (!checkConsumers()) {
+            if (!checkConsumers() && warnOnPendingConsumers) {
                 log.warn("Some consumers in the test fixture did not finish processing all messages. "
                          + "This may cause your test to fail. Waiting consumers: {}",
                          consumers.entrySet().stream()
@@ -1553,10 +1562,21 @@ public class TestFixture implements Given<TestFixture>, When {
                 Collection<String> messageIds =
                         b.getMessages().stream().map(SerializedMessage::getMessageId).collect(toSet());
                 synchronized (testFixture.consumers) {
+                    b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
+                            .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
+                                         && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
+                                         && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
+                            .forEach(e -> e.getValue().removeIf(m2 -> m.getMessageId().equals(m2.getMessageId()))));
                     messages.removeIf(m -> messageIds.contains(m.getMessageId()));
                     testFixture.checkConsumers();
                 }
             };
+        }
+
+        private boolean isOutsideBounds(ConsumerConfiguration configuration, Long index) {
+            return index != null && ((configuration.getMinIndex() != null && index < configuration.getMinIndex())
+                                     || (configuration.getMaxIndexExclusive() != null
+                                         && index >= configuration.getMaxIndexExclusive()));
         }
 
         public Function<DeserializingMessage, Object> interceptHandling(

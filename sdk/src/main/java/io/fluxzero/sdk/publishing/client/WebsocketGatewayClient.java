@@ -24,7 +24,6 @@ import io.fluxzero.common.api.publishing.SetRetentionTime;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
-import jakarta.websocket.ClientEndpoint;
 
 import java.net.URI;
 import java.time.Duration;
@@ -71,7 +70,6 @@ import static io.fluxzero.common.MessageType.METRICS;
  * @see AbstractWebsocketClient
  * @see io.fluxzero.sdk.Fluxzero
  */
-@ClientEndpoint
 public class WebsocketGatewayClient extends AbstractWebsocketClient implements GatewayClient {
 
     private final Set<Consumer<List<SerializedMessage>>> monitors = new CopyOnWriteArraySet<>();

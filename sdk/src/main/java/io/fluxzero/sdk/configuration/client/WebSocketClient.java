@@ -40,12 +40,15 @@ import lombok.Value;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
@@ -211,11 +214,20 @@ public class WebSocketClient extends AbstractClient {
                 "FLUXZERO_TASK_ID", "FLUX_TASK_ID")).orElseGet(UUID.randomUUID()::toString);
 
         /**
-         * The compression algorithm used for message transmission. Defaults to {@link CompressionAlgorithm#LZ4}.
+         * Ordered list of compression algorithms the client supports for websocket communication, with the preferred
+         * algorithm first. Should not be empty.
+         */
+        @Default
+        List<CompressionAlgorithm> supportedCompressionAlgorithms = Stream.concat(
+                Stream.of(LZ4), EnumSet.complementOf(EnumSet.of(LZ4)).stream()).toList();
+
+        /**
+         * Returns the most preferred compression algorithm supported by the client.
          */
         @NonNull
-        @Default
-        CompressionAlgorithm compression = LZ4;
+        public CompressionAlgorithm getPreferredCompressionAlgorithm() {
+            return supportedCompressionAlgorithms.getFirst();
+        }
 
         /**
          * Number of WebSocket sessions allocated for the event sourcing subsystem. Defaults to {@code 2}.
@@ -305,7 +317,6 @@ public class WebSocketClient extends AbstractClient {
             return Arrays.stream(MessageType.values()).collect(toMap(Function.identity(), t -> t == MessageType.RESULT
                     ? TrackingClientConfig.builder().cacheSize(0).build() : TrackingClientConfig.builder().build()));
         }
-
     }
 
     /**
