@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -128,10 +127,9 @@ public class ConsumerConfigurationTest {
                                                                           .name("maxIndex")
                                                                           .maxIndexExclusive(nowIndex).build(),
                                                                   MessageType.COMMAND)
-                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
                                 new Handler())
                 .withClock(nowClock)
-                .consumerTimeout(Duration.ofMillis(100))
 
                 .whenCommand(new Command())
                 .expectEvents("minIndex")
@@ -148,10 +146,9 @@ public class ConsumerConfigurationTest {
                                                                           .minIndex(nowIndex)
                                                                           .exclusiveBeforeMinIndex(false)
                                                                           .build(), MessageType.COMMAND)
-                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
                                 new ConditionalExclusiveHandler())
                 .withClock(nowClock)
-                .consumerTimeout(Duration.ofMillis(100))
 
                 .whenCommand(new Command())
                 .expectThat(fc -> assertEquals(List.of("split"), ConditionalExclusiveHandler.invocations));
@@ -167,10 +164,9 @@ public class ConsumerConfigurationTest {
                                                                           .maxIndexExclusive(nowIndex)
                                                                           .exclusiveAfterMaxIndex(false)
                                                                           .build(), MessageType.COMMAND)
-                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
                                 new ConditionalExclusiveHandler())
                 .withClock(nowClock)
-                .consumerTimeout(Duration.ofMillis(100))
 
                 .whenCommand(new Command())
                 .expectThat(fc -> {

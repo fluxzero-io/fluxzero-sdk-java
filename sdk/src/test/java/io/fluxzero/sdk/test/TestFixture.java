@@ -1548,10 +1548,21 @@ public class TestFixture implements Given<TestFixture>, When {
                 Collection<String> messageIds =
                         b.getMessages().stream().map(SerializedMessage::getMessageId).collect(toSet());
                 synchronized (testFixture.consumers) {
+                    b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
+                            .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
+                                         && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
+                                         && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
+                            .forEach(e -> e.getValue().removeIf(m2 -> m.getMessageId().equals(m2.getMessageId()))));
                     messages.removeIf(m -> messageIds.contains(m.getMessageId()));
                     testFixture.checkConsumers();
                 }
             };
+        }
+
+        private boolean isOutsideBounds(ConsumerConfiguration configuration, Long index) {
+            return index != null && ((configuration.getMinIndex() != null && index < configuration.getMinIndex())
+                                     || (configuration.getMaxIndexExclusive() != null
+                                         && index >= configuration.getMaxIndexExclusive()));
         }
 
         public Function<DeserializingMessage, Object> interceptHandling(
