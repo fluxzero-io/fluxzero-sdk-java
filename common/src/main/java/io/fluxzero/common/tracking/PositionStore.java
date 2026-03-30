@@ -37,6 +37,28 @@ public interface PositionStore {
      */
     CompletableFuture<Void> storePosition(String consumer, int[] segment, long lastIndex);
 
+
+    /**
+     * Stores the latest processed index for a given segment range and consumer, optionally using the caller's
+     * current view of the full position as additional context.
+     * <p>
+     * The supplied {@code current} position is the position the caller believes is currently stored for the consumer
+     * before applying this update. Implementations may ignore it or use it to optimize writes or perform
+     * optimistic concurrency checks before persisting the updated position.
+     * <p>
+     * The default implementation delegates to {@link #storePosition(String, int[], long)} and therefore ignores
+     * {@code current}.
+     *
+     * @param consumer  the consumer name (e.g., the tracking processor)
+     * @param current   the caller's current view of the stored position for the consumer
+     * @param segment   the segment range for which this index applies
+     * @param lastIndex the last index successfully handled
+     * @return a future that completes when the position is stored
+     */
+    default CompletableFuture<Void> storePosition(String consumer, Position current, int[] segment, long lastIndex) {
+        return storePosition(consumer, segment, lastIndex);
+    }
+
     /**
      * Resets the position of the consumer for all segments to the given index.
      *
