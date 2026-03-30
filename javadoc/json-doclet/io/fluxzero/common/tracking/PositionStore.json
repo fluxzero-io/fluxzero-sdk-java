@@ -85,6 +85,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores the latest processed index for a given segment range and consumer.\n\n @param consumer  the consumer name (e.g., the tracking processor)\n @param segment   the segment range for which this index applies\n @param lastIndex the last index successfully handled\n @return a future that completes when the position is stored\n"
+  }, {
+    "name" : "storePosition",
+    "qualifiedName" : "io.fluxzero.common.tracking.PositionStore#storePosition",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "current",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the latest processed index for a given segment range and consumer, optionally using the caller's\n current view of the full position as additional context.\n <p>\n The supplied {@code current} position is the position the caller believes is currently stored for the consumer\n before applying this update. Implementations may ignore it or use it to optimize writes or perform\n optimistic concurrency checks before persisting the updated position.\n <p>\n The default implementation delegates to {@link #storePosition(String, int[], long)} and therefore ignores\n {@code current}.\n\n @param consumer  the consumer name (e.g., the tracking processor)\n @param current   the caller's current view of the stored position for the consumer\n @param segment   the segment range for which this index applies\n @param lastIndex the last index successfully handled\n @return a future that completes when the position is stored\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
