@@ -219,6 +219,17 @@
     "varArgs" : false,
     "documentation" : " Associates the specified value with the given {@code id} only if no value is currently associated.\n\n @param id    the key to check for presence\n @param value the value to associate if absent\n @return the existing value associated with the key, or {@code null} if the new value was successfully put\n"
   }, {
+    "name" : "rebuild",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.Cache#rebuild",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a fresh cache instance with the same configuration and no stored entries.\n"
+  }, {
     "name" : "registerEvictionListener",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.Cache#registerEvictionListener",
     "returnType" : "io.fluxzero.common.Registration",
