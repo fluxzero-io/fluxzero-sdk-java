@@ -165,6 +165,11 @@ public interface Cache {
     Registration registerEvictionListener(Consumer<CacheEviction> listener);
 
     /**
+     * Returns a fresh cache instance with the same configuration and no stored entries.
+     */
+    Cache rebuild();
+
+    /**
      * Closes the cache and releases all associated resources.
      */
     void close();

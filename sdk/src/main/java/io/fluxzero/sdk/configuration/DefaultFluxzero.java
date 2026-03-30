@@ -500,6 +500,16 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public Cache cache() {
+            return cache;
+        }
+
+        @Override
+        public Cache relationshipsCache() {
+            return relationshipsCache;
+        }
+
+        @Override
         public FluxzeroBuilder replaceIdentityProvider(UnaryOperator<IdentityProvider> replaceFunction) {
             identityProvider = replaceFunction.apply(identityProvider);
             return this;
@@ -604,6 +614,8 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            Cache cache = this.cache.rebuild();
+            Cache relationshipsCache = this.relationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =

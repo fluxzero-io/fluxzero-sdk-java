@@ -145,7 +145,7 @@ public class AggregateEntitiesTest {
             testFixture.whenApplying(fc -> loadAggregate("meta-test", MetaAggregate.class)
                             .update(s -> MetaAggregate.builder().build()).allEntities().collect(toList()))
                     .expectResult(entities -> entities.stream().anyMatch(e -> "meta-child".equals(e.id())
-                            && "metaChildId".equals(e.idProperty())));
+                                                                              && "metaChildId".equals(e.idProperty())));
         }
     }
 
@@ -475,7 +475,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void applyDoesNotYieldAnyEvents() {
-            testFixture.spy()
+            (testFixture = testFixture.spy())
                     .whenApplying(fc -> fc.aggregateRepository().asEntity(
                             Aggregate.builder().build()).apply(new AddChild(new MissingChildId("missing"))))
                     .expectThat(fc -> verifyNoInteractions(fc.eventStore()));
@@ -638,7 +638,7 @@ public class AggregateEntitiesTest {
                         })
                         .whenCommand(new UpdateRecordGrandChild("gc0", "gc1"))
                         .expectTrue(fc -> "gc1".equals(loadAggregate("record", RecordAggregate.class)
-                                .get().child().grandChild().recordGrandChildId()));
+                                                               .get().child().grandChild().recordGrandChildId()));
             }
 
             @Test
@@ -845,13 +845,15 @@ public class AggregateEntitiesTest {
 
             @Test
             void testAddMapChild_storeOnly() {
-                testFixture.spy().whenCommand(new StoreOnlyAddMapChild(new Key("map2")))
+                (testFixture = testFixture.spy())
+                        .whenCommand(new StoreOnlyAddMapChild(new Key("map2")))
                         .expectNoEvents()
+                        .expectThat(fc -> verify(fc.client().getEventStoreClient())
+                                .storeEvents(anyString(), anyList(), eq(true)))
                         .expectThat(fc -> expectEntity(
                                 e -> e.get() instanceof MapChild && new Key("map2").equals(e.id())))
-                        .expectTrue(fc -> loadAggregate("test", Aggregate.class).get().getMap().size() == 3)
-                        .expectThat(fc -> verify(fc.client().getEventStoreClient())
-                                .storeEvents(anyString(), anyList(), eq(true)));
+                        .expectTrue(fc -> loadAggregate("test", Aggregate.class).get().getMap().size() == 3);
+
             }
 
             @Test

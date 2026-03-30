@@ -170,6 +170,11 @@ public class SelectiveCache implements Cache {
     }
 
     @Override
+    public Cache rebuild() {
+        return new SelectiveCache(delegate.rebuild(), selector, nextCache.rebuild());
+    }
+
+    @Override
     public void close() {
         delegate.close();
         nextCache.close();

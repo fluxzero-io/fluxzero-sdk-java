@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -45,10 +44,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerThreadFactory;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
-import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
 /**
  * Default implementation of the {@link Cache} interface using key-level synchronized access and soft references for
@@ -75,14 +74,16 @@ import static java.util.concurrent.Executors.newSingleThreadExecutor;
  */
 @AllArgsConstructor
 @Slf4j
-public class DefaultCache implements Cache, AutoCloseable {
+public final class DefaultCache implements Cache, AutoCloseable {
     protected static final String mutexPrecursor = "$DC$";
 
+    private final int maxSize;
     @Getter
     private final Map<Object, CacheReference> valueMap;
 
     private final Executor evictionNotifier;
     private final Duration expiry;
+    private final Duration expiryCheckDelay;
     private final boolean softReferences;
     private final Clock clock;
 
@@ -112,14 +113,17 @@ public class DefaultCache implements Cache, AutoCloseable {
      * notifications.
      */
     public DefaultCache(int maxSize, Duration expiry) {
-        this(maxSize, newSingleThreadExecutor(newPlatformThreadFactory("DefaultCache-evictionNotifier")), expiry);
+        this(maxSize, runnable -> newWorkerThreadFactory("DefaultCache-evictionNotifier-").newThread(runnable).start(),
+             expiry, Duration.ofMinutes(1), true,
+             Fluxzero.getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC));
     }
 
     /**
      * Constructs a cache with specified size, executor for eviction notifications and expiration.
      */
     public DefaultCache(int maxSize, Executor evictionNotifier, Duration expiry) {
-        this(maxSize, evictionNotifier, expiry, Duration.ofMinutes(1), true);
+        this(maxSize, evictionNotifier, expiry, Duration.ofMinutes(1), true,
+             Fluxzero.getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC));
     }
 
     /**
@@ -127,6 +131,13 @@ public class DefaultCache implements Cache, AutoCloseable {
      * frequency.
      */
     public DefaultCache(int maxSize, Executor evictionNotifier, Duration expiry, Duration expiryCheckDelay, boolean softReferences) {
+        this(maxSize, evictionNotifier, expiry, expiryCheckDelay, softReferences,
+             Fluxzero.getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC));
+    }
+
+    private DefaultCache(int maxSize, Executor evictionNotifier, Duration expiry, Duration expiryCheckDelay,
+                         boolean softReferences, Clock clock) {
+        this.maxSize = maxSize;
         this.valueMap = Collections.synchronizedMap(new LinkedHashMap<>(Math.min(128, maxSize), 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<Object, CacheReference> eldest) {
@@ -141,8 +152,9 @@ public class DefaultCache implements Cache, AutoCloseable {
             }
         });
         this.softReferences = softReferences;
+        this.expiryCheckDelay = expiryCheckDelay;
         this.evictionNotifier = evictionNotifier;
-        this.clock = Fluxzero.getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC);
+        this.clock = clock;
         this.referencePurger.execute(this::pollReferenceQueue);
         if ((this.expiry = expiry) != null) {
             this.referencePurger.scheduleWithFixedDelay(
@@ -230,11 +242,13 @@ public class DefaultCache implements Cache, AutoCloseable {
     }
 
     @Override
+    public Cache rebuild() {
+        return new DefaultCache(maxSize, evictionNotifier, expiry, expiryCheckDelay, softReferences, clock);
+    }
+
+    @Override
     public void close() {
         try {
-            if (evictionNotifier instanceof ExecutorService executorService) {
-                executorService.shutdownNow();
-            }
             referencePurger.shutdownNow();
         } catch (Throwable ignored) {
         }

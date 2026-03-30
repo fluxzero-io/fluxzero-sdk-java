@@ -120,6 +120,16 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder replaceCache(Cache cache);
 
     /**
+     * Configures a dedicated cache for a specific aggregate type.
+     */
+    FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache);
+
+    /**
+     * Replaces the internal relationships cache with a new implementation.
+     */
+    FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
+
+    /**
      * Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server on
      * the specified port.
      * <p>
@@ -169,16 +179,6 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Replaces the default {@link TaskScheduler} implementation.
      */
     FluxzeroBuilder replaceTaskScheduler(Function<Clock, TaskScheduler> function);
-
-    /**
-     * Configures a dedicated cache for a specific aggregate type.
-     */
-    FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache);
-
-    /**
-     * Replaces the internal relationships cache with a new implementation.
-     */
-    FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
 
     /**
      * Replaces the identity provider used to generate message and entity identifiers.

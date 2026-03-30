@@ -21,6 +21,7 @@ import io.fluxzero.sdk.common.IgnoringErrorHandler;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -45,6 +46,7 @@ import java.util.concurrent.TimeoutException;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -133,6 +135,18 @@ class GivenWhenThenAsyncTest {
         void afterGivenCommand() {
             syncFixture.givenCommands(new YieldsSchedule("test")).async()
                     .whenExecuting(fc -> {}).expectSchedules(String.class);
+        }
+
+        @Test
+        void usesFreshCache() {
+            TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().replaceCache(new DefaultCache()),
+                                                    new MixedHandler());
+            fixture.getFluxzero().cache().put("test", "value");
+
+            TestFixture asyncFixture = fixture.async();
+
+            assertNotSame(fixture.getFluxzero().cache(), asyncFixture.getFluxzero().cache());
+            assertNull(asyncFixture.getFluxzero().cache().get("test"));
         }
 
         @Test

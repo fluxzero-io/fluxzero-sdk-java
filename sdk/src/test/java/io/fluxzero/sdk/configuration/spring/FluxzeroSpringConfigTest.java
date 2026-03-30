@@ -22,6 +22,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.persisting.caching.Cache;
+import io.fluxzero.sdk.persisting.caching.CacheEviction;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -34,6 +36,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import lombok.NonNull;
 import lombok.Value;
+import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -232,7 +235,14 @@ public class FluxzeroSpringConfigTest {
 
     @Component
     @ConditionalOnMissingBean
-    private static class CustomCache extends DefaultCache {
+    private static class CustomCache implements Cache {
+        @Delegate
+        private final Cache delegate = new DefaultCache();
+
+        @Override
+        public Cache rebuild() {
+            return new CustomCache();
+        }
     }
 
     @Value

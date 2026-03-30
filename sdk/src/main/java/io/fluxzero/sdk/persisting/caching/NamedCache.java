@@ -96,6 +96,11 @@ public class NamedCache implements Cache {
     }
 
     @Override
+    public Cache rebuild() {
+        return new NamedCache(delegate.rebuild(), idFunction);
+    }
+
+    @Override
     public void close() {
         delegate.close();
     }

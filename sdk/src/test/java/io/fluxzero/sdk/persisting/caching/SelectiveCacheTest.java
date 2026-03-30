@@ -19,6 +19,7 @@ import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import lombok.experimental.Delegate;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -151,8 +152,8 @@ class SelectiveCacheTest {
                 return "foo";
             });
             assertEquals(2, subject.size());
-            assertEquals(subject.get("id1"), "foo");
-            assertEquals(subject.get("id2"), true);
+            assertEquals("foo", subject.get("id1"));
+            assertEquals(true, subject.get("id2"));
             assertFalse(stringCache.isEmpty());
             assertFalse(booleanCache.isEmpty());
             assertTrue(defaultCache.isEmpty());
@@ -161,6 +162,10 @@ class SelectiveCacheTest {
 
     @Nested
     class AggregateTests {
+        private final RebuildAwareCache stringCache = new RebuildAwareCache();
+        private final RebuildAwareCache booleanCache = new RebuildAwareCache();
+        private final RebuildAwareCache defaultCache = new RebuildAwareCache();
+
         private final TestFixture testFixture = TestFixture.create(
                 DefaultFluxzero.builder()
                         .disableAutomaticAggregateCaching()
@@ -247,7 +252,7 @@ class SelectiveCacheTest {
                             .getEvents(aggregateId, -1L, -1));
         }
 
-        class MockCommandHandler {
+        private static class MockCommandHandler {
             @HandleCommand
             void handle(String command) {
                 loadAggregate(aggregateId, StringModel.class).apply(command);
@@ -261,6 +266,16 @@ class SelectiveCacheTest {
             @HandleCommand
             void handle(Boolean command) {
                 loadAggregate(aggregateId, BooleanModel.class).apply(command);
+            }
+        }
+
+        private static class RebuildAwareCache implements Cache {
+            @Delegate
+            private Cache active = new DefaultCache();
+
+            @Override
+            public Cache rebuild() {
+                return active = new DefaultCache();
             }
         }
     }
@@ -285,6 +300,4 @@ class SelectiveCacheTest {
         BooleanModel(Boolean event) {
         }
     }
-
-
 }

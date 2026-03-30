@@ -36,6 +36,7 @@ import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPres
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -160,6 +161,20 @@ class DefaultCacheTest {
         thread1.join();
         assertEquals("bar", subject.get("foo"));
         assertEquals(Thread.State.TERMINATED, thread1.getState());
+    }
+
+    @Test
+    void rebuildReturnsFreshCacheWithSameConfiguration() {
+        subject.put("foo", "bar");
+
+        Cache rebuilt = subject.rebuild();
+
+        assertNotSame(subject, rebuilt);
+        assertNull(rebuilt.get("foo"));
+        rebuilt.put("id1", "test1");
+        rebuilt.put("id2", "test2");
+        rebuilt.put("id3", "test3");
+        assertEquals(2, rebuilt.size());
     }
 
     @Nested

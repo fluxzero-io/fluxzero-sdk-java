@@ -85,6 +85,11 @@ public enum NoOpCache implements Cache {
     }
 
     @Override
+    public Cache rebuild() {
+        return this;
+    }
+
+    @Override
     public void close() {
     }
 }
