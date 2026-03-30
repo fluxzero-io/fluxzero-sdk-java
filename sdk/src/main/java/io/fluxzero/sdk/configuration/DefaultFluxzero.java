@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,12 +27,11 @@ import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.DefaultMemoization;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.Memoization;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
-import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -614,8 +613,8 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
-            Cache cache = this.cache.rebuild();
-            Cache relationshipsCache = this.relationshipsCache.rebuild();
+            Cache cache = this.cache.isEmpty() ? this.cache : this.cache.rebuild();
+            Cache relationshipsCache = this.relationshipsCache.isEmpty() ? this.relationshipsCache : this.relationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =
