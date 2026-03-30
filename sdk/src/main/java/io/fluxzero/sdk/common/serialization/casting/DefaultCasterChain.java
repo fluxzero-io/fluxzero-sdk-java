@@ -122,7 +122,11 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         return CastInspector.getCasters(down ? Downcast.class : Upcast.class, Arrays.asList(candidates), dataType)
                 .stream().<Registration>map(c -> {
                     DataRevision dataRevision = new DataRevision(c.getParameters());
-                    if (casters.putIfAbsent(dataRevision, c) != null) {
+                    AnnotatedCaster<T> existingCaster = casters.putIfAbsent(dataRevision, c);
+                    if (existingCaster != null) {
+                        if (existingCaster.equals(c)) {
+                            return Registration.noOp();
+                        }
                         throw new DeserializationException(format(
                                 "Failed to register candidate. A caster for %s already exists.", dataRevision));
                     }

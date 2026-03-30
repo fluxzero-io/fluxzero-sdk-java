@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -185,6 +186,15 @@ class UpcasterChainTest {
         assertThrows(DeserializationException.class,
                      () -> DefaultCasterChain.createUpcaster(List.of(upcasterStub, new ConflictingUpcaster()),
                                                              new StringConverter()));
+    }
+
+    @Test
+    void testRegisteringSameUpcasterTwiceIsIgnored() {
+        CasterChain<Data<String>, Data<String>> subject = DefaultCasterChain.createUpcaster(List.of(), String.class);
+        assertDoesNotThrow(() -> {
+            subject.registerCasterCandidates(upcasterStub);
+            subject.registerCasterCandidates(upcasterStub);
+        });
     }
 
     /*

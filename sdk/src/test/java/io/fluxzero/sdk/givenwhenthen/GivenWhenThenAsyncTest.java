@@ -15,11 +15,15 @@
 
 package io.fluxzero.sdk.givenwhenthen;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.IgnoringErrorHandler;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -35,6 +39,7 @@ import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
@@ -135,6 +140,17 @@ class GivenWhenThenAsyncTest {
         void afterGivenCommand() {
             syncFixture.givenCommands(new YieldsSchedule("test")).async()
                     .whenExecuting(fc -> {}).expectSchedules(String.class);
+        }
+
+        @Test
+        void afterRegisteringCasterAndSpying() {
+            TestFixture.create(new MixedHandler())
+                    .registerCasters(new AsyncTestUpcaster())
+                    .spy()
+                    .async()
+                    .whenUpcasting(new Data<>("\"test\"".getBytes(StandardCharsets.UTF_8), String.class.getName(), 0,
+                                              null))
+                    .expectResult("patched");
         }
 
         @Test
@@ -339,6 +355,13 @@ class GivenWhenThenAsyncTest {
 
     @Value
     private static class YieldsException {
+    }
+
+    private static class AsyncTestUpcaster {
+        @Upcast(type = "java.lang.String", revision = 0)
+        public JsonNode upcast(JsonNode value) {
+            return TextNode.valueOf("patched");
+        }
     }
 
     @Value

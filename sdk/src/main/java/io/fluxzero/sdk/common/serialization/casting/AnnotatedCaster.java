@@ -18,6 +18,7 @@ import io.fluxzero.common.api.SerializedObject;
 import lombok.Getter;
 
 import java.lang.reflect.Method;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -62,6 +63,19 @@ public class AnnotatedCaster<T> {
     public <S extends SerializedObject<T>> Stream<S> cast(S input) {
         return parameters.type().equals(input.data().getType()) && parameters.revision() == input.data().getRevision()
                 ? (Stream<S>) castFunction.apply(input) : Stream.of(input);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof AnnotatedCaster<?> that)) {
+            return false;
+        }
+        return Objects.equals(method, that.method) && Objects.equals(parameters, that.parameters);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(method, parameters);
     }
 
     @Override
