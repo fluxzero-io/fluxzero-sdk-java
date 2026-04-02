@@ -294,8 +294,8 @@ public class DefaultFluxzero implements Fluxzero {
         private final Map<MessageType, List<BatchInterceptor>> batchInterceptors =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> List.of()));
         private final DelegatingClock clock = new DelegatingClock();
+        private final SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
-        private SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
                 "FluxzeroTaskScheduler", clock,
                 newWorkerPool("FluxzeroTaskScheduler-worker", 8));
@@ -757,9 +757,9 @@ public class DefaultFluxzero implements Fluxzero {
             parameterResolvers.addAll(List.of(new TriggerParameterResolver(client, serializer),
                                               new MessageParameterResolver(),
                                               new MetadataParameterResolver(),
-                                              new TimestampParameterResolver(),
                                               websocketHandlerDecorator,
                                               new WebParamParameterResolver(),
+                                              new TimestampParameterResolver(),
                                               new WebPayloadParameterResolver(
                                                       !disablePayloadValidation, userProvider != null),
                                               new PayloadParameterResolver(),

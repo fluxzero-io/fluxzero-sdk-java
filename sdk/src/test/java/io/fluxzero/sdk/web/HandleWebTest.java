@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
@@ -95,6 +96,27 @@ public class HandleWebTest {
         @Test
         void testGet_shortHand() {
             testFixture.whenGet("/get").expectResult("get");
+        }
+
+        @Test
+        void testGet_withSpecificInstantParameters() {
+            testFixture.atFixedTime(Instant.parse("2025-07-09T00:00:00Z"))
+                    .whenWebRequest(WebRequest.post("/instantBinding/2025-07-05T00:00:00Z"
+                                                      + "?query=2025-07-06T00:00:00Z")
+                                              .header("header", "2025-07-07T00:00:00Z")
+                            .body("""
+                                    {
+                                      "body": "2025-07-08T00:00:00Z"
+                                    }
+                                    """).build())
+                    .mapWebResultMessage(WebResponse::getPayload)
+                    .expectResult(Stream.of(
+                            "2025-07-05T00:00:00Z",
+                            "2025-07-06T00:00:00Z",
+                            "2025-07-07T00:00:00Z",
+                            "2025-07-08T00:00:00Z",
+                            "2025-07-09T00:00:00Z")
+                            .map(Instant::parse).toList());
         }
 
         @Test
@@ -297,6 +319,15 @@ public class HandleWebTest {
             @HandleGet("/get")
             String get() {
                 return "get";
+            }
+
+            @HandlePost("/instantBinding/{path}")
+            List<Instant> instantBinding(@PathParam("path") Instant path,
+                                         @QueryParam("query") Instant query,
+                                         @HeaderParam("header") Instant header,
+                                         @BodyParam("body") Instant body,
+                                         Instant timestamp) {
+                return List.of(path, query, header, body, timestamp);
             }
 
             @HandleWeb(value = "/disabled", method = GET, disabled = true)
