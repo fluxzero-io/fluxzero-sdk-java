@@ -34,10 +34,10 @@ import java.util.stream.IntStream;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 
 public class EventSourcedAggregateLoadBenchmark {
-    private static final int BRANCH_COUNT = Integer.getInteger("branches", 16);
-    private static final int LEAVES_PER_BRANCH = Integer.getInteger("leavesPerBranch", 16);
-    private static final int EVENT_COUNT = Integer.getInteger("eventCount", 2_000);
-    private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 2_000);
+    private static final int BRANCH_COUNT = Integer.getInteger("branches", 8);
+    private static final int LEAVES_PER_BRANCH = Integer.getInteger("leavesPerBranch", 8);
+    private static final int EVENT_COUNT = Integer.getInteger("eventCount", 1_000);
+    private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 1_000);
     private static final long PAUSE_AFTER_PREPARE_MS = Long.getLong("pauseAfterPrepareMs", 0L);
     private static final String SCENARIO = System.getProperty("scenario");
 
