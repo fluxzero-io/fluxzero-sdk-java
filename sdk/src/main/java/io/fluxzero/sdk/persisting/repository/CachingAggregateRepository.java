@@ -44,6 +44,7 @@ import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.sdk.common.serialization.DeserializingMessage.handleBatch;
 import static io.fluxzero.sdk.modeling.Entity.getAggregateId;
 import static io.fluxzero.sdk.modeling.Entity.getAggregateType;
+import static io.fluxzero.sdk.modeling.Entity.hasSequenceNumber;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
 
@@ -144,7 +145,7 @@ public class CachingAggregateRepository implements AggregateRepository {
 
     private void handleEvent(DeserializingMessage m) {
         String id = getAggregateId(m);
-        if (id != null) {
+        if (id != null && hasSequenceNumber(m)) {
             try {
                 if (Objects.equals(client.id(), m.getSerializedObject().getSource())) {
                     cache.<Entity<?>>computeIfPresent(id, (i, a) -> {

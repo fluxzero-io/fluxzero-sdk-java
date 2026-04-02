@@ -445,34 +445,37 @@ public class DefaultAggregateRepository implements AggregateRepository {
             if (after == before && unpublishedEvents.isEmpty()) {
                 return;
             }
+            boolean stateChanged = after != before;
             try {
-                aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
-                        current == null || current == before ? after
-                                : unpublishedEvents.isEmpty() ? null
-                                : current.apply(unpublishedEvents.stream().map(AppliedEvent::getEvent).toList()));
-                Set<Relationship> associations = after.associations(before), dissociations =
-                        after.dissociations(before);
-                dissociations.forEach(
-                        r -> relationshipsCache.<Map<String, String>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                            map.remove(r.getAggregateId());
-                            return map;
-                        }));
-                associations.forEach(
-                        r -> relationshipsCache.<Map<String, Class<?>>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                            map.put(r.getAggregateId(), after.type());
-                            return map;
-                        }));
-                if (!associations.isEmpty() || !dissociations.isEmpty()) {
-                    eventStoreClient.updateRelationships(
-                            new UpdateRelationships(associations, dissociations, STORED)).get();
+                if (stateChanged) {
+                    aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
+                            current == null || current == before ? after
+                                    : unpublishedEvents.isEmpty() ? null
+                                    : current.apply(unpublishedEvents.stream().map(AppliedEvent::getEvent).toList()));
+                    Set<Relationship> associations = after.associations(before), dissociations =
+                            after.dissociations(before);
+                    dissociations.forEach(
+                            r -> relationshipsCache.<Map<String, String>>computeIfPresent(r.getEntityId(), (id, map) -> {
+                                map.remove(r.getAggregateId());
+                                return map;
+                            }));
+                    associations.forEach(
+                            r -> relationshipsCache.<Map<String, Class<?>>>computeIfPresent(r.getEntityId(), (id, map) -> {
+                                map.put(r.getAggregateId(), after.type());
+                                return map;
+                            }));
+                    if (!associations.isEmpty() || !dissociations.isEmpty()) {
+                        eventStoreClient.updateRelationships(
+                                new UpdateRelationships(associations, dissociations, STORED)).get();
+                    }
                 }
                 if (!unpublishedEvents.isEmpty()) {
                     storeEvents(after.id().toString(), unpublishedEvents);
-                    if (snapshotTrigger.shouldCreateSnapshot(after, unpublishedEvents)) {
+                    if (stateChanged && snapshotTrigger.shouldCreateSnapshot(after, unpublishedEvents)) {
                         snapshotStore.storeSnapshot(after);
                     }
                 }
-                if (searchable) {
+                if (stateChanged && searchable) {
                     Object value = after.get();
                     if (value == null) {
                         documentStore.deleteDocument(after.id().toString(), collection);

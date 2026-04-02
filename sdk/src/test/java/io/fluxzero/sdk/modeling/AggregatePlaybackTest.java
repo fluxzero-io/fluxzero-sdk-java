@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
@@ -47,6 +48,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -234,6 +241,57 @@ class AggregatePlaybackTest {
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
             invokeCachingAggregateTracker(fc, List.of(sampleEvents.get(4).getSerializedObject()));
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+        }).expectNoErrors();
+    }
+
+    @Test
+    void publishOnlyWithoutStateChangeSkipsCacheAndSearchUpdates() throws Exception {
+        TestFixture spyFixture = TestFixture.create().spy();
+        spyFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load("publish-only", PublishOnlyPlaybackAggregate.class)
+                    .apply(new CreatePublishOnlyPlaybackAggregate());
+            List<DeserializingMessage> events = fc.eventStore().getEvents("publish-only").toList();
+            assertEquals(1, events.size());
+            SerializedMessage createEvent = events.getFirst().getSerializedObject();
+            createEvent.setSource(fc.client().id());
+            invokeCachingAggregateTracker(fc, List.of(createEvent));
+
+            Entity<PublishOnlyPlaybackAggregate> afterCreate =
+                    fc.aggregateRepository().load("publish-only", PublishOnlyPlaybackAggregate.class);
+            assertEquals(0L, afterCreate.sequenceNumber());
+            assertEquals(createEvent.getIndex(), afterCreate.lastEventIndex());
+
+            clearInvocations(fc.client().getSearchClient());
+            delegateRepository.load("publish-only", PublishOnlyPlaybackAggregate.class)
+                    .apply(new PublishOnlySideEffect());
+            verify(fc.client().getSearchClient(), never()).index(anyList(), eq(Guarantee.STORED), anyBoolean());
+
+            Entity<PublishOnlyPlaybackAggregate> afterPublishOnly =
+                    fc.aggregateRepository().load("publish-only", PublishOnlyPlaybackAggregate.class);
+            assertEquals(0L, afterPublishOnly.sequenceNumber());
+            assertEquals(createEvent.getIndex(), afterPublishOnly.lastEventIndex());
+
+            Entity<PublishOnlyPlaybackAggregate> latest = delegateRepository.load(
+                    "publish-only", PublishOnlyPlaybackAggregate.class).apply(new SetStoredValue("value-1"));
+
+            assertEquals(1L, latest.sequenceNumber());
+            assertEquals("value-1", latest.get().storedValue());
+            assertNull(latest.lastEventIndex());
+            assertNotNull(latest.previous());
+            assertEquals(createEvent.getMessageId(), latest.previous().lastEventId());
+            assertEquals(createEvent.getIndex(), latest.previous().lastEventIndex());
+
+            events = fc.eventStore().getEvents("publish-only").toList();
+            assertEquals(2, events.size());
+            SerializedMessage storedEvent = events.getLast().getSerializedObject();
+            storedEvent.setSource(fc.client().id());
+
+            clearInvocations(fc.client().getSearchClient());
+            assertTrue(fc.cache().containsKey(aggregateCacheKey("publish-only")));
+            invokeCachingAggregateTracker(fc, List.of(storedEvent));
+            assertTrue(fc.cache().containsKey(aggregateCacheKey("publish-only")));
+            verify(fc.client().getSearchClient(), never()).index(anyList(), eq(Guarantee.STORED), anyBoolean());
         }).expectNoErrors();
     }
 
@@ -477,6 +535,31 @@ class AggregatePlaybackTest {
     @Builder(toBuilder = true)
     record SampleAggregate(String primaryValue, boolean firstFlag,
                            boolean secondFlag, boolean auxiliaryFlag) {
+    }
+
+    record CreatePublishOnlyPlaybackAggregate() {
+        @Apply
+        PublishOnlyPlaybackAggregate apply() {
+            return PublishOnlyPlaybackAggregate.builder().build();
+        }
+    }
+
+    record PublishOnlySideEffect() {
+        @Apply(eventPublication = EventPublication.ALWAYS, publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+        void publish(PublishOnlyPlaybackAggregate aggregate) {
+        }
+    }
+
+    record SetStoredValue(String value) {
+        @Apply
+        PublishOnlyPlaybackAggregate apply(PublishOnlyPlaybackAggregate aggregate) {
+            return aggregate.toBuilder().storedValue(value).build();
+        }
+    }
+
+    @Aggregate(searchable = true)
+    @Builder(toBuilder = true)
+    record PublishOnlyPlaybackAggregate(String storedValue) {
     }
 
     record TouchSecondaryAggregate(String secondaryId) {

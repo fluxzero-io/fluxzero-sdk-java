@@ -212,7 +212,8 @@ public class ImmutableEntity<T> implements Entity<T> {
     public Entity<T> apply(DeserializingMessage message) {
         Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
         if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
-            return toBuilder().value((T) directInvoker.get().invoke()).build();
+            T updatedValue = (T) directInvoker.get().invoke();
+            return updatedValue == get() ? this : toBuilder().value(updatedValue).build();
         }
         ImmutableEntity<T> result = this;
         for (Entity<?> entity : result.resolvePossibleTargets(message.getPayload())) {
@@ -226,7 +227,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this ? directInvoker
                 : entityHelper.applyInvoker(message, result);
         if (invoker.isPresent()) {
-            return result.toBuilder().value((T) invoker.get().invoke()).build();
+            T updatedValue = (T) invoker.get().invoke();
+            return updatedValue == result.get() ? result : result.toBuilder().value(updatedValue).build();
         }
         if (result == this && !Entity.isLoading()
             && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {

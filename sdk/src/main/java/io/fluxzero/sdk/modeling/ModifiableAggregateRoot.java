@@ -188,10 +188,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
             var eventPublication = applyAnnotation.map(Apply::eventPublication)
                     .filter(ep -> ep != EventPublication.DEFAULT).orElse(this.aggregateEventPublication);
+            var publicationStrategy = applyAnnotation.map(Apply::publicationStrategy)
+                    .filter(ep -> ep != EventPublicationStrategy.DEFAULT).orElse(this.aggregatePublicationStrategy);
 
             int hashCodeBefore = eventPublication == IF_MODIFIED ? a.get() == null ? -1 : a.get().hashCode() : -1;
 
             Entity<T> result = a.apply(message);
+            if (publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY && result.get() == a.get()) {
+                result = a;
+            }
             if (switch (eventPublication) {
                 case ALWAYS, DEFAULT -> true;
                 case IF_MODIFIED -> !Objects.equals(a.get(), result.get())
@@ -202,8 +207,6 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 if (intercepted == null) {
                     return a;
                 }
-                var publicationStrategy = applyAnnotation.map(Apply::publicationStrategy)
-                        .filter(ep -> ep != EventPublicationStrategy.DEFAULT).orElse(this.aggregatePublicationStrategy);
                 Message m = publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY
                         ? intercepted.addMetadata(Entity.AGGREGATE_ID_METADATA_KEY, id().toString(),
                                                   Entity.AGGREGATE_TYPE_METADATA_KEY, type().getName())
