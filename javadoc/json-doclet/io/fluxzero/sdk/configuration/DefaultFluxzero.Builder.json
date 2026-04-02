@@ -296,7 +296,7 @@
     "name" : "schedulingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.schedulingInterceptor",
     "type" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
