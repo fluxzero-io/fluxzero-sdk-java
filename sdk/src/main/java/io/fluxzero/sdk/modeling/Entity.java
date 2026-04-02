@@ -65,6 +65,19 @@ public interface Entity<T> {
 
     ThreadLocal<Boolean> loading = ThreadLocal.withInitial(() -> false);
     ThreadLocal<Boolean> applying = ThreadLocal.withInitial(() -> false);
+    ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> entityType) {
+            for (var location : ReflectionUtils.getAnnotatedProperties(entityType, Member.class)) {
+                Class<?> childType = ReflectionUtils.getCollectionElementType(location)
+                        .orElse(ReflectionUtils.getPropertyType(location));
+                if (Objects.equals(entityType, childType)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
 
     /**
      * A constant key used for identifying the aggregate ID in metadata of events. The value associated with this key
@@ -829,17 +842,62 @@ public interface Entity<T> {
         Object payload = message instanceof HasMessage hm ? hm.getPayload() : message;
         Object id = id();
         if (id == null) {
-            return includeEmpty && isEmpty() && hasProperty(idProperty, payload);
+            if (!(includeEmpty && isEmpty() && hasProperty(idProperty, payload))) {
+                return false;
+            }
+            Entity<?> parent = parent();
+            Object routeValue = getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
+            if (routeValue == null && parent != null && parent.idProperty() != null) {
+                routeValue = readProperty(parent.idProperty(), payload).orElse(null);
+            }
+            if (routeValue == null || parent == null || !hasSelfReferentialMember(parent.type())) {
+                return true;
+            }
+            if (Objects.equals(type(), parent.type())) {
+                return false;
+            }
+            return matchesRoute(parent, routeValue);
         }
         if (readProperty(idProperty, payload)
                 .or(() -> getAnnotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
             return true;
         }
-        if (isPresent() && !hasProperty(idProperty, payload)) {
+        if (isPresent() && shouldSearchDescendants(payload, idProperty)) {
             for (Entity<?> e : entities()) {
                 if (e.isPresent() && e.isPossibleTarget(message, includeEmpty)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private boolean shouldSearchDescendants(Object payload, String idProperty) {
+        if (!hasProperty(idProperty, payload)) {
+            return true;
+        }
+        if (!hasSelfReferentialMember(type())) {
+            return false;
+        }
+        Object candidate = readProperty(idProperty, payload).orElse(null);
+        return candidate != null && !matchesRoute(this, candidate);
+    }
+
+    private boolean hasSelfReferentialMember(Class<?> entityType) {
+        return entityType != null && selfReferentialMemberCache.get(entityType);
+    }
+
+    private boolean matchesRoute(Entity<?> entity, Object routeValue) {
+        if (entity == null || routeValue == null) {
+            return false;
+        }
+        if (Objects.equals(entity.id(), routeValue)
+            || Objects.equals(toStringOrNull(entity.id()), routeValue.toString())) {
+            return true;
+        }
+        for (Object alias : entity.aliases()) {
+            if (alias != null && (Objects.equals(alias, routeValue) || routeValue.toString().equals(alias.toString()))) {
+                return true;
             }
         }
         return false;

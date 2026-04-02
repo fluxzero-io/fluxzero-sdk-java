@@ -45,8 +45,10 @@ import java.util.stream.Stream;
 import static io.fluxzero.common.ObjectUtils.asStream;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.handling.HandlerInspector.inspect;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValues;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
+import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 
 /**
  * The {@code DefaultEntityHelper} provides the default implementation of the {@link EntityHelper} interface.
@@ -129,12 +131,40 @@ public class DefaultEntityHelper implements EntityHelper {
                             return false;
                         }
 
+                        if (entity.isPresent() && explicitlyTargetsOtherEntity(hi.getPayload(), entity)) {
+                            return false;
+                        }
+
                         //@Apply methods without matching entity parameters should be ignored if the entity is present
                         return !checkCompatibility || entity.isEmpty() || Arrays.stream(m.getParameters())
                                 .anyMatch(p -> entityParameterResolver.matches(p, entity));
                     }
                     return true;
                 }).build();
+    }
+
+    private static boolean explicitlyTargetsOtherEntity(Object payload, Entity<?> entity) {
+        Object entityId = entity.id();
+        if (payload == null || entityId == null || !hasSelfReferentialMember(entity.type())) {
+            return false;
+        }
+        Object routingKey = getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+                .orElse(null);
+        if (routingKey != null) {
+            if (entityId.equals(routingKey) || entity.aliases().stream().anyMatch(routingKey::equals)) {
+                return false;
+            }
+            return true;
+        }
+        String idProperty = entity.idProperty();
+        if (idProperty == null) {
+            return false;
+        }
+        return readProperty(idProperty, payload).filter(candidate -> !entityId.equals(candidate)).isPresent();
+    }
+
+    private static boolean hasSelfReferentialMember(Class<?> entityType) {
+        return entityType != null && Entity.selfReferentialMemberCache.get(entityType);
     }
 
     /**

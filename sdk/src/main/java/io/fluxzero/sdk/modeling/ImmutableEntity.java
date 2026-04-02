@@ -213,6 +213,10 @@ public class ImmutableEntity<T> implements Entity<T> {
         Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
         if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
             T updatedValue = (T) directInvoker.get().invoke();
+            Entity<T> selfMemberAddition = updatedValue == get() ? null : applyAsSelfMemberAddition(updatedValue);
+            if (selfMemberAddition != null) {
+                return selfMemberAddition;
+            }
             return updatedValue == get() ? this : toBuilder().value(updatedValue).build();
         }
         ImmutableEntity<T> result = this;
@@ -224,10 +228,16 @@ public class ImmutableEntity<T> implements Entity<T> {
                         .holder().updateOwner(result.get(), entity, updated)).build();
             }
         }
-        Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this ? directInvoker
+        boolean explicitlyTargetsOther = directInvoker.isPresent() && result == this
+                && explicitTarget(message.getPayload()) == ExplicitTarget.OTHER;
+        Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this && !explicitlyTargetsOther ? directInvoker
                 : entityHelper.applyInvoker(message, result);
         if (invoker.isPresent()) {
             T updatedValue = (T) invoker.get().invoke();
+            Entity<T> selfMemberAddition = updatedValue == result.get() ? null : result.applyAsSelfMemberAddition(updatedValue);
+            if (selfMemberAddition != null) {
+                return selfMemberAddition;
+            }
             return updatedValue == result.get() ? result : result.toBuilder().value(updatedValue).build();
         }
         if (result == this && !Entity.isLoading()
@@ -235,6 +245,31 @@ public class ImmutableEntity<T> implements Entity<T> {
             assertApplyCompatibility(message, this);
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<T> applyAsSelfMemberAddition(T updatedValue) {
+        if (updatedValue == null || get() == null || type() == null
+            || !Entity.selfReferentialMemberCache.get(type())) {
+            return null;
+        }
+        Object updatedId = getAnnotatedPropertyValue(updatedValue, EntityId.class).orElse(null);
+        if (updatedId == null || Objects.equals(updatedId, id())) {
+            return null;
+        }
+        for (AccessibleObject location : getAnnotatedProperties(type(), Member.class)) {
+            AnnotatedEntityHolder entityHolder = getEntityHolder(type(), location, entityHelper, serializer);
+            ImmutableEntity<?> emptyChild = entityHolder.getEmptyEntity();
+            if (!Objects.equals(type(), emptyChild.type())) {
+                continue;
+            }
+            ImmutableEntity<?> before = emptyChild.toBuilder().parent(this).build();
+            ImmutableEntity<?> after = ImmutableEntity.builder().id(updatedId).type((Class<Object>) updatedValue.getClass())
+                    .value(updatedValue).idProperty(before.idProperty()).parent(this).holder(entityHolder)
+                    .entityHelper(entityHelper).serializer(serializer).build();
+            return toBuilder().value((T) entityHolder.updateOwner(get(), before, after)).build();
+        }
+        return null;
     }
 
     private boolean explicitlyTargetsCurrent(Object payload) {
@@ -271,7 +306,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
             return ExplicitTarget.OTHER;
         }
-        if (id() != null && idProperty() != null && ReflectionUtils.hasProperty(idProperty(), payload.getClass())) {
+        if (id() != null && idProperty() != null && ReflectionUtils.hasProperty(idProperty(), payload)) {
             return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals)
                     .map(matches -> matches ? ExplicitTarget.CURRENT : ExplicitTarget.OTHER)
                     .orElse(ExplicitTarget.UNKNOWN);
@@ -279,7 +314,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
         if (targetMetadata.certain()) {
             for (String property : targetMetadata.idProperties()) {
-                if (ReflectionUtils.hasProperty(property, payload.getClass())) {
+                if (ReflectionUtils.hasProperty(property, payload)) {
                     return ExplicitTarget.OTHER;
                 }
             }
@@ -311,10 +346,16 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private Entity<?> resolveDirectTarget(Object payload) {
         Object routingKey = getRoutingKey(payload);
-        if (routingKey == null) {
-            return null;
+        if (routingKey != null) {
+            return resolveDirectTarget(routingKey.toString());
         }
-        return resolveDirectTarget(routingKey.toString());
+        for (String routeValue : routeCandidates(payload)) {
+            Entity<?> target = resolveDirectTarget(routeValue);
+            if (target != null) {
+                return target;
+            }
+        }
+        return null;
     }
 
     private Entity<?> resolveDirectTarget(String routeValue) {
@@ -330,6 +371,16 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private Object getRoutingKey(Object payload) {
         return getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class).orElse(null);
+    }
+
+    private List<String> routeCandidates(Object payload) {
+        LinkedHashSet<String> results = new LinkedHashSet<>();
+        Optional.ofNullable(getRoutingKey(payload)).map(Object::toString).ifPresent(results::add);
+        DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
+        for (String property : targetMetadata.idProperties()) {
+            ReflectionUtils.readProperty(property, payload).map(Object::toString).ifPresent(results::add);
+        }
+        return List.copyOf(results);
     }
 
     private Iterable<Entity<?>> cachedTargets(String cached, Object payload) {
@@ -406,9 +457,11 @@ public class ImmutableEntity<T> implements Entity<T> {
             if (emptyChild.idProperty() != null) {
                 properties.add(emptyChild.idProperty());
             }
-            DescendantTargetMetadata childMetadata = computeDescendantTargetMetadata(childType, visitedTypes);
-            properties.addAll(childMetadata.idProperties());
-            certain &= childMetadata.certain();
+            if (!childType.equals(ownerType)) {
+                DescendantTargetMetadata childMetadata = computeDescendantTargetMetadata(childType, new HashSet<>(visitedTypes));
+                properties.addAll(childMetadata.idProperties());
+                certain &= childMetadata.certain();
+            }
         }
         return new DescendantTargetMetadata(properties, certain);
     }
@@ -494,7 +547,18 @@ public class ImmutableEntity<T> implements Entity<T> {
                         }
                     }
                 });
-        if (!entity.isEmpty() || entity.type() == null || !visitedTypes.add(entity.type())) {
+        if (entity.type() == null) {
+            return;
+        }
+        if (!entity.isEmpty()) {
+            if (explicitlyTargetsOther(message.getPayload(), entity.type())) {
+                assertApplyCompatibilityOnSelfReferentialChildren(message, entity, visitedTypes);
+            } else if (entity == this) {
+                assertApplyCompatibilityOnSelfReferentialDescendants(message, visitedTypes);
+            }
+            return;
+        }
+        if (!visitedTypes.add(entity.type())) {
             return;
         }
         for (AccessibleObject location : getAnnotatedProperties(entity.type(), Member.class)) {
@@ -502,6 +566,40 @@ public class ImmutableEntity<T> implements Entity<T> {
                     .getEmptyEntity().toBuilder().parent(entity).build();
             assertApplyCompatibility(message, child, visitedTypes);
         }
+    }
+
+    private <E extends Exception> void assertApplyCompatibilityOnSelfReferentialChildren(
+            DeserializingMessage message, Entity<?> entity, Set<Class<?>> visitedTypes) throws E {
+        for (AccessibleObject location : getAnnotatedProperties(entity.type(), Member.class)) {
+            AnnotatedEntityHolder childHolder = getEntityHolder(entity.type(), location, entityHelper, serializer);
+            ImmutableEntity<?> emptyChild = childHolder.getEmptyEntity().toBuilder().parent(entity).build();
+            assertApplyCompatibility(message, emptyChild, new HashSet<>(visitedTypes));
+        }
+    }
+
+    private <E extends Exception> void assertApplyCompatibilityOnSelfReferentialDescendants(
+            DeserializingMessage message, Set<Class<?>> visitedTypes) throws E {
+        for (Entity<?> descendant : allEntities().toList()) {
+            if (descendant == this || descendant.isEmpty() || descendant.type() == null) {
+                continue;
+            }
+            if (explicitlyTargetsOther(message.getPayload(), descendant.type())) {
+                assertApplyCompatibility(message, descendant, new HashSet<>(visitedTypes));
+            }
+        }
+    }
+
+    private boolean explicitlyTargetsOther(Object payload, Class<?> entityType) {
+        if (explicitTarget(payload) != ExplicitTarget.OTHER || entityType == null) {
+            return false;
+        }
+        for (AccessibleObject location : getAnnotatedProperties(entityType, Member.class)) {
+            AnnotatedEntityHolder childHolder = getEntityHolder(entityType, location, entityHelper, serializer);
+            if (Objects.equals(entityType, childHolder.getEmptyEntity().type())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {
