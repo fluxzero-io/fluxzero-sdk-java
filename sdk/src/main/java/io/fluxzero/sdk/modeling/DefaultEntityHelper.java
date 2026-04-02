@@ -369,4 +369,5 @@ public class DefaultEntityHelper implements EntityHelper {
             this.entity = entity;
         }
     }
+
 }

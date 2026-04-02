@@ -51,15 +51,36 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
     @SuppressWarnings("unchecked")
     @Override
     public V apply(K key) {
-        Entry result = map.compute(
-                Optional.<Object>ofNullable(key).orElse(nullValue),
-                (k, v) -> v == null || (v.expiry != null && v.expiry.isBefore(clock.instant())) ? ofNullable(
-                        delegate.apply(k == nullValue ? null : key))
-                        .map(value -> new Entry(value,
-                                                lifespan == null ? null :
-                                                        clock.instant().plus(lifespan)))
-                        .orElse(nullValue) : v);
+        Object normalizedKey = normalizeKey(key);
+        Entry cached = map.get(normalizedKey);
+        if (cached != null && !isExpired(cached)) {
+            return (V) cached.value();
+        }
+        if (lifespan == null) {
+            Entry loaded = loadEntry(key);
+            Entry winner = map.putIfAbsent(normalizedKey, loaded);
+            if (winner != null) {
+                return (V) winner.value();
+            }
+            return (V) loaded.value();
+        }
+        Entry result = map.compute(normalizedKey, (k, current) ->
+                current == null || isExpired(current) ? loadEntry(key) : current);
         return (V) result.value();
+    }
+
+    private Object normalizeKey(K key) {
+        return key == null ? nullValue : key;
+    }
+
+    private boolean isExpired(Entry entry) {
+        return entry.expiry != null && entry.expiry.isBefore(clock.instant());
+    }
+
+    private Entry loadEntry(K key) {
+        return ofNullable(delegate.apply(key))
+                .map(value -> new Entry(value, lifespan == null ? null : clock.instant().plus(lifespan)))
+                .orElse(nullValue);
     }
 
     @Override
@@ -70,12 +91,12 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
     @Override
     @SuppressWarnings("unchecked")
     public V remove(K key) {
-        return (V) Optional.ofNullable(map.remove(key)).map(Entry::value);
+        return (V) Optional.ofNullable(map.remove(normalizeKey(key))).map(Entry::value).orElse(null);
     }
 
     @Override
     public boolean isCached(K key) {
-        return key == null || map.containsKey(key);
+        return map.containsKey(normalizeKey(key));
     }
 
     @Override

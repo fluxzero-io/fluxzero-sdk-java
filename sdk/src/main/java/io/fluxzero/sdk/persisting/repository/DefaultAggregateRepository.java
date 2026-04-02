@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.AnnotatedEntityHolder;
 import io.fluxzero.sdk.modeling.AppliedEvent;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
@@ -31,6 +32,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
+import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.LazyAggregateRoot;
 import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
 import io.fluxzero.sdk.modeling.NoOpEntity;
@@ -395,8 +397,14 @@ public class DefaultAggregateRepository implements AggregateRepository {
                                                    ignoreUnknownEvents);
                     Iterator<DeserializingMessage> iterator = eventStream.iterator();
                     boolean wasLoading = Entity.isLoading();
+                    var previousRouteCache = new LinkedHashMap<>(ImmutableEntity.snapshotLoadingRouteCache());
+                    var previousEntityCache = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingEntityCache());
+                    var previousRouteValuesCache = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingRouteValuesCache());
                     try {
                         Entity.loading.set(true);
+                        ImmutableEntity.clearLoadingRouteCache();
+                        AnnotatedEntityHolder.clearLoadingEntityCache();
+                        AnnotatedEntityHolder.clearLoadingRouteValuesCache();
                         while (iterator.hasNext()) {
                             DeserializingMessage next = iterator.next();
                             if (model.isEmpty()) {
@@ -413,6 +421,9 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             }
                         }
                     } finally {
+                        AnnotatedEntityHolder.restoreLoadingRouteValuesCache(previousRouteValuesCache);
+                        AnnotatedEntityHolder.restoreLoadingEntityCache(previousEntityCache);
+                        ImmutableEntity.restoreLoadingRouteCache(previousRouteCache);
                         Entity.loading.set(wasLoading);
                     }
                     model = model.withSequenceNumber(

@@ -277,17 +277,28 @@ public class HandlerInspector {
             Function<? super M, Object>[] matchingResolvers = new Function[parameterCount];
             for (int i = 0; i < parameterCount; i++) {
                 Parameter p = parameters[i];
-                ParameterResolver<? super M> matchingResolver = null;
                 for (ParameterResolver<? super M> r : parameterResolvers) {
-                    if (r.matches(p, methodAnnotation, m)) {
-                        matchingResolver = r;
+                    if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
+                        Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
+                                p, methodAnnotation, m);
+                        if (preparedResolver != null) {
+                            matchingResolvers[i] = preparedResolver;
+                            break;
+                        }
+                        if (r.matches(p, methodAnnotation, m)) {
+                            return Optional.empty();
+                        }
+                    } else if (r.matches(p, methodAnnotation, m)) {
+                        if (!r.test(m, p)) {
+                            return Optional.empty();
+                        }
+                        matchingResolvers[i] = r.resolve(p, methodAnnotation);
                         break;
                     }
                 }
-                if (matchingResolver == null || !matchingResolver.test(m, p)) {
+                if (matchingResolvers[i] == null) {
                     return Optional.empty();
                 }
-                matchingResolvers[i] = matchingResolver.resolve(p, methodAnnotation);
             }
             return Optional.of(target -> new MethodHandlerInvoker() {
                 @Override

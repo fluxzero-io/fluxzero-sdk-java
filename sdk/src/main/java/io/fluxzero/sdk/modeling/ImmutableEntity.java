@@ -38,8 +38,11 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.AccessibleObject;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -48,6 +51,7 @@ import java.util.function.UnaryOperator;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
@@ -106,6 +110,7 @@ import static java.util.Collections.emptyList;
 @Accessors(fluent = true)
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
+    private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
     @JsonProperty
     Object id;
     @JsonProperty
@@ -121,6 +126,7 @@ public class ImmutableEntity<T> implements Entity<T> {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @JsonIgnore
+    @NonFinal
     transient Entity<?> parent;
 
     @ToString.Exclude
@@ -147,6 +153,11 @@ public class ImmutableEntity<T> implements Entity<T> {
     @EqualsAndHashCode.Exclude
     @Getter(lazy = true)
     Collection<?> aliases = computeAliases();
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @Getter(lazy = true)
+    DescendantTargetMetadata descendantTargetMetadata = computeDescendantTargetMetadata();
 
     @SuppressWarnings("unchecked")
     public Class<T> type() {
@@ -185,6 +196,11 @@ public class ImmutableEntity<T> implements Entity<T> {
         return this;
     }
 
+    ImmutableEntity<T> replayParent(Entity<?> parent) {
+        this.parent = parent;
+        return this;
+    }
+
     @Override
     public <E extends Exception> Entity<T> assertLegal(Object update) throws E {
         entityHelper.assertLegal(update, root());
@@ -194,12 +210,12 @@ public class ImmutableEntity<T> implements Entity<T> {
     @SuppressWarnings("unchecked")
     @Override
     public Entity<T> apply(DeserializingMessage message) {
-        Optional<HandlerInvoker> invoker = entityHelper.applyInvoker(message, this);
-        if (invoker.isPresent()) {
-            return toBuilder().value((T) invoker.get().invoke()).build();
+        Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
+        if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
+            return toBuilder().value((T) directInvoker.get().invoke()).build();
         }
         ImmutableEntity<T> result = this;
-        for (Entity<?> entity : result.possibleTargets(message.getPayload())) {
+        for (Entity<?> entity : result.resolvePossibleTargets(message.getPayload())) {
             ImmutableEntity<?> immutableEntity = (ImmutableEntity<?>) entity;
             Entity<?> updated = immutableEntity.apply(message);
             if (updated != immutableEntity) {
@@ -207,11 +223,248 @@ public class ImmutableEntity<T> implements Entity<T> {
                         .holder().updateOwner(result.get(), entity, updated)).build();
             }
         }
+        Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this ? directInvoker
+                : entityHelper.applyInvoker(message, result);
+        if (invoker.isPresent()) {
+            return result.toBuilder().value((T) invoker.get().invoke()).build();
+        }
         if (result == this && !Entity.isLoading()
             && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {
             assertApplyCompatibility(message, this);
         }
         return result;
+    }
+
+    private boolean explicitlyTargetsCurrent(Object payload) {
+        ExplicitTarget explicitTarget = explicitTarget(payload);
+        if (explicitTarget != ExplicitTarget.UNKNOWN) {
+            return explicitTarget == ExplicitTarget.CURRENT;
+        }
+        if (getAnnotatedProperties(type(), Member.class).isEmpty()) {
+            return true;
+        }
+        Object routingKey = getRoutingKey(payload);
+        if (routingKey != null) {
+            String routingKeyValue = routingKey.toString();
+            if (id() != null && routingKeyValue.equals(id().toString())) {
+                return true;
+            }
+            return matchesAliases(routingKeyValue);
+        }
+        if (id() == null || idProperty() == null) {
+            return false;
+        }
+        return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals).orElse(false);
+    }
+
+    private ExplicitTarget explicitTarget(Object payload) {
+        Object routingKey = getRoutingKey(payload);
+        if (routingKey != null) {
+            String routingKeyValue = routingKey.toString();
+            if (id() != null && routingKeyValue.equals(id().toString())) {
+                return ExplicitTarget.CURRENT;
+            }
+            if (matchesAliases(routingKeyValue)) {
+                return ExplicitTarget.CURRENT;
+            }
+            return ExplicitTarget.OTHER;
+        }
+        if (id() != null && idProperty() != null && ReflectionUtils.hasProperty(idProperty(), payload.getClass())) {
+            return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals)
+                    .map(matches -> matches ? ExplicitTarget.CURRENT : ExplicitTarget.OTHER)
+                    .orElse(ExplicitTarget.UNKNOWN);
+        }
+        DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
+        if (targetMetadata.certain()) {
+            for (String property : targetMetadata.idProperties()) {
+                if (ReflectionUtils.hasProperty(property, payload.getClass())) {
+                    return ExplicitTarget.OTHER;
+                }
+            }
+            return ExplicitTarget.CURRENT;
+        }
+        return ExplicitTarget.UNKNOWN;
+    }
+
+    private Iterable<Entity<?>> resolvePossibleTargets(Object payload) {
+        Entity<?> directTarget = resolveDirectTarget(payload);
+        if (directTarget != null) {
+            return List.of(directTarget);
+        }
+        if (!Entity.isLoading() || !isRoot() || explicitlyTargetsCurrent(payload)) {
+            return possibleTargets(payload);
+        }
+        RouteCacheKey cacheKey = routeCacheKey(payload);
+        if (cacheKey == null) {
+            return possibleTargets(payload);
+        }
+        String cached = loadingRouteCache.get().get(cacheKey);
+        if (cached != null) {
+            return cachedTargets(cached, payload);
+        }
+        Iterable<Entity<?>> resolved = possibleTargets(payload);
+        cacheResolvedTargets(cacheKey, resolved);
+        return resolved;
+    }
+
+    private Entity<?> resolveDirectTarget(Object payload) {
+        Object routingKey = getRoutingKey(payload);
+        if (routingKey == null) {
+            return null;
+        }
+        return resolveDirectTarget(routingKey.toString());
+    }
+
+    private Entity<?> resolveDirectTarget(String routeValue) {
+        Class<?> type = type();
+        for (AccessibleObject location : getAnnotatedProperties(type, Member.class)) {
+            Entity<?> entity = getEntityHolder(type, location, entityHelper, serializer).getEntityByRoute(this, routeValue);
+            if (entity != null) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    private Object getRoutingKey(Object payload) {
+        return getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class).orElse(null);
+    }
+
+    private Iterable<Entity<?>> cachedTargets(String cached, Object payload) {
+        Entity<?> directTarget = resolveDirectTarget(cached);
+        if (directTarget != null) {
+            return List.of(directTarget);
+        }
+        Iterable<Entity<?>> resolved = possibleTargets(payload);
+        RouteCacheKey cacheKey = routeCacheKey(payload);
+        if (cacheKey != null) {
+            cacheResolvedTargets(cacheKey, resolved);
+        }
+        return resolved;
+    }
+
+    private void cacheResolvedTargets(RouteCacheKey cacheKey, Iterable<Entity<?>> resolvedTargets) {
+        List<Entity<?>> resolved = new ArrayList<>();
+        resolvedTargets.forEach(resolved::add);
+        if (resolved.isEmpty()) {
+            loadingRouteCache.get().remove(cacheKey);
+            return;
+        }
+        Entity<?> first = resolved.getFirst();
+        if (explicitlyTargets(first, cacheKey.routeValue(), cacheKey.payloadType())) {
+            loadingRouteCache.get().remove(cacheKey);
+            return;
+        }
+        String directChildKey = first.id() == null ? null : first.id().toString();
+        if (directChildKey == null) {
+            for (Object alias : first.aliases()) {
+                if (alias != null) {
+                    directChildKey = alias.toString();
+                    break;
+                }
+            }
+        }
+        if (directChildKey == null) {
+            loadingRouteCache.get().remove(cacheKey);
+        } else {
+            loadingRouteCache.get().put(cacheKey, directChildKey);
+        }
+    }
+
+    private RouteCacheKey routeCacheKey(Object payload) {
+        Object routingKey = getRoutingKey(payload);
+        String routeValue = Optional.ofNullable(routingKey).map(Object::toString)
+                .or(() -> idProperty() == null ? Optional.empty()
+                        : ReflectionUtils.readProperty(idProperty(), payload).map(Object::toString))
+                .orElse(null);
+        if (routeValue == null) {
+            return null;
+        }
+        return new RouteCacheKey(type(), id() == null ? null : id().toString(), payload.getClass(), routeValue);
+    }
+
+    private DescendantTargetMetadata computeDescendantTargetMetadata() {
+        return computeDescendantTargetMetadata(type(), new HashSet<>());
+    }
+
+    private DescendantTargetMetadata computeDescendantTargetMetadata(Class<?> ownerType, Set<Class<?>> visitedTypes) {
+        if (ownerType == null || !visitedTypes.add(ownerType)) {
+            return DescendantTargetMetadata.CERTAIN_EMPTY;
+        }
+        Set<String> properties = new LinkedHashSet<>();
+        boolean certain = true;
+        for (AccessibleObject location : getAnnotatedProperties(ownerType, Member.class)) {
+            AnnotatedEntityHolder holder = getEntityHolder(ownerType, location, entityHelper, serializer);
+            ImmutableEntity<?> emptyChild = holder.getEmptyEntity();
+            Class<?> childType = emptyChild.type();
+            if (childType == null || Object.class.equals(childType)) {
+                certain = false;
+                continue;
+            }
+            if (emptyChild.idProperty() != null) {
+                properties.add(emptyChild.idProperty());
+            }
+            DescendantTargetMetadata childMetadata = computeDescendantTargetMetadata(childType, visitedTypes);
+            properties.addAll(childMetadata.idProperties());
+            certain &= childMetadata.certain();
+        }
+        return new DescendantTargetMetadata(properties, certain);
+    }
+
+    private boolean explicitlyTargets(Entity<?> entity, String routeValue, Class<?> payloadType) {
+        if (matchesRoute(entity, routeValue)) {
+            return true;
+        }
+        String childIdProperty = entity.idProperty();
+        return childIdProperty != null && ReflectionUtils.hasProperty(childIdProperty, payloadType);
+    }
+
+    private boolean matchesRoute(Entity<?> entity, String routeValue) {
+        if (entity.id() != null && routeValue.equals(entity.id().toString())) {
+            return true;
+        }
+        for (Object alias : entity.aliases()) {
+            if (alias != null && routeValue.equals(alias.toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesAliases(String routeValue) {
+        for (Object alias : aliases()) {
+            if (alias != null && routeValue.equals(alias.toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    record RouteCacheKey(Class<?> entityType, String entityId, Class<?> payloadType, String routeValue) {
+    }
+
+    private enum ExplicitTarget {
+        CURRENT,
+        OTHER,
+        UNKNOWN
+    }
+
+    private record DescendantTargetMetadata(Set<String> idProperties, boolean certain) {
+        private static final DescendantTargetMetadata CERTAIN_EMPTY = new DescendantTargetMetadata(Set.of(), true);
+    }
+
+    public static Map<?, String> snapshotLoadingRouteCache() {
+        return new HashMap<>(loadingRouteCache.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void restoreLoadingRouteCache(Map<?, String> snapshot) {
+        loadingRouteCache.get().clear();
+        loadingRouteCache.get().putAll((Map<RouteCacheKey, String>) snapshot);
+    }
+
+    public static void clearLoadingRouteCache() {
+        loadingRouteCache.get().clear();
     }
 
     protected <E extends Exception> void assertApplyCompatibility(DeserializingMessage message, Entity<?> entity) throws E {
@@ -253,8 +506,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         Class<?> type = type();
         List<ImmutableEntity<?>> result = new ArrayList<>();
         for (AccessibleObject location : getAnnotatedProperties(type, Member.class)) {
-            result.addAll(getEntityHolder(type, location, entityHelper, serializer)
-                                  .getEntities(this).toList());
+            result.addAll(getEntityHolder(type, location, entityHelper, serializer).getEntities(this));
         }
         return result;
     }

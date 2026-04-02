@@ -625,6 +625,30 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testUpdateChildAndRootInSingleApply() {
+                testFixture.whenCommand(new UpdateChildAndAggregate("id", "data"))
+                        .expectTrue(fc -> {
+                            Aggregate aggregate = loadAggregate("test", Aggregate.class).get();
+                            return "id:data".equals(aggregate.getClientReference())
+                                   && "data".equals(aggregate.getSingleton().getData())
+                                   && aggregate.getMap().containsKey(new Key("map0"));
+                        });
+            }
+
+            @Test
+            void testUpdateGrandChildChildAndRootInSingleApply() {
+                testFixture.whenCommand(new UpdateGrandChildHierarchy("grandChild", "grandChild2"))
+                        .expectTrue(fc -> {
+                            Aggregate aggregate = loadAggregate("test", Aggregate.class).get();
+                            ChildWithChild child = aggregate.getChildWithGrandChild();
+                            return "grandChild2".equals(child.getGrandChild().grandChildId())
+                                   && "child-grandChild2".equals(child.getWithChildId())
+                                   && "child-grandChild2".equals(aggregate.getClientReference())
+                                   && aggregate.getMap().containsKey(new Key("map0"));
+                        });
+            }
+
+            @Test
             void testUpdateNestedMemberInRecordOwnerUsingWithMethod() {
                 TestFixture.create().given(fc -> loadAggregate("record", RecordAggregate.class)
                                 .update(s -> new RecordAggregate("record",
@@ -911,6 +935,47 @@ public class AggregateEntitiesTest {
             @Apply
             Object apply(Updatable child, @NonNull Aggregate aggregate, @NonNull Metadata metadata) {
                 return child.withData(data);
+            }
+        }
+
+        @Value
+        class UpdateChildAndAggregate {
+            @RoutingKey
+            String childId;
+            String data;
+
+            @Apply
+            Child apply(Child child) {
+                return child.withData(data);
+            }
+
+            @Apply
+            Aggregate apply(Aggregate aggregate) {
+                return aggregate.toBuilder().clientReference(childId + ":" + data).build();
+            }
+        }
+
+        @Value
+        class UpdateGrandChildHierarchy {
+            @RoutingKey
+            String grandChildId;
+            String newGrandChildId;
+
+            @Apply
+            GrandChild apply(GrandChild grandChild) {
+                return new GrandChild(newGrandChildId, grandChild.alias());
+            }
+
+            @Apply
+            ChildWithChild apply(ChildWithChild child) {
+                return new ChildWithChild("child-" + child.getGrandChild().grandChildId(), child.getGrandChild());
+            }
+
+            @Apply
+            Aggregate apply(Aggregate aggregate) {
+                return aggregate.toBuilder()
+                        .clientReference(aggregate.getChildWithGrandChild().getWithChildId())
+                        .build();
             }
         }
 
@@ -1213,14 +1278,15 @@ public class AggregateEntitiesTest {
     }
 
     @Value
-    @AllArgsConstructor
-    @Builder
+    @Builder(toBuilder = true)
     static class ChildWithChild {
         @EntityId
         @Default
         String withChildId = "withChild";
 
         @Member
+        @Default
+        @With
         GrandChild grandChild = new GrandChild("grandChild", new GrandChildAlias());
     }
 

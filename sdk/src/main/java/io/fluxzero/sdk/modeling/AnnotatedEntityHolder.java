@@ -30,7 +30,9 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,14 +46,16 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.call;
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static io.fluxzero.common.reflection.ReflectionUtils.copyFields;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getCollectionElementType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static java.beans.Introspector.decapitalize;
-import static java.util.Optional.empty;
 
 /**
  * Helper class for {@link Entity} instances that manage nested entity relationships annotated with
@@ -83,11 +87,24 @@ import static java.util.Optional.empty;
 @Slf4j
 public class AnnotatedEntityHolder {
     private static final Map<AccessibleObject, AnnotatedEntityHolder> cache = new ConcurrentHashMap<>();
+    /**
+     * Replay-local cache for wrapper reuse while event sourcing an aggregate.
+     * <p>
+     * This optimization assumes the aggregate forms a tree: the same child object instance may only occur once in the
+     * aggregate graph during replay. Re-encountering the same raw child instance under a different parent would make
+     * the cached wrapper ambiguous, because replay updates the wrapper's parent pointer as it walks back up the tree.
+     */
+    private static final ThreadLocal<Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>>>
+            loadingEntityCache = ThreadLocal.withInitial(IdentityHashMap::new);
+    private static final ThreadLocal<Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>>>
+            loadingRouteValuesCache = ThreadLocal.withInitial(IdentityHashMap::new);
     private static final Pattern getterPattern = Pattern.compile("(get|is)([A-Z].*)");
 
     private final AccessibleObject location;
     private final BiFunction<Object, Object, Object> wither;
     private final Class<?> holderType;
+    private final boolean collectionHolder;
+    private final boolean mapHolder;
     private final Function<Object, Id> idProvider;
     private final Class<?> entityType;
 
@@ -119,6 +136,42 @@ public class AnnotatedEntityHolder {
                                      l -> new AnnotatedEntityHolder(ownerType, l, entityHelper, serializer));
     }
 
+    public static Map<?, ?> snapshotLoadingEntityCache() {
+        Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>> snapshot = new IdentityHashMap<>();
+        loadingEntityCache.get().forEach((holder, entities) -> snapshot.put(holder, new IdentityHashMap<>(entities)));
+        return snapshot;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void restoreLoadingEntityCache(Map<?, ?> snapshot) {
+        Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>> target = loadingEntityCache.get();
+        target.clear();
+        ((Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>>) snapshot)
+                .forEach((holder, entities) -> target.put(holder, new IdentityHashMap<>(entities)));
+    }
+
+    public static void clearLoadingEntityCache() {
+        loadingEntityCache.get().clear();
+    }
+
+    public static Map<?, ?> snapshotLoadingRouteValuesCache() {
+        Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>> snapshot = new IdentityHashMap<>();
+        loadingRouteValuesCache.get().forEach((holder, routes) -> snapshot.put(holder, new IdentityHashMap<>(routes)));
+        return snapshot;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void restoreLoadingRouteValuesCache(Map<?, ?> snapshot) {
+        Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>> target = loadingRouteValuesCache.get();
+        target.clear();
+        ((Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>>) snapshot)
+                .forEach((holder, routes) -> target.put(holder, new IdentityHashMap<>(routes)));
+    }
+
+    public static void clearLoadingRouteValuesCache() {
+        loadingRouteValuesCache.get().clear();
+    }
+
     private static final Function<Class<?>, Optional<MemberInvoker>> entityIdInvokerCache = memoize(
             entityType -> getAnnotatedProperty(
                     entityType, EntityId.class).map(a -> DefaultMemberInvoker.asInvoker((java.lang.reflect.Member) a)));
@@ -129,6 +182,8 @@ public class AnnotatedEntityHolder {
         this.serializer = serializer;
         this.location = location;
         this.holderType = ReflectionUtils.getPropertyType(location);
+        this.collectionHolder = Collection.class.isAssignableFrom(holderType);
+        this.mapHolder = Map.class.isAssignableFrom(holderType);
         this.entityType = getCollectionElementType(location).orElse(holderType);
         Member member = ReflectionUtils.getAnnotation(location, Member.class).orElseThrow();
         String pathToId = member.idProperty();
@@ -164,6 +219,7 @@ public class AnnotatedEntityHolder {
             AtomicBoolean warningIssued = new AtomicBoolean();
             MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
                     .map(DefaultMemberInvoker::asInvoker).orElse(null);
+            Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
             return (o, h) -> {
                 if (warningIssued.get()) {
                     return o;
@@ -175,7 +231,7 @@ public class AnnotatedEntityHolder {
                     }
                 } else {
                     try {
-                        o = serializer.clone(o);
+                        o = ownerCloner.apply(o);
                         field.invoke(o, h);
                     } catch (Exception e) {
                         if (warningIssued.compareAndSet(false, true)) {
@@ -188,6 +244,16 @@ public class AnnotatedEntityHolder {
             };
         });
     }
+
+    private static Function<Object, Object> computeOwnerCloner(Class<?> ownerType, Serializer serializer) {
+        try {
+            var constructor = ReflectionUtils.ensureAccessible(ownerType.getDeclaredConstructor());
+            return owner -> copyFields(owner, call(constructor::newInstance));
+        } catch (Exception ignored) {
+            return serializer::clone;
+        }
+    }
+
 
     private static String updateFunctionAdvice(Class<?> ownerType, String propertyName) {
         if (ownerType.isRecord()) {
@@ -205,44 +271,165 @@ public class AnnotatedEntityHolder {
      * @param parent the parent entity instance
      * @return a stream of nested {@link ImmutableEntity} instances
      */
-    public Stream<? extends ImmutableEntity<?>> getEntities(Entity<?> parent) {
+    public List<? extends ImmutableEntity<?>> getEntities(Entity<?> parent) {
         if (parent.get() == null) {
-            return Stream.empty();
+            return List.of();
         }
         Object holderValue = getValue(location, parent.get(), false);
-        Class<?> type = holderValue == null ? holderType : holderValue.getClass();
         ImmutableEntity<?> emptyEntity = getEmptyEntity().toBuilder().parent(parent).build();
         if (holderValue == null) {
-            return Stream.of(emptyEntity);
+            return List.of(emptyEntity);
         }
-        if (Collection.class.isAssignableFrom(type)) {
-            return Stream.concat(
-                    ((Collection<?>) holderValue).stream().map(v -> createEntity(v, idProvider, parent).orElse(null))
-                            .filter(Objects::nonNull),
-                    Stream.of(emptyEntity));
-        } else if (Map.class.isAssignableFrom(type)) {
-            return Stream.concat(
-                    ((Map<?, ?>) holderValue).entrySet().stream().flatMap(e -> createEntity(
-                            e.getValue(), v -> new Id(e.getKey(), idProvider.apply(v).property()), parent).stream()),
-                    Stream.of(emptyEntity));
-        } else {
-            return Stream.concat(createEntity(holderValue, idProvider, parent).stream(), Stream.of(emptyEntity));
+        if (collectionHolder) {
+            Collection<?> collection = (Collection<?>) holderValue;
+            List<ImmutableEntity<?>> result = new ArrayList<>(collection.size() + 1);
+            for (Object value : collection) {
+                ImmutableEntity<?> entity = createEntity(value, idProvider, parent);
+                if (entity != null) {
+                    result.add(entity);
+                }
+            }
+            result.add(emptyEntity);
+            return result;
         }
+        if (mapHolder) {
+            Map<?, ?> map = (Map<?, ?>) holderValue;
+            List<ImmutableEntity<?>> result = new ArrayList<>(map.size() + 1);
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                ImmutableEntity<?> entity = createEntity(
+                        entry.getValue(), v -> new Id(entry.getKey(), idProvider.apply(v).property()), parent);
+                if (entity != null) {
+                    result.add(entity);
+                }
+            }
+            result.add(emptyEntity);
+            return result;
+        }
+        ImmutableEntity<?> entity = createEntity(holderValue, idProvider, parent);
+        return entity == null ? List.of(emptyEntity) : List.of(entity, emptyEntity);
     }
 
+    public ImmutableEntity<?> getEntityByRoute(Entity<?> parent, String routeValue) {
+        if (parent.get() == null) {
+            return null;
+        }
+        Object holderValue = getValue(location, parent.get(), false);
+        if (holderValue == null) {
+            return null;
+        }
+        if (collectionHolder) {
+            for (Object value : (Collection<?>) holderValue) {
+                ImmutableEntity<?> entity = getEntityByRoute(value, idProvider, parent, routeValue);
+                if (entity != null) {
+                    return entity;
+                }
+            }
+            return null;
+        }
+        if (mapHolder) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) holderValue).entrySet()) {
+                ImmutableEntity<?> entity = getEntityByRoute(
+                        entry.getValue(), v -> new Id(entry.getKey(), idProvider.apply(v).property()), parent, routeValue);
+                if (entity != null) {
+                    return entity;
+                }
+            }
+            return null;
+        }
+        return getEntityByRoute(holderValue, idProvider, parent, routeValue);
+    }
+
+    private ImmutableEntity<?> getEntityByRoute(Object member, Function<Object, Id> idProvider,
+                                                Entity<?> parent, String routeValue) {
+        if (member == null) {
+            return null;
+        }
+        for (String candidate : routeValues(member, idProvider)) {
+            if (routeValue.equals(candidate)) {
+                return createEntity(member, idProvider, parent);
+            }
+        }
+        return null;
+    }
+
+    private Collection<String> routeValues(Object member, Function<Object, Id> idProvider) {
+        if (member == null) {
+            return List.of();
+        }
+        if (Entity.isLoading() && !mapHolder) {
+            IdentityHashMap<Object, Collection<String>> cache = loadingRouteValuesCache.get()
+                    .computeIfAbsent(this, ignored -> new IdentityHashMap<>());
+            Collection<String> cached = cache.get(member);
+            if (cached != null) {
+                return cached;
+            }
+            Collection<String> computed = computeRouteValues(member, idProvider);
+            cache.put(member, computed);
+            return computed;
+        }
+        return computeRouteValues(member, idProvider);
+    }
+
+    private Collection<String> computeRouteValues(Object member, Function<Object, Id> idProvider) {
+        List<String> results = new ArrayList<>(4);
+        Id id = idProvider.apply(member);
+        if (id.value() != null) {
+            addRouteValue(results, id.value().toString());
+        }
+        for (AccessibleObject aliasLocation : getAnnotatedProperties(member.getClass(), Alias.class)) {
+            Object aliasValue = getValue(aliasLocation, member, false);
+            if (aliasValue == null) {
+                continue;
+            }
+            getAnnotationAs(aliasLocation, Alias.class, Alias.class).ifPresent(alias -> {
+                if (aliasValue instanceof Collection<?> collection) {
+                    for (Object item : collection) {
+                        if (item != null) {
+                            addRouteValue(results, alias.prefix() + item + alias.postfix());
+                        }
+                    }
+                } else {
+                    addRouteValue(results, alias.prefix() + aliasValue + alias.postfix());
+                }
+            });
+        }
+        return List.copyOf(results);
+    }
+
+    private static void addRouteValue(List<String> results, String candidate) {
+        if (!results.contains(candidate)) {
+            results.add(candidate);
+        }
+    }
 
     @SuppressWarnings({"unchecked"})
-    private Optional<ImmutableEntity<?>> createEntity(Object member, Function<Object, Id> idProvider,
-                                                      Entity<?> parent) {
+    private ImmutableEntity<?> createEntity(Object member, Function<Object, Id> idProvider,
+                                            Entity<?> parent) {
         if (member == null) {
-            return empty();
+            return null;
         }
-        Id id = idProvider.apply(member);
-        return Optional.of(ImmutableEntity.builder().id(id.value()).type((Class<Object>) member.getClass())
-                                   .value(member).idProperty(id.property()).parent(parent).holder(this)
-                                   .entityHelper(entityHelper).serializer(serializer).build());
+        if (Entity.isLoading()) {
+            IdentityHashMap<Object, ImmutableEntity<?>> cache = loadingEntityCache.get()
+                    .computeIfAbsent(this, ignored -> new IdentityHashMap<>());
+            ImmutableEntity<?> cached = cache.get(member);
+            if (cached != null) {
+                return cached.replayParent(parent);
+            }
+            ImmutableEntity<?> created = createNewEntity(member, idProvider, parent);
+            cache.put(member, created);
+            return created;
+        }
+        return createNewEntity(member, idProvider, parent);
     }
 
+    @SuppressWarnings({"unchecked"})
+    private ImmutableEntity<?> createNewEntity(Object member, Function<Object, Id> idProvider,
+                                               Entity<?> parent) {
+        Id id = idProvider.apply(member);
+        return ImmutableEntity.builder().id(id.value()).type((Class<Object>) member.getClass())
+                .value(member).idProperty(id.property()).parent(parent).holder(this)
+                .entityHelper(entityHelper).serializer(serializer).build();
+    }
 
     /**
      * Updates the parent object with the new state of a child entity. Uses a wither method if available; otherwise
@@ -260,7 +447,7 @@ public class AnnotatedEntityHolder {
     @SneakyThrows
     public Object updateOwner(Object owner, Entity<?> before, Entity<?> after) {
         Object holder = ReflectionUtils.getValue(location, owner);
-        if (Collection.class.isAssignableFrom(holderType)) {
+        if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
             if (collection == null) {
                 collection = new ArrayList<>();
@@ -283,7 +470,7 @@ public class AnnotatedEntityHolder {
                 collection.add(after.get());
                 holder = collection;
             }
-        } else if (Map.class.isAssignableFrom(holderType)) {
+        } else if (mapHolder) {
             Map<Object, Object> map = serializer.clone(holder);
             if (map == null) {
                 map = new LinkedHashMap<>();

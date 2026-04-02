@@ -15,7 +15,7 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -55,7 +55,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
  * handler methods are present in the same target class.
  */
 @AllArgsConstructor
-public class EntityParameterResolver implements ParameterResolver<Object> {
+public class EntityParameterResolver implements PreparedParameterResolver<Object> {
 
     private final boolean checkCompatibility;
 
@@ -88,6 +88,16 @@ public class EntityParameterResolver implements ParameterResolver<Object> {
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object input) {
         return matches(parameter, getMatchingEntity(input, parameter));
+    }
+
+    @Override
+    public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object input) {
+        Entity<?> entity = getMatchingEntity(input, parameter);
+        if (!matches(parameter, entity)) {
+            return null;
+        }
+        Supplier<?> supplier = resolve(parameter, entity);
+        return ignored -> supplier.get();
     }
 
     /**

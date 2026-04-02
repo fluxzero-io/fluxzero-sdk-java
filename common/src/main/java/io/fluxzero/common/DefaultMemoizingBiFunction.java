@@ -18,8 +18,6 @@ import lombok.AllArgsConstructor;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.AbstractMap.SimpleEntry;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -37,24 +35,24 @@ import java.util.function.Consumer;
  */
 @AllArgsConstructor
 public class DefaultMemoizingBiFunction<T, U, R> implements MemoizingBiFunction<T, U, R> {
-    private final MemoizingFunction<Map.Entry<T, U>, R> function;
+    private final MemoizingFunction<Key<T, U>, R> function;
 
     public DefaultMemoizingBiFunction(BiFunction<T, U, R> delegate) {
         this(delegate, null, null);
     }
 
     public DefaultMemoizingBiFunction(BiFunction<T, U, R> delegate, Duration lifespan, Clock clock) {
-        this.function = new DefaultMemoizingFunction<>(p -> delegate.apply(p.getKey(), p.getValue()), lifespan, clock);
+        this.function = new DefaultMemoizingFunction<>(p -> delegate.apply(p.first(), p.second()), lifespan, clock);
     }
 
     @Override
     public R apply(T t, U u) {
-        return function.apply(new SimpleEntry<>(t, u));
+        return function.apply(new Key<>(t, u));
     }
 
     @Override
     public boolean isCached(T t, U u) {
-        return function.isCached(new SimpleEntry<>(t, u));
+        return function.isCached(new Key<>(t, u));
     }
 
     @Override
@@ -64,12 +62,15 @@ public class DefaultMemoizingBiFunction<T, U, R> implements MemoizingBiFunction<
 
     @Override
     public R remove(T t, U u) {
-        return function.remove(new SimpleEntry<>(t, u));
+        return function.remove(new Key<>(t, u));
     }
 
     @Override
     public void forEach(Consumer<? super R> consumer) {
         function.forEach(consumer);
+    }
+
+    private record Key<T, U>(T first, U second) {
     }
 
 }

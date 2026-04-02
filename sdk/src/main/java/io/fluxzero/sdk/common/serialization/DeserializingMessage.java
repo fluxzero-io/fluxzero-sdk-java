@@ -188,11 +188,12 @@ public class DeserializingMessage implements HasMessage {
 
     private Message asMessage() {
         Message m = new Message(getPayload(), getMetadata(), getMessageId(), getTimestamp());
+        Long index = getIndex();
         return switch (messageType) {
             case SCHEDULE -> new Schedule(
                     m.getPayload(), m.getMetadata(), m.getMessageId(), m.getTimestamp(),
                     m.getMetadata().get(Schedule.scheduleIdMetadataKey),
-                    ofNullable(getIndex()).map(IndexUtils::timestampFromIndex).orElseGet(Fluxzero::currentTime));
+                    index == null ? Fluxzero.currentTime() : IndexUtils.timestampFromIndex(index));
             case WEBREQUEST -> new WebRequest(m);
             case WEBRESPONSE -> new WebResponse(m);
             default -> m;
@@ -201,16 +202,22 @@ public class DeserializingMessage implements HasMessage {
 
     @Override
     public Metadata getMetadata() {
-        return ofNullable(delegate).map(DeserializingObject::getSerializedObject)
-                .map(SerializedMessage::getMetadata)
-                .or(() -> ofNullable(message).map(Message::getMetadata)).orElse(null);
+        if (delegate != null) {
+            return delegate.getSerializedObject().getMetadata();
+        }
+        return message == null ? null : message.getMetadata();
     }
 
     public DeserializingMessage withMetadata(Metadata metadata) {
-        return ofNullable(delegate).map(d -> new DeserializingMessage(
-                        d.getSerializedObject().withMetadata(metadata), d.getObjectFunction(), messageType, topic, serializer))
-                .orElseGet(
-                        () -> new DeserializingMessage(message.withMetadata(metadata), messageType, topic, serializer));
+        if (delegate != null) {
+            return new DeserializingMessage(
+                    delegate.getSerializedObject().withMetadata(metadata),
+                    delegate.getObjectFunction(),
+                    messageType,
+                    topic,
+                    serializer);
+        }
+        return new DeserializingMessage(message.withMetadata(metadata), messageType, topic, serializer);
     }
 
     public DeserializingMessage withPayload(Object payload) {
@@ -219,50 +226,62 @@ public class DeserializingMessage implements HasMessage {
 
     @Override
     public String getMessageId() {
-        return ofNullable(delegate).map(DeserializingObject::getSerializedObject)
-                .map(SerializedMessage::getMessageId)
-                .or(() -> ofNullable(message).map(Message::getMessageId)).orElse(null);
+        if (delegate != null) {
+            return delegate.getSerializedObject().getMessageId();
+        }
+        return message == null ? null : message.getMessageId();
     }
 
     public Long getIndex() {
-        return ofNullable(delegate).map(DeserializingObject::getSerializedObject)
-                .map(SerializedMessage::getIndex).orElseGet(() -> message instanceof Schedule
-                        ? IndexUtils.indexFromTimestamp(((Schedule) message).getDeadline()) : null);
+        if (delegate != null) {
+            return delegate.getSerializedObject().getIndex();
+        }
+        return message instanceof Schedule schedule ? IndexUtils.indexFromTimestamp(schedule.getDeadline()) : null;
     }
 
     @Override
     public Instant getTimestamp() {
-        return ofNullable(delegate).map(DeserializingObject::getSerializedObject)
-                .map(SerializedMessage::getTimestamp).map(Instant::ofEpochMilli)
-                .or(() -> ofNullable(message).map(Message::getTimestamp)).orElse(null);
+        if (delegate != null) {
+            Long timestamp = delegate.getSerializedObject().getTimestamp();
+            return timestamp == null ? null : Instant.ofEpochMilli(timestamp);
+        }
+        return message == null ? null : message.getTimestamp();
     }
 
     public boolean isDeserialized() {
-        return ofNullable(delegate).map(DeserializingObject::isDeserialized).orElse(true);
+        return delegate == null || delegate.isDeserialized();
     }
 
     @Override
     public <V> V getPayload() {
-        return ofNullable(delegate).<V>map(DeserializingObject::getPayload)
-                .or(() -> ofNullable(message).map(Message::getPayload)).orElse(null);
+        if (delegate != null) {
+            return delegate.getPayload();
+        }
+        return message == null ? null : message.getPayload();
     }
 
     @Override
     public <R> R getPayloadAs(Type type) {
-        return ofNullable(delegate).map(d -> d.<R>getPayloadAs(type))
-                .orElseGet(() -> ofNullable(message).map(m -> m.<R>getPayloadAs(type)).orElse(null));
+        if (delegate != null) {
+            return delegate.getPayloadAs(type);
+        }
+        return message == null ? null : message.getPayloadAs(type);
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public Class<?> getPayloadClass() {
-        return ofNullable(delegate).<Class>map(DeserializingObject::getPayloadClass)
-                .or(() -> ofNullable(message).map(Message::getPayloadClass)).orElse(Void.class);
+        if (delegate != null) {
+            return delegate.getPayloadClass();
+        }
+        return message == null ? Void.class : message.getPayloadClass();
     }
 
     public String getType() {
-        return ofNullable(delegate).map(DeserializingObject::getType)
-                .or(() -> ofNullable(message).map(m -> m.getPayloadClass().getName())).orElse(null);
+        if (delegate != null) {
+            return delegate.getType();
+        }
+        return message == null ? null : message.getPayloadClass().getName();
     }
 
     public SerializedMessage getSerializedObject() {
