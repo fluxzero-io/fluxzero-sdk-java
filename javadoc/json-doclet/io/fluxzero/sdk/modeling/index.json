@@ -140,6 +140,21 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity",
     "kind" : "class"
   }, {
+    "file" : "ImmutableEntity.DescendantTargetMetadata.json",
+    "name" : "ImmutableEntity.DescendantTargetMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$DescendantTargetMetadata",
+    "kind" : "record"
+  }, {
+    "file" : "ImmutableEntity.ExplicitTarget.json",
+    "name" : "ImmutableEntity.ExplicitTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget",
+    "kind" : "enum"
+  }, {
+    "file" : "ImmutableEntity.RouteCacheKey.json",
+    "name" : "ImmutableEntity.RouteCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RouteCacheKey",
+    "kind" : "record"
+  }, {
     "file" : "LazyAggregateRoot.json",
     "name" : "LazyAggregateRoot",
     "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot",

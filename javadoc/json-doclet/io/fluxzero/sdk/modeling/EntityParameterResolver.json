@@ -11,7 +11,7 @@
   "documentation" : " Resolves handler method parameters that reference an {@link Entity} or the entity's value.\n\n <p>This resolver supports parameters of either {@code Entity<T>} or the entity's actual type {@code T}.\n It will traverse the hierarchy of parent-child relationships between entities (if any) to find the closest match.\n\n <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:\n <ul>\n   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>\n   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID,\n   then loads the entity from the Fluxzero Runtime using {@code Fluxzero#loadEntity}.</li>\n </ul>\n\n <p>The entity is only resolved if:\n <ul>\n   <li>The parameter type is assignable from the resolved entity type (or the {@code Entity<T>} type).</li>\n   <li>Or, the entity has a parent matching the required parameter type.</li>\n </ul>\n\n <p>This resolver determines handler method specificity and can thus be used in disambiguation when multiple\n handler methods are present in the same target class.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
+  "interfaces" : [ "io.fluxzero.common.handling.PreparedParameterResolver<java.lang.Object>" ],
   "fields" : [ {
     "name" : "checkCompatibility",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver.checkCompatibility",
@@ -199,6 +199,35 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will\n recursively traverse parent entities if needed.\n\n @param parameter        the parameter for which a value must be injected\n @param methodAnnotation the annotation on the handler method (unused here)\n @return a function that supplies the resolved value\n"
+  }, {
+    "name" : "resolveIfPossible",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolveIfPossible",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
