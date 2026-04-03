@@ -134,13 +134,13 @@ Any effects introduced during this phase are **ignored** by the `Then` phase ass
 Specifies the action that triggers the behavior under test. Use **constructors for simple queries** to improve
 readability and explicitly define the expected return type.
 
-| Method                             | Usage                                      |
-|:-----------------------------------|:-------------------------------------------|
-| `whenCommand(cmd)`                 | Executes a domain command.                 |
-| `whenQuery(query)`                 | Executes a data retrieval query.           |
-| `whenSearching(coll, constraints)` | Verifies search logic and indexing.        |
-| `whenUpcasting(data)`              | Tests versioning and schema evolution.     |
-| `whenTimeElapses(duration)`        | Advances time and processes due schedules. |
+| Method                             | Usage                                        |
+|:-----------------------------------|:---------------------------------------------|
+| `whenCommand(cmd)`                 | Executes a domain command.                   |
+| `whenQuery(query)`                 | Executes a data retrieval query.             |
+| `whenSearching(coll, constraints)` | Verifies search logic and indexing.          |
+| `whenUpcasting(data)`              | Tests versioning and schema evolution.       |
+| `whenTimeElapses(duration)`        | Advances time and processes due schedules.   |
 
 **Example: Constructor Query**
 

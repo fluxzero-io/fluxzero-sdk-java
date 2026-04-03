@@ -152,6 +152,13 @@ public interface Given<Self extends Given<Self>> extends When {
     Self givenEvents(Object... events);
 
     /**
+     * Publishes one or more metrics before the behavior under test.
+     * <p>
+     * Metrics may be {@link Message} or plain objects.
+     */
+    Self givenMetrics(Object... metrics);
+
+    /**
      * Stores a document in the search index before the behavior under test.
      * <p>
      * If the object is annotated with {@link Searchable}, the annotation metadata will determine how it's indexed.

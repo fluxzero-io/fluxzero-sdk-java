@@ -51,6 +51,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
+import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -718,6 +719,16 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture givenMetrics(Object... metrics) {
+        Class<?> callerClass = getCallerClass();
+        for (Object metric : metrics) {
+            givenModification(fixture -> fixture.asMessages(callerClass, metric)
+                    .forEach(m -> fixture.getFluxzero().metricsGateway().publish(m)));
+        }
+        return this;
+    }
+
+    @Override
     public TestFixture givenDocument(Object document) {
         Class<?> callerClass = getCallerClass();
         return givenModification(
@@ -966,6 +977,15 @@ public class TestFixture implements Given<TestFixture>, When {
         Message message = trace(event);
         return message.getPayload() == null ? whenNothingHappens()
                 : whenExecuting(fc -> fc.eventGateway().publish(message, Guarantee.STORED).get());
+    }
+
+    @Override
+    public Then<?> whenMetric(Object metric) {
+        Message message = trace(metric);
+        return message.getPayload() == null ? whenNothingHappens()
+                : whenExecuting(fc -> ((DefaultMetricsGateway) fc.metricsGateway()).sendAndForget(message,
+                                                                                                  Guarantee.STORED)
+                        .get());
     }
 
     @Override

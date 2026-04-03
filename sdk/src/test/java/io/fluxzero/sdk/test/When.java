@@ -191,6 +191,13 @@ public interface When {
     Then<?> whenEvent(Object event);
 
     /**
+     * Publishes the given metric and returns expectations for its side effects.
+     * <p>
+     * Metric objects may be {@link Message} or plain objects.
+     */
+    Then<?> whenMetric(Object metric);
+
+    /**
      * Applies events to a specific aggregate instance and publishes them.
      * <p>
      * Events may be {@link Message}, serialized {@link Data}, or POJOs. Data will be upcasted and deserialized before

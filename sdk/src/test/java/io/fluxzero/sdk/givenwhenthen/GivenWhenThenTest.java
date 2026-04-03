@@ -22,6 +22,8 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleMetrics;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import lombok.Value;
 import org.junit.jupiter.api.AfterAll;
@@ -279,6 +281,32 @@ class GivenWhenThenTest {
     }
 
     @Test
+    void testGivenMetrics() {
+        MetricHandler handler = new MetricHandler();
+        TestFixture.create(handler)
+                .givenMetrics(new ManualMetric("given"))
+                .whenApplying(fc -> null)
+                .expectThat(fc -> assertEquals(1, handler.count))
+                .expectNoMetrics();
+    }
+
+    @Test
+    void testWhenMetric() {
+        TestFixture.create(new MetricHandler())
+                .whenMetric(new ManualMetric("alpha"))
+                .expectOnlyEvents("metric:alpha")
+                .expectMetrics(new DerivedMetric("alpha"));
+    }
+
+    @Test
+    void testWhenMetricAsJson() {
+        TestFixture.create(new MetricHandler())
+                .whenMetric("manual-metric.json")
+                .expectOnlyEvents("metric:json")
+                .expectMetric((DerivedMetric metric) -> metric.getName().equals("json"));
+    }
+
+    @Test
     void testTimestampInject() {
         Instant time = Instant.now().minusSeconds(10).truncatedTo(ChronoUnit.MILLIS);
         TestFixture.create(new Object() {
@@ -359,6 +387,22 @@ class GivenWhenThenTest {
         }
     }
 
+    private static class MetricHandler {
+        private int count;
+
+        @HandleMetrics
+        public void handle(ManualMetric metric) {
+            count++;
+            Fluxzero.publishEvent("metric:" + metric.getName());
+            Fluxzero.publishMetrics(new DerivedMetric(metric.getName()));
+        }
+
+        @HandleQuery
+        public int handle(MetricCountQuery query) {
+            return count;
+        }
+    }
+
     @Aggregate
     private static class MockAggregate {
         @Apply
@@ -396,6 +440,20 @@ class GivenWhenThenTest {
 
     @Value
     private static class YieldsMockBean {
+    }
+
+    @Value
+    static class ManualMetric {
+        String name;
+    }
+
+    @Value
+    private static class DerivedMetric {
+        String name;
+    }
+
+    @Value
+    private static class MetricCountQuery {
     }
 
     @Value
