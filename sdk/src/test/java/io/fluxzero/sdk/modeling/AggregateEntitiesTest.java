@@ -1176,11 +1176,11 @@ public class AggregateEntitiesTest {
             void handle(Object command) {
                 loadAggregate("root", Folder.class).apply(command);
             }
-        }).givenCommands(new AddRootFolder("root"));
+        }).givenCommands(new CreateFolder("root"));
 
         @Test
         void canAddNestedFolderWithoutReplacingParent() {
-            recursiveFixture.whenCommand(new AddFolderToFolder("root", "child"))
+            recursiveFixture.whenCommand(new AddFolder("root", "child"))
                     .expectTrue(fc -> {
                         Folder rootFolder = currentRootFolder();
                         return rootFolder != null
@@ -1192,7 +1192,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void canAddNestedFolderWithRoutingKeyWithoutReplacingParent() {
-            recursiveFixture.whenCommand(new AddFolderToFolderWithRoutingKey("root", "child"))
+            recursiveFixture.whenCommand(new AddFolder_routingKey("root", "child"))
                     .expectTrue(fc -> {
                         Folder rootFolder = currentRootFolder();
                         return rootFolder != null
@@ -1204,8 +1204,8 @@ public class AggregateEntitiesTest {
 
         @Test
         void canAddFileToNestedFolder() {
-            recursiveFixture.givenCommands(new AddFolderToFolder("root", "child"))
-                    .whenCommand(new AddFileToFolder("child", "file-1"))
+            recursiveFixture.givenCommands(new AddFolder("root", "child"))
+                    .whenCommand(new AddFile("child", "file-1"))
                     .expectTrue(fc -> {
                         Folder child = Fluxzero.<Folder>loadEntity("child").get();
                         return child != null
@@ -1216,8 +1216,8 @@ public class AggregateEntitiesTest {
 
         @Test
         void canAddFileToNestedFolderWithRoutingKey() {
-            recursiveFixture.givenCommands(new AddFolderToFolder("root", "child"))
-                    .whenCommand(new AddFileToFolderWithRoutingKey("child", "file-1"))
+            recursiveFixture.givenCommands(new AddFolder("root", "child"))
+                    .whenCommand(new AddFile_routingKey("child", "file-1"))
                     .expectTrue(fc -> {
                         Folder child = Fluxzero.<Folder>loadEntity("child").get();
                         return child != null
@@ -1229,9 +1229,9 @@ public class AggregateEntitiesTest {
         @Test
         void canAddFileToDeepNestedFolder() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"))
-                    .whenCommand(new AddFileToFolder("docs", "file-1"))
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"))
+                    .whenCommand(new AddFile("docs", "file-1"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects"), List.of())
                                       && folderState(currentRootFolder(), List.of("root", "projects"), List.of("docs"), List.of())
                                       && folderState(currentRootFolder(), List.of("root", "projects", "docs"), List.of(),
@@ -1240,19 +1240,19 @@ public class AggregateEntitiesTest {
 
         @Test
         void addFileToMissingFolderStillFails() {
-            recursiveFixture.whenCommand(new AddFileToFolder("missing", "file-1"))
+            recursiveFixture.whenCommand(new AddFile("missing", "file-1"))
                     .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION);
         }
 
         @Test
         void addFileToMissingFolderWithRoutingKeyStillFails() {
-            recursiveFixture.whenCommand(new AddFileToFolderWithRoutingKey("missing", "file-1"))
+            recursiveFixture.whenCommand(new AddFile_routingKey("missing", "file-1"))
                     .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION);
         }
 
         @Test
         void canDeleteNestedFolderViaSimpleApply() {
-            recursiveFixture.givenCommands(new AddFolderToFolder("root", "child"))
+            recursiveFixture.givenCommands(new AddFolder("root", "child"))
                     .whenCommand(new DeleteFolder("child"))
                     .expectFalse(fc -> loadEntity("child").isPresent())
                     .expectTrue(fc -> {
@@ -1263,8 +1263,8 @@ public class AggregateEntitiesTest {
 
         @Test
         void canDeleteNestedFolderWithRoutingKeyViaSimpleApply() {
-            recursiveFixture.givenCommands(new AddFolderToFolder("root", "child"))
-                    .whenCommand(new DeleteFolderWithRoutingKey("child"))
+            recursiveFixture.givenCommands(new AddFolder("root", "child"))
+                    .whenCommand(new DeleteFolder_routingKey("child"))
                     .expectFalse(fc -> loadEntity("child").isPresent())
                     .expectTrue(fc -> {
                         Folder rootFolder = currentRootFolder();
@@ -1280,22 +1280,22 @@ public class AggregateEntitiesTest {
 
         @Test
         void canUpdateCurrentFolderWithRoutingKeyWithoutTriggeringMissingSelfChildCheck() {
-            recursiveFixture.whenCommand(new TouchFolderWithRoutingKey("root"))
+            recursiveFixture.whenCommand(new TouchFolder_routingKey("root"))
                     .expectNoErrors();
         }
 
         @Test
         void deepFoldersAndFilesStayInCorrectBranches() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"),
-                            new AddFolderToFolder("docs", "archive"),
-                            new AddFolderToFolder("root", "media"),
-                            new AddFileToFolder("root", "file-root"),
-                            new AddFileToFolder("projects", "file-projects"),
-                            new AddFileToFolder("docs", "file-docs"),
-                            new AddFileToFolder("archive", "file-archive"))
-                    .whenCommand(new AddFileToFolder("media", "file-media"))
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"),
+                            new AddFolder("docs", "archive"),
+                            new AddFolder("root", "media"),
+                            new AddFile("root", "file-root"),
+                            new AddFile("projects", "file-projects"),
+                            new AddFile("docs", "file-docs"),
+                            new AddFile("archive", "file-archive"))
+                    .whenCommand(new AddFile("media", "file-media"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects", "media"),
                                                   List.of("file-root"))
                                       && folderState(currentRootFolder(), List.of("root", "projects"), List.of("docs"),
@@ -1311,12 +1311,12 @@ public class AggregateEntitiesTest {
         @Test
         void siblingBranchesKeepTheirOwnFiles() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "left"),
-                            new AddFolderToFolder("root", "right"),
-                            new AddFolderToFolder("left", "left-nested"),
-                            new AddFileToFolder("left", "left-file"),
-                            new AddFileToFolder("left-nested", "left-nested-file"))
-                    .whenCommand(new AddFileToFolder("right", "right-file"))
+                            new AddFolder("root", "left"),
+                            new AddFolder("root", "right"),
+                            new AddFolder("left", "left-nested"),
+                            new AddFile("left", "left-file"),
+                            new AddFile("left-nested", "left-nested-file"))
+                    .whenCommand(new AddFile("right", "right-file"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("left", "right"), List.of())
                                       && folderState(currentRootFolder(), List.of("root", "left"), List.of("left-nested"),
                                                      List.of("left-file"))
@@ -1329,12 +1329,12 @@ public class AggregateEntitiesTest {
         @Test
         void deletingBranchRemovesDescendantsButKeepsSiblings() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "keep"),
-                            new AddFolderToFolder("root", "delete"),
-                            new AddFolderToFolder("delete", "delete-child"),
-                            new AddFileToFolder("keep", "keep-file"),
-                            new AddFileToFolder("delete", "delete-file"))
-                    .whenCommand(new AddFileToFolder("delete-child", "delete-child-file"))
+                            new AddFolder("root", "keep"),
+                            new AddFolder("root", "delete"),
+                            new AddFolder("delete", "delete-child"),
+                            new AddFile("keep", "keep-file"),
+                            new AddFile("delete", "delete-file"))
+                    .whenCommand(new AddFile("delete-child", "delete-child-file"))
                     .expectTrue(fc -> loadEntity("keep").isPresent()
                                       && loadEntity("delete").isPresent()
                                       && loadEntity("delete-child").isPresent()
@@ -1355,12 +1355,12 @@ public class AggregateEntitiesTest {
         @Test
         void deletingDeepLeafFolderKeepsAncestorAndSiblingContent() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"),
-                            new AddFolderToFolder("projects", "images"),
-                            new AddFileToFolder("projects", "projects-file"),
-                            new AddFileToFolder("images", "images-file"))
-                    .whenCommand(new AddFileToFolder("docs", "docs-file"))
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"),
+                            new AddFolder("projects", "images"),
+                            new AddFile("projects", "projects-file"),
+                            new AddFile("images", "images-file"))
+                    .whenCommand(new AddFile("docs", "docs-file"))
                     .andThen()
                     .whenCommand(new DeleteFolder("docs"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects"), List.of())
@@ -1375,10 +1375,10 @@ public class AggregateEntitiesTest {
         @Test
         void canDeleteDeepFileWithoutTouchingFoldersOrSiblingFiles() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"),
-                            new AddFileToFolder("projects", "projects-file"))
-                    .whenCommand(new AddFileToFolder("docs", "docs-file"))
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"),
+                            new AddFile("projects", "projects-file"))
+                    .whenCommand(new AddFile("docs", "docs-file"))
                     .andThen()
                     .whenCommand(new DeleteFile("docs-file"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects"), List.of())
@@ -1394,12 +1394,12 @@ public class AggregateEntitiesTest {
         @Test
         void canDeleteDeepFileWithRoutingKeyWithoutTouchingFoldersOrSiblingFiles() {
             recursiveFixture.givenCommands(
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"),
-                            new AddFileToFolder("projects", "projects-file"))
-                    .whenCommand(new AddFileToFolder("docs", "docs-file"))
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"),
+                            new AddFile("projects", "projects-file"))
+                    .whenCommand(new AddFile("docs", "docs-file"))
                     .andThen()
-                    .whenCommand(new DeleteFileWithRoutingKey("docs-file"))
+                    .whenCommand(new DeleteFile_routingKey("docs-file"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects"), List.of())
                                       && folderState(currentRootFolder(), List.of("root", "projects"), List.of("docs"),
                                                      List.of("projects-file"))
@@ -1412,7 +1412,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void deletingMissingFileFails() {
-            recursiveFixture.givenCommands(new AddFolderToFolder("root", "projects"))
+            recursiveFixture.givenCommands(new AddFolder("root", "projects"))
                     .whenCommand(new DeleteFile("missing-file"))
                     .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION);
         }
@@ -1434,7 +1434,7 @@ public class AggregateEntitiesTest {
 
         @Test
         void wrappedAggregateCanCreateRootFolder() {
-            wrappedFixture.whenCommand(new AddRootFolder("root"))
+            wrappedFixture.whenCommand(new CreateFolder("root"))
                     .expectTrue(fc -> {
                         Folder rootFolder = currentRootFolder();
                         return rootFolder != null
@@ -1447,10 +1447,10 @@ public class AggregateEntitiesTest {
         @Test
         void wrappedAggregateCanAddDeepNestedFile() {
             wrappedFixture.givenCommands(
-                            new AddRootFolder("root"),
-                            new AddFolderToFolder("root", "projects"),
-                            new AddFolderToFolder("projects", "docs"))
-                    .whenCommand(new AddFileToFolder("docs", "file-1"))
+                            new CreateFolder("root"),
+                            new AddFolder("root", "projects"),
+                            new AddFolder("projects", "docs"))
+                    .whenCommand(new AddFile("docs", "file-1"))
                     .expectTrue(fc -> folderState(currentRootFolder(), List.of("root"), List.of("projects"), List.of())
                                       && folderState(currentRootFolder(), List.of("root", "projects"), List.of("docs"),
                                                      List.of())
@@ -1460,8 +1460,8 @@ public class AggregateEntitiesTest {
 
         @Test
         void wrappedAggregateMissingNestedTargetStillFails() {
-            wrappedFixture.givenCommands(new AddRootFolder("root"))
-                    .whenCommand(new AddFileToFolder("missing", "file-1"))
+            wrappedFixture.givenCommands(new CreateFolder("root"))
+                    .whenCommand(new AddFile("missing", "file-1"))
                     .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION);
         }
 
@@ -1627,48 +1627,41 @@ public class AggregateEntitiesTest {
     }
 
     @io.fluxzero.sdk.modeling.Aggregate
-    record Folder(@EntityId String folderId, @Member List<Folder> folders, @Member List<File> files) {
-        Folder withFolders(List<Folder> folders) {
-            return new Folder(folderId, folders, files);
-        }
-
-        Folder withFiles(List<File> files) {
-            return new Folder(folderId, folders, files);
-        }
+    record Folder(@EntityId String folderId, @Member @With List<Folder> folders, @Member @With List<File> files) {
     }
 
     record File(@EntityId String fileId) {
     }
 
-    record AddRootFolder(String folderId) {
+    record CreateFolder(String folderId) {
         @Apply
         Folder apply() {
             return new Folder(folderId, List.of(), List.of());
         }
     }
 
-    record AddFolderToFolder(String folderId, String childFolderId) {
+    record AddFolder(String folderId, String childFolderId) {
         @Apply
         Folder apply(Folder parentFolder) {
             return new Folder(childFolderId, List.of(), List.of());
         }
     }
 
-    record AddFolderToFolderWithRoutingKey(@RoutingKey String targetFolderId, String childFolderId) {
+    record AddFolder_routingKey(@RoutingKey String targetFolderId, String childFolderId) {
         @Apply
         Folder apply(Folder parentFolder) {
             return new Folder(childFolderId, List.of(), List.of());
         }
     }
 
-    record AddFileToFolder(String folderId, String fileId) {
+    record AddFile(String folderId, String fileId) {
         @Apply
         File apply(Folder folder) {
             return new File(fileId);
         }
     }
 
-    record AddFileToFolderWithRoutingKey(@RoutingKey String targetFolderId, String fileId) {
+    record AddFile_routingKey(@RoutingKey String targetFolderId, String fileId) {
         @Apply
         File apply(Folder folder) {
             return new File(fileId);
@@ -1682,7 +1675,7 @@ public class AggregateEntitiesTest {
         }
     }
 
-    record DeleteFolderWithRoutingKey(@RoutingKey String targetFolderId) {
+    record DeleteFolder_routingKey(@RoutingKey String targetFolderId) {
         @Apply
         Folder apply(Folder folder) {
             return null;
@@ -1696,7 +1689,7 @@ public class AggregateEntitiesTest {
         }
     }
 
-    record TouchFolderWithRoutingKey(@RoutingKey String targetFolderId) {
+    record TouchFolder_routingKey(@RoutingKey String targetFolderId) {
         @Apply
         Folder apply(Folder folder) {
             return new Folder(folder.folderId(), folder.folders(), folder.files());
@@ -1710,7 +1703,7 @@ public class AggregateEntitiesTest {
         }
     }
 
-    record DeleteFileWithRoutingKey(@RoutingKey String targetFileId) {
+    record DeleteFile_routingKey(@RoutingKey String targetFileId) {
         @Apply
         File apply(File file) {
             return null;
