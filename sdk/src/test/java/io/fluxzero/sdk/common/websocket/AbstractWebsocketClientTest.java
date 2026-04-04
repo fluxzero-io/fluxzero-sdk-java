@@ -2,6 +2,7 @@ package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import jakarta.websocket.ClientEndpoint;
 import jakarta.websocket.HandshakeResponse;
@@ -60,6 +61,8 @@ class AbstractWebsocketClientTest {
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
         assertEquals(connectionSetup.configurator().getClientSessionId(),
                      WebSocketCapabilities.getClientSessionId(headers).orElseThrow());
+        assertEquals(SdkVersion.version().orElseThrow(),
+                     WebSocketCapabilities.getClientSdkVersion(headers).orElseThrow());
         assertEquals(12, connectionSetup.configurator().getClientSessionId().length());
     }
 
@@ -94,11 +97,13 @@ class AbstractWebsocketClientTest {
         HandshakeResponse response = mock(HandshakeResponse.class);
         when(response.getHeaders()).thenReturn(Map.of(
                 WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, List.of("srv123456789"),
+                WebSocketCapabilities.RUNTIME_VERSION_HEADER, List.of("1.2.3"),
                 WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("LZ4")));
 
         connectionSetup.endpointConfig().getConfigurator().afterResponse(response);
 
         assertEquals("srv123456789", connectionSetup.configurator().getRuntimeSessionId());
+        assertEquals("1.2.3", connectionSetup.configurator().getRuntimeVersion());
         assertEquals(CompressionAlgorithm.LZ4, connectionSetup.configurator().getSelectedCompressionAlgorithm());
     }
 
@@ -118,6 +123,7 @@ class AbstractWebsocketClientTest {
         connectionSetup.endpointConfig().getConfigurator().afterResponse(response);
 
         assertNull(connectionSetup.configurator().getRuntimeSessionId());
+        assertNull(connectionSetup.configurator().getRuntimeVersion());
         assertNull(connectionSetup.configurator().getSelectedCompressionAlgorithm());
     }
 

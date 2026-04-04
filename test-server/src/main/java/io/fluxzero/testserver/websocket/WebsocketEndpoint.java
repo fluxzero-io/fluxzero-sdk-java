@@ -351,6 +351,10 @@ public abstract class WebsocketEndpoint extends Endpoint {
         return session.getRequestParameterMap().get("clientName").getFirst();
     }
 
+    protected String getClientSdkVersion(Session session) {
+        return WebSocketCapabilities.getClientSdkVersion(getRequestHeaders(session)).orElse(null);
+    }
+
     protected String getNegotiatedSessionId(Session session) {
         return "%s_%s".formatted(
                 WebSocketCapabilities.getClientSessionId(getRequestHeaders(session)).orElse("?"),
@@ -364,6 +368,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     protected Metadata sessionMetadata(Session session) {
         return Metadata.of("$clientId", getClientId(session), "$clientName", getClientName(session))
+                .with("$clientSdkVersion", getClientSdkVersion(session))
                 .with("sessionId", getNegotiatedSessionId(session));
     }
 

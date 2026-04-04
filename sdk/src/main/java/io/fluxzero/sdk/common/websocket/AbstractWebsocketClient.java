@@ -35,6 +35,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -138,6 +139,8 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
             AbstractWebsocketClient.class.getName() + ".clientSessionId";
     protected static final String RUNTIME_SESSION_ID_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".runtimeSessionId";
+    protected static final String RUNTIME_VERSION_USER_PROPERTY =
+            AbstractWebsocketClient.class.getName() + ".runtimeVersion";
     protected static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".selectedCompressionAlgorithm";
 
@@ -254,6 +257,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                                                     configurator.getClientSessionId());
                     session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY,
                                                     ofNullable(configurator.getRuntimeSessionId()).orElse("?"));
+                    ofNullable(configurator.getRuntimeVersion()).ifPresent(
+                            runtimeVersion -> session.getUserProperties().put(RUNTIME_VERSION_USER_PROPERTY,
+                                                                              runtimeVersion));
                     session.getUserProperties().put(
                             SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
                             ofNullable(configurator.getSelectedCompressionAlgorithm())
@@ -261,7 +267,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                 });
         session.addMessageHandler(byte[].class, bytes -> onMessage(bytes, session));
         session.addMessageHandler(PongMessage.class, message -> onPong(message, session));
-        log().info("Session {} is connected to endpoint {}", getNegotiatedSessionId(session), session.getRequestURI());
+        log().info("Session {} is connected to endpoint {} (runtime version: {})",
+                   getNegotiatedSessionId(session), session.getRequestURI(),
+                   getRuntimeVersion(session).orElse("unknown"));
         schedulePing(session);
     }
 
@@ -586,6 +594,12 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         return (CompressionAlgorithm) session.getUserProperties().get(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY);
     }
 
+    protected Optional<String> getRuntimeVersion(Session session) {
+        return ofNullable(session.getUserProperties().get(RUNTIME_VERSION_USER_PROPERTY))
+                .map(Object::toString)
+                .filter(version -> !version.isBlank());
+    }
+
     protected record ConnectionSetup(ClientEndpointConfig endpointConfig, ClientHandshakeConfigurator configurator) {
     }
 
@@ -597,11 +611,16 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         @Getter
         private volatile String runtimeSessionId;
         @Getter
+        private volatile String runtimeVersion;
+        @Getter
         private volatile CompressionAlgorithm selectedCompressionAlgorithm;
 
         @Override
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
+            SdkVersion.version().ifPresent(sdkVersion ->
+                                                   headers.put(WebSocketCapabilities.CLIENT_SDK_VERSION_HEADER,
+                                                               new ArrayList<>(List.of(sdkVersion))));
             WebSocketCapabilities.asHeaders(clientConfig.getSupportedCompressionAlgorithms()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
         }
@@ -609,6 +628,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         @Override
         public void afterResponse(HandshakeResponse response) {
             runtimeSessionId = WebSocketCapabilities.getRuntimeSessionId(response.getHeaders()).orElse(null);
+            runtimeVersion = WebSocketCapabilities.getRuntimeVersion(response.getHeaders()).orElse(null);
             selectedCompressionAlgorithm =
                     WebSocketCapabilities.getSelectedCompressionAlgorithm(response.getHeaders()).orElse(null);
         }

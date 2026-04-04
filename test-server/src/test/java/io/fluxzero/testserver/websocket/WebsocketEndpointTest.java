@@ -51,9 +51,35 @@ class WebsocketEndpointTest {
         assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithmForTest(session));
     }
 
+    @Test
+    void clientSdkVersionIsAddedToSessionMetadataWhenAdvertisedInHandshake() {
+        Session session = mock(Session.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
+                WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
+                Map.of(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, List.of("cli1234567890"),
+                       WebSocketCapabilities.CLIENT_SDK_VERSION_HEADER, List.of("1.2.3")),
+                WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY,
+                "srv123456789")));
+        when(session.getRequestParameterMap()).thenReturn(
+                Map.of("clientId", List.of("client"), "clientName", List.of("test-client")));
+
+        TestEndpoint endpoint = new TestEndpoint();
+
+        assertEquals("1.2.3", endpoint.getClientSdkVersionForTest(session));
+        assertEquals("1.2.3", endpoint.sessionMetadataForTest(session).getEntries().get("$clientSdkVersion"));
+    }
+
     private static class TestEndpoint extends WebsocketEndpoint {
         CompressionAlgorithm getCompressionAlgorithmForTest(Session session) {
             return getCompressionAlgorithm(session);
+        }
+
+        String getClientSdkVersionForTest(Session session) {
+            return getClientSdkVersion(session);
+        }
+
+        io.fluxzero.common.api.Metadata sessionMetadataForTest(Session session) {
+            return sessionMetadata(session);
         }
     }
 }

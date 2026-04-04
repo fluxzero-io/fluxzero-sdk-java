@@ -35,7 +35,9 @@ public final class WebSocketCapabilities {
     public static final String SELECTED_COMPRESSION_ALGORITHM_HEADER =
             "Fluxzero-Selected-Compression-Algorithm";
     public static final String CLIENT_SESSION_ID_HEADER = "Fluxzero-Client-Session-Id";
+    public static final String CLIENT_SDK_VERSION_HEADER = "Fluxzero-Client-Sdk-Version";
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
+    public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
 
     private WebSocketCapabilities() {
     }
@@ -91,8 +93,16 @@ public final class WebSocketCapabilities {
         return getHeaderValue(headers, CLIENT_SESSION_ID_HEADER);
     }
 
+    public static Optional<String> getClientSdkVersion(Map<String, List<String>> headers) {
+        return getHeaderValue(headers, CLIENT_SDK_VERSION_HEADER);
+    }
+
     public static Optional<String> getRuntimeSessionId(Map<String, List<String>> headers) {
         return getHeaderValue(headers, RUNTIME_SESSION_ID_HEADER);
+    }
+
+    public static Optional<String> getRuntimeVersion(Map<String, List<String>> headers) {
+        return getHeaderValue(headers, RUNTIME_VERSION_HEADER);
     }
 
     public static String newShortSessionId() {
