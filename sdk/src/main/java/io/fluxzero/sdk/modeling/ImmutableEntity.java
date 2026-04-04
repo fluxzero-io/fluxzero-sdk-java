@@ -575,16 +575,17 @@ public class ImmutableEntity<T> implements Entity<T> {
                 .ifPresent(i -> {
                     Apply apply = ReflectionUtils.getAnnotation(i.getMethod(), Apply.class).orElseThrow();
                     if (!apply.disableCompatibilityCheck()) {
+                        Object targetId = expectedTargetId(message, entity);
                         if (entity.isPresent()) {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to be empty",
                                      message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
-                                     entity.type().getSimpleName(), entity.id());
+                                     entity.type().getSimpleName(), targetId);
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.already-exists",
                                               IllegalCommandException::new, () -> Entity.ALREADY_EXISTS_EXCEPTION);
                         } else {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to exist",
                                      message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
-                                     entity.type().getSimpleName(), entity.id());
+                                     entity.type().getSimpleName(), targetId);
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.not-found",
                                               IllegalCommandException::new, () -> Entity.NOT_FOUND_EXCEPTION);
                         }
@@ -643,6 +644,27 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
         }
         return false;
+    }
+
+    private Object expectedTargetId(DeserializingMessage message, Entity<?> entity) {
+        if (entity.id() != null) {
+            return entity.id();
+        }
+        Object payload = message.getPayload();
+        if (payload == null) {
+            return null;
+        }
+        if (entity.idProperty() != null) {
+            Object payloadId = ReflectionUtils.readProperty(entity.idProperty(), payload).orElse(null);
+            if (payloadId != null) {
+                return payloadId;
+            }
+        }
+        Object routingKey = getRoutingKey(payload);
+        if (routingKey != null) {
+            return routingKey;
+        }
+        return routeCandidates(payload).stream().findFirst().orElse(null);
     }
 
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {

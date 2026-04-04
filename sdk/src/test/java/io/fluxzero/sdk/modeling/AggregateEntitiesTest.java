@@ -1070,6 +1070,42 @@ public class AggregateEntitiesTest {
 
     }
 
+    @Value
+    static class CreateMutableEntity {
+        @RoutingKey
+        String id;
+
+        @Apply
+        MutableEntity create() {
+            return new MutableEntity(id);
+        }
+    }
+
+    @Value
+    static class DeleteMutableEntity {
+        @RoutingKey
+        String id;
+
+        @Apply
+        MutableEntity delete(MutableEntity entity) {
+            return null;
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class MutableAggregate {
+        @Member
+        MutableEntity child;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class MutableEntity {
+        @EntityId
+        String id;
+    }
+
     @Nested
     class MutableEntityTests {
         private final TestFixture testFixture = TestFixture.create(new CommandHandler()).given(
@@ -1094,42 +1130,6 @@ public class AggregateEntitiesTest {
             void handle(Object command) {
                 loadAggregate("test", MutableAggregate.class).apply(command);
             }
-        }
-
-        @Value
-        class CreateMutableEntity {
-            @RoutingKey
-            String id;
-
-            @Apply
-            MutableEntity create() {
-                return new MutableEntity(id);
-            }
-        }
-
-        @Value
-        class DeleteMutableEntity {
-            @RoutingKey
-            String id;
-
-            @Apply
-            MutableEntity delete(MutableEntity entity) {
-                return null;
-            }
-        }
-
-        @Data
-        @AllArgsConstructor
-        class MutableAggregate {
-            @Member
-            MutableEntity child;
-        }
-
-        @Data
-        @AllArgsConstructor
-        class MutableEntity {
-            @EntityId
-            String id;
         }
 
         void expectEntity(Class<?> parentClass, Predicate<Entity<?>> predicate) {
