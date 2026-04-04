@@ -47,6 +47,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -690,6 +691,50 @@ public class AggregateEntitiesTest {
                                    && payment.getAttempts().size() == 1
                                    && "attempt-1".equals(payment.getAttempts().getFirst().paymentAttemptId());
                         });
+            }
+
+            @Test
+            void testAddTypedListChildAndRootInSingleApplyWithTimestampParameters() {
+                TypedPaymentId paymentId = new TypedPaymentId("payment");
+                TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
+                TestFixture.create()
+                        .whenCommand(new CreateTypedPayment(paymentId))
+                        .andThen()
+                        .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
+                        .expectTrue(fc -> {
+                            TypedPaymentAggregate payment = loadAggregate(paymentId, TypedPaymentAggregate.class).get();
+                            return TypedPaymentStatus.pending.equals(payment.getStatus())
+                                   && payment.getAttempts().size() == 1
+                                   && paymentAttemptId.equals(payment.getAttempts().getFirst().getPaymentAttemptId())
+                                   && payment.getAttempts().getFirst().getCreatedAt() != null
+                                   && payment.getLastUpdatedAt() != null;
+                        });
+            }
+
+            @Test
+            void testReplayTypedListChildAndRootInSingleApplyWithTimestampParameters() {
+                TypedPaymentId paymentId = new TypedPaymentId("payment");
+                TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
+                TestFixture.create()
+                        .givenCommands(new CreateTypedPayment(paymentId),
+                                       new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
+                        .whenApplying(fc -> loadAggregate(paymentId, TypedPaymentAggregate.class).get())
+                        .expectResult((Predicate<TypedPaymentAggregate>) payment ->
+                                              TypedPaymentStatus.pending.equals(payment.getStatus())
+                                              && payment.getAttempts().size() == 1
+                                              && paymentAttemptId.equals(payment.getAttempts().getFirst()
+                                                                                 .getPaymentAttemptId()));
+            }
+
+            @Test
+            void testReplayTypedListChildAndRootInSingleApplyRejectsDuplicateAttemptId() {
+                TypedPaymentId paymentId = new TypedPaymentId("payment");
+                TypedPaymentAttemptId paymentAttemptId = new TypedPaymentAttemptId("attempt-1");
+                TestFixture.create()
+                        .givenCommands(new CreateTypedPayment(paymentId),
+                                       new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
+                        .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
+                        .expectExceptionalResult(IllegalCommandException.class);
             }
 
             @Test
@@ -1624,6 +1669,100 @@ public class AggregateEntitiesTest {
         @Apply
         PaymentAggregate apply(PaymentAggregate payment) {
             return payment.withStatus("pending");
+        }
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    static class TypedPaymentAggregate {
+        @EntityId
+        TypedPaymentId paymentId;
+        TypedPaymentStatus status;
+        Instant createdAt;
+        Instant lastUpdatedAt;
+        @Member
+        @Singular
+        @With
+        List<TypedPaymentAttempt> attempts;
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    static class TypedPaymentAttempt {
+        @EntityId
+        TypedPaymentAttemptId paymentAttemptId;
+        Instant createdAt;
+    }
+
+    enum TypedPaymentStatus {
+        requires_method,
+        pending
+    }
+
+    interface TypedPaymentUpdate {
+        @RoutingKey
+        TypedPaymentId getPaymentId();
+
+        @HandleCommand
+        default void handle() {
+            Fluxzero.loadAggregate(getPaymentId()).assertAndApply(this);
+        }
+    }
+
+    @Value
+    static class CreateTypedPayment implements TypedPaymentUpdate {
+        TypedPaymentId paymentId;
+
+        @Apply
+        TypedPaymentAggregate apply(Instant timestamp) {
+            return TypedPaymentAggregate.builder()
+                    .paymentId(paymentId)
+                    .status(TypedPaymentStatus.requires_method)
+                    .createdAt(timestamp)
+                    .lastUpdatedAt(timestamp)
+                    .build();
+        }
+    }
+
+    @Value
+    static class CreateTypedPaymentAttempt implements TypedPaymentUpdate {
+        TypedPaymentId paymentId;
+        TypedPaymentAttemptId paymentAttemptId;
+
+        @AssertLegal
+        void assertPaymentAttemptDoesNotAlreadyExist(TypedPaymentAggregate payment) {
+            if (payment.getAttempts() != null && payment.getAttempts().stream()
+                    .anyMatch(attempt -> paymentAttemptId.equals(attempt.getPaymentAttemptId()))) {
+                throw new IllegalCommandException("Payment attempt already exists");
+            }
+        }
+
+        @Apply
+        TypedPaymentAttempt apply(Instant timestamp) {
+            return TypedPaymentAttempt.builder()
+                    .paymentAttemptId(paymentAttemptId)
+                    .createdAt(timestamp)
+                    .build();
+        }
+
+        @Apply
+        TypedPaymentAggregate apply(TypedPaymentAggregate payment, Instant timestamp) {
+            return payment.toBuilder()
+                    .status(TypedPaymentStatus.pending)
+                    .lastUpdatedAt(timestamp)
+                    .build();
+        }
+    }
+
+    static class TypedPaymentId extends Id<TypedPaymentAggregate> {
+        TypedPaymentId(String functionalId) {
+            super(functionalId);
+        }
+    }
+
+    static class TypedPaymentAttemptId extends Id<TypedPaymentAttempt> {
+        TypedPaymentAttemptId(String functionalId) {
+            super(functionalId);
         }
     }
 

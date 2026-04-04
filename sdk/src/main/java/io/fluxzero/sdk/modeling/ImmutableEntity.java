@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -111,6 +112,8 @@ import static java.util.Collections.emptyList;
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
     private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
+    private static final Map<RoutingKeyOverlapCacheKey, Boolean> routingKeyOverlapsCurrentIdCache =
+            new ConcurrentHashMap<>();
     @JsonProperty
     Object id;
     @JsonProperty
@@ -284,10 +287,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         Object routingKey = getRoutingKey(payload);
         if (routingKey != null) {
             String routingKeyValue = routingKey.toString();
-            if (id() != null && routingKeyValue.equals(id().toString())) {
-                return true;
-            }
-            return matchesAliases(routingKeyValue);
+            return matchesCurrentRoute(routingKeyValue) && !hasAmbiguousDescendantTarget(payload);
         }
         if (id() == null || idProperty() == null) {
             return false;
@@ -302,11 +302,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         Object routingKey = getRoutingKey(payload);
         if (routingKey != null) {
             String routingKeyValue = routingKey.toString();
-            if (id() != null && routingKeyValue.equals(id().toString())) {
-                return ExplicitTarget.CURRENT;
-            }
-            if (matchesAliases(routingKeyValue)) {
-                return ExplicitTarget.CURRENT;
+            if (matchesCurrentRoute(routingKeyValue)) {
+                return hasAmbiguousDescendantTarget(payload) ? ExplicitTarget.UNKNOWN : ExplicitTarget.CURRENT;
             }
             return ExplicitTarget.OTHER;
         }
@@ -331,7 +328,7 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private boolean mentionsDistinctDescendantProperty(Object payload) {
         DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
-        if (!targetMetadata.certain()) {
+        if (payload == null || !targetMetadata.certain()) {
             return false;
         }
         for (String property : targetMetadata.idProperties()) {
@@ -340,6 +337,26 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
         }
         return false;
+    }
+
+    private boolean hasAmbiguousDescendantTarget(Object payload) {
+        return routingKeyOverlapsCurrentId(payload) && mentionsDistinctDescendantProperty(payload);
+    }
+
+    private boolean routingKeyOverlapsCurrentId(Object payload) {
+        Class<?> entityType = type();
+        if (payload == null || entityType == null || idProperty() == null) {
+            return false;
+        }
+        return routingKeyOverlapsCurrentIdCache.computeIfAbsent(new RoutingKeyOverlapCacheKey(entityType,
+                                                                                              payload.getClass()),
+                                                                ignored -> ReflectionUtils.getAnnotatedPropertyName(
+                                                                                payload,
+                                                                                io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+                                                                        .map(idProperty()::equals)
+                                                                        .orElseGet(() -> ReflectionUtils.hasProperty(
+                                                                                idProperty(),
+                                                                                payload)));
     }
 
     private Iterable<Entity<?>> resolvePossibleTargets(Object payload) {
@@ -514,7 +531,14 @@ public class ImmutableEntity<T> implements Entity<T> {
         return false;
     }
 
+    private boolean matchesCurrentRoute(String routeValue) {
+        return (id() != null && routeValue.equals(id().toString())) || matchesAliases(routeValue);
+    }
+
     record RouteCacheKey(Class<?> entityType, String entityId, Class<?> payloadType, String routeValue) {
+    }
+
+    private record RoutingKeyOverlapCacheKey(Class<?> entityType, Class<?> payloadType) {
     }
 
     private enum ExplicitTarget {
