@@ -63,6 +63,9 @@
       "values" : {
         "lazy" : "true"
       }
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -672,6 +675,22 @@
     }, {
       "name" : "routeValue",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mentionsDistinctDescendantProperty",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#mentionsDistinctDescendantProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
