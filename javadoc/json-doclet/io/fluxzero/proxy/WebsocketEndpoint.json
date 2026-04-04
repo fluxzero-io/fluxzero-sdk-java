@@ -16,6 +16,14 @@
   "superClass" : "jakarta.websocket.Endpoint",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "CLOSE_NOTIFICATION_TIMEOUT_SECONDS",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT_SECONDS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 5
+  }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.client",
     "type" : "io.fluxzero.sdk.configuration.client.Client",
@@ -43,6 +51,14 @@
     "name" : "openSessions",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.openSessions",
     "type" : "java.util.Map<java.lang.String,jakarta.websocket.Session>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingCloseNotifications",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.pendingCloseNotifications",
+    "type" : "java.util.Map<java.lang.String,java.util.concurrent.CompletableFuture<java.lang.Void>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -97,6 +113,43 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "closeSession",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#closeSession",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeCloseNotification",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#completeCloseNotification",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "ensureStarted",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#ensureStarted",
     "returnType" : "void",
@@ -248,6 +301,27 @@
     }, {
       "name" : "session",
       "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendCloseRequest",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#sendCloseRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "jakarta.websocket.CloseReason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

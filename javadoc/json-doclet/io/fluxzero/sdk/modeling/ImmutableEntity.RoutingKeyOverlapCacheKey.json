@@ -1,0 +1,124 @@
+{
+  "name" : "RoutingKeyOverlapCacheKey",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "entityType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey.entityType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payloadType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey.payloadType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RoutingKeyOverlapCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#RoutingKeyOverlapCacheKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entityType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "entityType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#entityType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "payloadType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#payloadType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "entityType",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payloadType",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -155,6 +155,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RouteCacheKey",
     "kind" : "record"
   }, {
+    "file" : "ImmutableEntity.RoutingKeyOverlapCacheKey.json",
+    "name" : "ImmutableEntity.RoutingKeyOverlapCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey",
+    "kind" : "record"
+  }, {
     "file" : "LazyAggregateRoot.json",
     "name" : "LazyAggregateRoot",
     "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot",

@@ -173,6 +173,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "routingKeyOverlapsCurrentIdCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.routingKeyOverlapsCurrentIdCache",
+    "type" : "java.util.Map<io.fluxzero.sdk.modeling.ImmutableEntity.RoutingKeyOverlapCacheKey,java.lang.Boolean>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
@@ -536,6 +544,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "expectedTargetId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#expectedTargetId",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "explicitTarget",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#explicitTarget",
     "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.ExplicitTarget",
@@ -645,8 +674,40 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasAmbiguousDescendantTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#hasAmbiguousDescendantTarget",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "matchesAliases",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#matchesAliases",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "routeValue",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matchesCurrentRoute",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#matchesCurrentRoute",
     "returnType" : "boolean",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
@@ -815,6 +876,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "routingKeyOverlapsCurrentId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#routingKeyOverlapsCurrentId",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "snapshotLoadingRouteCache",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#snapshotLoadingRouteCache",
     "returnType" : "java.util.Map<?,java.lang.String>",
@@ -904,6 +981,12 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RouteCacheKey",
     "kind" : "record",
     "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RoutingKeyOverlapCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }
