@@ -243,6 +243,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getClientSdkVersion",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getClientSdkVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getCompressionAlgorithm",
     "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
