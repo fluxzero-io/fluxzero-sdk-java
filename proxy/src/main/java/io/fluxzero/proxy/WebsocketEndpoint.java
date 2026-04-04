@@ -64,8 +64,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @AllArgsConstructor
 public class WebsocketEndpoint extends Endpoint {
     static final String metadataPrefix = "_metadata:", clientIdKey = "_clientId", trackerIdKey = "_trackerId";
+    private static final long CLOSE_NOTIFICATION_TIMEOUT_SECONDS = 5;
 
     private final Map<String, Session> openSessions = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<Void>> pendingCloseNotifications = new ConcurrentHashMap<>();
 
     private final Client client;
     private final GatewayClient requestGateway;
@@ -93,8 +95,11 @@ public class WebsocketEndpoint extends Endpoint {
     @SneakyThrows
     public void onClose(Session session, CloseReason closeReason) {
         openSessions.remove(session.getId());
-        sendRequest(session, HttpRequestMethod.WS_CLOSE,
-                    String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8)).get(1, TimeUnit.SECONDS);
+        try {
+            sendCloseRequest(session, closeReason).get(1, TimeUnit.SECONDS);
+        } finally {
+            completeCloseNotification(session.getId(), null);
+        }
     }
 
     @Override
@@ -111,6 +116,11 @@ public class WebsocketEndpoint extends Endpoint {
         request.setSource(client.id());
         request.setTarget(getContext(session).trackerId());
         return requestGateway.append(Guarantee.STORED, request);
+    }
+
+    protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
+        return sendRequest(session, HttpRequestMethod.WS_CLOSE,
+                           String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
     }
 
     protected void handleResultMessages(List<SerializedMessage> resultMessages) {
@@ -216,16 +226,43 @@ public class WebsocketEndpoint extends Endpoint {
     public void shutDown() {
         if (started.compareAndSet(true, false) && registration != null) {
             registration.cancel();
-            openSessions.values().removeIf(s -> {
+            var closeNotifications = openSessions.values().stream().map(this::closeSession).toArray(CompletableFuture[]::new);
+            if (closeNotifications.length > 0) {
                 try {
-                    if (s.isOpen()) {
-                        s.close(new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "Redeployment"));
-                    }
-                } catch (Throwable e) {
-                    log.warn("Failed to close session when leaving: {}", s.getId(), e);
+                    CompletableFuture.allOf(closeNotifications)
+                            .get(CLOSE_NOTIFICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    log.warn("Timed out waiting for websocket close notifications during shutdown", e);
                 }
-                return true;
-            });
+            }
+        }
+    }
+
+    private CompletableFuture<Void> closeSession(Session session) {
+        var closeNotification = pendingCloseNotifications.computeIfAbsent(session.getId(), ignored -> new CompletableFuture<>());
+        try {
+            if (session.isOpen()) {
+                session.close(new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "Redeployment"));
+            } else {
+                openSessions.remove(session.getId());
+                completeCloseNotification(session.getId(), null);
+            }
+        } catch (Throwable e) {
+            log.warn("Failed to close session when leaving: {}", session.getId(), e);
+            completeCloseNotification(session.getId(), e);
+        }
+        return closeNotification;
+    }
+
+    private void completeCloseNotification(String sessionId, Throwable failure) {
+        var notification = pendingCloseNotifications.remove(sessionId);
+        if (notification == null) {
+            return;
+        }
+        if (failure == null) {
+            notification.complete(null);
+        } else {
+            notification.completeExceptionally(failure);
         }
     }
 
