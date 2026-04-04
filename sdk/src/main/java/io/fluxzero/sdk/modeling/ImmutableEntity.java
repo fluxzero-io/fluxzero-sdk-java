@@ -157,6 +157,7 @@ public class ImmutableEntity<T> implements Entity<T> {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Getter(lazy = true)
+    @JsonIgnore
     DescendantTargetMetadata descendantTargetMetadata = computeDescendantTargetMetadata();
 
     @SuppressWarnings("unchecked")
@@ -291,6 +292,9 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (id() == null || idProperty() == null) {
             return false;
         }
+        if (mentionsDistinctDescendantProperty(payload)) {
+            return false;
+        }
         return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals).orElse(false);
     }
 
@@ -307,8 +311,10 @@ public class ImmutableEntity<T> implements Entity<T> {
             return ExplicitTarget.OTHER;
         }
         if (id() != null && idProperty() != null && ReflectionUtils.hasProperty(idProperty(), payload)) {
-            return ReflectionUtils.readProperty(idProperty(), payload).map(id()::equals)
-                    .map(matches -> matches ? ExplicitTarget.CURRENT : ExplicitTarget.OTHER)
+            return ReflectionUtils.readProperty(idProperty(), payload)
+                    .map(candidate -> Objects.equals(id(), candidate)
+                            ? (mentionsDistinctDescendantProperty(payload) ? ExplicitTarget.UNKNOWN : ExplicitTarget.CURRENT)
+                            : ExplicitTarget.OTHER)
                     .orElse(ExplicitTarget.UNKNOWN);
         }
         DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
@@ -321,6 +327,19 @@ public class ImmutableEntity<T> implements Entity<T> {
             return ExplicitTarget.CURRENT;
         }
         return ExplicitTarget.UNKNOWN;
+    }
+
+    private boolean mentionsDistinctDescendantProperty(Object payload) {
+        DescendantTargetMetadata targetMetadata = descendantTargetMetadata();
+        if (!targetMetadata.certain()) {
+            return false;
+        }
+        for (String property : targetMetadata.idProperties()) {
+            if (!Objects.equals(property, idProperty()) && ReflectionUtils.hasProperty(property, payload)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Iterable<Entity<?>> resolvePossibleTargets(Object payload) {

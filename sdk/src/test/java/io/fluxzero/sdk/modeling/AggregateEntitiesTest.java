@@ -674,6 +674,25 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testAddListChildAndRootInSingleApplyWhenPayloadContainsAggregateAndChildId() {
+                TestFixture.create().given(fc -> loadAggregate("payment", PaymentAggregate.class)
+                                .update(s -> PaymentAggregate.builder().paymentId("payment").build()))
+                        .registerHandlers(new Object() {
+                            @HandleCommand
+                            void handle(Object command) {
+                                loadAggregate("payment", PaymentAggregate.class).apply(command);
+                            }
+                        })
+                        .whenCommand(new CreatePaymentAttempt("payment", "attempt-1"))
+                        .expectTrue(fc -> {
+                            PaymentAggregate payment = loadAggregate("payment", PaymentAggregate.class).get();
+                            return "pending".equals(payment.getStatus())
+                                   && payment.getAttempts().size() == 1
+                                   && "attempt-1".equals(payment.getAttempts().getFirst().paymentAttemptId());
+                        });
+            }
+
+            @Test
             void testUpdateNestedMemberInRecordOwnerUsingWithMethod() {
                 TestFixture.create().given(fc -> loadAggregate("record", RecordAggregate.class)
                                 .update(s -> new RecordAggregate("record",
@@ -1577,6 +1596,35 @@ public class AggregateEntitiesTest {
 
     @Builder
     public record MissingChild(@EntityId MissingChildId missingChildId, @Member @With MissingGrandChild grandChild) {
+    }
+
+    @Value
+    @Builder(toBuilder = true)
+    static class PaymentAggregate {
+        @EntityId
+        String paymentId;
+        @With
+        @Builder.Default
+        String status = "requires_method";
+        @Member
+        @With
+        @Builder.Default
+        List<PaymentAttempt> attempts = List.of();
+    }
+
+    record PaymentAttempt(@EntityId String paymentAttemptId) {
+    }
+
+    record CreatePaymentAttempt(String paymentId, String paymentAttemptId) {
+        @Apply
+        PaymentAttempt apply() {
+            return new PaymentAttempt(paymentAttemptId);
+        }
+
+        @Apply
+        PaymentAggregate apply(PaymentAggregate payment) {
+            return payment.withStatus("pending");
+        }
     }
 
     static class MissingChildId extends Id<MissingChild> {
