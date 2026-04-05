@@ -20,7 +20,7 @@ import lombok.Value;
  * A runtime-generated event that indicates a client has successfully connected to the Fluxzero Runtime.
  * <p>
  * This event includes metadata such as the client's name, instance ID, session ID, and the service endpoint
- * it connected to.
+ * it connected to, along with the negotiated SDK and runtime versions when available.
  *
  * <h2>Use Cases</h2>
  * <ul>
@@ -57,4 +57,14 @@ public class ConnectEvent implements JsonType {
      * Name of the service the client connected to (e.g., {@code event-sourcing-endpoint}).
      */
     String service;
+
+    /**
+     * Version of the Fluxzero SDK used by the client, if advertised during the websocket handshake.
+     */
+    String sdkVersion;
+
+    /**
+     * Version of the Fluxzero Runtime that accepted the connection, if known.
+     */
+    String runtimeVersion;
 }

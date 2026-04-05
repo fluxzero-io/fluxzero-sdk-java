@@ -38,6 +38,7 @@ import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.testserver.metrics.MetricsLog;
+import io.fluxzero.testserver.TestServerVersion;
 import io.fluxzero.testserver.metrics.NoOpMetricsLog;
 import io.undertow.util.SameThreadExecutor;
 import jakarta.annotation.Nullable;
@@ -177,7 +178,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
         });
         registerMetrics(new ConnectEvent(
                                 getClientName(session), getClientId(session), getNegotiatedSessionId(session),
-                                toString()),
+                                toString(), getClientSdkVersion(session), getRuntimeVersion()),
                         session);
     }
 
@@ -353,6 +354,10 @@ public abstract class WebsocketEndpoint extends Endpoint {
 
     protected String getClientSdkVersion(Session session) {
         return WebSocketCapabilities.getClientSdkVersion(getRequestHeaders(session)).orElse(null);
+    }
+
+    protected String getRuntimeVersion() {
+        return TestServerVersion.version().orElse(null);
     }
 
     protected String getNegotiatedSessionId(Session session) {
