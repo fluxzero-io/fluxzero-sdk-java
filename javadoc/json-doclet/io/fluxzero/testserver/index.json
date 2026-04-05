@@ -19,6 +19,11 @@
     "name" : "TestServer.TestServerProject",
     "qualifiedName" : "io.fluxzero.testserver.TestServer$TestServerProject",
     "kind" : "class"
+  }, {
+    "file" : "TestServerVersion.json",
+    "name" : "TestServerVersion",
+    "qualifiedName" : "io.fluxzero.testserver.TestServerVersion",
+    "kind" : "class"
   } ],
   "subdirectories" : [ {
     "name" : "metrics",

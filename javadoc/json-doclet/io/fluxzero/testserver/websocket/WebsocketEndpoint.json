@@ -328,6 +328,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRuntimeVersion",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#getRuntimeVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleMessage",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#handleMessage",
     "returnType" : "void",
