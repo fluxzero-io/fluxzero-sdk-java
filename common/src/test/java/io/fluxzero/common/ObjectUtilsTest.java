@@ -17,8 +17,11 @@ package io.fluxzero.common;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -71,6 +74,39 @@ class ObjectUtilsTest {
     }
 
     @Test
+    void memoizeComputesConcurrentCacheMissOnce() throws Exception {
+        CountDownLatch firstInvocationStarted = new CountDownLatch(1);
+        CountDownLatch secondInvocationStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstInvocation = new CountDownLatch(1);
+        AtomicInteger invocations = new AtomicInteger();
+        MemoizingFunction<String, String> memoizingFunction = memoize(key -> {
+            int call = invocations.incrementAndGet();
+            if (call == 1) {
+                firstInvocationStarted.countDown();
+                assertTrue(await(releaseFirstInvocation, 5, TimeUnit.SECONDS));
+            } else {
+                secondInvocationStarted.countDown();
+            }
+            return "value";
+        });
+
+        try (ExecutorService executor = ObjectUtils.newWorkerPool("ObjectUtilsTest-worker-", 2)) {
+            Future<String> first = executor.submit(() -> memoizingFunction.apply("foo"));
+            assertTrue(await(firstInvocationStarted, 5, TimeUnit.SECONDS));
+
+            Future<String> second = executor.submit(() -> memoizingFunction.apply("foo"));
+
+            assertFalse(await(secondInvocationStarted, 250, TimeUnit.MILLISECONDS));
+            releaseFirstInvocation.countDown();
+
+            assertEquals("value", first.get(5, TimeUnit.SECONDS));
+            assertEquals("value", second.get(5, TimeUnit.SECONDS));
+        }
+
+        assertEquals(1, invocations.get());
+    }
+
+    @Test
     void supportsVirtualThreadWorkersOnlyOnJava25AndNewer() {
         assertFalse(ObjectUtils.supportsVirtualThreadWorkers(24));
         assertTrue(ObjectUtils.supportsVirtualThreadWorkers(25));
@@ -81,6 +117,15 @@ class ObjectUtilsTest {
         try (ExecutorService executor = ObjectUtils.newWorkerPool("ObjectUtilsTest-worker-", 2)) {
             Future<Boolean> isVirtual = executor.submit(() -> Thread.currentThread().isVirtual());
             assertEquals(ObjectUtils.supportsVirtualThreadWorkers(), isVirtual.get());
+        }
+    }
+
+    private static boolean await(CountDownLatch latch, long timeout, TimeUnit unit) {
+        try {
+            return latch.await(timeout, unit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
         }
     }
 }

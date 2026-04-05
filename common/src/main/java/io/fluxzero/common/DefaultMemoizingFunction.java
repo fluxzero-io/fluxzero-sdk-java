@@ -57,12 +57,7 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
             return (V) cached.value();
         }
         if (lifespan == null) {
-            Entry loaded = loadEntry(key);
-            Entry winner = map.putIfAbsent(normalizedKey, loaded);
-            if (winner != null) {
-                return (V) winner.value();
-            }
-            return (V) loaded.value();
+            return (V) map.computeIfAbsent(normalizedKey, k -> loadEntry(key)).value();
         }
         Entry result = map.compute(normalizedKey, (k, current) ->
                 current == null || isExpired(current) ? loadEntry(key) : current);
