@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Tracks the lifecycle and identity of a single message handler invocation.\n <p>\n This class enables consistent tagging and correlation of all side effects (e.g. metrics, queries, event sourcing,\n message publication) produced during the execution of a handler. Each invocation is assigned a unique\n {@link #getId() invocation ID} which is automatically added to metadata and logging contexts to trace functional and\n non-functional effects back to the triggering message.\n\n <h2>Automatic Invocation Wrapping</h2>\n The Fluxzero client automatically wraps all handler invocations using this class. This includes:\n <ul>\n     <li>Local handlers (i.e. message handling in the publishing thread)</li>\n     <li>Tracked handlers (i.e. message tracking via the Fluxzero Runtime)</li>\n </ul>\n <p>\n As a result, developers typically do not need to call {@link #performInvocation(Callable)} directly,\n unless they are manually invoking a handler outside of the Fluxzero infrastructure.\n\n <h2>Usage</h2>\n When used manually, wrap handler logic with {@link #performInvocation(Callable)} to activate an invocation context:\n\n <pre>{@code\n Invocation.performInvocation(() -> {\n     // handler logic\n     Fluxzero.publishEvent(new SomeEvent());\n     return result;\n });\n }</pre>\n <p>\n This ensures:\n <ul>\n     <li>A consistent invocation ID is available throughout the thread</li>\n     <li>Any emitted messages, metrics, or queries can include that ID as a correlation token</li>\n     <li>Callbacks can be registered via {@link #whenHandlerCompletes(BiConsumer)} to react to success/failure</li>\n </ul>\n\n @see #performInvocation(Callable)\n @see #getCurrent()\n @see #whenHandlerCompletes(BiConsumer)\n",
+  "documentation" : " Tracks the lifecycle and identity of a single message handler invocation.\n <p>\n This class enables consistent tagging and correlation of all side effects (e.g. metrics, queries, event sourcing,\n message publication) produced during the execution of a handler. Each invocation is assigned a unique\n {@link #getId() invocation ID}. When available, it also keeps track of the active handler class so metadata and\n logging contexts can trace functional and non-functional effects back to the triggering handler.\n\n <h2>Automatic Invocation Wrapping</h2>\n The Fluxzero client automatically wraps all handler invocations using this class. This includes:\n <ul>\n     <li>Local handlers (i.e. message handling in the publishing thread)</li>\n     <li>Tracked handlers (i.e. message tracking via the Fluxzero Runtime)</li>\n </ul>\n <p>\n As a result, developers typically do not need to call {@link #performInvocation(Callable)} directly,\n unless they are manually invoking a handler outside of the Fluxzero infrastructure.\n\n <h2>Usage</h2>\n When used manually, wrap handler logic with {@link #performInvocation(Callable)} to activate an invocation context:\n\n <pre>{@code\n Invocation.performInvocation(() -> {\n     // handler logic\n     Fluxzero.publishEvent(new SomeEvent());\n     return result;\n });\n }</pre>\n <p>\n This ensures:\n <ul>\n     <li>A consistent invocation ID is available throughout the thread</li>\n     <li>Any emitted messages, metrics, or queries can include that ID as a correlation token</li>\n     <li>Callbacks can be registered via {@link #whenHandlerCompletes(BiConsumer)} to react to success/failure</li>\n </ul>\n\n @see #performInvocation(Callable)\n @see #getCurrent()\n @see #whenHandlerCompletes(BiConsumer)\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -25,6 +25,14 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.current",
     "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.handling.Invocation>",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.handler",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -64,6 +72,67 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the current {@code Invocation} bound to this thread, or {@code null} if none exists.\n"
+  }, {
+    "name" : "getHandlerName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getHandlerName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerInvoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "performInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "handlerInvoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Wraps the given {@link Callable} in an invocation context for the supplied handler.\n\n @param handlerInvoker the handler that is being invoked\n @param callable       the task to run\n @return the callable result\n"
+  }, {
+    "name" : "performInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
+    "returnType" : "V",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "performInvocation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
