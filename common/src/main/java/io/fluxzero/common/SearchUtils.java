@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
-import static java.lang.Boolean.FALSE;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
@@ -58,9 +57,6 @@ import static java.util.stream.Collectors.toMap;
  */
 @Slf4j
 public class SearchUtils {
-
-    private static final Map<Map.Entry<Class<?>, String>, Boolean> isValidTimestampProperty = new ConcurrentHashMap<>();
-
     /**
      * Regex pattern for splitting dot-separated paths (ignoring escaped dots).
      */
@@ -364,25 +360,22 @@ public class SearchUtils {
             return whenMissing.get();
         }
 
+        var propertyMetadata = ReflectionUtils.getPropertyPathMetadata(object.getClass(), propertyPath);
         Object property = ReflectionUtils.readProperty(propertyPath, object).orElse(null);
         if (property == null) {
-            if (isValidTimestampProperty.computeIfAbsent(Map.entry(object.getClass(), propertyPath), key -> {
-                if (ReflectionUtils.hasProperty(key.getValue(), object)) {
-                    return true;
-                } else {
-                    log.warn("Type {} does not declare a timestamp property '{}'", key.getKey().getSimpleName(),
-                             key.getValue());
-                    return false;
-                }
-            })) {
+            if (propertyMetadata.exists()) {
                 return null;
+            }
+            if (propertyMetadata.shouldLogMissingTimestampWarning()) {
+                log.warn("Type {} does not declare a timestamp property '{}'",
+                         object.getClass().getSimpleName(), propertyPath);
             }
             return whenMissing.get();
         }
 
         var result = timeToInstant(property, end);
         if (result == null) {
-            if (isValidTimestampProperty.putIfAbsent(Map.entry(object.getClass(), propertyPath), FALSE) == null) {
+            if (propertyMetadata.shouldLogUnsupportedTimestampWarning()) {
                 log.warn("Property '{}' of type {} is not a valid timestamp property",
                          propertyPath, property.getClass().getSimpleName());
             }

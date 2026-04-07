@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,17 +77,11 @@ public class DefaultEntityHelper implements EntityHelper {
     private static final Aggregate unknownAggregateAnnotation = UnknownAggregate.class.getAnnotation(Aggregate.class);
 
     /**
-     * Caches resolved @Aggregate annotations for faster repeated access.
-     */
-    private static final Function<Class<?>, Aggregate> annotationCache = memoize(
-            type -> Object.class.equals(type) ? unknownAggregateAnnotation : Optional.<Aggregate>ofNullable(
-                    ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation));
-
-    /**
      * Returns the cached or default @Aggregate annotation for a given type.
      */
     public static Aggregate getRootAnnotation(Class<?> type) {
-        return annotationCache.apply(type);
+        return Object.class.equals(type) ? unknownAggregateAnnotation : Optional.<Aggregate>ofNullable(
+                ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation);
     }
 
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;

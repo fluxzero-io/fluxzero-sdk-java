@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
-
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
  * A {@link MessageFilter} used to restrict message handling based on the payload type.
@@ -56,15 +53,12 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  */
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
-    private final Function<Class<? extends Annotation>, Function<Executable, HandleAnnotation>> allowedClassProvider
-            = memoize(a -> memoize(e -> ReflectionUtils.getAnnotationAs(e, a, HandleAnnotation.class)
-            .orElse(null)));
-
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
         Class<?> payloadClass = message.getPayloadClass();
-        return Optional.ofNullable(allowedClassProvider.apply(handlerAnnotation).apply(executable))
+        return Optional.ofNullable(ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+                                           .orElse(null))
                 .map(a -> a.getAllowedClasses().isEmpty() || a.getAllowedClasses().stream()
                         .anyMatch(c -> c.isAssignableFrom(payloadClass))).orElse(true);
     }
@@ -72,7 +66,8 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
     @Override
     public Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
                                                            Class<? extends Annotation> handlerAnnotation) {
-        return Optional.ofNullable(allowedClassProvider.apply(handlerAnnotation).apply(executable))
+        return Optional.ofNullable(ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+                                           .orElse(null))
                 .flatMap(a -> a.getAllowedClasses().stream()
                         .max(ReflectionUtils.getClassSpecificityComparator()));
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,6 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
  * A {@link MessageFilter} implementation that filters {@link DeserializingMessage} instances
@@ -39,13 +35,11 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  */
 public class HandleCustomFilter implements MessageFilter<DeserializingMessage> {
 
-    Function<Executable, Optional<HandleCustom>> handleCustomCache =
-            memoize(e -> ReflectionUtils.getAnnotation(e, HandleCustom.class));
-
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return handleCustomCache.apply(executable).map(c -> Objects.equals(c.value(), message.getTopic()))
+        return ReflectionUtils.getAnnotation(executable, HandleCustom.class)
+                .map(c -> Objects.equals(c.value(), message.getTopic()))
                 .orElse(false);
     }
 }

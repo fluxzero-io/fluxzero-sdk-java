@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +44,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.call;
-import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.reflection.ReflectionUtils.copyFields;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
@@ -172,10 +170,6 @@ public class AnnotatedEntityHolder {
         loadingRouteValuesCache.get().clear();
     }
 
-    private static final Function<Class<?>, Optional<MemberInvoker>> entityIdInvokerCache = memoize(
-            entityType -> getAnnotatedProperty(
-                    entityType, EntityId.class).map(a -> DefaultMemberInvoker.asInvoker((java.lang.reflect.Member) a)));
-
     private AnnotatedEntityHolder(Class<?> ownerType, AccessibleObject location,
                                   EntityHelper entityHelper, Serializer serializer) {
         this.entityHelper = entityHelper;
@@ -188,7 +182,8 @@ public class AnnotatedEntityHolder {
         Member member = ReflectionUtils.getAnnotation(location, Member.class).orElseThrow();
         String pathToId = member.idProperty();
         this.idProvider = pathToId.isBlank() ?
-                v -> (v == null ? Optional.<MemberInvoker>empty() : entityIdInvokerCache.apply(v.getClass())).map(
+                v -> (v == null ? Optional.<MemberInvoker>empty()
+                                : ReflectionUtils.getAnnotatedPropertyInvoker(v.getClass(), EntityId.class)).map(
                                 p -> new Id(p.invoke(v), p.getMember().getName()))
                         .orElseGet(() -> {
                             if (ifClass(v) instanceof Class<?> c) {

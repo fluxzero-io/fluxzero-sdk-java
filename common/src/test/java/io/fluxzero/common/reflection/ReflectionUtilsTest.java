@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.AccessibleObject;
+import java.time.Instant;
 import java.util.List;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.determineCommonAncestors;
@@ -44,6 +45,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionUtilsTest {
@@ -216,6 +218,15 @@ class ReflectionUtilsTest {
         }
 
         @Test
+        void findsEnclosingClassAnnotationViaGetAnnotation() {
+            assertEquals("outer", ReflectionUtils.getAnnotation(EnclosingType.InnerType.class, TypeMarker.class)
+                    .map(TypeMarker::value).orElseThrow());
+            assertEquals("outer", ReflectionUtils.getAnnotationAs(
+                    EnclosingType.InnerType.class, TypeMarker.class, TypeMarkerValue.class)
+                    .map(TypeMarkerValue::getValue).orElseThrow());
+        }
+
+        @Test
         void findsAnnotatedStaticInterfaceMethod() {
             AccessibleObject property = getAnnotatedProperty(StaticInterfaceMethodImpl.class, Marker.class)
                     .orElseThrow();
@@ -232,6 +243,40 @@ class ReflectionUtilsTest {
         }
     }
 
+    @Nested
+    class TypeMetadataTests {
+        @Test
+        void cachesMethodsFieldsAndPropertyAccessorsPerType() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(MockObject.class);
+
+            assertSame(metadata, ReflectionUtils.getTypeMetadata(MockObject.class));
+            assertEquals("getPropertyWithGetter", metadata.method("getPropertyWithGetter").orElseThrow().getName());
+            assertEquals("propertyWithoutGetter", metadata.field("propertyWithoutGetter").orElseThrow().getName());
+            assertSame(metadata.getter("child/propertyWithGetter"), metadata.getter("child.propertyWithGetter"));
+            assertSame(metadata.setter("child/propertyWithGetter"), metadata.setter("child.propertyWithGetter"));
+        }
+
+        @Test
+        void cachesAnnotatedPropertyInvokersInsideTypeMetadata() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(MetaAnnotatedField.class);
+
+            MemberInvoker invoker = metadata.annotatedPropertyInvoker(Marker.class).orElseThrow();
+            assertSame(invoker, metadata.annotatedPropertyInvoker(Marker.class).orElseThrow());
+            assertEquals("test", invoker.invoke(new MetaAnnotatedField()));
+        }
+
+        @Test
+        void cachesPropertyPathMetadataInsideTypeMetadata() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(MockObject.class);
+
+            var timestampPath = metadata.propertyPath("child.timestamp");
+            assertSame(timestampPath, metadata.propertyPath("child/timestamp"));
+            assertTrue(timestampPath.isExists());
+            assertEquals(Instant.class, timestampPath.getLeafType());
+            assertFalse(metadata.propertyPath("child/unknown").isExists());
+        }
+    }
+
     @Marker
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD, ElementType.METHOD})
@@ -243,9 +288,26 @@ class ReflectionUtilsTest {
     private @interface Marker {
     }
 
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+    private @interface TypeMarker {
+        String value();
+    }
+
     private static class MetaAnnotatedField {
         @MetaMarker
         private final String value = "test";
+    }
+
+    @TypeMarker("outer")
+    private static class EnclosingType {
+        private static class InnerType {
+        }
+    }
+
+    @Value
+    private static class TypeMarkerValue {
+        String value;
     }
 
     private interface StaticInterfaceMethod {
@@ -287,6 +349,7 @@ class ReflectionUtilsTest {
         @Getter(AccessLevel.NONE)
         @Singular( "listChild")
         List<MockObject> children;
+        Instant timestamp;
 
         public String getOther() {
             return "someOtherValue";

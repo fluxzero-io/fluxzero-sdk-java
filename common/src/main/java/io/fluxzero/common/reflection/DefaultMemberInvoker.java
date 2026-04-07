@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,6 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
@@ -75,11 +73,10 @@ public class DefaultMemberInvoker implements MemberInvoker {
     }
 
     public static MemberInvoker asInvoker(Member member, boolean forceAccess) {
-        return cache.computeIfAbsent(member, m -> new DefaultMemberInvoker(m, forceAccess));
+        return ReflectionUtils.getTypeMetadata(member.getDeclaringClass()).invoker(member, forceAccess);
     }
 
     private static final MethodHandles.Lookup lookup = MethodHandles.lookup();
-    private static final Map<Member, MemberInvoker> cache = new ConcurrentHashMap<>();
     private static final boolean inNativeImage = inNativeImage();
 
     private static boolean inNativeImage() {
@@ -99,7 +96,7 @@ public class DefaultMemberInvoker implements MemberInvoker {
     private final int lambdaParameterCount;
     private final Class<?>[] parameterTypes;
 
-    private DefaultMemberInvoker(Member member, boolean forceAccess) {
+    DefaultMemberInvoker(Member member, boolean forceAccess) {
         if (forceAccess) {
             ReflectionUtils.ensureAccessible((AccessibleObject) member);
         }

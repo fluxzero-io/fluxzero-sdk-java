@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,10 +23,6 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
  * A {@link MessageFilter} that routes {@link DeserializingMessage} instances to methods annotated with
@@ -39,21 +35,16 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  * <p>The resolved topic is derived using {@link ClientUtils#getTopic(HandleDocument, Executable)},
  * which supports dynamic resolution based on annotation configuration and handler context.
  *
- * <p>Annotation lookups are memoized for performance.
- *
  * @see HandleDocument
  * @see DeserializingMessage
  * @see ClientUtils#getTopic(HandleDocument, Executable)
  */
 public class HandleDocumentFilter implements MessageFilter<DeserializingMessage> {
 
-    Function<Executable, Optional<HandleDocument>> handleDocumentCache =
-            memoize(e -> ReflectionUtils.getAnnotation(e, HandleDocument.class));
-
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return handleDocumentCache.apply(executable).map(
+        return ReflectionUtils.getAnnotation(executable, HandleDocument.class).map(
                         handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);

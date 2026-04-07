@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -40,14 +39,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static java.util.Optional.ofNullable;
 
@@ -130,18 +126,16 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         this.handlerAssociations = new HandlerAssociations(targetClass, parameterResolvers, methodAnnotationProvider);
     }
 
-    Function<Executable, Boolean> alwaysAssociateMethods = ClientUtils.memoize(
-            m -> getAnnotation(m, Association.class).filter(Association::always).isPresent());
-
     @Override
     public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
         if (!handlerMatcher.canHandle(message)) {
             return Optional.empty();
         }
-        var alwaysMatch = handlerMatcher.matchingMethods(message).anyMatch(alwaysAssociateMethods::apply);
-        var alwaysInvoke = alwaysMatch && handlerMatcher.matchingMethods(message).allMatch(ReflectionUtils::isStatic);
+        var matchingMethods = handlerMatcher.matchingMethods(message).toList();
+        var alwaysMatch = matchingMethods.stream().anyMatch(handlerAssociations::alwaysAssociate);
+        var alwaysInvoke = alwaysMatch && matchingMethods.stream().allMatch(ReflectionUtils::isStatic);
         var matches = alwaysInvoke ? List.<Entry<?>>of() : alwaysMatch ? repository.getAll()
-                : repository.findByAssociation(associations(message));
+                : repository.findByAssociation(handlerAssociations.associations(message, matchingMethods.stream()));
         if (matches.isEmpty()) {
             return handlerMatcher.getInvoker(null, message)
                     .filter(i -> {
@@ -173,10 +167,6 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     protected Boolean canTrackerHandle(DeserializingMessage message, String routingKey) {
         return Tracker.current().filter(tracker -> tracker.getConfiguration().ignoreSegment())
                 .map(tracker -> tracker.canHandle(message, routingKey)).orElse(true);
-    }
-
-    protected Map<Object, String> associations(DeserializingMessage message) {
-        return handlerAssociations.associations(message, handlerMatcher.matchingMethods(message));
     }
 
     @Override

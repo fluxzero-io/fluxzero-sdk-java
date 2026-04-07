@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling.validation;
@@ -103,13 +104,6 @@ public class ValidationUtils {
     public static final Validator defaultValidator = Optional.of(ServiceLoader.load(Validator.class))
             .map(ServiceLoader::iterator).filter(Iterator::hasNext).map(Iterator::next)
             .orElseGet(Jsr380Validator::createDefault);
-    private static final Function<Class<?>, Class<?>[]> validateWithGroups = memoize(type -> {
-        ValidateWith annotation = type.getAnnotation(ValidateWith.class);
-        if (annotation == null) {
-            return new Class<?>[0];
-        }
-        return annotation.value();
-    });
     private static final RequiredRole noUserRequired = new RequiredRole(null, false, false, false);
 
     /*
@@ -219,7 +213,8 @@ public class ValidationUtils {
         if (customGroups.length > 0 || object == null) {
             return customGroups;
         }
-        return validateWithGroups.apply(object.getClass());
+        ValidateWith annotation = ReflectionUtils.getTypeAnnotation(object.getClass(), ValidateWith.class);
+        return annotation == null ? new Class<?>[0] : annotation.value();
     }
 
     /*

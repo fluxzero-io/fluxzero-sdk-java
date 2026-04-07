@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,6 @@ import io.fluxzero.sdk.tracking.Tracker;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
-import java.util.Optional;
-import java.util.function.Function;
-
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
 /**
  * A {@link MessageFilter} that restricts handler invocation based on segment membership, using routing keys.
@@ -58,15 +54,12 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  * @see HasMessage#getRoutingKey(String)
  */
 public class SegmentFilter implements MessageFilter<HasMessage> {
-    private final Function<Executable, Optional<RoutingKey>> routingKeyCache =
-            memoize(e -> ReflectionUtils.getMethodAnnotation(e, RoutingKey.class));
-
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
         return message instanceof DeserializingMessage dm
                && Tracker.current().filter(tracker -> tracker.getConfiguration().ignoreSegment())
-                       .map(tracker -> routingKeyCache.apply(executable)
+                       .map(tracker -> ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
                                .map(routingKey -> message.getRoutingKey(routingKey.value())
                                        .or(message::computeRoutingKey)
                                        .orElseGet(message::getMessageId))

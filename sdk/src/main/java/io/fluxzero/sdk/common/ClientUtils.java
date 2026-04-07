@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -103,24 +103,6 @@ public class ClientUtils {
      */
     public static final Marker ignoreMarker = MarkerFactory.getMarker("ignoreError");
 
-    private static final BiFunction<Class<?>, java.lang.reflect.Executable, Optional<LocalHandler>> localHandlerCache =
-            memoize((target, method) -> getAnnotation(method, LocalHandler.class)
-                    .or(() -> Optional.ofNullable(getTypeAnnotation(target, LocalHandler.class)))
-                    .or(() -> getPackageAnnotation(target.getPackage(), LocalHandler.class))
-                    .filter(LocalHandler::value));
-
-    private static final BiFunction<Class<?>, java.lang.reflect.Executable, Optional<TrackSelf>> trackSelfCache =
-            memoize((target, method) -> getAnnotation(method, TrackSelf.class)
-                    .or(() -> Optional.ofNullable(getTypeAnnotation(target, TrackSelf.class)))
-                    .or(() -> getPackageAnnotation(target.getPackage(), TrackSelf.class)));
-
-    private static final Function<Class<?>, SearchParameters> searchParametersCache =
-            memoize(type -> getAnnotationAs(type, Searchable.class, SearchParameters.class)
-                    .map(SearchParameters::substituteProperties)
-                    .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
-                    .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null)));
-    private static final Function<Class<?>, Integer> orderCache = memoize(ClientUtils::computeOrder);
-
     /**
      * Blocks until all futures are complete or the maximum duration has elapsed.
      * <p>
@@ -155,7 +137,7 @@ public class ClientUtils {
      */
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public static boolean isSelfTracking(Class<?> target, Executable method) {
-        return trackSelfCache.apply(target, method).isPresent();
+        return getTrackSelfAnnotation(target, method).isPresent();
     }
 
     /**
@@ -163,7 +145,7 @@ public class ClientUtils {
      * class, or ancestral package, if present.
      */
     public static Optional<LocalHandler> getLocalHandlerAnnotation(HandlerInvoker handlerInvoker) {
-        return localHandlerCache.apply(handlerInvoker.getTargetClass(), handlerInvoker.getMethod());
+        return getLocalHandlerAnnotation(handlerInvoker.getTargetClass(), handlerInvoker.getMethod());
     }
 
     /**
@@ -172,7 +154,16 @@ public class ClientUtils {
      */
     public static Optional<LocalHandler> getLocalHandlerAnnotation(Class<?> target,
                                                                    java.lang.reflect.Executable method) {
-        return localHandlerCache.apply(target, method);
+        return getAnnotation(method, LocalHandler.class)
+                .or(() -> Optional.ofNullable(getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> getPackageAnnotation(target.getPackage(), LocalHandler.class))
+                .filter(LocalHandler::value);
+    }
+
+    private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, Executable method) {
+        return getAnnotation(method, TrackSelf.class)
+                .or(() -> Optional.ofNullable(getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> getPackageAnnotation(target.getPackage(), TrackSelf.class));
     }
 
     /**
@@ -216,7 +207,7 @@ public class ClientUtils {
      * @return the configured order value, or {@code 0} if no order annotation is present
      */
     public static int orderOf(Object component) {
-        return orderCache.apply(component.getClass());
+        return computeOrder(component.getClass());
     }
 
     /**
@@ -335,7 +326,10 @@ public class ClientUtils {
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
-        return searchParametersCache.apply(type);
+        return getAnnotationAs(type, Searchable.class, SearchParameters.class)
+                .map(SearchParameters::substituteProperties)
+                .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
+                .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
     }
 
     /**

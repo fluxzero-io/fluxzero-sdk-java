@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import lombok.SneakyThrows;
 import lombok.Value;
 import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.commons.lang3.reflect.MethodUtils;
 
 import java.beans.PropertyDescriptor;
@@ -50,6 +49,9 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.net.URL;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,6 +68,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -86,7 +90,6 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.ClassUtils.getAllInterfaces;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
-import static org.apache.commons.lang3.reflect.MethodUtils.getMethodsListWithAnnotation;
 
 /**
  * Utility class for high-performance reflection-based operations across the Fluxzero Runtime.
@@ -123,18 +126,19 @@ public class ReflectionUtils {
     private static final int ACCESS_MODIFIERS = Modifier.PUBLIC | Modifier.PROTECTED | Modifier.PRIVATE;
     private static final List<Integer> ACCESS_ORDER = List.of(Modifier.PRIVATE, 0, Modifier.PROTECTED, Modifier.PUBLIC);
 
-    private static final Function<Class<?>, List<Method>> methodsCache = memoize(ReflectionUtils::computeAllMethods);
+    private static final ClassValue<TypeMetadata> typeMetadataCache = new ClassValue<>() {
+        @Override
+        protected TypeMetadata computeValue(Class<?> type) {
+            return new TypeMetadata(type);
+        }
+    };
     private static final Function<String, Optional<Class<?>>> classForFqnCache
             = memoize(ReflectionUtils::computeClassForFqn);
     private static final Supplier<TypeRegistry> typeRegistrySupplier = memoize(() -> new DefaultTypeRegistry());
     private static final Function<String, Optional<Class<?>>> classForNameCache
             = memoize(ReflectionUtils::computeClassForName);
-    private static final BiFunction<Class<?>, Class<? extends Annotation>, List<? extends AccessibleObject>>
-            annotatedPropertiesCache = memoize(ReflectionUtils::computeAnnotatedProperties);
-    private static final BiFunction<Class<?>, String, Function<Object, Object>> gettersCache =
-            memoize(ReflectionUtils::computeNestedGetter);
-    private static final BiFunction<String, Class<?>, BiConsumer<Object, Object>> settersCache =
-            memoize(ReflectionUtils::computeNestedSetter);
+    private static final BiFunction<Package, Boolean, Collection<? extends Annotation>> packageAnnotationsCache =
+            memoize(ReflectionUtils::computePackageAnnotations);
     private static final Function<Parameter, Boolean> isNullableCache = memoize(
             parameter -> getParameterOverrideHierarchy(parameter).anyMatch(p -> {
                 if (isKotlinReflectionSupported()) {
@@ -147,9 +151,6 @@ public class ReflectionUtils {
                         a -> a.annotationType().getSimpleName().equals("Nullable"));
             })
     );
-
-    private static final Function<Class<?>, Collection<? extends Annotation>> typeAnnotations = memoize(
-            ReflectionUtils::computeTypeAnnotations);
 
     @Getter
     private static final Comparator<Class<?>> classSpecificityComparator = (o1, o2)
@@ -221,17 +222,16 @@ public class ReflectionUtils {
         return ifClass(value) instanceof Class<?> c ? c : value.getClass();
     }
 
+    public static TypeMetadata getTypeMetadata(@NonNull Class<?> type) {
+        return typeMetadataCache.get(type);
+    }
+
     public static List<Method> getAllMethods(Class<?> type) {
-        return methodsCache.apply(type);
+        return getTypeMetadata(type).methods();
     }
 
     public static Optional<Method> getMethod(Class<?> type, String name) {
-        for (Method method : getAllMethods(type)) {
-            if (name.equals(method.getName())) {
-                return Optional.of(method);
-            }
-        }
-        return Optional.empty();
+        return getTypeMetadata(type).method(name);
     }
 
     /*
@@ -286,27 +286,17 @@ public class ReflectionUtils {
                              MethodType.methodType(m.getReturnType(), m.getParameterTypes()));
     }
 
-    public static List<? extends AccessibleObject> getAnnotatedProperties(Class<?> target,
-                                                                          Class<? extends Annotation> annotation) {
-        return annotatedPropertiesCache.apply(target, annotation);
+    private static List<Field> computeAllFields(Class<?> type) {
+        List<Field> result = new ArrayList<>();
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            Collections.addAll(result, current.getDeclaredFields());
+        }
+        return result;
     }
 
-    private static List<? extends AccessibleObject> computeAnnotatedProperties(Class<?> target,
-                                                                               Class<? extends Annotation> annotation) {
-        List<AccessibleObject> result = new ArrayList<>(getAnnotatedFields(target, annotation));
-        getAllInterfaces(target).forEach(i -> result.addAll(getAnnotatedFields(i, annotation)));
-        result.addAll(getAnnotatedMethods(target, annotation).stream()
-                              .filter(m -> m.getParameterCount() == 0)
-                              .filter(ReflectionUtils::hasReturnType)
-                              .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType())).toList());
-        getAllInterfaces(target).forEach(i -> result.addAll(getAnnotatedMethods(i, annotation).stream()
-                              .filter(m -> m.getParameterCount() == 0)
-                              .filter(ReflectionUtils::hasReturnType)
-                              .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType())).toList()));
-        LinkedHashMap<String, AccessibleObject> deduplicated = new LinkedHashMap<>();
-        result.forEach(property -> deduplicated.putIfAbsent(getPropertyName(property), property));
-        deduplicated.values().forEach(ReflectionUtils::ensureAccessible);
-        return new ArrayList<>(deduplicated.values());
+    public static List<? extends AccessibleObject> getAnnotatedProperties(Class<?> target,
+                                                                          Class<? extends Annotation> annotation) {
+        return getTypeMetadata(target).annotatedProperties(annotation);
     }
 
     public static Optional<? extends AccessibleObject> getAnnotatedProperty(Object target,
@@ -316,8 +306,18 @@ public class ReflectionUtils {
 
     public static Optional<? extends AccessibleObject> getAnnotatedProperty(Class<?> target,
                                                                             Class<? extends Annotation> annotation) {
-        List<? extends AccessibleObject> annotatedProperties = getAnnotatedProperties(target, annotation);
-        return annotatedProperties.isEmpty() ? Optional.empty() : Optional.of(annotatedProperties.getFirst());
+        return getTypeMetadata(target).annotatedProperty(annotation);
+    }
+
+    public static Optional<MemberInvoker> getAnnotatedPropertyInvoker(
+            Class<?> target, Class<? extends Annotation> annotation) {
+        return getTypeMetadata(target).annotatedPropertyInvoker(annotation);
+    }
+
+    public static TypeMetadata.PropertyPathMetadata getPropertyPathMetadata(Class<?> target, String propertyPath) {
+        return target == null || isEmpty(propertyPath)
+                ? TypeMetadata.PropertyPathMetadata.missing()
+                : getTypeMetadata(target).propertyPath(propertyPath);
     }
 
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
@@ -363,7 +363,7 @@ public class ReflectionUtils {
     }
 
     public static List<Method> getAnnotatedMethods(Class<?> target, Class<? extends Annotation> annotation) {
-        return methodsCache.apply(target).stream().filter(m -> getMethodAnnotation(m, annotation).isPresent()).toList();
+        return getTypeMetadata(target).annotatedMethods(annotation);
     }
 
     public static List<Method> getAnnotatedMethods(Object target, Class<? extends Annotation> annotation) {
@@ -375,8 +375,7 @@ public class ReflectionUtils {
     }
 
     public static List<Field> getAnnotatedFields(Class<?> target, Class<? extends Annotation> annotation) {
-        return FieldUtils.getAllFieldsList(target).stream().filter(f -> getFieldAnnotation(f, annotation).isPresent())
-                .toList();
+        return getTypeMetadata(target).annotatedFields(annotation);
     }
 
     public static List<Field> getAnnotatedFields(Object target, Class<? extends Annotation> annotation) {
@@ -393,28 +392,12 @@ public class ReflectionUtils {
         if (type == null) {
             return null;
         }
-        for (Annotation annotation : getTypeAnnotations(type)) {
-            if (annotation.annotationType().equals(annotationType)) {
-                return (A) annotation;
-            }
-            for (Annotation metaAnnotation : getTypeAnnotations(annotation.annotationType())) {
-                if (metaAnnotation.annotationType().equals(annotationType)) {
-                    return (A) annotation;
-                }
-            }
-        }
-        return getTypeAnnotation(type.getEnclosingClass(), annotationType);
+        A result = (A) getTypeMetadata(type).typeAnnotation(annotationType);
+        return result != null ? result : getTypeAnnotation(type.getEnclosingClass(), annotationType);
     }
 
     public static Collection<? extends Annotation> getTypeAnnotations(Class<?> type) {
-        return typeAnnotations.apply(type);
-    }
-
-    private static Collection<? extends Annotation> computeTypeAnnotations(Class<?> type) {
-        return Stream.concat(stream(type.getAnnotations()), getAllInterfaces(type).stream()
-                        .flatMap(iType -> stream(iType.getAnnotations())))
-                .filter(ObjectUtils.distinctByKey(Annotation::annotationType))
-                .collect(toCollection(LinkedHashSet::new));
+        return getTypeMetadata(type).typeAnnotations();
     }
 
     @SuppressWarnings("unchecked")
@@ -429,13 +412,17 @@ public class ReflectionUtils {
     }
 
     public static Collection<? extends Annotation> getPackageAnnotations(Package p, boolean recursive) {
+        return packageAnnotationsCache.apply(p, recursive);
+    }
+
+    private static Collection<? extends Annotation> computePackageAnnotations(Package p, boolean recursive) {
         if (p == null) {
             return emptyList();
         }
         Stream<Annotation> stream = stream(p.getAnnotations());
         if (recursive) {
             stream = Stream.concat(stream,
-                                   getPackageAnnotations(getFirstKnownAncestorPackage(p.getName()), true).stream());
+                                   computePackageAnnotations(getFirstKnownAncestorPackage(p.getName()), true).stream());
             return stream.collect(toMap(Annotation::annotationType, Function.identity(),
                                         (a, b) -> a, LinkedHashMap::new)).values();
         } else {
@@ -456,7 +443,7 @@ public class ReflectionUtils {
             return Optional.empty();
         }
         try {
-            return Optional.ofNullable(gettersCache.apply(target.getClass(), propertyPath).apply(target))
+            return Optional.ofNullable(getTypeMetadata(target.getClass()).getter(propertyPath).apply(target))
                     .map(v -> (T) v);
         } catch (PropertyNotFoundException ignored) {
             return Optional.empty();
@@ -488,7 +475,7 @@ public class ReflectionUtils {
             return Optional.empty();
         }
         try {
-            return Optional.ofNullable(gettersCache.apply(target.getClass(), propertyPath).apply(target))
+            return Optional.ofNullable(getTypeMetadata(target.getClass()).getter(propertyPath).apply(target))
                     .map(v -> (T) v);
         } catch (PropertyNotFoundException ignored) {
             return Optional.empty();
@@ -500,64 +487,11 @@ public class ReflectionUtils {
             return false;
         }
         try {
-            gettersCache.apply(target.getClass(), propertyPath).apply(target);
+            getTypeMetadata(target.getClass()).getter(propertyPath).apply(target);
             return true;
         } catch (PropertyNotFoundException ignored) {
             return false;
         }
-    }
-
-    private static Function<Object, Object> computeNestedGetter(Class<?> type, String propertyPath) {
-        String[] parts = stream(propertyPath.replace('.', '/').split("/"))
-                .filter(s -> !s.isBlank()).toArray(String[]::new);
-        if (parts.length == 1) {
-            return computeGetter(type, parts[0]);
-        }
-        return object -> {
-            for (String part : parts) {
-                if (object == null) {
-                    return null;
-                }
-                if (object instanceof Collection<?> collection) {
-                    object = collection.stream().flatMap(
-                            o -> {
-                                Object apply = computeNestedGetter(o.getClass(), part).apply(o);
-                                return apply instanceof Collection<?> c ? c.stream() : Stream.of(apply);
-                            }).collect(toList());
-                } else {
-                    object = computeNestedGetter(object.getClass(), part).apply(object);
-                }
-            }
-            return object;
-        };
-    }
-
-    @SneakyThrows
-    private static Function<Object, Object> computeGetter(@NonNull Class<?> type, @NonNull String propertyName) {
-        if (ObjectNode.class.isAssignableFrom(type)) {
-            return target -> {
-                JsonNode path = ((ObjectNode) target).path(propertyName);
-                return switch (path) {
-                    case TextNode n -> n.asText();
-                    case NumericNode n -> n.numberValue();
-                    case BooleanNode b -> b.booleanValue();
-                    default -> path;
-                };
-            };
-        }
-        if (Map.class.isAssignableFrom(type)) {
-            return target -> ((Map<?, ?>) target).get(propertyName);
-        }
-        PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
-        return getMethod(type, "get" + StringUtils.capitalize(propertyName))
-                .filter(ReflectionUtils::hasReturnType).map(m -> (Member) m)
-                .or(() -> getMethod(type, propertyName).filter(ReflectionUtils::hasReturnType))
-                .or(() -> getField(type, propertyName))
-                .map(DefaultMemberInvoker::asInvoker)
-                .<Function<Object, Object>>map(invoker -> invoker::invoke)
-                .orElseGet(() -> o -> {
-                    throw notFoundException;
-                });
     }
 
     public static boolean hasReturnType(Executable executable) {
@@ -629,46 +563,10 @@ public class ReflectionUtils {
     public static void writeProperty(String propertyPath, Object target, Object value) {
         if (target != null) {
             try {
-                settersCache.apply(propertyPath, target.getClass()).accept(target, value);
+                getTypeMetadata(target.getClass()).setter(propertyPath).accept(target, value);
             } catch (PropertyNotFoundException ignored) {
             }
         }
-    }
-
-    @SneakyThrows
-    private static BiConsumer<Object, Object> computeNestedSetter(@NonNull String propertyPath,
-                                                                  @NonNull Class<?> type) {
-        String[] parts = stream(propertyPath.replace('.', '/').split("/"))
-                .filter(s -> !s.isBlank()).toArray(String[]::new);
-        if (parts.length == 1) {
-            return computeSetter(parts[0], type);
-        }
-        Function<Object, Object> parentSupplier = gettersCache.apply(
-                type, stream(parts).limit(parts.length - 1).collect(Collectors.joining("/")));
-        return (object, value) -> {
-            Object parent = parentSupplier.apply(object);
-            if (parent != null) {
-                BiConsumer<Object, Object> setter = settersCache.apply(parts[parts.length - 1], parent.getClass());
-                setter.accept(parent, value);
-            }
-        };
-    }
-
-    @SneakyThrows
-    private static BiConsumer<Object, Object> computeSetter(@NonNull String propertyName, @NonNull Class<?> type) {
-        if (ObjectNode.class.isAssignableFrom(type)) {
-            return (target, propertyValue) -> ((ObjectNode) target).putPOJO(propertyName, propertyValue);
-        }
-        PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
-        return stream(getBeanInfo(type, null).getPropertyDescriptors())
-                .filter(d -> propertyName.equals(d.getName()))
-                .<Member>map(PropertyDescriptor::getWriteMethod).filter(Objects::nonNull).findFirst()
-                .or(() -> Optional.ofNullable(FieldUtils.getField(type, propertyName, true)))
-                .map(DefaultMemberInvoker::asInvoker)
-                .<BiConsumer<Object, Object>>map(invoker -> invoker::invoke)
-                .orElseGet(() -> (t, v) -> {
-                    throw notFoundException;
-                });
     }
 
     @SneakyThrows
@@ -686,15 +584,7 @@ public class ReflectionUtils {
     }
 
     public static Optional<Field> getField(Class<?> owner, String name) {
-        while (owner != null) {
-            for (Field declaredField : owner.getDeclaredFields()) {
-                if (declaredField.getName().equals(name)) {
-                    return Optional.of(declaredField);
-                }
-            }
-            owner = owner.getSuperclass();
-        }
-        return Optional.empty();
+        return getTypeMetadata(owner).field(name);
     }
 
     public static Class<?> getCallerClass() {
@@ -895,6 +785,436 @@ public class ReflectionUtils {
         return GenericTypeResolver.getGenericType(candidate, wantedClass);
     }
 
+    /**
+     * Lazily computed reflection metadata for a single Java type.
+     * <p>
+     * This is the central cache for type-level reflection in Fluxzero. It keeps the structural model of a type
+     * together in one place: methods, fields, property descriptors, type annotations, annotated members, cached
+     * property-path accessors, and compiled {@link MemberInvoker} instances.
+     */
+    public static final class TypeMetadata {
+        private final Class<?> type;
+        private final List<Method> methods;
+        private final List<Field> fields;
+        private final Map<String, List<Method>> methodsByName;
+        private final Map<String, Field> fieldsByName;
+        private final Map<String, Field> declaredFieldsByName;
+        private final Map<String, PropertyDescriptor> propertyDescriptors;
+        private final Collection<? extends Annotation> typeAnnotations;
+
+        private final ConcurrentHashMap<Class<? extends Annotation>, Optional<? extends Annotation>> typeAnnotationCache =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<? extends Annotation>, List<Field>> annotatedFields =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<? extends Annotation>, List<Method>> annotatedMethods =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<? extends Annotation>, List<? extends AccessibleObject>>
+                annotatedProperties = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<? extends Annotation>, Optional<? extends AccessibleObject>>
+                annotatedProperty = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<? extends Annotation>, Optional<MemberInvoker>>
+                annotatedPropertyInvokers = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<AnnotatedMemberKey, Optional<? extends Annotation>> fieldAnnotationCache =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<AnnotatedMemberKey, Optional<? extends Annotation>> methodAnnotationCache =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<AnnotatedMemberKey, List<? extends Annotation>> methodAnnotationsCache =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<AnnotationProjectionKey, Optional<?>> annotationAsCache =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Function<Object, Object>> getters = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, BiConsumer<Object, Object>> setters = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, PropertyPathMetadata> propertyPaths = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<MemberInvokerKey, MemberInvoker> invokers = new ConcurrentHashMap<>();
+
+        @SneakyThrows
+        private TypeMetadata(Class<?> type) {
+            this.type = type;
+            this.methods = List.copyOf(computeAllMethods(type));
+            this.fields = List.copyOf(computeAllFields(type));
+            this.typeAnnotations = Stream.concat(stream(type.getAnnotations()),
+                                                 getAllInterfaces(type).stream()
+                                                         .flatMap(iType -> stream(iType.getAnnotations())))
+                    .filter(ObjectUtils.distinctByKey(Annotation::annotationType))
+                    .collect(toCollection(LinkedHashSet::new));
+
+            LinkedHashMap<String, List<Method>> methodsByName = new LinkedHashMap<>();
+            for (Method method : methods) {
+                methodsByName.computeIfAbsent(method.getName(), ignored -> new ArrayList<>()).add(method);
+            }
+            this.methodsByName = methodsByName.entrySet().stream()
+                    .collect(toMap(Map.Entry::getKey, entry -> List.copyOf(entry.getValue()), (a, b) -> a,
+                                   LinkedHashMap::new));
+
+            LinkedHashMap<String, Field> fieldsByName = new LinkedHashMap<>();
+            for (Field field : fields) {
+                fieldsByName.putIfAbsent(field.getName(), field);
+            }
+            this.fieldsByName = Map.copyOf(fieldsByName);
+
+            LinkedHashMap<String, Field> declaredFieldsByName = new LinkedHashMap<>();
+            for (Field field : type.getDeclaredFields()) {
+                declaredFieldsByName.putIfAbsent(field.getName(), field);
+            }
+            this.declaredFieldsByName = Map.copyOf(declaredFieldsByName);
+
+            this.propertyDescriptors = stream(getBeanInfo(type, null).getPropertyDescriptors())
+                    .collect(toMap(PropertyDescriptor::getName, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+        }
+
+        public Class<?> type() {
+            return type;
+        }
+
+        public List<Method> methods() {
+            return methods;
+        }
+
+        public Optional<Method> method(String name) {
+            return methods(name).stream().findFirst();
+        }
+
+        public List<Method> methods(String name) {
+            return methodsByName.getOrDefault(name, List.of());
+        }
+
+        public List<Field> fields() {
+            return fields;
+        }
+
+        public Optional<Field> field(String name) {
+            return Optional.ofNullable(fieldsByName.get(name));
+        }
+
+        public boolean declaresField(String fieldName) {
+            return !isEmpty(fieldName) && declaredFieldsByName.containsKey(fieldName);
+        }
+
+        public Collection<? extends Annotation> typeAnnotations() {
+            return typeAnnotations;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <A extends Annotation> A typeAnnotation(Class<? extends Annotation> annotationType) {
+            return (A) typeAnnotationCache.computeIfAbsent(annotationType, this::computeTypeAnnotation).orElse(null);
+        }
+
+        public List<Field> annotatedFields(Class<? extends Annotation> annotation) {
+            return annotatedFields.computeIfAbsent(annotation, this::computeAnnotatedFields);
+        }
+
+        public List<Method> annotatedMethods(Class<? extends Annotation> annotation) {
+            return annotatedMethods.computeIfAbsent(annotation, this::computeAnnotatedMethods);
+        }
+
+        public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
+            return annotatedProperties.computeIfAbsent(annotation, this::computeAnnotatedProperties);
+        }
+
+        public Optional<? extends AccessibleObject> annotatedProperty(Class<? extends Annotation> annotation) {
+            return annotatedProperty.computeIfAbsent(annotation, a -> annotatedProperties(a).stream().findFirst());
+        }
+
+        public Optional<MemberInvoker> annotatedPropertyInvoker(Class<? extends Annotation> annotation) {
+            return annotatedPropertyInvokers.computeIfAbsent(annotation, a -> annotatedProperty(a)
+                    .filter(Member.class::isInstance)
+                    .map(Member.class::cast)
+                    .map(DefaultMemberInvoker::asInvoker));
+        }
+
+        public Function<Object, Object> getter(String propertyPath) {
+            return getters.computeIfAbsent(normalizePropertyPath(propertyPath), this::computeNestedGetter);
+        }
+
+        public BiConsumer<Object, Object> setter(String propertyPath) {
+            return setters.computeIfAbsent(normalizePropertyPath(propertyPath), this::computeNestedSetter);
+        }
+
+        public PropertyPathMetadata propertyPath(String propertyPath) {
+            String normalizedPath = normalizePropertyPath(propertyPath);
+            PropertyPathMetadata cached = propertyPaths.get(normalizedPath);
+            if (cached != null) {
+                return cached;
+            }
+            PropertyPathMetadata computed = computePropertyPath(normalizedPath);
+            PropertyPathMetadata existing = propertyPaths.putIfAbsent(normalizedPath, computed);
+            return existing == null ? computed : existing;
+        }
+
+        public MemberInvoker invoker(Member member, boolean forceAccess) {
+            return invokers.computeIfAbsent(new MemberInvokerKey(member, forceAccess),
+                                            ignored -> new DefaultMemberInvoker(member, forceAccess));
+        }
+
+        @SuppressWarnings("unchecked")
+        public <A extends Annotation> Optional<A> fieldAnnotation(Field field, Class<? extends Annotation> annotation) {
+            return (Optional<A>) fieldAnnotationCache.computeIfAbsent(
+                    new AnnotatedMemberKey(field, annotation),
+                    ignored -> resolveFieldAnnotation(field, annotation));
+        }
+
+        @SuppressWarnings("unchecked")
+        public <A extends Annotation> Optional<A> methodAnnotation(
+                Executable executable, Class<? extends Annotation> annotation) {
+            return (Optional<A>) methodAnnotationCache.computeIfAbsent(
+                    new AnnotatedMemberKey(executable, annotation),
+                    ignored -> resolveMethodAnnotation(executable, annotation));
+        }
+
+        @SuppressWarnings("unchecked")
+        public <A extends Annotation> List<A> methodAnnotations(
+                Executable executable, Class<? extends Annotation> annotation) {
+            return (List<A>) methodAnnotationsCache.computeIfAbsent(
+                    new AnnotatedMemberKey(executable, annotation),
+                    ignored -> resolveMethodAnnotations(executable, annotation));
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T> Optional<T> annotationAs(AnnotatedElement member,
+                                            Class<? extends Annotation> annotationType,
+                                            Class<? extends T> returnType) {
+            return (Optional<T>) annotationAsCache.computeIfAbsent(
+                    new AnnotationProjectionKey(member, annotationType, returnType),
+                    ignored -> computeAnnotationAs(member, annotationType, returnType));
+        }
+
+        private Optional<? extends Annotation> computeTypeAnnotation(Class<? extends Annotation> annotationType) {
+            for (Annotation annotation : typeAnnotations) {
+                if (annotation.annotationType().equals(annotationType)) {
+                    return Optional.of(annotation);
+                }
+                for (Annotation metaAnnotation : getTypeMetadata(annotation.annotationType()).typeAnnotations()) {
+                    if (metaAnnotation.annotationType().equals(annotationType)) {
+                        return Optional.of(annotation);
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+
+        private <T> Optional<T> computeAnnotationAs(AnnotatedElement member,
+                                                    Class<? extends Annotation> annotationType,
+                                                    Class<? extends T> returnType) {
+            Annotation annotation = switch (member) {
+                case Executable e -> methodAnnotation(e, annotationType).orElse(null);
+                case Field f -> fieldAnnotation(f, annotationType).orElse(null);
+                case Class<?> ignored -> typeAnnotation(annotationType);
+                default -> getTopLevelAnnotation(member, annotationType);
+            };
+            return ReflectionUtils.getAnnotationAs(annotation, annotationType, returnType);
+        }
+
+        private List<Field> computeAnnotatedFields(Class<? extends Annotation> annotation) {
+            return fields.stream().filter(field -> fieldAnnotation(field, annotation).isPresent()).toList();
+        }
+
+        private List<Method> computeAnnotatedMethods(Class<? extends Annotation> annotation) {
+            return methods.stream().filter(method -> methodAnnotation(method, annotation).isPresent()).toList();
+        }
+
+        private List<? extends AccessibleObject> computeAnnotatedProperties(Class<? extends Annotation> annotation) {
+            List<AccessibleObject> result = new ArrayList<>(annotatedFields(annotation));
+            getAllInterfaces(type).forEach(i -> result.addAll(getTypeMetadata(i).annotatedFields(annotation)));
+            result.addAll(annotatedMethods(annotation).stream()
+                                  .filter(m -> m.getParameterCount() == 0)
+                                  .filter(ReflectionUtils::hasReturnType)
+                                  .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType()))
+                                  .toList());
+            getAllInterfaces(type).forEach(i -> result.addAll(getTypeMetadata(i).annotatedMethods(annotation).stream()
+                                  .filter(m -> m.getParameterCount() == 0)
+                                  .filter(ReflectionUtils::hasReturnType)
+                                  .filter(m -> !m.getDeclaringClass().isAssignableFrom(m.getReturnType()))
+                                  .toList()));
+            LinkedHashMap<String, AccessibleObject> deduplicated = new LinkedHashMap<>();
+            result.forEach(property -> deduplicated.putIfAbsent(getPropertyName(property), property));
+            deduplicated.values().forEach(ReflectionUtils::ensureAccessible);
+            return List.copyOf(deduplicated.values());
+        }
+
+        private PropertyPathMetadata computePropertyPath(String propertyPath) {
+            String[] parts = splitPropertyPath(propertyPath);
+            return parts.length == 0 ? PropertyPathMetadata.missing() : computePropertyPath(parts, 0);
+        }
+
+        private PropertyPathMetadata computePropertyPath(String[] parts, int index) {
+            if (Map.class.isAssignableFrom(type) || ObjectNode.class.isAssignableFrom(type)) {
+                return PropertyPathMetadata.dynamic(Object.class);
+            }
+            String propertyName = parts[index];
+            Optional<Member> propertyMember = propertyMember(propertyName);
+            if (propertyMember.isEmpty()) {
+                return PropertyPathMetadata.missing();
+            }
+            Class<?> propertyType = getPropertyType((AccessibleObject) propertyMember.get());
+            if (index == parts.length - 1) {
+                return PropertyPathMetadata.declared(propertyType);
+            }
+            if (Collection.class.isAssignableFrom(propertyType)) {
+                Optional<Class<?>> elementType = getCollectionElementType((AccessibleObject) propertyMember.get());
+                if (elementType.isEmpty() || Object.class.equals(elementType.get())) {
+                    return PropertyPathMetadata.dynamic(Object.class);
+                }
+                return PropertyPathMetadata.copyOf(
+                        getTypeMetadata(elementType.get()).propertyPath(remainingPropertyPath(parts, index + 1)));
+            }
+            if (Object.class.equals(propertyType)) {
+                return PropertyPathMetadata.dynamic(Object.class);
+            }
+            return PropertyPathMetadata.copyOf(
+                    getTypeMetadata(propertyType).propertyPath(remainingPropertyPath(parts, index + 1)));
+        }
+
+        private Function<Object, Object> computeNestedGetter(String propertyPath) {
+            String[] parts = splitPropertyPath(propertyPath);
+            if (parts.length == 1) {
+                return computeGetter(parts[0]);
+            }
+            return object -> {
+                for (String part : parts) {
+                    if (object == null) {
+                        return null;
+                    }
+                    if (object instanceof Collection<?> collection) {
+                        object = collection.stream().flatMap(
+                                o -> {
+                                    Object value = getTypeMetadata(o.getClass()).getter(part).apply(o);
+                                    return value instanceof Collection<?> c ? c.stream() : Stream.of(value);
+                                }).collect(toList());
+                    } else {
+                        object = getTypeMetadata(object.getClass()).getter(part).apply(object);
+                    }
+                }
+                return object;
+            };
+        }
+
+        private Function<Object, Object> computeGetter(String propertyName) {
+            if (ObjectNode.class.isAssignableFrom(type)) {
+                return target -> {
+                    JsonNode path = ((ObjectNode) target).path(propertyName);
+                    return switch (path) {
+                        case TextNode n -> n.asText();
+                        case NumericNode n -> n.numberValue();
+                        case BooleanNode b -> b.booleanValue();
+                        default -> path;
+                    };
+                };
+            }
+            if (Map.class.isAssignableFrom(type)) {
+                return target -> ((Map<?, ?>) target).get(propertyName);
+            }
+            PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
+            return propertyMember(propertyName)
+                    .map(DefaultMemberInvoker::asInvoker)
+                    .<Function<Object, Object>>map(invoker -> invoker::invoke)
+                    .orElseGet(() -> ignored -> {
+                        throw notFoundException;
+                    });
+        }
+
+        private BiConsumer<Object, Object> computeNestedSetter(String propertyPath) {
+            String[] parts = splitPropertyPath(propertyPath);
+            if (parts.length == 1) {
+                return computeSetter(parts[0]);
+            }
+            Function<Object, Object> parentSupplier = getter(
+                    Arrays.stream(parts).limit(parts.length - 1).collect(Collectors.joining("/")));
+            return (object, value) -> {
+                Object parent = parentSupplier.apply(object);
+                if (parent != null) {
+                    getTypeMetadata(parent.getClass()).setter(parts[parts.length - 1]).accept(parent, value);
+                }
+            };
+        }
+
+        private BiConsumer<Object, Object> computeSetter(String propertyName) {
+            if (ObjectNode.class.isAssignableFrom(type)) {
+                return (target, propertyValue) -> ((ObjectNode) target).putPOJO(propertyName, propertyValue);
+            }
+            PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
+            return Optional.ofNullable(propertyDescriptors.get(propertyName))
+                    .map(PropertyDescriptor::getWriteMethod)
+                    .<Member>map(method -> method)
+                    .or(() -> field(propertyName).map(field -> (Member) ensureAccessible(field)))
+                    .map(DefaultMemberInvoker::asInvoker)
+                    .<BiConsumer<Object, Object>>map(invoker -> invoker::invoke)
+                    .orElseGet(() -> (target, value) -> {
+                        throw notFoundException;
+                    });
+        }
+
+        private Optional<Member> propertyMember(String propertyName) {
+            return method("get" + StringUtils.capitalize(propertyName))
+                    .filter(ReflectionUtils::hasReturnType).map(m -> (Member) m)
+                    .or(() -> method(propertyName).filter(ReflectionUtils::hasReturnType).map(m -> (Member) m))
+                    .or(() -> field(propertyName).map(field -> (Member) field));
+        }
+
+        @Getter
+        public static final class PropertyPathMetadata {
+            private final boolean exists;
+            private final boolean dynamic;
+            private final Class<?> leafType;
+            private final AtomicBoolean missingTimestampWarningLogged = new AtomicBoolean();
+            private final AtomicBoolean unsupportedTimestampWarningLogged = new AtomicBoolean();
+
+            private PropertyPathMetadata(boolean exists, boolean dynamic, Class<?> leafType) {
+                this.exists = exists;
+                this.dynamic = dynamic;
+                this.leafType = leafType;
+            }
+
+            private static PropertyPathMetadata missing() {
+                return new PropertyPathMetadata(false, false, null);
+            }
+
+            private static PropertyPathMetadata declared(Class<?> leafType) {
+                return new PropertyPathMetadata(true, false, leafType);
+            }
+
+            private static PropertyPathMetadata dynamic(Class<?> leafType) {
+                return new PropertyPathMetadata(true, true, leafType);
+            }
+
+            private static PropertyPathMetadata copyOf(PropertyPathMetadata source) {
+                if (!source.exists) {
+                    return missing();
+                }
+                return source.dynamic ? dynamic(source.leafType) : declared(source.leafType);
+            }
+
+            public boolean supportsTimeConversion() {
+                return dynamic || isTimePropertyType(leafType);
+            }
+
+            public boolean exists() {
+                return exists;
+            }
+
+            public boolean dynamic() {
+                return dynamic;
+            }
+
+            public boolean shouldLogMissingTimestampWarning() {
+                return !exists && missingTimestampWarningLogged.compareAndSet(false, true);
+            }
+
+            public boolean shouldLogUnsupportedTimestampWarning() {
+                return unsupportedTimestampWarningLogged.compareAndSet(false, true);
+            }
+        }
+    }
+
+    private record MemberInvokerKey(Member member, boolean forceAccess) {
+    }
+
+    private record AnnotatedMemberKey(AnnotatedElement element, Class<? extends Annotation> annotationType) {
+    }
+
+    private record AnnotationProjectionKey(
+            AnnotatedElement element, Class<? extends Annotation> annotationType, Class<?> returnType) {
+    }
+
     @Value
     private static class PropertyNotFoundException extends RuntimeException {
         @NonNull
@@ -932,7 +1252,7 @@ public class ReflectionUtils {
     }
 
     public static boolean declaresField(Class<?> target, String fieldName) {
-        return !isEmpty(fieldName) && FieldUtils.getDeclaredField(target, fieldName, true) != null;
+        return getTypeMetadata(target).declaresField(fieldName);
     }
 
     @SneakyThrows
@@ -963,19 +1283,27 @@ public class ReflectionUtils {
      */
     public static <T> Optional<T> getAnnotationAs(Class<?> target, Class<? extends Annotation> annotationType,
                                                   Class<T> returnType) {
-        return getAnnotationAs((Annotation) getTypeAnnotation(target, annotationType), annotationType, returnType);
+        if (target == null) {
+            return Optional.empty();
+        }
+        Annotation annotation = getTypeAnnotation(target, annotationType);
+        return getAnnotationAs(annotation, annotationType, returnType);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> Optional<T> getAnnotationAs(AnnotatedElement member,
                                                   Class<? extends Annotation> annotationType,
                                                   Class<? extends T> returnType) {
-        Annotation annotation = switch (member) {
-            case Executable e -> getMethodAnnotation(e, annotationType).orElse(null);
-            case Package p -> getPackageAnnotation(p, annotationType).orElse(null);
-            case Class<?> c -> getTypeAnnotation(c, annotationType);
-            default -> getTopLevelAnnotation(member, annotationType);
+        return switch (member) {
+            case null -> Optional.empty();
+            case Executable e -> getTypeMetadata(e.getDeclaringClass()).annotationAs(e, annotationType, returnType);
+            case Field f -> getTypeMetadata(f.getDeclaringClass()).annotationAs(f, annotationType, returnType);
+            case Class<?> c -> getAnnotationAs(c, annotationType, (Class<T>) returnType);
+            case Package p -> getAnnotationAs((Annotation) getPackageAnnotation(p, annotationType).orElse(null),
+                                              annotationType, returnType);
+            default -> getAnnotationAs((Annotation) getTopLevelAnnotation(member, annotationType),
+                                       annotationType, returnType);
         };
-        return getAnnotationAs(annotation, annotationType, returnType);
     }
 
     @SneakyThrows
@@ -1029,11 +1357,8 @@ public class ReflectionUtils {
         return false;
     }
 
-    @SuppressWarnings("unchecked")
     public static <A extends Annotation> Optional<A> getFieldAnnotation(Field f, Class<? extends Annotation> a) {
-        return Optional.ofNullable((A) f.getAnnotation(a)).or(() -> stream(f.getAnnotations())
-                .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a))
-                .findFirst().map(hit -> (A) hit));
+        return getTypeMetadata(f.getDeclaringClass()).fieldAnnotation(f, a);
     }
 
     /*
@@ -1042,6 +1367,43 @@ public class ReflectionUtils {
        Returns annotation or meta annotation.
     */
     public static <A extends Annotation> Optional<A> getMethodAnnotation(Executable m, Class<? extends Annotation> a) {
+        return getTypeMetadata(m.getDeclaringClass()).methodAnnotation(m, a);
+    }
+
+    public static <A extends Annotation> List<A> getMethodAnnotations(Executable m, Class<? extends Annotation> a) {
+        return getTypeMetadata(m.getDeclaringClass()).methodAnnotations(m, a);
+    }
+
+    private static boolean isTimePropertyType(Class<?> propertyType) {
+        return propertyType != null && (LocalDate.class.isAssignableFrom(propertyType)
+                                        || LocalDateTime.class.isAssignableFrom(propertyType)
+                                        || TemporalAccessor.class.isAssignableFrom(propertyType)
+                                        || String.class.isAssignableFrom(propertyType));
+    }
+
+    private static String normalizePropertyPath(String propertyPath) {
+        return Arrays.stream(propertyPath.replace('.', '/').split("/"))
+                .filter(s -> !s.isBlank())
+                .collect(Collectors.joining("/"));
+    }
+
+    private static String[] splitPropertyPath(String propertyPath) {
+        String normalized = normalizePropertyPath(propertyPath);
+        return normalized.isEmpty() ? new String[0] : normalized.split("/");
+    }
+
+    private static String remainingPropertyPath(String[] parts, int startIndex) {
+        return Arrays.stream(parts).skip(startIndex).collect(Collectors.joining("/"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <A extends Annotation> Optional<A> resolveFieldAnnotation(Field f, Class<? extends Annotation> a) {
+        return Optional.ofNullable((A) f.getAnnotation(a)).or(() -> stream(f.getAnnotations())
+                .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a))
+                .findFirst().map(hit -> (A) hit));
+    }
+
+    private static <A extends Annotation> Optional<A> resolveMethodAnnotation(Executable m, Class<? extends Annotation> a) {
         A result = getTopLevelAnnotation(m, a);
         Class<?> c = m.getDeclaringClass();
 
@@ -1061,7 +1423,7 @@ public class ReflectionUtils {
         return Optional.ofNullable(result);
     }
 
-    public static <A extends Annotation> List<A> getMethodAnnotations(Executable m, Class<? extends Annotation> a) {
+    private static <A extends Annotation> List<A> resolveMethodAnnotations(Executable m, Class<? extends Annotation> a) {
         List<A> result = getTopLevelAnnotations(m, a);
         Class<?> c = m.getDeclaringClass();
 
@@ -1164,13 +1526,10 @@ public class ReflectionUtils {
         if (type.isPrimitive() || type.isArray()) {
             return source;
         }
-        while (type != null) {
-            for (Field field : type.getDeclaredFields()) {
-                if (!Modifier.isStatic(field.getModifiers())) {
-                    ensureAccessible(field).set(target, field.get(source));
-                }
+        for (Field field : getTypeMetadata(type).fields()) {
+            if (!Modifier.isStatic(field.getModifiers())) {
+                ensureAccessible(field).set(target, field.get(source));
             }
-            type = type.getSuperclass();
         }
         return target;
     }

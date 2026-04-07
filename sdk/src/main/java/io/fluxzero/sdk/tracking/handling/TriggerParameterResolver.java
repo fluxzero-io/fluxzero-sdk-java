@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,11 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.ObjectUtils.memoize;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -75,11 +75,6 @@ import static java.util.Optional.ofNullable;
  */
 @AllArgsConstructor
 public class TriggerParameterResolver implements ParameterResolver<HasMessage>, MessageFilter<HasMessage> {
-    private final Function<Executable, Predicate<HasMessage>> messageFilterCache = memoize(
-            e -> ReflectionUtils.getAnnotation(e, Trigger.class)
-                    .<Predicate<HasMessage>>map(trigger -> (HasMessage m) -> filterMessage(m, trigger))
-                    .orElseGet(ObjectUtils::noOpPredicate));
-
     private final Client client;
     private final Serializer serializer;
     private final DefaultCorrelationDataProvider correlationDataProvider = DefaultCorrelationDataProvider.INSTANCE;
@@ -99,7 +94,7 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
-        return messageFilterCache.apply(executable).test(message);
+        return TriggerMetadata.of(targetClass).triggerFilter(executable).test(message);
     }
 
     /**
@@ -130,27 +125,37 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     @Override
     public boolean test(HasMessage message, Parameter parameter) {
         Trigger trigger = parameter.getAnnotation(Trigger.class);
-        if (!filterMessage(message, trigger)) {
+        if (!filterMessage(message, trigger, correlationDataProvider)) {
             return false;
         }
         var parameterType = HasMessage.class.isAssignableFrom(parameter.getType())
                 ? Object.class : parameter.getType();
-        return getTriggerClass(message).filter(parameterType::isAssignableFrom).isPresent();
+        return getTriggerClass(message, correlationDataProvider).filter(parameterType::isAssignableFrom).isPresent();
     }
 
     protected boolean filterMessage(HasMessage message, Trigger trigger) {
+        return filterMessage(message, trigger, correlationDataProvider);
+    }
+
+    static Predicate<HasMessage> triggerFilter(Trigger trigger) {
+        return trigger == null ? ObjectUtils.noOpPredicate()
+                : message -> filterMessage(message, trigger, DefaultCorrelationDataProvider.INSTANCE);
+    }
+
+    static boolean filterMessage(HasMessage message, Trigger trigger,
+                                 DefaultCorrelationDataProvider correlationDataProvider) {
         if (trigger == null) {
             return false;
         }
-        if (trigger.messageType().length > 0 && getTriggerMessageType(message)
+        if (trigger.messageType().length > 0 && getTriggerMessageType(message, correlationDataProvider)
                 .filter(type -> Arrays.stream(trigger.messageType()).anyMatch(t -> t == type)).isEmpty()) {
             return false;
         }
-        if (trigger.consumer().length > 0 && getConsumer(message)
+        if (trigger.consumer().length > 0 && getConsumer(message, correlationDataProvider)
                 .filter(type -> Arrays.asList(trigger.consumer()).contains(type)).isEmpty()) {
             return false;
         }
-        return getTriggerClass(message).filter(triggerClass -> {
+        return getTriggerClass(message, correlationDataProvider).filter(triggerClass -> {
             var allowedTypes = trigger.value();
             return (allowedTypes.length == 0
                     || Arrays.stream(allowedTypes).anyMatch(a -> a.isAssignableFrom(triggerClass)));
@@ -199,17 +204,62 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
                     } catch (Exception ignored) {
                         return Optional.empty();
                     }
-                }).flatMap(index -> getTriggerClass(message).flatMap(
-                        triggerClass -> getTriggerMessageType(message).flatMap(
+                }).flatMap(index -> getTriggerClass(message, correlationDataProvider).flatMap(
+                        triggerClass -> getTriggerMessageType(message, correlationDataProvider).flatMap(
                                 triggerType -> getTriggerMessage(index, triggerClass, triggerType))));
     }
 
     protected Optional<Class<?>> getTriggerClass(HasMessage message) {
+        return getTriggerClass(message, correlationDataProvider);
+    }
+
+    static Optional<Class<?>> getTriggerClass(HasMessage message,
+                                              DefaultCorrelationDataProvider correlationDataProvider) {
         return ofNullable(message.getMetadata().get(correlationDataProvider.getTriggerKey()))
                 .flatMap(s -> Optional.ofNullable(ReflectionUtils.classForName(s, null)));
     }
 
+    private static final class TriggerMetadata {
+        private static final ClassValue<TriggerMetadata> cache = new ClassValue<>() {
+            @Override
+            protected TriggerMetadata computeValue(Class<?> type) {
+                return new TriggerMetadata();
+            }
+        };
+
+        private final ConcurrentHashMap<Executable, Optional<Trigger>> trigger = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Executable, Predicate<HasMessage>> triggerFilter = new ConcurrentHashMap<>();
+
+        private static TriggerMetadata of(Class<?> targetClass) {
+            return cache.get(targetClass);
+        }
+
+        private Predicate<HasMessage> triggerFilter(Executable executable) {
+            return getOrCompute(triggerFilter, executable,
+                                key -> TriggerParameterResolver.triggerFilter(trigger(key).orElse(null)));
+        }
+
+        private Optional<Trigger> trigger(Executable executable) {
+            return getOrCompute(trigger, executable, key -> ReflectionUtils.getAnnotation(key, Trigger.class));
+        }
+
+        private static <K, V> V getOrCompute(ConcurrentHashMap<K, V> cache, K key, Function<K, V> loader) {
+            V cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            V computed = loader.apply(key);
+            V existing = cache.putIfAbsent(key, computed);
+            return existing != null ? existing : computed;
+        }
+    }
+
     protected Optional<MessageType> getTriggerMessageType(HasMessage message) {
+        return getTriggerMessageType(message, correlationDataProvider);
+    }
+
+    static Optional<MessageType> getTriggerMessageType(HasMessage message,
+                                                       DefaultCorrelationDataProvider correlationDataProvider) {
         return ofNullable(message.getMetadata().get(correlationDataProvider.getTriggerTypeKey()))
                 .flatMap(s -> {
                     try {
@@ -221,6 +271,11 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     }
 
     protected Optional<String> getConsumer(HasMessage message) {
+        return getConsumer(message, correlationDataProvider);
+    }
+
+    static Optional<String> getConsumer(HasMessage message,
+                                        DefaultCorrelationDataProvider correlationDataProvider) {
         return ofNullable(message.getMetadata().get(correlationDataProvider.getConsumerKey()));
     }
 

@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -20,7 +21,6 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Id;
-import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
@@ -31,16 +31,15 @@ import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toMap;
@@ -57,29 +56,19 @@ import static java.util.stream.Collectors.toMap;
  * </ul>
  */
 public class HandlerAssociations {
+    private static final ClassValue<AssociationMetadata> metadataCache = new ClassValue<>() {
+        @Override
+        protected AssociationMetadata computeValue(Class<?> type) {
+            return new AssociationMetadata(type);
+        }
+    };
+
     private final Class<?> targetClass;
     private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
     private final Function<Executable, ? extends Annotation> methodAnnotationProvider;
-
-    private final Function<Class<?>, Map<String, AssociationValue>> associationProperties = ClientUtils.memoize(
-            target -> getAnnotatedProperties(target, Association.class).stream()
-                    .flatMap(member -> getAnnotation(member, Association.class).stream().flatMap(association -> {
-                        String propertyName = getPropertyName(member);
-                        return (association.value().length > 0
-                                ? Arrays.stream(association.value()) : Stream.of(propertyName))
-                                .map(v -> {
-                                    var associationValue = AssociationValue.valueOf(association);
-                                    if (associationValue.getPath().isBlank()) {
-                                        associationValue = associationValue.toBuilder().path(propertyName).build();
-                                    }
-                                    return Map.entry(v, associationValue);
-                                });
-                    }))
-                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a)));
-
-    private final Function<Executable, List<MethodAssociationProperty>> methodAssociationProperties = ClientUtils.memoize(
-            executable -> Stream.concat(executableAssociationProperties(executable).stream(),
-                                        parameterAssociationProperties(executable).stream()).toList());
+    private final AssociationMetadata metadata;
+    private final Function<Executable, List<MethodAssociationProperty>> boundMethodAssociationProperties =
+            ClientUtils.memoize(this::computeMethodAssociationProperties);
 
     /**
      * Creates an association helper for a specific handler type.
@@ -95,13 +84,14 @@ public class HandlerAssociations {
         this.targetClass = targetClass;
         this.parameterResolvers = parameterResolvers == null ? List.of() : List.copyOf(parameterResolvers);
         this.methodAnnotationProvider = methodAnnotationProvider == null ? e -> null : methodAnnotationProvider;
+        this.metadata = metadataCache.get(targetClass);
     }
 
     /**
      * Returns the association definitions declared on the handler type itself, keyed by message property name.
      */
     public Map<String, AssociationValue> getAssociationProperties() {
-        return associationProperties.apply(targetClass);
+        return metadata.associationProperties();
     }
 
     /**
@@ -109,7 +99,7 @@ public class HandlerAssociations {
      * {@code @Association} declarations.
      */
     public List<MethodAssociationProperty> getMethodAssociationProperties(Executable executable) {
-        return methodAssociationProperties.apply(executable);
+        return boundMethodAssociationProperties.apply(executable);
     }
 
     /**
@@ -168,49 +158,20 @@ public class HandlerAssociations {
         return association.excludedClasses.stream().noneMatch(c -> c.isAssignableFrom(payloadType));
     }
 
-    protected List<MethodAssociationProperty> executableAssociationProperties(Executable executable) {
-        return getAnnotation(executable, Association.class).map(association -> {
-            AssociationValue associationValue = AssociationValue.valueOf(association);
-            if (association.value().length > 0) {
-                return Arrays.stream(association.value())
-                        .map(v -> MethodAssociationProperty.forProperty(v, associationValue)).toList();
-            }
-            return getAnnotation(executable, RoutingKey.class).map(RoutingKey::value)
-                    .filter(v -> !v.isBlank())
-                    .map(v -> List.of(MethodAssociationProperty.forProperty(v, associationValue)))
-                    .orElseGet(() -> List.of(MethodAssociationProperty.forComputedRoutingKey(associationValue)));
-        }).orElseGet(Collections::emptyList);
-    }
-
-    protected List<MethodAssociationProperty> parameterAssociationProperties(Executable executable) {
+    protected List<MethodAssociationProperty> computeMethodAssociationProperties(Executable executable) {
         Annotation methodAnnotation = methodAnnotationProvider.apply(executable);
-        return Arrays.stream(executable.getParameters())
-                .flatMap(parameter -> getAnnotation(parameter, Association.class).stream()
-                        .flatMap(association -> associationPropertyNames(parameter, association)
-                                .map(name -> MethodAssociationProperty.forParameterProperty(
-                                        name, AssociationValue.valueOf(association),
-                                        message -> resolveParameterValue(executable, parameter, methodAnnotation,
-                                                                         message)))))
-                .toList();
+        Stream<MethodAssociationProperty> parameterAssociations = metadata.parameterAssociationProperties(executable)
+                .stream()
+                .map(template -> MethodAssociationProperty.forParameterProperty(
+                        template.getPropertyName(), template.getAssociationValue(),
+                        message -> resolveParameterValue(executable, template.getParameter(), methodAnnotation,
+                                                         message)));
+        return Stream.concat(metadata.executableAssociationProperties(executable).stream(),
+                             parameterAssociations).toList();
     }
 
-    protected Stream<String> associationPropertyNames(Parameter parameter, Association association) {
-        if (association.value().length > 0) {
-            return Arrays.stream(association.value());
-        }
-        return resolveParameterName(parameter).stream();
-    }
-
-    protected Optional<String> resolveParameterName(Parameter parameter) {
-        if (parameter.isNamePresent()) {
-            return Optional.of(parameter.getName());
-        }
-        try {
-            return Optional.of(ParameterRegistry.of(parameter.getDeclaringExecutable().getDeclaringClass())
-                                       .getParameterName(parameter));
-        } catch (RuntimeException ignored) {
-            return Optional.empty();
-        }
+    public boolean alwaysAssociate(Executable executable) {
+        return metadata.alwaysAssociate(executable);
     }
 
     protected Object resolveParameterValue(Executable executable, Parameter parameter, Annotation methodAnnotation,
@@ -284,6 +245,119 @@ public class HandlerAssociations {
                             .or(() -> associationValue.isExcludeMetadata() ? empty()
                                     : ofNullable(message.getMetadata().get(propertyName))))
                     .map(v -> v instanceof Id<?> id ? id.getFunctionalId() : v);
+        }
+    }
+
+    @Value
+    static class ParameterAssociationTemplate {
+        Parameter parameter;
+        String propertyName;
+        AssociationValue associationValue;
+    }
+
+    private static final class AssociationMetadata {
+        private final Class<?> targetClass;
+        private final Map<String, AssociationValue> associationProperties;
+        private final ConcurrentHashMap<Executable, List<MethodAssociationProperty>>
+                executableAssociationProperties = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Executable, List<ParameterAssociationTemplate>>
+                parameterAssociationProperties = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Executable, Boolean> alwaysAssociate = new ConcurrentHashMap<>();
+
+        private AssociationMetadata(Class<?> targetClass) {
+            this.targetClass = targetClass;
+            this.associationProperties = Map.copyOf(computeAssociationProperties(targetClass));
+        }
+
+        private Map<String, AssociationValue> associationProperties() {
+            return associationProperties;
+        }
+
+        private List<MethodAssociationProperty> executableAssociationProperties(Executable executable) {
+            return getOrCompute(executableAssociationProperties, executable, this::computeExecutableAssociationProperties);
+        }
+
+        private List<ParameterAssociationTemplate> parameterAssociationProperties(Executable executable) {
+            return getOrCompute(parameterAssociationProperties, executable, this::computeParameterAssociationProperties);
+        }
+
+        private boolean alwaysAssociate(Executable executable) {
+            return getOrCompute(alwaysAssociate, executable,
+                                key -> ReflectionUtils.getAnnotation(key, Association.class)
+                                        .filter(Association::always)
+                                        .isPresent());
+        }
+
+        private Map<String, AssociationValue> computeAssociationProperties(Class<?> targetClass) {
+            return ReflectionUtils.getAnnotatedProperties(targetClass, Association.class).stream()
+                    .flatMap(member -> ReflectionUtils.getAnnotationAs(member, Association.class, AssociationValue.class)
+                            .stream()
+                            .flatMap(associationValue -> {
+                                String propertyName = ReflectionUtils.getPropertyName(member);
+                                AssociationValue mappedValue = associationValue.getPath().isBlank()
+                                        ? associationValue.toBuilder().path(propertyName).build()
+                                        : associationValue;
+                                List<String> aliases = associationValue.getValue();
+                                return (aliases == null || aliases.isEmpty() ? Stream.of(propertyName) : aliases.stream())
+                                        .map(name -> Map.entry(name, mappedValue));
+                            }))
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+        }
+
+        private List<MethodAssociationProperty> computeExecutableAssociationProperties(Executable executable) {
+            return ReflectionUtils.getAnnotationAs(executable, Association.class, AssociationValue.class)
+                    .map(associationValue -> {
+                        List<String> aliases = associationValue.getValue();
+                        if (aliases != null && !aliases.isEmpty()) {
+                            return aliases.stream()
+                                    .map(name -> MethodAssociationProperty.forProperty(name, associationValue))
+                                    .toList();
+                        }
+                        return ReflectionUtils.getAnnotation(executable, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+                                .map(io.fluxzero.sdk.publishing.routing.RoutingKey::value)
+                                .filter(value -> !value.isBlank())
+                                .map(value -> List.of(MethodAssociationProperty.forProperty(value, associationValue)))
+                                .orElseGet(() -> List.of(
+                                        MethodAssociationProperty.forComputedRoutingKey(associationValue)));
+                    })
+                    .orElseGet(Collections::emptyList);
+        }
+
+        private List<ParameterAssociationTemplate> computeParameterAssociationProperties(Executable executable) {
+            return Arrays.stream(executable.getParameters())
+                    .flatMap(parameter -> ReflectionUtils.getAnnotationAs(parameter, Association.class, AssociationValue.class)
+                            .stream()
+                            .flatMap(associationValue -> propertyNames(parameter, associationValue).map(
+                                    propertyName -> new ParameterAssociationTemplate(parameter, propertyName,
+                                                                                     associationValue))))
+                    .toList();
+        }
+
+        private Stream<String> propertyNames(Parameter parameter, AssociationValue associationValue) {
+            List<String> aliases = associationValue.getValue();
+            if (aliases != null && !aliases.isEmpty()) {
+                return aliases.stream();
+            }
+            if (parameter.isNamePresent()) {
+                return Stream.of(parameter.getName());
+            }
+            try {
+                return Stream.of(ParameterRegistry.of(
+                                         parameter.getDeclaringExecutable().getDeclaringClass())
+                                         .getParameterName(parameter));
+            } catch (RuntimeException ignored) {
+                return Stream.empty();
+            }
+        }
+
+        private static <K, V> V getOrCompute(ConcurrentHashMap<K, V> cache, K key, Function<K, V> loader) {
+            V cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            V computed = loader.apply(key);
+            V existing = cache.putIfAbsent(key, computed);
+            return existing != null ? existing : computed;
         }
     }
 }

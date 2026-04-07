@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,31 +25,49 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
 import java.lang.reflect.Executable;
-import java.util.function.BiFunction;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-
-import static io.fluxzero.common.ObjectUtils.memoize;
-import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
-import static java.util.Optional.ofNullable;
 
 @AllArgsConstructor
 public class ContentFilterInterceptor implements HandlerInterceptor {
-    private static final BiFunction<Class<?>, Executable, FilterContent> filterContentCache = memoize(
-            (payloadClass, executable) ->
-                    ReflectionUtils.<FilterContent>getMethodAnnotation(executable, FilterContent.class)
-                            .or(() -> ofNullable(getTypeAnnotation(payloadClass, FilterContent.class)))
-                            .or(() -> ReflectionUtils.getPackageAnnotation(payloadClass.getPackage(), FilterContent.class))
-                            .orElse(null));
+    private static final ClassValue<FilterContentMetadata> metadataCache = new ClassValue<>() {
+        @Override
+        protected FilterContentMetadata computeValue(Class<?> type) {
+            return new FilterContentMetadata(type);
+        }
+    };
 
     private final Serializer serializer;
 
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        var filterContent = filterContentCache.apply(invoker.getTargetClass(), invoker.getMethod());
+        var filterContent = metadataCache.get(invoker.getTargetClass()).filterContent(invoker.getMethod()).orElse(null);
         if (filterContent == null) {
             return function;
         }
         return m -> serializer.filterContent(function.apply(m), User.getCurrent());
+    }
+
+    private static final class FilterContentMetadata {
+        private final Class<?> targetClass;
+        private final ConcurrentHashMap<Executable, Optional<FilterContent>> filterContent = new ConcurrentHashMap<>();
+
+        private FilterContentMetadata(Class<?> targetClass) {
+            this.targetClass = targetClass;
+        }
+
+        private Optional<FilterContent> filterContent(Executable executable) {
+            Optional<FilterContent> cached = filterContent.get(executable);
+            if (cached != null) {
+                return cached;
+            }
+            Optional<FilterContent> computed = ReflectionUtils.getAnnotation(executable, FilterContent.class)
+                    .or(() -> Optional.ofNullable(ReflectionUtils.getTypeAnnotation(targetClass, FilterContent.class)))
+                    .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
+            Optional<FilterContent> existing = filterContent.putIfAbsent(executable, computed);
+            return existing != null ? existing : computed;
+        }
     }
 }

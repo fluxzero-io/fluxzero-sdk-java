@@ -349,7 +349,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
     private static final Executor shutdownExecutor =
-            newWorkerPool("TestFixture-shutdown", 8);
+            newWorkerPool("TestFixture-shutdown", 64);
 
     public static void shutDownActiveFixtures() {
         var fixtures = activeFixtures.get();

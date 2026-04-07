@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling;
@@ -24,17 +25,13 @@ import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import lombok.AllArgsConstructor;
 
-import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
-import static io.fluxzero.sdk.common.ClientUtils.memoize;
-
 /**
  * A {@link HandlerDecorator} that intercepts handler methods annotated with {@link HandleDocument} and synchronizes
  * their return values with a {@link DocumentStore}.
@@ -67,10 +64,6 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  */
 @AllArgsConstructor
 public class DocumentHandlerDecorator implements HandlerDecorator {
-    static final Function<Executable, Optional<String>> collectionSupplier =
-            memoize(m -> ReflectionUtils.<HandleDocument>
-                    getMethodAnnotation(m, HandleDocument.class).map(a -> ClientUtils.getTopic(a, m)));
-
     private final Supplier<DocumentStore> documentStoreSupplier;
 
     @Override
@@ -88,7 +81,8 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
             return delegate.getInvoker(message)
                     .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
                                   && m.getReturnType().isAssignableFrom(message.getPayloadClass())
-                            ? collectionSupplier.apply(i.getMethod())
+                            ? ReflectionUtils.<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
+                                    .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
                             .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
         }
 
