@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing.correlation;
@@ -57,6 +58,7 @@ import static java.util.Optional.ofNullable;
  *   <li><b>{@code $clientId}</b> – Unique identifier for this Fluxzero client instance</li>
  *   <li><b>{@code $clientName}</b> – Logical name of the client (e.g. "service-A")</li>
  *   <li><b>{@code $consumer}</b> – Consumer name of the current {@link Tracker}, if active</li>
+ *   <li><b>{@code $handler}</b> – Simple class name of the current handler, if active</li>
  *   <li><b>{@code $tracker}</b> – Unique ID of the current {@link Tracker}, if active</li>
  *   <li><b>{@code $correlationId}</b> – ID used to correlate this message with the currently handled message (message index or ID if index is unavailable)</li>
  *   <li><b>{@code $traceId}</b> – ID representing the trace this message belongs to (usually inherited from the message root)</li>
@@ -146,7 +148,10 @@ public interface CorrelationDataProvider {
             result.put(getConsumerKey(), t.getName());
             result.put(getTrackerKey(), t.getTrackerId());
         });
-        Optional.ofNullable(Invocation.getCurrent()).ifPresent(i -> result.put(getInvocationKey(), i.getId()));
+        Optional.ofNullable(Invocation.getCurrent()).ifPresent(i -> {
+            result.put(getInvocationKey(), i.getId());
+            Optional.ofNullable(i.getHandler()).ifPresent(handler -> result.put(getHandlerKey(), handler));
+        });
         return result;
     }
 
@@ -185,6 +190,15 @@ public interface CorrelationDataProvider {
      */
     default String getConsumerKey() {
         return "$consumer";
+    }
+
+    /**
+     * Retrieves the key associated with the current handler class in correlation metadata.
+     *
+     * @return a string representing the handler key
+     */
+    default String getHandlerKey() {
+        return "$handler";
     }
 
     /**

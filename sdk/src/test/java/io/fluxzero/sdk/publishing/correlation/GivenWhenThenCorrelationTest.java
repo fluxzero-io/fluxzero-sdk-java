@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing.correlation;
@@ -38,6 +39,7 @@ public class GivenWhenThenCorrelationTest {
                 .expectEvents((Predicate<Message>) e -> {
                     Metadata m = e.getMetadata();
                     return m.get("$consumer").equals(m.get("$clientName") + "_COMMAND")
+                           && m.get("$handler").equals(Handler.class.getSimpleName())
                            && parseLong(m.get("$correlationId")) == parseLong(m.get("$traceId"))
                            && m.get("$trigger").equals(CreateModel.class.getName());
                 });

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -321,7 +321,7 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
         try {
-            Object result = Invocation.performInvocation(h::invoke);
+            Object result = Invocation.performInvocation(h, h::invoke);
             return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
                     .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config))) : result;
         } catch (Throwable e) {
@@ -333,7 +333,7 @@ public class DefaultTracking implements Tracking {
                                   Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
         return config.getErrorHandler().handleError(
                 unwrapException(e), format("Handler %s failed to handle a %s", handler, message),
-                () -> Invocation.performInvocation(h::invoke));
+                () -> Invocation.performInvocation(h, h::invoke));
     }
 
     protected void reportResult(Object result, HandlerInvoker h, DeserializingMessage message,

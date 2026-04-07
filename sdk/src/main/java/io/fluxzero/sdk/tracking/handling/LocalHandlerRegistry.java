@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,7 +137,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                     boolean passive = invoker.isPassive();
                     if (!handled || !request || passive) {
                         try {
-                            Object result = Invocation.performInvocation(invoker::invoke);
+                            Object result = Invocation.performInvocation(invoker, invoker::invoke);
                             if (result instanceof Optional<?> optional) {
                                 result = optional.orElse(null);
                             }
