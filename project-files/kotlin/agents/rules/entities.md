@@ -211,6 +211,25 @@ data class AddTask(val projectId: ProjectId, val taskId: TaskId, val details: Ta
 You can apply updates directly to child/member entities (like `Task`) without manually rebuilding the parent. Fluxzero
 immutably updates the parent aggregate (using Kotlin `copy(...)`) and inserts/replaces the child.
 
+One update can also define multiple `@Apply` methods for different levels in the hierarchy. This is useful when a
+single message should change both a member entity and the aggregate root.
+
+```kotlin
+data class CreatePaymentAttempt(val paymentId: String, val paymentAttemptId: String) {
+    @Apply
+    fun apply(): PaymentAttempt {
+        return PaymentAttempt(paymentAttemptId)
+    }
+
+    @Apply
+    fun apply(payment: Payment): Payment {
+        return payment.copy(status = "pending")
+    }
+}
+```
+
+Here the same update creates a new `PaymentAttempt` and updates the root aggregate status in one state transition.
+
 #### Tip: Minimizing Upcasters (Present Tense vs. Past Tense)
 
 Fluxzero encourages applying the Command payload itself (e.g., `CreateUser`, `UpdateEmail`), which will result in a
