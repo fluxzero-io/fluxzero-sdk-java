@@ -190,7 +190,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     protected Stream<DeserializingObject<byte[], ?>> deserializeUnknownType(SerializedObject<?> s) {
         SerializedObject<?> jsonNode =
                 s.withData(new Data(s.data().getValue(), JsonNode.class.getName(), 0, getFormat()));
-        return Stream.of(new DeserializingObject(jsonNode, (Function<Class<?>, Object>) type -> {
+        return Stream.of(new DeserializingObject(jsonNode, (Function<Type, Object>) type -> {
             try {
                 Object serializedValue = jsonNode.data().getValue();
                 return switch (serializedValue) {

@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.common.search.SearchInclude;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.DeserializingObject;
@@ -130,6 +132,17 @@ class JacksonSerializerTest {
         List<DeserializingObject<byte[], Data<byte[]>>> result =
                 serializer.deserialize(Stream.of(data), UnknownTypeStrategy.AS_INTERMEDIATE).toList();
         assertEquals(foo, result.get(0).getPayloadAs(Foo.class));
+    }
+
+    @Test
+    void testConvertGetPayloadAsParameterizedType() throws Exception {
+        List<Foo> input = List.of(new Foo("bar"), new Foo("baz"));
+        Data<byte[]> data = new Data<>(JsonUtils.asBytes(input), "unknownType", 0, "application/json");
+        var type = new TypeReference<List<Foo>>() {
+        }.getType();
+        var result = serializer.deserialize(Stream.of(data), UnknownTypeStrategy.AS_INTERMEDIATE)
+                .findFirst().orElseThrow().getPayloadAs(type);
+        assertEquals(input, result);
     }
 
     @Test
@@ -392,5 +405,4 @@ class JacksonSerializerTest {
     interface Bar {
 
     }
-
 }

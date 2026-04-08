@@ -237,7 +237,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
                         return (Stream) deserializeUnknownType(s);
                     }
                     return Stream.<DeserializingObject<byte[], S>>of(
-                            new DeserializingObject(s, (Function<Class<?>, Object>) type -> {
+                            new DeserializingObject(s, (Function<Type, Object>) type -> {
                                 try {
                                     return Object.class.equals(type)
                                             ? doDeserialize(s.data(), s.data().getType())
@@ -382,19 +382,21 @@ public abstract class AbstractSerializer<I> implements Serializer {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     protected Stream<DeserializingObject<byte[], ?>> deserializeOtherFormat(SerializedObject<byte[]> s) {
-        return Stream.of(new DeserializingObject(s, (Function<Class<?>, Object>) type -> {
+        return Stream.of(new DeserializingObject(s, (Function<Type, Object>) type -> {
             try {
                 if (Object.class.equals(type)) {
                     return s.data().getValue();
                 }
-                if (byte[].class.isAssignableFrom(type)) {
-                    return s.data().getValue();
-                }
-                if (String.class.isAssignableFrom(type)) {
-                    return new String(s.data().getValue());
-                }
-                if (InputStream.class.isAssignableFrom(type)) {
-                    return new ByteArrayInputStream(s.data().getValue());
+                if (type instanceof Class<?> clazz) {
+                    if (byte[].class.isAssignableFrom(clazz)) {
+                        return s.data().getValue();
+                    }
+                    if (String.class.isAssignableFrom(clazz)) {
+                        return new String(s.data().getValue());
+                    }
+                    if (InputStream.class.isAssignableFrom(clazz)) {
+                        return new ByteArrayInputStream(s.data().getValue());
+                    }
                 }
                 return doDeserialize(s.data(), asString(type));
             } catch (Exception e) {
