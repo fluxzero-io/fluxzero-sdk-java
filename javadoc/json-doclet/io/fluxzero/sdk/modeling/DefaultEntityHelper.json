@@ -10,14 +10,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.modeling.EntityHelper" ],
   "fields" : [ {
-    "name" : "annotationCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.annotationCache",
-    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.Aggregate>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : " Caches resolved @Aggregate annotations for faster repeated access.\n",
-    "constantValue" : null
-  }, {
     "name" : "applyMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.applyMatchers",
     "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.Boolean,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",

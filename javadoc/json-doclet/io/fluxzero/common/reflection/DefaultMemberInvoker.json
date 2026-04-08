@@ -13,14 +13,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.reflection.MemberInvoker" ],
   "fields" : [ {
-    "name" : "cache",
-    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.cache",
-    "type" : "java.util.Map<java.lang.reflect.Member,io.fluxzero.common.reflection.MemberInvoker>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "fallbackFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.fallbackFunction",
     "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.FallbackFunction",
@@ -99,7 +91,7 @@
   "constructors" : [ {
     "name" : "DefaultMemberInvoker",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#DefaultMemberInvoker",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {

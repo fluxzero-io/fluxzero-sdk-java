@@ -13,14 +13,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerDecorator" ],
   "fields" : [ {
-    "name" : "collectionSupplier",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator.collectionSupplier",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Optional<java.lang.String>>",
-    "modifiers" : [ "final", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "documentStoreSupplier",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator.documentStoreSupplier",
     "type" : "java.util.function.Supplier<io.fluxzero.sdk.persisting.search.DocumentStore>",

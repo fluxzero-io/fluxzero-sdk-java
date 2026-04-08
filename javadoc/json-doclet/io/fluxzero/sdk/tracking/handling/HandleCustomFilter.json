@@ -9,15 +9,7 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
-  "fields" : [ {
-    "name" : "handleCustomCache",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCustomFilter.handleCustomCache",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.handling.HandleCustom>>",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  } ],
+  "fields" : [ ],
   "constructors" : [ {
     "name" : "HandleCustomFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCustomFilter#HandleCustomFilter",

@@ -9,15 +9,7 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
-  "fields" : [ {
-    "name" : "allowedClassProvider",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter.allowedClassProvider",
-    "type" : "java.util.function.Function<java.lang.Class<? extends java.lang.annotation.Annotation>,java.util.function.Function<java.lang.reflect.Executable,io.fluxzero.sdk.tracking.handling.PayloadFilter.HandleAnnotation>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  } ],
+  "fields" : [ ],
   "constructors" : [ {
     "name" : "PayloadFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#PayloadFilter",

@@ -55,14 +55,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "entityIdInvokerCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.entityIdInvokerCache",
-    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Optional<io.fluxzero.common.reflection.MemberInvoker>>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "entityType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.entityType",
     "type" : "java.lang.Class<?>",

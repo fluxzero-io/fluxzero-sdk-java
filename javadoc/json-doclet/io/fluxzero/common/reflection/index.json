@@ -155,9 +155,34 @@
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils",
     "kind" : "class"
   }, {
+    "file" : "ReflectionUtils.AnnotatedMemberKey.json",
+    "name" : "ReflectionUtils.AnnotatedMemberKey",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey",
+    "kind" : "record"
+  }, {
+    "file" : "ReflectionUtils.AnnotationProjectionKey.json",
+    "name" : "ReflectionUtils.AnnotationProjectionKey",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotationProjectionKey",
+    "kind" : "record"
+  }, {
+    "file" : "ReflectionUtils.MemberInvokerKey.json",
+    "name" : "ReflectionUtils.MemberInvokerKey",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$MemberInvokerKey",
+    "kind" : "record"
+  }, {
     "file" : "ReflectionUtils.PropertyNotFoundException.json",
     "name" : "ReflectionUtils.PropertyNotFoundException",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$PropertyNotFoundException",
+    "kind" : "class"
+  }, {
+    "file" : "ReflectionUtils.TypeMetadata.json",
+    "name" : "ReflectionUtils.TypeMetadata",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata",
+    "kind" : "class"
+  }, {
+    "file" : "ReflectionUtils.TypeMetadata.PropertyPathMetadata.json",
+    "name" : "ReflectionUtils.TypeMetadata.PropertyPathMetadata",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata$PropertyPathMetadata",
     "kind" : "class"
   } ],
   "subdirectories" : [ ]
