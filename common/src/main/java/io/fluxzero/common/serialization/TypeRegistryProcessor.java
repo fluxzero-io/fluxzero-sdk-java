@@ -30,6 +30,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
 import javax.tools.FileObject;
+import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +58,7 @@ public class TypeRegistryProcessor extends AbstractProcessor {
     private static final String PREFIXES_FILE = "META-INF/type-registry-prefixes";
 
     private final Set<Prefix> roundPrefixes = new LinkedHashSet<>();
+    private final Set<String> roundTypes = new LinkedHashSet<>();
     @Getter(lazy = true)
     private final FileObject typesResource =
             call(() -> processingEnv.getFiler().getResource(CLASS_OUTPUT, "", TYPES_FILE));
@@ -67,15 +69,17 @@ public class TypeRegistryProcessor extends AbstractProcessor {
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
-        if (!isNewProcess()) {
-            storeTypes();
-        }
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        roundPrefixes.addAll(roundEnv.getRootElements().stream().flatMap(this::getPrefixes).toList());
-        if (roundEnv.processingOver() && isNewProcess()) {
+        roundPrefixes.addAll(roundEnv.getElementsAnnotatedWith(RegisterType.class).stream()
+                                  .flatMap(this::getPrefixes)
+                                  .collect(Collectors.toCollection(LinkedHashSet::new)));
+        roundTypes.addAll(roundEnv.getRootElements().stream().flatMap(this::getClasses)
+                                  .map(t -> processingEnv.getElementUtils().getBinaryName(t).toString())
+                                  .collect(Collectors.toCollection(LinkedHashSet::new)));
+        if (roundEnv.processingOver()) {
             storeTypes();
         }
         return true;
@@ -106,7 +110,7 @@ public class TypeRegistryProcessor extends AbstractProcessor {
         try (Scanner scanner = new Scanner(getTypesResource().openInputStream())) {
             while (scanner.hasNextLine()) {
                 String type = scanner.nextLine();
-                if (isType(type) && prefixes.stream().anyMatch(p -> p.matches(type))) {
+                if ((isType(type) || hasClassOutput(type)) && prefixes.stream().anyMatch(p -> p.matches(type))) {
                     result.add(type);
                 }
             }
@@ -115,9 +119,10 @@ public class TypeRegistryProcessor extends AbstractProcessor {
     }
 
     Stream<String> getNewTypes(Set<Prefix> prefixes) {
-        return processingEnv.getElementUtils().getAllModuleElements().stream().flatMap(this::getClasses)
-                .filter(t -> prefixes.stream().anyMatch(prefix -> prefix.matches(t.getQualifiedName().toString())))
-                .map(c -> processingEnv.getElementUtils().getBinaryName(c).toString());
+        return Stream.concat(roundTypes.stream(), processingEnv.getElementUtils().getAllModuleElements().stream()
+                                 .flatMap(this::getClasses)
+                                 .map(c -> processingEnv.getElementUtils().getBinaryName(c).toString()))
+                .filter(type -> prefixes.stream().anyMatch(prefix -> prefix.matches(type)));
     }
 
     @SneakyThrows
@@ -127,31 +132,36 @@ public class TypeRegistryProcessor extends AbstractProcessor {
         if (resource.getLastModified() != 0) {
             try (Scanner scanner = new Scanner(resource.openInputStream())) {
                 while (scanner.hasNextLine()) {
-                    Prefix prefix = new Prefix(scanner.nextLine());
-                    String root = prefix.getRoot();
-                    if (isPackage(root) || isType(root)) {
-                        prefixes.add(prefix);
-                    }
+                    prefixes.add(new Prefix(scanner.nextLine()));
                 }
             }
         }
         resource = processingEnv.getFiler().createResource(CLASS_OUTPUT, "", PREFIXES_FILE);
         try (Writer resourceWriter = resource.openWriter()) {
             for (Prefix prefix : prefixes) {
-                String root = prefix.getRoot();
-                if (isPackage(root) || isType(root)) {
-                    resourceWriter.write(prefix + "\n");
-                }
+                resourceWriter.write(prefix + "\n");
             }
         }
         return prefixes;
+    }
+
+    boolean hasClassOutput(String binaryName) {
+        try {
+            return processingEnv.getFiler()
+                           .getResource(CLASS_OUTPUT, "", binaryName.replace('.', '/') + ".class")
+                           .getLastModified() != 0;
+        } catch (IOException ignored) {
+            return false;
+        }
     }
 
     Stream<Prefix> getPrefixes(Element element) {
         try {
             RegisterType registerType = element.getAnnotation(RegisterType.class);
             if (registerType != null) {
-                String root = ((QualifiedNameable) element).getQualifiedName().toString();
+                String root = registerType.root().isBlank()
+                        ? ((QualifiedNameable) element).getQualifiedName().toString()
+                        : registerType.root().trim();
                 return Stream.of(new Prefix(root, Arrays.asList(registerType.contains())));
             }
         } catch (Throwable ignored) {

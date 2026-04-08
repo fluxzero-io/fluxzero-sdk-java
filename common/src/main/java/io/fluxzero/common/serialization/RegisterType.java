@@ -28,6 +28,8 @@ import java.lang.annotation.Target;
  * <p>
  * If this annotation is placed on a <strong>class</strong>, that class will be registered in the {@code TypeRegistry}.
  * If placed on a <strong>package</strong>, all types in that package and its ancestor packages will be registered.
+ * If {@link #root()} is set, the provided package or type prefix is used instead of the annotated element name. This is
+ * especially useful in Kotlin projects, where {@code package-info.java} is typically not used.
  * <p>
  * Types or packages marked with {@code @RegisterType} are discovered and indexed during annotation processing. This
  * means that they must be available on the classpath at compile time, and annotation processing must be enabled for the
@@ -58,11 +60,29 @@ import java.lang.annotation.Target;
  * @RegisterType(contains = {"Dto", "Request"})
  * }</pre>
  * This ensures that only classes whose names include {@code "Dto"} or {@code "Request"} will be registered.
+ *
+ * <h2>Kotlin package registration</h2>
+ * Kotlin does not normally use {@code package-info.java}. To register an entire package from Kotlin, annotate a marker
+ * type and point {@link #root()} at the package:
+ * <pre>{@code
+ * @RegisterType(root = "com.example.messages")
+ * object TypeRegistryMarker
+ * }</pre>
  */
 @Retention(RetentionPolicy.CLASS)
 @Target({ElementType.PACKAGE, ElementType.TYPE})
 @Inherited
 public @interface RegisterType {
+
+    /**
+     * Optional explicit root package or type prefix to register.
+     * <p>
+     * When left empty, the fully qualified name of the annotated package or type is used. When set, the value may point
+     * to either a package or a type, which makes it suitable for marker classes in Kotlin projects.
+     *
+     * @return explicit package or type root to register
+     */
+    String root() default "";
 
     /**
      * Optional filters to determine which types should be registered based on name matching.

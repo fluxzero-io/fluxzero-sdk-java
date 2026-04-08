@@ -1815,6 +1815,14 @@ Or partial paths:
 
 > This enables readable and concise references while still resolving to the correct type.
 
+For Kotlin projects, use `kapt` to run the Java annotation processor. Because Kotlin typically does not use
+`package-info.java`, you can register a whole package with a marker type:
+
+```kotlin
+@RegisterType(root = "com.example.messages")
+object TypeRegistryMarker
+```
+
 #### Inheriting from Other JSON Files
 
 JSON resources can **extend** other resources using the `@extends` keyword:
@@ -4519,7 +4527,8 @@ Fluxzero provides full support for Kotlin, including:
 - Optional types (e.g., `String?`) instead of `@Nullable`,
 - Seamless use of Kotlin-specific language features (e.g., `when`, `sealed class`, `companion object`),
 - Support for `Class<T>` parameters passed as `MyClass::class` or `MyClass::class.java`,
-- Automatic recognition of Kotlin modules during deserialization (see below).
+- Automatic recognition of Kotlin modules during deserialization (see below),
+- `@RegisterType` support via `kapt`, including package registration through a Kotlin marker type and `root`.
 
 ### Automatic Jackson Integration
 
