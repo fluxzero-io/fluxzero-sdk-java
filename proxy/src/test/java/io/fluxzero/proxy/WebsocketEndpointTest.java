@@ -111,18 +111,16 @@ class WebsocketEndpointTest {
         }
 
         @Override
-        protected CompletableFuture<?> sendRequest(Session session, String method, byte[] payload) {
-            if (HttpRequestMethod.WS_CLOSE.equals(method)) {
-                closeRequestStarted.countDown();
-                try {
-                    assertTrue(allowCloseRequestToFinish.await(1, TimeUnit.SECONDS),
-                               "Timed out waiting to release the websocket close request");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError("Interrupted while waiting to release the websocket close request", e);
-                } finally {
-                    closeRequestFinished.countDown();
-                }
+        protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
+            closeRequestStarted.countDown();
+            try {
+                assertTrue(allowCloseRequestToFinish.await(1, TimeUnit.SECONDS),
+                           "Timed out waiting to release the websocket close request");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("Interrupted while waiting to release the websocket close request", e);
+            } finally {
+                closeRequestFinished.countDown();
             }
             return CompletableFuture.completedFuture(null);
         }

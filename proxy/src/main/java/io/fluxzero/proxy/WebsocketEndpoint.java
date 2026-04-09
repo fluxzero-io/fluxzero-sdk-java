@@ -25,7 +25,9 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.HttpRequestMethod;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
@@ -71,12 +74,16 @@ public class WebsocketEndpoint extends Endpoint {
 
     private final Client client;
     private final GatewayClient requestGateway;
+    private final RequestHandler closeRequestHandler;
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
 
     public WebsocketEndpoint(Client client) {
         this.client = client;
         this.requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
+        this.closeRequestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE,
+                                                            java.time.Duration.ofSeconds(CLOSE_NOTIFICATION_TIMEOUT_SECONDS),
+                                                            format("%s_%s", client.name(), "$websocket-close-request-handler"));
     }
 
     @Override
@@ -95,10 +102,17 @@ public class WebsocketEndpoint extends Endpoint {
     @SneakyThrows
     public void onClose(Session session, CloseReason closeReason) {
         openSessions.remove(session.getId());
+        Throwable failure = null;
         try {
-            sendCloseRequest(session, closeReason).get(1, TimeUnit.SECONDS);
+            sendCloseRequest(session, closeReason).get(CLOSE_NOTIFICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            failure = unwrapCloseFailure(e);
+            throw (RuntimeException) failure;
+        } catch (Throwable t) {
+            failure = t;
+            throw t;
         } finally {
-            completeCloseNotification(session.getId(), null);
+            completeCloseNotification(session.getId(), failure);
         }
     }
 
@@ -108,19 +122,24 @@ public class WebsocketEndpoint extends Endpoint {
     }
 
     protected CompletableFuture<?> sendRequest(Session session, String method, byte[] payload) {
+        return requestGateway.append(Guarantee.STORED, createRequest(session, method, payload));
+    }
+
+    private SerializedMessage createRequest(Session session, String method, byte[] payload) {
         Metadata metadata = getContext(session).metadata().with(WebRequest.methodKey, method);
-        var request = new SerializedMessage(new Data<>(payload == null ? new byte[0] : payload,
-                                                       null, 0, "unknown"),
-                                            metadata, Fluxzero.generateId(),
-                                            Fluxzero.currentClock().millis());
+        SerializedMessage request = new SerializedMessage(new Data<>(payload == null ? new byte[0] : payload,
+                                                                    null, 0, "unknown"),
+                                                         metadata, Fluxzero.generateId(),
+                                                         Fluxzero.currentClock().millis());
         request.setSource(client.id());
         request.setTarget(getContext(session).trackerId());
-        return requestGateway.append(Guarantee.STORED, request);
+        return request;
     }
 
     protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
-        return sendRequest(session, HttpRequestMethod.WS_CLOSE,
-                           String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
+        SerializedMessage request = createRequest(session, HttpRequestMethod.WS_CLOSE,
+                                                  String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
+        return closeRequestHandler.sendRequest(request, m -> requestGateway.append(Guarantee.STORED, m));
     }
 
     protected void handleResultMessages(List<SerializedMessage> resultMessages) {
@@ -235,6 +254,7 @@ public class WebsocketEndpoint extends Endpoint {
                     log.warn("Timed out waiting for websocket close notifications during shutdown", e);
                 }
             }
+            closeRequestHandler.close();
         }
     }
 
@@ -264,6 +284,17 @@ public class WebsocketEndpoint extends Endpoint {
         } else {
             notification.completeExceptionally(failure);
         }
+    }
+
+    private RuntimeException unwrapCloseFailure(ExecutionException exception) {
+        Throwable cause = exception.getCause();
+        if (cause instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return new IllegalStateException("Failed to process websocket close request", cause);
     }
 
     @Builder
