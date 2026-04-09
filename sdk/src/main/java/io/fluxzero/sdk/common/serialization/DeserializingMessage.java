@@ -272,7 +272,10 @@ public class DeserializingMessage implements HasMessage {
     @SuppressWarnings("rawtypes")
     public Class<?> getPayloadClass() {
         if (delegate != null) {
-            return delegate.getPayloadClass();
+            Class<?> payloadClass = delegate.getPayloadClass();
+            if (payloadClass != null) {
+                return payloadClass;
+            }
         }
         return message == null ? Void.class : message.getPayloadClass();
     }
