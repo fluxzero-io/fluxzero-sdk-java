@@ -16,13 +16,21 @@
   "superClass" : "jakarta.websocket.Endpoint",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "CLOSE_NOTIFICATION_TIMEOUT_SECONDS",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT_SECONDS",
-    "type" : "long",
-    "modifiers" : [ "final", "private", "static" ],
+    "name" : "CLOSE_NOTIFICATION_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : 5
+    "constantValue" : null
+  }, {
+    "name" : "awaitCloseAcknowledgements",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.awaitCloseAcknowledgements",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.client",
@@ -39,6 +47,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "_clientId"
+  }, {
+    "name" : "closeNotificationTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.closeNotificationTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "metadataPrefix",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.metadataPrefix",
@@ -449,6 +465,69 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "warnOnTimeout",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "awaitCloseAcknowledgements",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "warnOnTimeout",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
