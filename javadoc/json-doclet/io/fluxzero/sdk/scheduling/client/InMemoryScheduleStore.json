@@ -152,24 +152,65 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "filterMessages",
-    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#filterMessages",
-    "returnType" : "java.util.Collection<io.fluxzero.common.api.SerializedMessage>",
-    "modifiers" : [ "protected" ],
+    "name" : "getBatch",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#getBatch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public", "synchronized" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "messages",
-      "type" : "java.util.Collection<io.fluxzero.common.api.SerializedMessage>",
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inclusive",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a batch of schedules that are due for delivery.\n <p>\n Unlike a regular message store, this schedule store only exposes entries whose deadline has passed and whose\n schedule id is still active.\n"
+  }, {
+    "name" : "getBatch",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#getBatch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeFuture",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a batch of schedules from the active schedule index.\n <p>\n When {@code includeFuture} is {@code false}, only schedules whose deadline has passed are returned. When it is\n {@code true}, future schedules are also included. This is used by the test server to discover the next hidden\n deadline and wake waiting trackers as soon as that deadline expires.\n"
   }, {
     "name" : "getFutureSchedules",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#getFutureSchedules",

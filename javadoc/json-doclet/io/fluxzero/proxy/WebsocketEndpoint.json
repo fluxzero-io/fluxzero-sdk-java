@@ -40,14 +40,6 @@
     "documentation" : null,
     "constantValue" : "_clientId"
   }, {
-    "name" : "closeRequestHandler",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.closeRequestHandler",
-    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "metadataPrefix",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.metadataPrefix",
     "type" : "java.lang.String",
@@ -88,6 +80,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "requestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.requestHandler",
+    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "started",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.started",
     "type" : "java.util.concurrent.atomic.AtomicBoolean",
@@ -113,6 +113,11 @@
     "parameters" : [ {
       "name" : "client",
       "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestHandler",
+      "type" : "io.fluxzero.sdk.publishing.RequestHandler",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
