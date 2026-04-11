@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import jakarta.websocket.CloseReason;
@@ -107,7 +108,7 @@ class WebsocketEndpointTest {
         private final CountDownLatch closeRequestFinished = new CountDownLatch(1);
 
         private TestEndpoint() {
-            super(createClient());
+            super(createClient(), mock(RequestHandler.class));
         }
 
         @Override

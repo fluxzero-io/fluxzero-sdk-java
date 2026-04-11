@@ -97,7 +97,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
         requestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE, Duration.ofSeconds(200),
                                                    format("%s_%s", client.name(), "$proxy-request-handler"));
-        websocketEndpoint = new WebsocketEndpoint(client);
+        websocketEndpoint = new WebsocketEndpoint(client, requestHandler);
         websocketHandler = createWebsocketHandler();
         this.namespaceSelector = namespaceSelector;
     }

@@ -25,7 +25,6 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
-import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -74,16 +73,14 @@ public class WebsocketEndpoint extends Endpoint {
 
     private final Client client;
     private final GatewayClient requestGateway;
-    private final RequestHandler closeRequestHandler;
+    private final RequestHandler requestHandler;
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
 
-    public WebsocketEndpoint(Client client) {
+    public WebsocketEndpoint(Client client, RequestHandler requestHandler) {
         this.client = client;
         this.requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
-        this.closeRequestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE,
-                                                            java.time.Duration.ofSeconds(CLOSE_NOTIFICATION_TIMEOUT_SECONDS),
-                                                            format("%s_%s", client.name(), "$websocket-close-request-handler"));
+        this.requestHandler = requestHandler;
     }
 
     @Override
@@ -139,7 +136,7 @@ public class WebsocketEndpoint extends Endpoint {
     protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
         SerializedMessage request = createRequest(session, HttpRequestMethod.WS_CLOSE,
                                                   String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
-        return closeRequestHandler.sendRequest(request, m -> requestGateway.append(Guarantee.STORED, m));
+        return requestHandler.sendRequest(request, m -> requestGateway.append(Guarantee.STORED, m));
     }
 
     protected void handleResultMessages(List<SerializedMessage> resultMessages) {
@@ -254,7 +251,6 @@ public class WebsocketEndpoint extends Endpoint {
                     log.warn("Timed out waiting for websocket close notifications during shutdown", e);
                 }
             }
-            closeRequestHandler.close();
         }
     }
 
