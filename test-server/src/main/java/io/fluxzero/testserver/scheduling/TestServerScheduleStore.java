@@ -66,7 +66,7 @@ public class TestServerScheduleStore implements MessageStore, SchedulingClient {
     @Override
     public synchronized List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive) {
         List<SerializedMessage> unfiltered = delegate.getBatch(
-                minIndex == null ? -1L : inclusive ? minIndex : minIndex + 1, maxSize);
+                minIndex == null ? -1L : inclusive ? minIndex : minIndex + 1, maxSize, true, true);
         List<SerializedMessage> filtered = delegate.getBatch(minIndex, maxSize, inclusive);
         unfiltered.stream().filter(m -> !filtered.contains(m)).map(SerializedMessage::getIndex)
                 .min(Comparator.naturalOrder()).ifPresent(this::rescheduleNextDeadline);

@@ -30,9 +30,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,7 +43,6 @@ import static io.fluxzero.sdk.tracking.IndexUtils.indexFromMillis;
 import static io.fluxzero.sdk.tracking.IndexUtils.maxIndexFromMillis;
 import static io.fluxzero.sdk.tracking.IndexUtils.millisFromIndex;
 import static io.fluxzero.sdk.tracking.IndexUtils.timestampFromIndex;
-import static java.util.stream.Collectors.toList;
 
 /**
  * An in-memory implementation of a scheduling store that allows the scheduling, retrieval, and management of scheduled
@@ -66,14 +65,6 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
 
     public InMemoryScheduleStore(Duration messageExpiration) {
         super(SCHEDULE, messageExpiration);
-    }
-
-    @Override
-    protected Collection<SerializedMessage> filterMessages(Collection<SerializedMessage> messages) {
-        long maximumIndex = maxIndexFromMillis(clock.millis());
-        return super.filterMessages(messages).stream()
-                .filter(m -> m.getIndex() <= maximumIndex && scheduleIdsByIndex.containsKey(m.getIndex()))
-                .collect(toList());
     }
 
     @Override
@@ -118,6 +109,37 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     @Override
     public CompletableFuture<Void> append(List<SerializedMessage> messages) {
         throw new UnsupportedOperationException("Use method #schedule instead");
+    }
+
+    /**
+     * Returns a batch of schedules that are due for delivery.
+     * <p>
+     * Unlike a regular message store, this schedule store only exposes entries whose deadline has passed and whose
+     * schedule id is still active.
+     */
+    @Override
+    public synchronized List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive) {
+        return getBatch(minIndex, maxSize, inclusive, false);
+    }
+
+    /**
+     * Returns a batch of schedules from the active schedule index.
+     * <p>
+     * When {@code includeFuture} is {@code false}, only schedules whose deadline has passed are returned. When it is
+     * {@code true}, future schedules are also included. This is used by the test server to discover the next hidden
+     * deadline and wake waiting trackers as soon as that deadline expires.
+     */
+    public synchronized List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive,
+                                                         boolean includeFuture) {
+        if (includeFuture) {
+            return scheduleIdsByIndex.tailMap(Optional.ofNullable(minIndex).orElse(-1L), inclusive).keySet().stream()
+                    .map(this::getMessage)
+                    .limit(maxSize)
+                    .toList();
+        }
+        long maximumIndex = maxIndexFromMillis(clock.millis());
+        return scheduleIdsByIndex.tailMap(Optional.ofNullable(minIndex).orElse(-1L), inclusive).keySet().stream()
+                .filter(aLong -> aLong <= maximumIndex).map(this::getMessage).limit(maxSize).toList();
     }
 
     public synchronized void setClock(@NonNull Clock clock) {
