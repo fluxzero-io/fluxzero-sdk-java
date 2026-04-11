@@ -22,7 +22,9 @@ import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +35,9 @@ class TestServerScheduleStoreTest {
     @Test
     void getBatchReschedulesWhenTheHiddenFutureScheduleIsTheImmediateNextIndex() throws Exception {
         InMemoryScheduleStore delegate = new InMemoryScheduleStore();
+        delegate.setRetentionTime(null);
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        delegate.setClock(Clock.fixed(now, ZoneOffset.UTC));
         AtomicLong rescheduledIndex = new AtomicLong(-1);
         TestServerScheduleStore subject = new TestServerScheduleStore(delegate) {
             @Override
@@ -41,16 +46,16 @@ class TestServerScheduleStoreTest {
             }
         };
 
-        Instant deadline = Instant.now().plusMillis(150);
+        Instant deadline = now.plusMillis(150);
         SerializedSchedule schedule = new SerializedSchedule(
                 "schedule-1",
                 deadline.toEpochMilli(),
                 new SerializedMessage(new Data<>("test".getBytes(), "test", 0, null),
-                                      Metadata.empty(), "message-1", Instant.now().toEpochMilli()),
+                                      Metadata.empty(), "message-1", now.toEpochMilli()),
                 false);
         delegate.schedule(Guarantee.STORED, schedule).get();
 
-        long scheduleIndex = delegate.getSchedule("schedule-1").getMessage().getIndex();
+        long scheduleIndex = schedule.getMessage().getIndex();
         subject.getBatch(scheduleIndex - 1, 1, false);
 
         assertEquals(scheduleIndex, rescheduledIndex.get());
