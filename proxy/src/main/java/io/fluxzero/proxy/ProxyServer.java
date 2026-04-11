@@ -125,7 +125,7 @@ public class ProxyServer implements Registration {
 
     @Override
     public void cancel() {
-        proxyHandler.close();
+        proxyHandler.close(false);
         server.stop();
     }
 }

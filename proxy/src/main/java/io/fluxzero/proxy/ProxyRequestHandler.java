@@ -72,6 +72,7 @@ import static java.util.Optional.ofNullable;
 public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
 
     public static final String CORS_DOMAINS_PROPERTY = "FLUXZERO_CORS_DOMAINS";
+    static final Duration SERVER_SHUTDOWN_CLOSE_TIMEOUT = Duration.ofSeconds(1);
 
     @Getter
     private final Client client;
@@ -349,8 +350,16 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     @Override
     public void close() {
+        close(true);
+    }
+
+    void close(boolean gracefulWebsocketShutdown) {
         if (closed.compareAndSet(false, true)) {
-            websocketEndpoint.shutDown();
+            websocketEndpoint.shutDown(gracefulWebsocketShutdown
+                                               ? WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT
+                                               : SERVER_SHUTDOWN_CLOSE_TIMEOUT,
+                                       gracefulWebsocketShutdown,
+                                       gracefulWebsocketShutdown);
             requestHandler.close();
             requestGateway.close();
             super.close();

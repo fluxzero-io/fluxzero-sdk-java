@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.OutputStream;
 import java.io.Writer;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @AllArgsConstructor
 public class WebsocketEndpoint extends Endpoint {
     static final String metadataPrefix = "_metadata:", clientIdKey = "_clientId", trackerIdKey = "_trackerId";
-    private static final long CLOSE_NOTIFICATION_TIMEOUT_SECONDS = 5;
+    static final Duration CLOSE_NOTIFICATION_TIMEOUT = Duration.ofSeconds(5);
 
     private final Map<String, Session> openSessions = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Void>> pendingCloseNotifications = new ConcurrentHashMap<>();
@@ -76,6 +77,8 @@ public class WebsocketEndpoint extends Endpoint {
     private final RequestHandler requestHandler;
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
+    private volatile Duration closeNotificationTimeout = CLOSE_NOTIFICATION_TIMEOUT;
+    private volatile boolean awaitCloseAcknowledgements = true;
 
     public WebsocketEndpoint(Client client, RequestHandler requestHandler) {
         this.client = client;
@@ -99,9 +102,10 @@ public class WebsocketEndpoint extends Endpoint {
     @SneakyThrows
     public void onClose(Session session, CloseReason closeReason) {
         openSessions.remove(session.getId());
+        Duration timeout = closeNotificationTimeout;
         Throwable failure = null;
         try {
-            sendCloseRequest(session, closeReason).get(CLOSE_NOTIFICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            sendCloseRequest(session, closeReason).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             failure = unwrapCloseFailure(e);
             throw (RuntimeException) failure;
@@ -136,7 +140,11 @@ public class WebsocketEndpoint extends Endpoint {
     protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
         SerializedMessage request = createRequest(session, HttpRequestMethod.WS_CLOSE,
                                                   String.valueOf(closeReason.getCloseCode().getCode()).getBytes(UTF_8));
-        return requestHandler.sendRequest(request, m -> requestGateway.append(Guarantee.STORED, m));
+        if (!awaitCloseAcknowledgements) {
+            return requestGateway.append(Guarantee.NONE, request);
+        }
+        return requestHandler.sendRequest(request, m -> requestGateway.append(Guarantee.STORED, m),
+                                          closeNotificationTimeout);
     }
 
     protected void handleResultMessages(List<SerializedMessage> resultMessages) {
@@ -240,15 +248,31 @@ public class WebsocketEndpoint extends Endpoint {
     }
 
     public void shutDown() {
+        shutDown(CLOSE_NOTIFICATION_TIMEOUT, true, true);
+    }
+
+    void shutDown(Duration closeNotificationTimeout) {
+        shutDown(closeNotificationTimeout, true, true);
+    }
+
+    void shutDown(Duration closeNotificationTimeout, boolean warnOnTimeout) {
+        shutDown(closeNotificationTimeout, true, warnOnTimeout);
+    }
+
+    void shutDown(Duration closeNotificationTimeout, boolean awaitCloseAcknowledgements, boolean warnOnTimeout) {
         if (started.compareAndSet(true, false) && registration != null) {
+            this.closeNotificationTimeout = closeNotificationTimeout;
+            this.awaitCloseAcknowledgements = awaitCloseAcknowledgements;
             registration.cancel();
             var closeNotifications = openSessions.values().stream().map(this::closeSession).toArray(CompletableFuture[]::new);
             if (closeNotifications.length > 0) {
                 try {
                     CompletableFuture.allOf(closeNotifications)
-                            .get(CLOSE_NOTIFICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                            .get(closeNotificationTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Exception e) {
-                    log.warn("Timed out waiting for websocket close notifications during shutdown", e);
+                    if (warnOnTimeout) {
+                        log.warn("Timed out waiting for websocket close notifications during shutdown", e);
+                    }
                 }
             }
         }

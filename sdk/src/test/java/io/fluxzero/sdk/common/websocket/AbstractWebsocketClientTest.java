@@ -4,12 +4,21 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.publishing.Append;
 import jakarta.websocket.ClientEndpoint;
 import jakarta.websocket.HandshakeResponse;
+import jakarta.websocket.RemoteEndpoint;
+import jakarta.websocket.Session;
 import jakarta.websocket.WebSocketContainer;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.net.URI;
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -20,6 +29,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -142,9 +152,40 @@ class AbstractWebsocketClientTest {
         assertTrue(error.getMessage().contains(InvalidAnnotatedClient.class.getName()));
     }
 
+    @Test
+    void sendBatchIgnoresClosedChannelDuringShutdown() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+        Session session = mock(Session.class);
+        RemoteEndpoint.Basic remote = mock(RemoteEndpoint.Basic.class);
+        when(session.getBasicRemote()).thenReturn(remote);
+        when(remote.getSendStream()).thenThrow(new ClosedChannelException());
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
+
+        client.close();
+
+        Method sendBatch = AbstractWebsocketClient.class.getDeclaredMethod("sendBatch", List.class, Session.class);
+        sendBatch.setAccessible(true);
+
+        List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
+        assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session));
+    }
+
     @ClientEndpoint
     private static class InvalidAnnotatedClient extends AbstractWebsocketClient {
         InvalidAnnotatedClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1);
+        }
+    }
+
+    private static class TestClient extends AbstractWebsocketClient {
+        TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
                   true, Duration.ofSeconds(1), defaultObjectMapper, 1);
         }

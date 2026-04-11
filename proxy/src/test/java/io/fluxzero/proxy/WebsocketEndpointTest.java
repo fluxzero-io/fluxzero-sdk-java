@@ -15,17 +15,18 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
-import io.fluxzero.sdk.web.HttpRequestMethod;
 import jakarta.websocket.CloseReason;
 import jakarta.websocket.Session;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -37,9 +38,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WebsocketEndpointTest {
@@ -48,17 +52,7 @@ class WebsocketEndpointTest {
     void shutdownWaitsForCloseRequestToFinish() throws Exception {
         TestEndpoint endpoint = new TestEndpoint();
         Session session = mock(Session.class);
-        when(session.getId()).thenReturn("session-1");
-        when(session.isOpen()).thenReturn(true);
-        when(session.getRequestParameterMap()).thenReturn(Map.of(
-                WebsocketEndpoint.clientIdKey, List.of("client-1"),
-                WebsocketEndpoint.trackerIdKey, List.of("tracker-1")));
-        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
-        doAnswer(invocation -> {
-            var reason = invocation.getArgument(0, CloseReason.class);
-            CompletableFuture.runAsync(() -> endpoint.onClose(session, reason));
-            return null;
-        }).when(session).close(any(CloseReason.class));
+        prepareSession(endpoint, session);
 
         addOpenSession(endpoint, session);
         setStarted(endpoint, true);
@@ -74,6 +68,43 @@ class WebsocketEndpointTest {
         shutdown.get(1, TimeUnit.SECONDS);
         assertTrue(endpoint.closeRequestFinished.await(1, TimeUnit.SECONDS),
                    "Expected websocket close request to finish before shutdown completes");
+    }
+
+    @Test
+    void serverShutdownUsesShorterCloseTimeout() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        when(gatewayClient.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        WebsocketEndpoint endpoint = new WebsocketEndpoint(createClient(gatewayClient), requestHandler);
+        Session session = mock(Session.class);
+        prepareSession(endpoint, session);
+
+        addOpenSession(endpoint, session);
+        setStarted(endpoint, true);
+        setRegistration(endpoint, Registration.noOp());
+
+        long start = System.nanoTime();
+        endpoint.shutDown(ProxyRequestHandler.SERVER_SHUTDOWN_CLOSE_TIMEOUT, false, false);
+        long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+        verify(gatewayClient).append(eq(Guarantee.NONE), any());
+        verify(requestHandler, never()).sendRequest(any(), any(), any(Duration.class));
+        assertTrue(durationMillis < 2_000,
+                   "Expected server shutdown to use the shorter websocket close timeout");
+    }
+
+    private static void prepareSession(WebsocketEndpoint endpoint, Session session) throws Exception {
+        when(session.getId()).thenReturn("session-1");
+        when(session.isOpen()).thenReturn(true);
+        when(session.getRequestParameterMap()).thenReturn(Map.of(
+                WebsocketEndpoint.clientIdKey, List.of("client-1"),
+                WebsocketEndpoint.trackerIdKey, List.of("tracker-1")));
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
+        doAnswer(invocation -> {
+            var reason = invocation.getArgument(0, CloseReason.class);
+            CompletableFuture.runAsync(() -> endpoint.onClose(session, reason));
+            return null;
+        }).when(session).close(any(CloseReason.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -96,8 +127,11 @@ class WebsocketEndpointTest {
     }
 
     private static Client createClient() {
+        return createClient(mock(GatewayClient.class));
+    }
+
+    private static Client createClient(GatewayClient gatewayClient) {
         Client client = mock(Client.class, CALLS_REAL_METHODS);
-        GatewayClient gatewayClient = mock(GatewayClient.class);
         when(client.getGatewayClient(MessageType.WEBREQUEST, null)).thenReturn(gatewayClient);
         return client;
     }

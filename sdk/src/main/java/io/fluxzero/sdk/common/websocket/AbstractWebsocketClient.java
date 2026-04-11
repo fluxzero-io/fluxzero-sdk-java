@@ -67,6 +67,7 @@ import org.slf4j.LoggerFactory;
 import java.io.OutputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -321,13 +322,18 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
             byte[] bytes = objectMapper.writeValueAsBytes(object);
             if (session.isOpen()) {
                 outputStream.write(compress(bytes, getCompressionAlgorithm(session)));
-            } else {
+            } else if (!closed.get()) {
                 abort(session, "Channel closed ahead of sending");
             }
         } catch (Exception e) {
+            boolean closedChannel = e instanceof ClosedChannelException
+                    || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false);
+            if (closed.get() && closedChannel) {
+                return;
+            }
             log().error(ignoreMarker, "Failed to send request {} (session {})",
                         object, getNegotiatedSessionId(session), e);
-            if (ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false)) {
+            if (closedChannel) {
                 abort(session, "Channel closed while sending");
             } else {
                 throw e;
