@@ -14,11 +14,15 @@
 
 package io.fluxzero.common.serialization;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonUtilsTest {
 
@@ -31,5 +35,26 @@ class JsonUtilsTest {
                         }
                         """, Map.class);
         assertEquals("bar ", map.get("foo"));
+    }
+
+    @Test
+    void disableJsonIgnoreKeepsIgnoredJavaFieldInRoundTrip() throws Exception {
+        ObjectMapper mapper = JsonUtils.writer.copy();
+        JsonUtils.disableJsonIgnore(mapper);
+        JsonIgnoredSample input = new JsonIgnoredSample("public", "private");
+
+        var tree = mapper.valueToTree(input);
+        var output = mapper.treeToValue(tree, JsonIgnoredSample.class);
+
+        assertTrue(tree.has("hidden"));
+        assertEquals(input.visible, output.visible);
+        assertEquals(input.hidden, output.hidden);
+    }
+
+    @Value
+    private static class JsonIgnoredSample {
+        String visible;
+        @JsonIgnore
+        String hidden;
     }
 }

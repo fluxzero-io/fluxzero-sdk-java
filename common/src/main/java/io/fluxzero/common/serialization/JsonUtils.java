@@ -18,12 +18,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.AnnotationIntrospector;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectMapper.DefaultTypeResolverBuilder;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
+import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
@@ -576,12 +578,24 @@ public class JsonUtils {
      * Disables any Jackson @JsonIgnore behavior on the specified ObjectMapper.
      */
     public static void disableJsonIgnore(ObjectMapper mapper) {
-        NopAnnotationIntrospector ignoreDisablingIntrospector = new NopAnnotationIntrospector() {
-            @Override
-            public boolean hasIgnoreMarker(final AnnotatedMember m) {
-                return false;
-            }
-        };
-        mapper.setConfig(mapper.getSerializationConfig().withInsertedAnnotationIntrospector(ignoreDisablingIntrospector));
+        mapper.setAnnotationIntrospectors(
+                ignoreDisablingIntrospector(mapper.getSerializationConfig().getAnnotationIntrospector()),
+                ignoreDisablingIntrospector(mapper.getDeserializationConfig().getAnnotationIntrospector()));
+    }
+
+    private static AnnotationIntrospector ignoreDisablingIntrospector(AnnotationIntrospector delegate) {
+        return new IgnoreDisablingAnnotationIntrospector(
+                delegate == null ? new NopAnnotationIntrospector() {} : delegate);
+    }
+
+    private static final class IgnoreDisablingAnnotationIntrospector extends AnnotationIntrospectorPair {
+        private IgnoreDisablingAnnotationIntrospector(AnnotationIntrospector delegate) {
+            super(delegate, new NopAnnotationIntrospector() {});
+        }
+
+        @Override
+        public boolean hasIgnoreMarker(AnnotatedMember m) {
+            return false;
+        }
     }
 }

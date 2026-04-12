@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.common.serialization.jackson;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -54,6 +55,7 @@ import static io.fluxzero.common.serialization.JsonUtils.valueToTree;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -318,6 +320,25 @@ class JacksonSerializerTest {
             assertNull(output.getChildren().get("child").getFoo());
             assertEquals(123, output.getChildren().get("child").getNumber());
         }
+
+        @Test
+        void preserveJsonIgnoredFieldWhenFilteringRootObject() {
+            var input = new JsonIgnoredContent("public", "private");
+
+            var output = serializer.filterContent(input, new MockUser("admin"));
+
+            assertEquals(input.visible, output.visible);
+            assertEquals(input.hidden, output.hidden);
+        }
+
+        @Test
+        void keepSerializerMapperJsonIgnoreBehaviorUntouched() {
+            var input = new JsonIgnoredContent("public", "private");
+
+            var tree = serializer.getObjectMapper().valueToTree(input);
+
+            assertFalse(tree.has("hidden"));
+        }
     }
 
     @Value
@@ -342,6 +363,18 @@ class JacksonSerializerTest {
     @Value
     static class ComplexObjectWithMap {
         Map<String, ComplexObject.Child> children;
+    }
+
+    @Value
+    static class JsonIgnoredContent {
+        public String visible;
+        @JsonIgnore
+        public String hidden;
+
+        @FilterContent
+        JsonIgnoredContent filter(User viewer) {
+            return viewer.hasRole("admin") ? this : new JsonIgnoredContent(visible, null);
+        }
     }
 
 

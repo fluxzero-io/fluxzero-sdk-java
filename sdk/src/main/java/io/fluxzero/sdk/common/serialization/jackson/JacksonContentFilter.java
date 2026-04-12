@@ -82,12 +82,12 @@ import static java.util.stream.Collectors.toMap;
 public class JacksonContentFilter implements ContentFilter {
 
     private final ObjectMapper mapper;
-    private final ObjectMapper filteringMapper;
 
     /**
      * Creates a new content filter using the provided {@link ObjectMapper}.
      * <p>
-     * The mapper will be configured with:
+     * The provided mapper is kept unchanged.
+     * A single internal copy is configured with:
      * <ul>
      *     <li>ALWAYS inclusion policy (to serialize nulls)</li>
      *     <li>A {@link FilteringSerializer} for applying {@link FilterContent} annotations</li>
@@ -98,8 +98,8 @@ public class JacksonContentFilter implements ContentFilter {
      */
     public JacksonContentFilter(ObjectMapper mapper) {
         this.mapper = mapper.copy();
-        mapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
-        mapper.registerModule(new SimpleModule() {
+        this.mapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
+        this.mapper.registerModule(new SimpleModule() {
             @Override
             public void setupModule(SetupContext context) {
                 super.setupModule(context);
@@ -122,8 +122,7 @@ public class JacksonContentFilter implements ContentFilter {
                 });
             }
         });
-        JsonUtils.disableJsonIgnore(mapper);
-        this.filteringMapper = mapper;
+        JsonUtils.disableJsonIgnore(this.mapper);
     }
 
     @SuppressWarnings("unchecked")
@@ -142,12 +141,8 @@ public class JacksonContentFilter implements ContentFilter {
             default -> {
                 try {
                     FilteringSerializer.rootValue.set(value);
-                    JsonNode filteredValue = viewer == null
-                            ? filteringMapper.valueToTree(value)
-                            : viewer.apply(() -> filteringMapper.valueToTree(value));
-                    yield filteredValue == null || filteredValue.isNull()
-                            ? null
-                            : mapper.treeToValue(filteredValue, (Class<T>) value.getClass());
+                    yield viewer == null ? mapper.convertValue(value, (Class<T>) value.getClass()) :
+                            viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
                 } catch (Exception e) {
                     log.error("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
                     yield value;
