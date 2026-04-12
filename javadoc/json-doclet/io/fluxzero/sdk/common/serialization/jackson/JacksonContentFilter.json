@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.serialization.ContentFilter" ],
   "fields" : [ {
+    "name" : "filteringMapper",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.filteringMapper",
+    "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "mapper",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.mapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
