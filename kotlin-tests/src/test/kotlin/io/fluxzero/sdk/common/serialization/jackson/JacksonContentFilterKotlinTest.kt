@@ -1,11 +1,11 @@
 package io.fluxzero.sdk.common.serialization.jackson
 
 import io.fluxzero.common.serialization.JsonUtils
-import io.fluxzero.sdk.tracking.handling.authentication.MockUser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty
 
 class JacksonContentFilterKotlinTest {
 
@@ -33,7 +33,7 @@ class JacksonContentFilterKotlinTest {
     fun `filterContent applies kotlin data class filter result`() {
         val input = KotlinProfile("user-1", "visible")
 
-        val result = serializer.filterContent(input, MockUser("user"))
+        val result = serializer.filterContent(input, KotlinTestUser("user"))
 
         assertNotNull(result)
         assertEquals(input.id, result.id)

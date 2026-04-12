@@ -18,17 +18,17 @@ import io.fluxzero.common.reflection.ReflectionUtils
 import io.fluxzero.sdk.persisting.search.Searchable
 import io.fluxzero.sdk.test.TestFixture
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty
 
 @Searchable(collection = "some")
-data class SomeObject (val value: String) {
-}
+data class SomeObject(val value: String)
 
 class KotlinReflectionUtilsTest {
-    var testFixture: TestFixture = TestFixture.create()
+    private val testFixture: TestFixture = TestFixture.create()
 
     @Test
     fun getSearchCollectionUsingClass() {
-        testFixture.whenApplying { fc -> ReflectionUtils.ifClass(SomeObject::class) }
+        testFixture.whenApplying { ReflectionUtils.ifClass(SomeObject::class) }
             .expectResult(SomeObject::class.java)
     }
 }

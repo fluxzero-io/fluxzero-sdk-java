@@ -30,6 +30,7 @@
         <module>test-server</module>
         <module>proxy</module>
         <module>annotation-processor-tests</module>
+        <module>kotlin-tests</module>
     </modules>
 
     <name>Fluxzero Java SDK</name>
@@ -175,12 +176,6 @@
             <version>${kotlin.version}</version>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test</artifactId>
-            <version>${kotlin.version}</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -202,6 +197,9 @@
                         <includes>
                             <include>**</include>
                         </includes>
+                        <systemPropertyVariables>
+                            <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
+                        </systemPropertyVariables>
                         <properties>
                             <configurationParameters>
                                 junit.jupiter.execution.parallel.enabled = true
@@ -361,10 +359,6 @@
 
         <plugins>
             <plugin>
-                <groupId>org.jetbrains.kotlin</groupId>
-                <artifactId>kotlin-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
@@ -497,6 +491,7 @@
                             <waitMaxTime>3600</waitMaxTime>
                             <excludeArtifacts>
                                 <artifact>annotation-processor-tests</artifact>
+                                <artifact>kotlin-tests</artifact>
                             </excludeArtifacts>
                         </configuration>
                     </plugin>

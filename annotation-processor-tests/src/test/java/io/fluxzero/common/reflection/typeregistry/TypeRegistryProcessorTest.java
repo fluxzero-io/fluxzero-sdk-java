@@ -17,8 +17,6 @@ package io.fluxzero.common.reflection.typeregistry;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.reflection.typeregistry.bar.Bar;
 import io.fluxzero.common.reflection.typeregistry.empty.inner.ChildOfEmpty;
-import io.fluxzero.common.reflection.typeregistry.kotlin.KotlinDirectlyRegisteredType;
-import io.fluxzero.common.reflection.typeregistry.kotlin.events.KotlinPackageRegisteredType;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import org.joor.CompileOptions;
 import org.joor.Reflect;
@@ -39,12 +37,6 @@ class TypeRegistryProcessorTest {
         Assertions.assertEquals(FooBar.class, ReflectionUtils.classForName("FooBar"));
         Assertions.assertEquals(FooBar.class, ReflectionUtils.classForName("typeregistry.FooBar"));
         Assertions.assertEquals(ChildOfEmpty.class, ReflectionUtils.classForName("ChildOfEmpty"));
-        Assertions.assertEquals(KotlinDirectlyRegisteredType.class,
-                                ReflectionUtils.classForName("KotlinDirectlyRegisteredType"));
-        Assertions.assertEquals(KotlinPackageRegisteredType.class,
-                                ReflectionUtils.classForName("KotlinPackageRegisteredType"));
-        Assertions.assertEquals(KotlinPackageRegisteredType.class,
-                                ReflectionUtils.classForName("kotlin.events.KotlinPackageRegisteredType"));
     }
 
     @Test
