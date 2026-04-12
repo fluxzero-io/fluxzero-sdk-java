@@ -1,14 +1,9 @@
-# Auto detect text files and perform LF normalization
-*               text=auto
+# Normalize text files to LF by default.
+* text=auto eol=lf
 
-# Explicitly declare text files we want to always be normalized and converted
-# to native line endings on checkout.
-*.java          text diff=java
-*.html          text diff=html
-*.properties    text
-*.xml           text
-*.txt           text
-*.md            text
-*.css           text
-*.js            text
-*.sql           text
+# Keep Windows command scripts on CRLF for native execution.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Shell scripts should always use LF.
+*.sh text eol=lf
