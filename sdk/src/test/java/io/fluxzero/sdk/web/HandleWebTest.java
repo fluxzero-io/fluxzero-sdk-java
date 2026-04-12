@@ -681,6 +681,37 @@ public class HandleWebTest {
     }
 
     @Nested
+    class StaticAndWebSocketTests {
+        private final TestFixture testFixture = TestFixture.create(new CombinedHandler());
+
+        @Test
+        void serveStaticAndHandleSocketOpenFromSameClass() {
+            testFixture.whenGet("/combined")
+                    .expectWebResult(r -> {
+                        try (InputStream input = r.getPayload()) {
+                            return new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                                    .contains("<!DOCTYPE html>");
+                        }
+                    })
+                    .andThen()
+                    .whenWebRequest(WebRequest.builder()
+                                            .method(WS_OPEN)
+                                            .url("/combined/socket")
+                                            .build())
+                    .expectResult(WebResponse.builder().payload("socket-open").build());
+        }
+
+        @Path("/combined")
+        @ServeStatic(resourcePath = "classpath:/web/static")
+        static class CombinedHandler {
+            @HandleSocketOpen("/socket")
+            String onOpen() {
+                return "socket-open";
+            }
+        }
+    }
+
+    @Nested
     class WebSocketTests {
 
         @Nested
