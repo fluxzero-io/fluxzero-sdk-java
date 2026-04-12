@@ -769,6 +769,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "ignoreDisablingIntrospector",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#ignoreDisablingIntrospector",
+    "returnType" : "com.fasterxml.jackson.databind.AnnotationIntrospector",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "com.fasterxml.jackson.databind.AnnotationIntrospector",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "merge",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#merge",
     "returnType" : "T",
@@ -935,5 +951,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "IgnoreDisablingAnnotationIntrospector",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils$IgnoreDisablingAnnotationIntrospector",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Wrapper class representing a prototype-scoped Spring handler type within Fluxzero.\n",
+  "documentation" : " Wrapper bean representing a handler type discovered through Spring integration.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],

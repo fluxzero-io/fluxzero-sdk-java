@@ -13,14 +13,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.serialization.ContentFilter" ],
   "fields" : [ {
-    "name" : "filteringMapper",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.filteringMapper",
-    "type" : "com.fasterxml.jackson.databind.ObjectMapper",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "mapper",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.mapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
@@ -43,7 +35,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a new content filter using the provided {@link ObjectMapper}.\n <p>\n The mapper will be configured with:\n <ul>\n     <li>ALWAYS inclusion policy (to serialize nulls)</li>\n     <li>A {@link FilteringSerializer} for applying {@link FilterContent} annotations</li>\n     <li>Disabled {@link JsonIgnore} handling, to ensure all fields are considered for filtering</li>\n </ul>\n\n @param mapper an ObjectMapper used for filtering and serialization\n"
+    "documentation" : " Creates a new content filter using the provided {@link ObjectMapper}.\n <p>\n The provided mapper is kept unchanged.\n A single internal copy is configured with:\n <ul>\n     <li>ALWAYS inclusion policy (to serialize nulls)</li>\n     <li>A {@link FilteringSerializer} for applying {@link FilterContent} annotations</li>\n     <li>Disabled {@link JsonIgnore} handling, to ensure all fields are considered for filtering</li>\n </ul>\n\n @param mapper an ObjectMapper used for filtering and serialization\n"
   } ],
   "methods" : [ {
     "name" : "filterContent",
