@@ -15,24 +15,15 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.sdk.web.SocketEndpoint;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
-
-import java.util.Arrays;
-import java.util.Objects;
-
-import static org.springframework.beans.factory.support.BeanDefinitionBuilder.genericBeanDefinition;
 
 /**
- * Spring {@link BeanDefinitionRegistryPostProcessor} that detects beans annotated with {@link SocketEndpoint}
- * and registers them as {@link FluxzeroPrototype} definitions for use in Fluxzero.
+ * Spring {@link org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor} that detects
+ * {@link SocketEndpoint} types within the application's component-scan scope and registers them as
+ * {@link FluxzeroPrototype} definitions for use in Fluxzero.
  * <p>
- * This enables WebSocket endpoints to be managed by Fluxzero, allowing handler methods within these types to respond
- * to socket-based requests (e.g. via {@link io.fluxzero.sdk.web.WebRequest}).
+ * This enables WebSocket endpoints to be activated per application scan scope without exposing those endpoint types as
+ * regular Spring beans.
  *
  * <h2>Usage</h2>
  * To expose a WebSocket endpoint in your application:
@@ -57,23 +48,14 @@ import static org.springframework.beans.factory.support.BeanDefinitionBuilder.ge
  * @see FluxzeroSpringConfig
  */
 @Slf4j
-public class SocketEndpointPostProcessor implements BeanDefinitionRegistryPostProcessor {
+public class SocketEndpointPostProcessor extends ComponentScanPrototypePostProcessor {
     @Override
-    public void postProcessBeanFactory(@NonNull ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        if (!(beanFactory instanceof BeanDefinitionRegistry registry)) {
-            log.warn("Cannot register Spring beans dynamically! @SocketEndpoint annotations will be ignored.");
-            return;
-        }
-        Arrays.stream(beanFactory.getBeanNamesForAnnotation(SocketEndpoint.class))
-                .map(beanFactory::getType).filter(Objects::nonNull)
-                .map(FluxzeroPrototype::new)
-                .forEach(prototype -> registry.registerBeanDefinition(
-                         prototype.getType().getName()+ "$$SocketEndpoint",
-                         genericBeanDefinition(FluxzeroPrototype.class, () -> prototype).getBeanDefinition()));
+    protected Class<SocketEndpoint> getTargetAnnotation() {
+        return SocketEndpoint.class;
     }
 
     @Override
-    public void postProcessBeanDefinitionRegistry(@NonNull BeanDefinitionRegistry registry) throws BeansException {
-        //no op
+    protected String getBeanNameSuffix() {
+        return "$$SocketEndpoint";
     }
 }

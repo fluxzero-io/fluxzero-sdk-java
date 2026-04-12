@@ -14,10 +14,6 @@
 
 package io.fluxzero.sdk.web;
 
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -36,10 +32,14 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * </p>
  *
  * <p>
- * Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.
+ * Fluxzero creates a new endpoint instance per WebSocket session.
  * Non-socket handlers on the same endpoint, such as {@code @HandleEvent}, may also use
  * {@link io.fluxzero.sdk.tracking.handling.Association} to target only endpoint instances whose state matches the
  * incoming message instead of invoking every active session.
+ * In Spring applications, endpoint types become active when they fall within the application's component-scan scope,
+ * but they are not exposed as regular injectable Spring beans. Type-level conditional annotations are still
+ * respected, including {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}.
  * </p>
  *
  * @see HandleSocketOpen
@@ -49,8 +49,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
-@Component
-@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public @interface SocketEndpoint {
 
     /**

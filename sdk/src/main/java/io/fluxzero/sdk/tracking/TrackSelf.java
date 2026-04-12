@@ -15,9 +15,6 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -46,9 +43,12 @@ import java.lang.annotation.Target;
  *
  * <p>
  * <strong>Spring integration:</strong> When using Spring, types annotated with {@code @TrackSelf} will be
- * automatically
- * detected and registered as handlers via component scanning. When not using Spring, or when testing using an
- * asynchronous {@code TestFixture}, you must register the class manually.
+ * detected and registered as handlers when they fall within the application's component-scan scope. They are not
+ * exposed as regular injectable Spring beans. Type-level conditional annotations are still respected, including
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}. When not using Spring, or when testing
+ * using an asynchronous
+ * {@code TestFixture}, you must register the class manually.
  * </p>
  *
  * @see Consumer on how to configure message consumption in an isolated consumer.
@@ -57,7 +57,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Inherited
 @Documented
-@Component
-@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public @interface TrackSelf {
 }

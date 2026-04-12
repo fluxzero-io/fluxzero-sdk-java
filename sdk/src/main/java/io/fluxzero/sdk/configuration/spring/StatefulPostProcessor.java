@@ -14,68 +14,34 @@
 
 package io.fluxzero.sdk.configuration.spring;
 
-import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Stateful;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
-
-import java.util.Arrays;
-import java.util.Objects;
-
-import static org.springframework.beans.factory.support.BeanDefinitionBuilder.genericBeanDefinition;
 
 /**
- * Spring {@link BeanDefinitionRegistryPostProcessor} that automatically detects beans annotated with {@link Stateful}
- * and registers them as {@link FluxzeroPrototype} definitions for use in Fluxzero.
+ * Spring {@link org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor} that detects
+ * {@link Stateful} handler types within the application's component-scan scope and registers them as
+ * {@link FluxzeroPrototype} definitions for use in Fluxzero.
  * <p>
- * This enables Fluxzero to treat prototype-scoped, stateful beans as handler instances that are discovered and
- * managed at runtime by the handler registry (via the {@link HandlerFactory}).
+ * This keeps handler activation aligned with Spring's scan boundaries while avoiding regular Spring bean registration
+ * for the handler type itself.
  *
  * <h2>Usage</h2>
- * To use this mechanism, annotate a Spring bean with {@code @Stateful} and ensure that Spring picks up this processor,
- * for example via {@link FluxzeroSpringConfig}.
+ * To use this mechanism, annotate a type with {@code @Stateful} and ensure that it falls within your application's
+ * {@link org.springframework.context.annotation.ComponentScan} scope, for example via {@link FluxzeroSpringConfig}.
  *
  * @see Stateful
  * @see FluxzeroPrototype
  * @see FluxzeroSpringConfig
  */
 @Slf4j
-public class StatefulPostProcessor implements BeanDefinitionRegistryPostProcessor {
-
-    /**
-     * Scans for beans annotated with {@link Stateful}, wraps each of them in a {@link FluxzeroPrototype}, and registers
-     * them programmatically as Spring bean definitions.
-     * <p>
-     * If the bean factory does not support dynamic registration (i.e., is not a {@link BeanDefinitionRegistry}),
-     * a warning is logged and the operation is skipped.
-     *
-     * @param beanFactory the current {@link ConfigurableListableBeanFactory}
-     */
+public class StatefulPostProcessor extends ComponentScanPrototypePostProcessor {
     @Override
-    public void postProcessBeanFactory(@NonNull ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        if (!(beanFactory instanceof BeanDefinitionRegistry registry)) {
-            log.warn("Cannot register Spring beans dynamically! @Stateful annotations will be ignored.");
-            return;
-        }
-        Arrays.stream(beanFactory.getBeanNamesForAnnotation(Stateful.class))
-                .map(beanFactory::getType).filter(Objects::nonNull)
-                .map(FluxzeroPrototype::new)
-                .forEach(prototype -> registry.registerBeanDefinition(
-                         prototype.getType().getName()+ "$$Stateful",
-                         genericBeanDefinition(FluxzeroPrototype.class, () -> prototype).getBeanDefinition()));
+    protected Class<Stateful> getTargetAnnotation() {
+        return Stateful.class;
     }
 
-    /**
-     * No-op. This implementation does not modify the registry at this phase.
-     *
-     * @param registry the {@link BeanDefinitionRegistry}
-     */
     @Override
-    public void postProcessBeanDefinitionRegistry(@NonNull BeanDefinitionRegistry registry) throws BeansException {
-        // no-op
+    protected String getBeanNameSuffix() {
+        return "$$Stateful";
     }
 }

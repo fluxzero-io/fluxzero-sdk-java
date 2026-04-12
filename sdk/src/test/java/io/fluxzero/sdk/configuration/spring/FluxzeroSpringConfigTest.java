@@ -26,14 +26,17 @@ import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.CacheEviction;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
+import io.fluxzero.sdk.tracking.handling.Stateful;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
+import io.fluxzero.sdk.web.SocketEndpoint;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.experimental.Delegate;
@@ -42,7 +45,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -93,7 +96,7 @@ public class FluxzeroSpringConfigTest {
     private Fluxzero fluxzero;
 
     @Autowired
-    BeanFactory beanFactory;
+    ListableBeanFactory beanFactory;
 
     @Test
     void testHandleCommand() {
@@ -168,6 +171,54 @@ public class FluxzeroSpringConfigTest {
                            .anyMatch(MessageParameterResolver.class::isInstance));
     }
 
+    @Test
+    void statefulTypesAreRegisteredWithoutExposingSpringBeans() {
+        assertThrows(NoSuchBeanDefinitionException.class, () -> beanFactory.getBean(ScannedStatefulHandler.class));
+        assertRegisteredAsPrototype(ScannedStatefulHandler.class);
+    }
+
+    @Test
+    void trackSelfTypesAreRegisteredWithoutExposingSpringBeans() {
+        assertThrows(NoSuchBeanDefinitionException.class, () -> beanFactory.getBean(ScannedSelfTrackedPayload.class));
+        assertRegisteredAsPrototype(ScannedSelfTrackedPayload.class);
+    }
+
+    @Test
+    void socketEndpointsAreRegisteredWithoutExposingSpringBeans() {
+        assertThrows(NoSuchBeanDefinitionException.class, () -> beanFactory.getBean(ScannedSocketEndpoint.class));
+        assertRegisteredAsPrototype(ScannedSocketEndpoint.class);
+    }
+
+    @Test
+    void statefulConditionalOnPropertyIsRespected() {
+        assertRegisteredAsPrototype(ConditionalStatefulPresent.class);
+        assertNotRegisteredAsPrototype(ConditionalStatefulMissing.class);
+    }
+
+    @Test
+    void trackSelfConditionalOnMissingPropertyIsRespected() {
+        assertRegisteredAsPrototype(ConditionalSelfTrackedMissingProperty.class);
+        assertNotRegisteredAsPrototype(ConditionalSelfTrackedExistingProperty.class);
+    }
+
+    @Test
+    void socketEndpointConditionalOnPropertyIsRespected() {
+        assertRegisteredAsPrototype(ConditionalSocketEndpointPresent.class);
+        assertNotRegisteredAsPrototype(ConditionalSocketEndpointMissing.class);
+    }
+
+    private void assertRegisteredAsPrototype(Class<?> type) {
+        assertTrue(beanFactory.getBeansOfType(FluxzeroPrototype.class).values().stream()
+                           .anyMatch(prototype -> prototype.getType().equals(type)),
+                    () -> "Expected " + type.getName() + " to be registered as FluxzeroPrototype");
+    }
+
+    private void assertNotRegisteredAsPrototype(Class<?> type) {
+        assertTrue(beanFactory.getBeansOfType(FluxzeroPrototype.class).values().stream()
+                           .noneMatch(prototype -> prototype.getType().equals(type)),
+                    () -> "Expected " + type.getName() + " not to be registered as FluxzeroPrototype");
+    }
+
     @Component
     public static class SomeHandler {
         @HandleCommand
@@ -202,6 +253,48 @@ public class FluxzeroSpringConfigTest {
                 default -> node.asText();
             });
         }
+    }
+
+    @Stateful
+    public static class ScannedStatefulHandler {
+    }
+
+    @TrackSelf
+    public static class ScannedSelfTrackedPayload {
+    }
+
+    @SocketEndpoint
+    public static class ScannedSocketEndpoint {
+    }
+
+    @Stateful
+    @ConditionalOnProperty("existingProperty")
+    public static class ConditionalStatefulPresent {
+    }
+
+    @Stateful
+    @ConditionalOnProperty("missingProperty")
+    public static class ConditionalStatefulMissing {
+    }
+
+    @TrackSelf
+    @ConditionalOnMissingProperty("missingProperty")
+    public static class ConditionalSelfTrackedMissingProperty {
+    }
+
+    @TrackSelf
+    @ConditionalOnMissingProperty("existingProperty")
+    public static class ConditionalSelfTrackedExistingProperty {
+    }
+
+    @SocketEndpoint
+    @ConditionalOnProperty("existingProperty")
+    public static class ConditionalSocketEndpointPresent {
+    }
+
+    @SocketEndpoint
+    @ConditionalOnProperty("missingProperty")
+    public static class ConditionalSocketEndpointMissing {
     }
 
     @Configuration

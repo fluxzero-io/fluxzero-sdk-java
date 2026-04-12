@@ -17,7 +17,7 @@ package io.fluxzero.sdk.configuration.spring;
 import lombok.Value;
 
 /**
- * Wrapper class representing a prototype-scoped Spring handler type within Fluxzero.
+ * Wrapper bean representing a handler type discovered through Spring integration.
  */
 @Value
 public class FluxzeroPrototype {

@@ -18,9 +18,6 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.persisting.search.Searchable;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -137,6 +134,13 @@ import java.lang.annotation.Target;
  * {@code @Stateful} handlers may optionally include a {@link io.fluxzero.sdk.tracking.Consumer} annotation
  * to define their own tracking configuration (e.g. isolation, concurrency, retry policy).
  *
+ * <h2>Spring Integration</h2>
+ * In Spring applications, {@code @Stateful} types become active when they fall within the application's
+ * component-scan scope. They are not exposed as regular injectable Spring beans.
+ * Type-level conditional annotations are still respected, including
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}.
+ *
  * @see Association
  * @see EntityId
  * @see io.fluxzero.sdk.tracking.Consumer
@@ -146,8 +150,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
 @Searchable
-@Component
-@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public @interface Stateful {
 
     /**

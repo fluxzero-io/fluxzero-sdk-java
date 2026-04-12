@@ -90,7 +90,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
 
     /**
      * Registers the {@link TrackSelfPostProcessor}, which supports payload classes that track and handle their own
-     * type.
+     * type within the application's component-scan scope.
      *
      * @see io.fluxzero.sdk.tracking.TrackSelf
      */
@@ -100,7 +100,8 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
     }
 
     /**
-     * Registers the {@link StatefulPostProcessor}, enabling lifecycle and stateful behavior for beans.
+     * Registers the {@link StatefulPostProcessor}, enabling discovery of stateful handler types within the
+     * application's component-scan scope.
      *
      * @see io.fluxzero.sdk.tracking.handling.Stateful
      */
@@ -110,7 +111,8 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
     }
 
     /**
-     * Registers the {@link SocketEndpointPostProcessor}, used for handlers that manage WebSocket communication.
+     * Registers the {@link SocketEndpointPostProcessor}, used for WebSocket endpoint types within the application's
+     * component-scan scope.
      *
      * @see io.fluxzero.sdk.web.SocketEndpoint
      */
