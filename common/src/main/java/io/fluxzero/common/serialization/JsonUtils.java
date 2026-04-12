@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectMapper.DefaultTypeResolverBuilder;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
-import com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector;
+import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -576,11 +576,12 @@ public class JsonUtils {
      * Disables any Jackson @JsonIgnore behavior on the specified ObjectMapper.
      */
     public static void disableJsonIgnore(ObjectMapper mapper) {
-        mapper.setAnnotationIntrospector(new JacksonAnnotationIntrospector() {
+        NopAnnotationIntrospector ignoreDisablingIntrospector = new NopAnnotationIntrospector() {
             @Override
             public boolean hasIgnoreMarker(final AnnotatedMember m) {
                 return false;
             }
-        });
+        };
+        mapper.setConfig(mapper.getSerializationConfig().withInsertedAnnotationIntrospector(ignoreDisablingIntrospector));
     }
 }

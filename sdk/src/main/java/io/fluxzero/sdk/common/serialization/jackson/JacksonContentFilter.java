@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.BeanProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationConfig;
@@ -81,6 +82,7 @@ import static java.util.stream.Collectors.toMap;
 public class JacksonContentFilter implements ContentFilter {
 
     private final ObjectMapper mapper;
+    private final ObjectMapper filteringMapper;
 
     /**
      * Creates a new content filter using the provided {@link ObjectMapper}.
@@ -95,6 +97,7 @@ public class JacksonContentFilter implements ContentFilter {
      * @param mapper an ObjectMapper used for filtering and serialization
      */
     public JacksonContentFilter(ObjectMapper mapper) {
+        this.mapper = mapper.copy();
         mapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
         mapper.registerModule(new SimpleModule() {
             @Override
@@ -120,7 +123,7 @@ public class JacksonContentFilter implements ContentFilter {
             }
         });
         JsonUtils.disableJsonIgnore(mapper);
-        this.mapper = mapper;
+        this.filteringMapper = mapper;
     }
 
     @SuppressWarnings("unchecked")
@@ -139,8 +142,12 @@ public class JacksonContentFilter implements ContentFilter {
             default -> {
                 try {
                     FilteringSerializer.rootValue.set(value);
-                    yield viewer == null ? mapper.convertValue(value, (Class<T>) value.getClass()) :
-                            viewer.apply(() -> mapper.convertValue(value, (Class<T>) value.getClass()));
+                    JsonNode filteredValue = viewer == null
+                            ? filteringMapper.valueToTree(value)
+                            : viewer.apply(() -> filteringMapper.valueToTree(value));
+                    yield filteredValue == null || filteredValue.isNull()
+                            ? null
+                            : mapper.treeToValue(filteredValue, (Class<T>) value.getClass());
                 } catch (Exception e) {
                     log.error("Failed to filter content (type {}) for viewer {}", value.getClass(), viewer, e);
                     yield value;
