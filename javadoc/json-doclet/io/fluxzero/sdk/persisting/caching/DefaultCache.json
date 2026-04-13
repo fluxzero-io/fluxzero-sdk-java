@@ -3,7 +3,7 @@
   "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache",
   "packageName" : "io.fluxzero.sdk.persisting.caching",
   "kind" : "class",
-  "modifiers" : [ "final", "public" ],
+  "modifiers" : [ "public" ],
   "annotations" : [ {
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
@@ -43,22 +43,6 @@
     "name" : "expiry",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.expiry",
     "type" : "java.time.Duration",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "expiryCheckDelay",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.expiryCheckDelay",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "maxSize",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.maxSize",
-    "type" : "int",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -212,46 +196,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a cache with full configuration of size, eviction executor, expiration delay, and expiration check\n frequency.\n"
-  }, {
-    "name" : "DefaultCache",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "maxSize",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "evictionNotifier",
-      "type" : "java.util.concurrent.Executor",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "expiry",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "expiryCheckDelay",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "softReferences",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "clock",
-      "type" : "java.time.Clock",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "clear",
@@ -466,20 +410,6 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "rebuild",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

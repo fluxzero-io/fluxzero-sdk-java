@@ -25,11 +25,6 @@
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction",
     "kind" : "class"
   }, {
-    "file" : "DefaultMemoizingBiFunction.Key.json",
-    "name" : "DefaultMemoizingBiFunction.Key",
-    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction$Key",
-    "kind" : "record"
-  }, {
     "file" : "DefaultMemoizingFunction.json",
     "name" : "DefaultMemoizingFunction",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction",

@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "messageFilterCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver.messageFilterCache",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.function.Predicate<io.fluxzero.sdk.common.HasMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver.serializer",
     "type" : "io.fluxzero.sdk.common.serialization.Serializer",
@@ -70,32 +78,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "filterMessage",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#filterMessage",
-    "returnType" : "boolean",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "trigger",
-      "type" : "io.fluxzero.sdk.tracking.handling.Trigger",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "correlationDataProvider",
-      "type" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getConsumer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getConsumer",
     "returnType" : "java.util.Optional<java.lang.String>",
@@ -112,27 +94,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "getConsumer",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getConsumer",
-    "returnType" : "java.util.Optional<java.lang.String>",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "correlationDataProvider",
-      "type" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getTriggerClass",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getTriggerClass",
     "returnType" : "java.util.Optional<java.lang.Class<?>>",
@@ -142,27 +103,6 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getTriggerClass",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getTriggerClass",
-    "returnType" : "java.util.Optional<java.lang.Class<?>>",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "correlationDataProvider",
-      "type" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -221,27 +161,6 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getTriggerMessageType",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#getTriggerMessageType",
-    "returnType" : "java.util.Optional<io.fluxzero.common.MessageType>",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.HasMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "correlationDataProvider",
-      "type" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -383,30 +302,8 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Applies additional filtering logic based on the {@link Trigger} annotation on the parameter.\n\n <p>This includes verifying the presence and assignability of the triggering class, matching message type,\n and (optionally) matching consumer.\n\n @param message   the incoming message being evaluated\n @param parameter the handler method parameter\n @return {@code true} if the trigger information matches the parameter's constraints, {@code false} otherwise\n"
-  }, {
-    "name" : "triggerFilter",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#triggerFilter",
-    "returnType" : "java.util.function.Predicate<io.fluxzero.sdk.common.HasMessage>",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "trigger",
-      "type" : "io.fluxzero.sdk.tracking.handling.Trigger",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "TriggerMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata",
-    "kind" : "class",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  } ]
+  "nestedTypes" : [ ]
 }

@@ -20,6 +20,38 @@
     "annotations" : [ ],
     "documentation" : " A marker used to denote specific log entries that should be ignored or treated differently, typically to bypass\n error handling in logging frameworks.\n <p>\n This marker is created using the {@code MarkerFactory} with the identifier \"ignoreError\". It can be useful in\n scenarios where certain log messages need to be flagged for exclusion from error-reporting workflows.\n",
     "constantValue" : null
+  }, {
+    "name" : "localHandlerCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.localHandlerCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "orderCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.orderCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.lang.Integer>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "searchParametersCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.searchParametersCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.SearchParameters>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackSelfCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.trackSelfCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.TrackSelf>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ClientUtils",
@@ -199,27 +231,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Extracts all topics from {@link HandleDocument} or {@link HandleCustom} annotated methods for the given classes.\n\n @param messageType    the type of message (DOCUMENT or CUSTOM)\n @param handlerClasses the classes to inspect\n @return a set of topic names\n"
-  }, {
-    "name" : "getTrackSelfAnnotation",
-    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getTrackSelfAnnotation",
-    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.TrackSelf>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "target",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "method",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "isLocalHandler",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#isLocalHandler",

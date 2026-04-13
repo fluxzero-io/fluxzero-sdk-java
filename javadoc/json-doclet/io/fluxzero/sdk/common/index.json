@@ -60,11 +60,6 @@
     "qualifiedName" : "io.fluxzero.sdk.common.Order",
     "kind" : "annotation_type"
   }, {
-    "file" : "SdkVersion.json",
-    "name" : "SdkVersion",
-    "qualifiedName" : "io.fluxzero.sdk.common.SdkVersion",
-    "kind" : "class"
-  }, {
     "file" : "UuidFactory.json",
     "name" : "UuidFactory",
     "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory",

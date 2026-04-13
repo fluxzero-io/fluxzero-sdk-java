@@ -252,20 +252,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "rebuild",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "registerEvictionListener",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache#registerEvictionListener",
     "returnType" : "io.fluxzero.common.Registration",

@@ -85,39 +85,6 @@
     "varArgs" : false,
     "documentation" : " Applies the casting logic to the given serialized object if its type and revision match this caster’s parameters.\n If the input does not match, it is returned unmodified.\n\n @param input the serialized object to potentially cast\n @param <S> the input and output serialized object type\n @return a stream containing the casted result(s) or the original input if no match was found\n"
   }, {
-    "name" : "equals",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#equals",
-    "returnType" : "boolean",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "o",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "hashCode",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#hashCode",
-    "returnType" : "int",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.AnnotatedCaster#toString",
     "returnType" : "java.lang.String",

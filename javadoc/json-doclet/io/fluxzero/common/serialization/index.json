@@ -30,11 +30,6 @@
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils",
     "kind" : "class"
   }, {
-    "file" : "JsonUtils.IgnoreDisablingAnnotationIntrospector.json",
-    "name" : "JsonUtils.IgnoreDisablingAnnotationIntrospector",
-    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils$IgnoreDisablingAnnotationIntrospector",
-    "kind" : "class"
-  }, {
     "file" : "NoOpTypeRegistry.json",
     "name" : "NoOpTypeRegistry",
     "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry",

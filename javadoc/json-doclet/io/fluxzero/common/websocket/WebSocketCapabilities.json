@@ -10,14 +10,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "CLIENT_SDK_VERSION_HEADER",
-    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.CLIENT_SDK_VERSION_HEADER",
-    "type" : "java.lang.String",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : "Fluxzero-Client-Sdk-Version"
-  }, {
     "name" : "CLIENT_SESSION_ID_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.CLIENT_SESSION_ID_HEADER",
     "type" : "java.lang.String",
@@ -33,14 +25,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "Fluxzero-Runtime-Session-Id"
-  }, {
-    "name" : "RUNTIME_VERSION_HEADER",
-    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.RUNTIME_VERSION_HEADER",
-    "type" : "java.lang.String",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : "Fluxzero-Runtime-Version"
   }, {
     "name" : "SELECTED_COMPRESSION_ALGORITHM_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER",
@@ -85,22 +69,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Serializes the supplied compression capabilities into websocket request headers.\n\n @param supportedCompressionAlgorithms ordered list of supported compression algorithms, most preferred first\n @return websocket request headers representing the supplied capabilities\n"
-  }, {
-    "name" : "getClientSdkVersion",
-    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getClientSdkVersion",
-    "returnType" : "java.util.Optional<java.lang.String>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "headers",
-      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "getClientSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getClientSessionId",
@@ -157,22 +125,6 @@
   }, {
     "name" : "getRuntimeSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeSessionId",
-    "returnType" : "java.util.Optional<java.lang.String>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "headers",
-      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getRuntimeVersion",
-    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeVersion",
     "returnType" : "java.util.Optional<java.lang.String>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],

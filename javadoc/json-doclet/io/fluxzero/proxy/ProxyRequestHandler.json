@@ -21,14 +21,6 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_CORS_DOMAINS"
   }, {
-    "name" : "SERVER_SHUTDOWN_CLOSE_TIMEOUT",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.SERVER_SHUTDOWN_CLOSE_TIMEOUT",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "final", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "allowedCorsDomains",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.allowedCorsDomains",
     "type" : "java.util.Set<java.lang.String>",
@@ -172,22 +164,6 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "close",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#close",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "gracefulWebsocketShutdown",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

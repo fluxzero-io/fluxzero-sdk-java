@@ -48,28 +48,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "descendantTargetMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.descendantTargetMetadata",
-    "type" : "io.fluxzero.sdk.modeling.ImmutableEntity.DescendantTargetMetadata",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.ToString.Exclude",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.Getter",
-      "values" : {
-        "lazy" : "true"
-      }
-    }, {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "entities",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.entities",
     "type" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
@@ -145,14 +123,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "loadingRouteCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.loadingRouteCache",
-    "type" : "java.lang.ThreadLocal<java.util.Map<io.fluxzero.sdk.modeling.ImmutableEntity.RouteCacheKey,java.lang.String>>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "parent",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.parent",
     "type" : "io.fluxzero.sdk.modeling.Entity<?>",
@@ -166,18 +136,7 @@
     }, {
       "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
       "values" : {}
-    }, {
-      "annotationType" : "lombok.experimental.NonFinal",
-      "values" : {}
     } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "routingKeyOverlapsCurrentIdCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity.routingKeyOverlapsCurrentIdCache",
-    "type" : "java.util.Map<io.fluxzero.sdk.modeling.ImmutableEntity.RoutingKeyOverlapCacheKey,java.lang.Boolean>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -289,27 +248,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "applyAsSelfMemberAddition",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#applyAsSelfMemberAddition",
-    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "updatedValue",
-      "type" : "T",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "assertApplyCompatibility",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyCompatibility",
     "returnType" : "void",
@@ -345,53 +283,6 @@
     }, {
       "name" : "entity",
       "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "visitedTypes",
-      "type" : "java.util.Set<java.lang.Class<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ "E" ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "assertApplyCompatibilityOnSelfReferentialChildren",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyCompatibilityOnSelfReferentialChildren",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "E" ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "visitedTypes",
-      "type" : "java.util.Set<java.lang.Class<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ "E" ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "assertApplyCompatibilityOnSelfReferentialDescendants",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#assertApplyCompatibilityOnSelfReferentialDescendants",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "E" ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -423,59 +314,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "cacheResolvedTargets",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#cacheResolvedTargets",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "cacheKey",
-      "type" : "io.fluxzero.sdk.modeling.ImmutableEntity.RouteCacheKey",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "resolvedTargets",
-      "type" : "java.lang.Iterable<io.fluxzero.sdk.modeling.Entity<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "cachedTargets",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#cachedTargets",
-    "returnType" : "java.lang.Iterable<io.fluxzero.sdk.modeling.Entity<?>>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "cached",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "clearLoadingRouteCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#clearLoadingRouteCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#commit",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -501,38 +339,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeDescendantTargetMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#computeDescendantTargetMetadata",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.DescendantTargetMetadata",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "computeDescendantTargetMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#computeDescendantTargetMetadata",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.DescendantTargetMetadata",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "visitedTypes",
-      "type" : "java.util.Set<java.lang.Class<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "computeEntities",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#computeEntities",
     "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.ImmutableEntity<?>>",
@@ -540,106 +346,6 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "expectedTargetId",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#expectedTargetId",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "explicitTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#explicitTarget",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.ExplicitTarget",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "explicitlyTargets",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#explicitlyTargets",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "payloadType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "explicitlyTargetsCurrent",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#explicitlyTargetsCurrent",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "explicitlyTargetsOther",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#explicitlyTargetsOther",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "entityType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -652,251 +358,6 @@
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getRoutingKey",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#getRoutingKey",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "hasAmbiguousDescendantTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#hasAmbiguousDescendantTarget",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "matchesAliases",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#matchesAliases",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "matchesCurrentRoute",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#matchesCurrentRoute",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "matchesRoute",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#matchesRoute",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "mentionsDistinctDescendantProperty",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#mentionsDistinctDescendantProperty",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "replayParent",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#replayParent",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<T>",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parent",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveDirectTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#resolveDirectTarget",
-    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveDirectTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#resolveDirectTarget",
-    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolvePossibleTargets",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#resolvePossibleTargets",
-    "returnType" : "java.lang.Iterable<io.fluxzero.sdk.modeling.Entity<?>>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "restoreLoadingRouteCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#restoreLoadingRouteCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "snapshot",
-      "type" : "java.util.Map<?,java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "routeCacheKey",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#routeCacheKey",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.RouteCacheKey",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "routeCandidates",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#routeCandidates",
-    "returnType" : "java.util.List<java.lang.String>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "routingKeyOverlapsCurrentId",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#routingKeyOverlapsCurrentId",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "snapshotLoadingRouteCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#snapshotLoadingRouteCache",
-    "returnType" : "java.util.Map<?,java.lang.String>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
@@ -964,29 +425,5 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "DescendantTargetMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$DescendantTargetMetadata",
-    "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "ExplicitTarget",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget",
-    "kind" : "enum",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "RouteCacheKey",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RouteCacheKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "RoutingKeyOverlapCacheKey",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$RoutingKeyOverlapCacheKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  } ]
+  "nestedTypes" : [ ]
 }

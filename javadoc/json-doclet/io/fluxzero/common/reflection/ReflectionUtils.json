@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "annotatedPropertiesCache",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.annotatedPropertiesCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.Class<? extends java.lang.annotation.Annotation>,java.util.List<? extends java.lang.reflect.AccessibleObject>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "classForFqnCache",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.classForFqnCache",
     "type" : "java.util.function.Function<java.lang.String,java.util.Optional<java.lang.Class<?>>>",
@@ -53,6 +61,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "gettersCache",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.gettersCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.String,java.util.function.Function<java.lang.Object,java.lang.Object>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "isNullableCache",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.isNullableCache",
     "type" : "java.util.function.Function<java.lang.reflect.Parameter,java.lang.Boolean>",
@@ -69,17 +85,25 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "packageAnnotationsCache",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.packageAnnotationsCache",
-    "type" : "java.util.function.BiFunction<java.lang.Package,java.lang.Boolean,java.util.Collection<? extends java.lang.annotation.Annotation>>",
+    "name" : "methodsCache",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.methodsCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.List<java.lang.reflect.Method>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "typeMetadataCache",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.typeMetadataCache",
-    "type" : "java.lang.ClassValue<io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata>",
+    "name" : "settersCache",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.settersCache",
+    "type" : "java.util.function.BiFunction<java.lang.String,java.lang.Class<?>,java.util.function.BiConsumer<java.lang.Object,java.lang.Object>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeAnnotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.typeAnnotations",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Collection<? extends java.lang.annotation.Annotation>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -222,9 +246,9 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeAllFields",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeAllFields",
-    "returnType" : "java.util.List<java.lang.reflect.Field>",
+    "name" : "computeAllMethods",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeAllMethods",
+    "returnType" : "java.util.List<java.lang.reflect.Method>",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -238,15 +262,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeAllMethods",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeAllMethods",
-    "returnType" : "java.util.List<java.lang.reflect.Method>",
+    "name" : "computeAnnotatedProperties",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeAnnotatedProperties",
+    "returnType" : "java.util.List<? extends java.lang.reflect.AccessibleObject>",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "type",
+      "name" : "target",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "annotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -289,20 +318,126 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computePackageAnnotations",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computePackageAnnotations",
+    "name" : "computeGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeGetter",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "propertyName",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeNestedGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeNestedGetter",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeNestedSetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeNestedSetter",
+    "returnType" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyPath",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeSetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeSetter",
+    "returnType" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertyName",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeTypeAnnotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeTypeAnnotations",
     "returnType" : "java.util.Collection<? extends java.lang.annotation.Annotation>",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "p",
-      "type" : "java.lang.Package",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "recursive",
-      "type" : "boolean",
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -587,27 +722,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "getAnnotatedPropertyInvoker",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyInvoker",
-    "returnType" : "java.util.Optional<io.fluxzero.common.reflection.MemberInvoker>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "target",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "annotation",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getAnnotatedPropertyName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyName",
     "returnType" : "java.util.Optional<java.lang.String>",
@@ -756,12 +870,7 @@
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAs",
     "returnType" : "java.util.Optional<T>",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "member",
@@ -938,7 +1047,12 @@
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFieldAnnotation",
     "returnType" : "java.util.Optional<A>",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
     "typeParameters" : [ "A" ],
     "parameters" : [ {
       "name" : "f",
@@ -1343,27 +1457,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "getPropertyPathMetadata",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyPathMetadata",
-    "returnType" : "io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata.PropertyPathMetadata",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "target",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "propertyPath",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getPropertyType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyType",
     "returnType" : "java.lang.Class<?>",
@@ -1559,25 +1652,6 @@
       "type" : "java.lang.reflect.Type",
       "varArgs" : false,
       "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getTypeMetadata",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTypeMetadata",
-    "returnType" : "io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "type",
-      "type" : "java.lang.@lombok.NonNull Class<?>",
-      "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "lombok.NonNull",
-        "values" : {}
-      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -1911,22 +1985,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "isTimePropertyType",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isTimePropertyType",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "propertyType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "methodKey",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#methodKey",
     "returnType" : "java.lang.Object",
@@ -1962,22 +2020,6 @@
     }, {
       "name" : "pkgIndependent",
       "type" : "java.util.Set<java.lang.Package>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "normalizePropertyPath",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#normalizePropertyPath",
-    "returnType" : "java.lang.String",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "propertyPath",
-      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2041,95 +2083,6 @@
     }, {
       "name" : "target",
       "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "remainingPropertyPath",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#remainingPropertyPath",
-    "returnType" : "java.lang.String",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parts",
-      "type" : "java.lang.String[]",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "startIndex",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveFieldAnnotation",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#resolveFieldAnnotation",
-    "returnType" : "java.util.Optional<A>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ "A" ],
-    "parameters" : [ {
-      "name" : "f",
-      "type" : "java.lang.reflect.Field",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "a",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveMethodAnnotation",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#resolveMethodAnnotation",
-    "returnType" : "java.util.Optional<A>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "A" ],
-    "parameters" : [ {
-      "name" : "m",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "a",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "resolveMethodAnnotations",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#resolveMethodAnnotations",
-    "returnType" : "java.util.List<A>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "A" ],
-    "parameters" : [ {
-      "name" : "m",
-      "type" : "java.lang.reflect.Executable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "a",
-      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2240,22 +2193,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "splitPropertyPath",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#splitPropertyPath",
-    "returnType" : "java.lang.String[]",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "propertyPath",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "tryGetPackage",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#tryGetPackage",
     "returnType" : "java.lang.Package",
@@ -2301,24 +2238,6 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "AnnotatedMemberKey",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "AnnotationProjectionKey",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotationProjectionKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "MemberInvokerKey",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$MemberInvokerKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
     "name" : "PropertyNotFoundException",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$PropertyNotFoundException",
     "kind" : "class",
@@ -2327,11 +2246,5 @@
       "annotationType" : "lombok.Value",
       "values" : {}
     } ]
-  }, {
-    "name" : "TypeMetadata",
-    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata",
-    "kind" : "class",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ]
   } ]
 }

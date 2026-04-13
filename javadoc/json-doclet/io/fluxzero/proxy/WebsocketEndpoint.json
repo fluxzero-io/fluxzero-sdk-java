@@ -16,22 +16,6 @@
   "superClass" : "jakarta.websocket.Endpoint",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "CLOSE_NOTIFICATION_TIMEOUT",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "final", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "awaitCloseAcknowledgements",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.awaitCloseAcknowledgements",
-    "type" : "boolean",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.client",
     "type" : "io.fluxzero.sdk.configuration.client.Client",
@@ -47,14 +31,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "_clientId"
-  }, {
-    "name" : "closeNotificationTimeout",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.closeNotificationTimeout",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   }, {
     "name" : "metadataPrefix",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.metadataPrefix",
@@ -72,14 +48,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "pendingCloseNotifications",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.pendingCloseNotifications",
-    "type" : "java.util.Map<java.lang.String,java.util.concurrent.CompletableFuture<java.lang.Void>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "registration",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.registration",
     "type" : "io.fluxzero.common.Registration",
@@ -91,14 +59,6 @@
     "name" : "requestGateway",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.requestGateway",
     "type" : "io.fluxzero.sdk.publishing.client.GatewayClient",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "requestHandler",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint.requestHandler",
-    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -131,80 +91,12 @@
       "type" : "io.fluxzero.sdk.configuration.client.Client",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "requestHandler",
-      "type" : "io.fluxzero.sdk.publishing.RequestHandler",
-      "varArgs" : false,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "closeSession",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#closeSession",
-    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "session",
-      "type" : "jakarta.websocket.Session",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "completeCloseNotification",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#completeCloseNotification",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "sessionId",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "failure",
-      "type" : "java.lang.Throwable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "createRequest",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#createRequest",
-    "returnType" : "io.fluxzero.common.api.SerializedMessage",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "session",
-      "type" : "jakarta.websocket.Session",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "method",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "payload",
-      "type" : "byte[]",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "ensureStarted",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#ensureStarted",
     "returnType" : "void",
@@ -363,27 +255,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "sendCloseRequest",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#sendCloseRequest",
-    "returnType" : "java.util.concurrent.CompletableFuture<?>",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "session",
-      "type" : "jakarta.websocket.Session",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "closeReason",
-      "type" : "jakarta.websocket.CloseReason",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "sendMessage",
     "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#sendMessage",
     "returnType" : "void",
@@ -465,85 +336,6 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "shutDown",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "closeNotificationTimeout",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "shutDown",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "closeNotificationTimeout",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "warnOnTimeout",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "shutDown",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#shutDown",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "closeNotificationTimeout",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "awaitCloseAcknowledgements",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "warnOnTimeout",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "unwrapCloseFailure",
-    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint#unwrapCloseFailure",
-    "returnType" : "java.lang.RuntimeException",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "exception",
-      "type" : "java.util.concurrent.ExecutionException",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

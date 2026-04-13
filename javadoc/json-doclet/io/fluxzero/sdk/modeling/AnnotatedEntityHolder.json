@@ -21,14 +21,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "collectionHolder",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.collectionHolder",
-    "type" : "boolean",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "emptyEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.emptyEntity",
     "type" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
@@ -51,6 +43,14 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.entityHelper",
     "type" : "io.fluxzero.sdk.modeling.EntityHelper",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "entityIdInvokerCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.entityIdInvokerCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Optional<io.fluxzero.common.reflection.MemberInvoker>>",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -87,33 +87,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "loadingEntityCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.loadingEntityCache",
-    "type" : "java.lang.ThreadLocal<java.util.Map<io.fluxzero.sdk.modeling.AnnotatedEntityHolder,java.util.IdentityHashMap<java.lang.Object,io.fluxzero.sdk.modeling.ImmutableEntity<?>>>>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : " Replay-local cache for wrapper reuse while event sourcing an aggregate.\n <p>\n This optimization assumes the aggregate forms a tree: the same child object instance may only occur once in the\n aggregate graph during replay. Re-encountering the same raw child instance under a different parent would make\n the cached wrapper ambiguous, because replay updates the wrapper's parent pointer as it walks back up the tree.\n",
-    "constantValue" : null
-  }, {
-    "name" : "loadingRouteValuesCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.loadingRouteValuesCache",
-    "type" : "java.lang.ThreadLocal<java.util.Map<io.fluxzero.sdk.modeling.AnnotatedEntityHolder,java.util.IdentityHashMap<java.lang.Object,java.util.Collection<java.lang.String>>>>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "location",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.location",
     "type" : "java.lang.reflect.AccessibleObject",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "mapHolder",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder.mapHolder",
-    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -167,91 +143,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "addRouteValue",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#addRouteValue",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "results",
-      "type" : "java.util.List<java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "candidate",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "clearLoadingEntityCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#clearLoadingEntityCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "clearLoadingRouteValuesCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#clearLoadingRouteValuesCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "computeOwnerCloner",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeOwnerCloner",
-    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "serializer",
-      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "computeRouteValues",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeRouteValues",
-    "returnType" : "java.util.Collection<java.lang.String>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "member",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "idProvider",
-      "type" : "java.util.function.Function<java.lang.Object,io.fluxzero.sdk.modeling.AnnotatedEntityHolder.Id>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "computeWither",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeWither",
     "returnType" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
@@ -285,38 +176,7 @@
   }, {
     "name" : "createEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#createEntity",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "member",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "idProvider",
-      "type" : "java.util.function.Function<java.lang.Object,io.fluxzero.sdk.modeling.AnnotatedEntityHolder.Id>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "parent",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "createNewEntity",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#createNewEntity",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.ImmutableEntity<?>>",
     "modifiers" : [ "private" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
@@ -347,7 +207,7 @@
   }, {
     "name" : "getEntities",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#getEntities",
-    "returnType" : "java.util.List<? extends io.fluxzero.sdk.modeling.ImmutableEntity<?>>",
+    "returnType" : "java.util.stream.Stream<? extends io.fluxzero.sdk.modeling.ImmutableEntity<?>>",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -360,58 +220,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the set of {@link ImmutableEntity} instances that are defined at the member location within the specified\n parent entity. This includes actual members and an \"empty\" fallback entity used for creating new entities or\n assertions to carry out before an entity is created.\n\n @param parent the parent entity instance\n @return a stream of nested {@link ImmutableEntity} instances\n"
-  }, {
-    "name" : "getEntityByRoute",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#getEntityByRoute",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parent",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "getEntityByRoute",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#getEntityByRoute",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "member",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "idProvider",
-      "type" : "java.util.function.Function<java.lang.Object,io.fluxzero.sdk.modeling.AnnotatedEntityHolder.Id>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "parent",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "routeValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "getEntityHolder",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#getEntityHolder",
@@ -443,91 +251,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves or creates a cached {@code AnnotatedEntityHolder} at the given member location.\n\n @param ownerType    the class that owns the annotated member\n @param location     the accessible field or method annotated with @Member\n @param entityHelper the helper used to apply/validate/apply logic to nested entities\n @param serializer   the serializer used for cloning values during updates\n @return a cached or new instance of {@code AnnotatedEntityHolder}\n"
-  }, {
-    "name" : "restoreLoadingEntityCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#restoreLoadingEntityCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "snapshot",
-      "type" : "java.util.Map<?,?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "restoreLoadingRouteValuesCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#restoreLoadingRouteValuesCache",
-    "returnType" : "void",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "snapshot",
-      "type" : "java.util.Map<?,?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "routeValues",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#routeValues",
-    "returnType" : "java.util.Collection<java.lang.String>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "member",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "idProvider",
-      "type" : "java.util.function.Function<java.lang.Object,io.fluxzero.sdk.modeling.AnnotatedEntityHolder.Id>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "snapshotLoadingEntityCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#snapshotLoadingEntityCache",
-    "returnType" : "java.util.Map<?,?>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "snapshotLoadingRouteValuesCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#snapshotLoadingRouteValuesCache",
-    "returnType" : "java.util.Map<?,?>",
-    "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "updateFunctionAdvice",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#updateFunctionAdvice",

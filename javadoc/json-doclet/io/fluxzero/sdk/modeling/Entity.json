@@ -65,14 +65,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
-  }, {
-    "name" : "selfReferentialMemberCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity.selfReferentialMemberCache",
-    "type" : "java.lang.ClassValue<java.lang.Boolean>",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   } ],
   "constructors" : [ ],
   "methods" : [ {
@@ -509,22 +501,6 @@
     "varArgs" : false,
     "documentation" : " Retrieves the sequence number from the metadata of the given message. The sequence number is extracted as a\n {@code Long} if present; otherwise, {@code null} is returned.\n\n @param message the message containing metadata from which the sequence number is retrieved\n @return the sequence number as a {@code Long}, or {@code null} if the metadata key is not present or the value\n cannot be parsed\n"
   }, {
-    "name" : "hasSelfReferentialMember",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#hasSelfReferentialMember",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entityType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "hasSequenceNumber",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#hasSequenceNumber",
     "returnType" : "boolean",
@@ -745,27 +721,6 @@
     "varArgs" : false,
     "documentation" : " Maps the entity to a new value if the entity is present. This method applies the provided mapping function to the\n entity if it is initialized and returns an {@link Optional} containing the result or an empty {@link Optional} if\n the entity is not present.\n\n @param <U>    the type of the result of applying the mapping function\n @param action the mapping function to apply to the entity if present\n @return an {@link Optional} containing the result of the mapping function, or an empty {@link Optional} if the\n entity is not present\n"
   }, {
-    "name" : "matchesRoute",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#matchesRoute",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entity",
-      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "routeValue",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "orElse",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#orElse",
     "returnType" : "T",
@@ -948,27 +903,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves the sequence number of the current entity.\n\n @return the sequence number of the root entity\n"
-  }, {
-    "name" : "shouldSearchDescendants",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#shouldSearchDescendants",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "idProperty",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   }, {
     "name" : "timestamp",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#timestamp",

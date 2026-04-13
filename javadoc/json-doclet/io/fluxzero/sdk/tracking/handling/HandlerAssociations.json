@@ -10,26 +10,10 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "boundMethodAssociationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.boundMethodAssociationProperties",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty>>",
+    "name" : "associationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.associationProperties",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationValue>>",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "metadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.metadata",
-    "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationMetadata",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "metadataCache",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.metadataCache",
-    "type" : "java.lang.ClassValue<io.fluxzero.sdk.tracking.handling.HandlerAssociations.AssociationMetadata>",
-    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -37,6 +21,14 @@
     "name" : "methodAnnotationProvider",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.methodAnnotationProvider",
     "type" : "java.util.function.Function<java.lang.reflect.Executable,? extends java.lang.annotation.Annotation>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "methodAssociationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations.methodAssociationProperties",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.List<io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -88,10 +80,10 @@
     "documentation" : " Creates an association helper for a specific handler type.\n\n @param targetClass the handler class whose association metadata should be inspected\n @param parameterResolvers the parameter resolvers used to resolve parameter-level {@code @Association} sources\n @param methodAnnotationProvider provider for the effective handler annotation on an executable, used when\n                                 resolving parameter values\n"
   } ],
   "methods" : [ {
-    "name" : "alwaysAssociate",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#alwaysAssociate",
-    "returnType" : "boolean",
-    "modifiers" : [ "public" ],
+    "name" : "applicableParameterResolvers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#applicableParameterResolvers",
+    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -104,15 +96,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "applicableParameterResolvers",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#applicableParameterResolvers",
-    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "name" : "associationPropertyNames",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#associationPropertyNames",
+    "returnType" : "java.util.stream.Stream<java.lang.String>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "executable",
-      "type" : "java.lang.reflect.Executable",
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "association",
+      "type" : "io.fluxzero.sdk.tracking.handling.Association",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -141,8 +138,8 @@
     "varArgs" : false,
     "documentation" : " Computes the association values contributed by the given message for the supplied matching handler methods.\n <p>\n The returned map is keyed by association value and contains the target path within the handler instance that\n should be matched for that value.\n"
   }, {
-    "name" : "computeMethodAssociationProperties",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#computeMethodAssociationProperties",
+    "name" : "executableAssociationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#executableAssociationProperties",
     "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
@@ -284,6 +281,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "parameterAssociationProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#parameterAssociationProperties",
+    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerAssociations.MethodAssociationProperty>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveParameterName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#resolveParameterName",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolveParameterValue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#resolveParameterValue",
     "returnType" : "java.lang.Object",
@@ -318,12 +347,6 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "AssociationMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$AssociationMetadata",
-    "kind" : "class",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  }, {
     "name" : "AssociationValue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$AssociationValue",
     "kind" : "class",
@@ -347,15 +370,6 @@
       "values" : {
         "staticConstructor" : "of"
       }
-    } ]
-  }, {
-    "name" : "ParameterAssociationTemplate",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$ParameterAssociationTemplate",
-    "kind" : "class",
-    "modifiers" : [ "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {}
     } ]
   } ]
 }

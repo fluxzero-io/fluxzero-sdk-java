@@ -296,7 +296,7 @@
     "name" : "schedulingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.schedulingInterceptor",
     "type" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -498,20 +498,6 @@
         "values" : {}
       } ]
     } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "cache",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#cache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1160,20 +1146,6 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "relationshipsCache",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#relationshipsCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

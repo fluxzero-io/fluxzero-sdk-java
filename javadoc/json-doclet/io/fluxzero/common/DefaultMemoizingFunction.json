@@ -151,54 +151,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "isExpired",
-    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#isExpired",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entry",
-      "type" : "io.fluxzero.common.DefaultMemoizingFunction.Entry",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "loadEntry",
-    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#loadEntry",
-    "returnType" : "io.fluxzero.common.DefaultMemoizingFunction.Entry",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "key",
-      "type" : "K",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "normalizeKey",
-    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#normalizeKey",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "key",
-      "type" : "K",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "remove",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#remove",
     "returnType" : "V",

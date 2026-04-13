@@ -44,6 +44,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "validateWithGroups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.validateWithGroups",
+    "type" : "java.util.function.Function<java.lang.Class<?>,java.lang.Class<?>[]>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ValidationUtils",

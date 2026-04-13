@@ -13,9 +13,9 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
   "fields" : [ {
-    "name" : "metadataCache",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor.metadataCache",
-    "type" : "java.lang.ClassValue<io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor.FilterContentMetadata>",
+    "name" : "filterContentCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor.filterContentCache",
+    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.reflect.Executable,io.fluxzero.sdk.common.serialization.FilterContent>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -67,11 +67,5 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "FilterContentMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor$FilterContentMetadata",
-    "kind" : "class",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ]
-  } ]
+  "nestedTypes" : [ ]
 }

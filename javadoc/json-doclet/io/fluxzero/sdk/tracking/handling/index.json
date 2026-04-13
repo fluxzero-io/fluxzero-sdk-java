@@ -110,11 +110,6 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
     "kind" : "class"
   }, {
-    "file" : "HandlerAssociations.AssociationMetadata.json",
-    "name" : "HandlerAssociations.AssociationMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$AssociationMetadata",
-    "kind" : "class"
-  }, {
     "file" : "HandlerAssociations.AssociationValue.json",
     "name" : "HandlerAssociations.AssociationValue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$AssociationValue",
@@ -123,11 +118,6 @@
     "file" : "HandlerAssociations.MethodAssociationProperty.json",
     "name" : "HandlerAssociations.MethodAssociationProperty",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$MethodAssociationProperty",
-    "kind" : "class"
-  }, {
-    "file" : "HandlerAssociations.ParameterAssociationTemplate.json",
-    "name" : "HandlerAssociations.ParameterAssociationTemplate",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations$ParameterAssociationTemplate",
     "kind" : "class"
   }, {
     "file" : "HandlerDecorator.json",
@@ -288,11 +278,6 @@
     "file" : "TriggerParameterResolver.json",
     "name" : "TriggerParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver",
-    "kind" : "class"
-  }, {
-    "file" : "TriggerParameterResolver.TriggerMetadata.json",
-    "name" : "TriggerParameterResolver.TriggerMetadata",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata",
     "kind" : "class"
   } ],
   "subdirectories" : [ {

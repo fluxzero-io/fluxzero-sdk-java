@@ -25,6 +25,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
   "fields" : [ {
+    "name" : "alwaysAssociateMethods",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.alwaysAssociateMethods",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.lang.Boolean>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "handlerAssociations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.handlerAssociations",
     "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
@@ -144,6 +152,22 @@
     "parameters" : [ {
       "name" : "i",
       "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "associations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#associations",
+    "returnType" : "java.util.Map<java.lang.Object,java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
