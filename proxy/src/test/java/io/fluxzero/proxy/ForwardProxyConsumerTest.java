@@ -19,11 +19,13 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.WebRequest;
+import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +46,10 @@ import static org.mockito.Mockito.verify;
 
 @Slf4j
 class ForwardProxyConsumerTest {
+    private static final String CONSUMER_NAME = "forward-proxy-consumer-test";
+    public static final Metadata requestSettingsMetadata = Metadata.of("settings", WebRequestSettings.builder()
+            .consumer(CONSUMER_NAME)
+            .build());
     private final TestFixture testFixture = TestFixture.createAsync().spy();
     private int port;
 
@@ -53,7 +59,7 @@ class ForwardProxyConsumerTest {
     @BeforeEach
     @SneakyThrows
     void setUp() {
-        registration = ForwardProxyConsumer.start(testFixture.getFluxzero().client());
+        registration = new ForwardProxyConsumer(testFixture.getFluxzero().client(), CONSUMER_NAME, null).start();
         HttpServer server = HttpServer.create(
                 new InetSocketAddress("localhost", 0), 0);
         serverContext = server.createContext("/");
@@ -83,7 +89,9 @@ class ForwardProxyConsumerTest {
                 outputStream.flush();
             }
         });
-        testFixture.whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(GET).build())
+        testFixture.whenWebRequest(WebRequest.builder().url("http://localhost:" + port)
+                        .metadata(requestSettingsMetadata)
+                        .method(GET).build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 200
                                                        && "test".equals(new String(r.<byte[]>getPayload())));
     }
@@ -99,7 +107,8 @@ class ForwardProxyConsumerTest {
             }
         });
         testFixture
-                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(GET).build())
+                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(GET)
+                        .metadata(requestSettingsMetadata).build())
                 .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.METRICS), atLeastOnce())
                         .append(any(), any(SerializedMessage.class)));
     }
@@ -116,7 +125,8 @@ class ForwardProxyConsumerTest {
             }
         });
         testFixture
-                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(GET).build())
+                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(GET)
+                        .metadata(requestSettingsMetadata).build())
                 .expectWebResult(r -> r.getStatus() == 200 && "test".equals(new String(r.<byte[]>getPayload())));
     }
 
@@ -124,8 +134,8 @@ class ForwardProxyConsumerTest {
     void postRequest() {
         serverContext.setHandler(exchange -> exchange.sendResponseHeaders(204, -1));
         testFixture
-                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port)
-                                                     .payload("test").method(POST).build())
+                .whenWebRequest(WebRequest.builder().url("http://localhost:" + port).method(POST)
+                        .metadata(requestSettingsMetadata).payload("test").build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 204 && r.<byte[]>getPayload().length == 0)
                 .expectWebResponse(r -> r.getStatus() == 204 && r.getMetadata().containsKey("$correlationId"));
     }
