@@ -77,6 +77,25 @@ class ObjectUtilsTest {
     }
 
     @Test
+    void supportsVirtualThreadWorkersCanBeDisabledViaProperty() {
+        String previousValue = System.getProperty(ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY);
+        try {
+            System.setProperty(ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY, "false");
+            assertFalse(ObjectUtils.supportsVirtualThreadWorkers());
+
+            System.setProperty(ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY, "true");
+            assertEquals(ObjectUtils.supportsVirtualThreadWorkers(Runtime.version().feature()),
+                         ObjectUtils.supportsVirtualThreadWorkers());
+        } finally {
+            if (previousValue == null) {
+                System.clearProperty(ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY);
+            } else {
+                System.setProperty(ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY, previousValue);
+            }
+        }
+    }
+
+    @Test
     void newWorkerPoolUsesVirtualThreadsOnSupportedRuntimes() throws Exception {
         try (ExecutorService executor = ObjectUtils.newWorkerPool("ObjectUtilsTest-worker-", 2)) {
             Future<Boolean> isVirtual = executor.submit(() -> Thread.currentThread().isVirtual());

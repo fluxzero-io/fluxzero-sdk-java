@@ -15,6 +15,7 @@
 
 package io.fluxzero.common;
 
+import io.fluxzero.common.application.DefaultPropertySource;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,6 +70,7 @@ import static java.util.function.UnaryOperator.identity;
  */
 @Slf4j
 public class ObjectUtils {
+    static final String VIRTUAL_THREADS_ALLOWED_PROPERTY = "fluxzero.virtual-threads.allowed";
     private static final Predicate<Object> noOpPredicate = v -> true;
     private static final BiPredicate<Object, Object> noOpBiPredicate = (a, b) -> true;
 
@@ -368,7 +370,8 @@ public class ObjectUtils {
     }
 
     public static boolean supportsVirtualThreadWorkers() {
-        return supportsVirtualThreadWorkers(Runtime.version().feature());
+        return supportsVirtualThreadWorkers(Runtime.version().feature())
+               && DefaultPropertySource.getInstance().getBoolean(VIRTUAL_THREADS_ALLOWED_PROPERTY, true);
     }
 
     static boolean supportsVirtualThreadWorkers(int javaFeatureVersion) {

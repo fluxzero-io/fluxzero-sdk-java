@@ -18,6 +18,7 @@ package io.fluxzero.common.application;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Properties;
 
 import static io.fluxzero.common.TestUtils.runWithSystemProperties;
@@ -25,6 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DefaultPropertySourceTest {
+
+    @Test
+    void environmentVariableNamesSupportExactNormalizedAndUppercase() {
+        assertEquals(List.of("fluxzero.virtual-threads.allowed",
+                             "fluxzero_virtual_threads_allowed",
+                             "FLUXZERO_VIRTUAL_THREADS_ALLOWED"),
+                     EnvironmentVariablesSource.envVariableNames("fluxzero.virtual-threads.allowed").toList());
+    }
 
     @Test
     void fromSystemProperty() {

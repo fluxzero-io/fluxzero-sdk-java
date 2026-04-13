@@ -14,6 +14,9 @@
 
 package io.fluxzero.common.application;
 
+import java.util.Objects;
+import java.util.stream.Stream;
+
 /**
  * A {@link PropertySource} that resolves property values from system environment variables.
  * <p>
@@ -50,6 +53,16 @@ public enum EnvironmentVariablesSource implements PropertySource {
      */
     @Override
     public String get(String name) {
-        return System.getenv(name);
+        return envVariableNames(name)
+                .map(System::getenv)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    static Stream<String> envVariableNames(String name) {
+        String normalized = name.replace('.', '_').replace('-', '_');
+        return Stream.of(name, normalized, normalized.toUpperCase())
+                .distinct();
     }
 }
