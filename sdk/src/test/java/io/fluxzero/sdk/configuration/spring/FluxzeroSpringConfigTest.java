@@ -51,7 +51,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -59,6 +61,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -207,6 +210,20 @@ public class FluxzeroSpringConfigTest {
         assertNotRegisteredAsPrototype(ConditionalSocketEndpointMissing.class);
     }
 
+    @Test
+    void explicitStatefulIncludeFilterDoesNotInstantiateHandlerBean() {
+        System.setProperty("explicitStatefulScan", "true");
+        try (var context = new AnnotationConfigApplicationContext()) {
+            context.register(ExplicitStatefulScanConfig.class);
+            assertDoesNotThrow(context::refresh);
+            assertThrows(NoSuchBeanDefinitionException.class, () -> context.getBean(ExplicitlyIncludedStatefulHandler.class));
+            assertTrue(context.getBeansOfType(FluxzeroPrototype.class).values().stream()
+                               .anyMatch(prototype -> prototype.getType().equals(ExplicitlyIncludedStatefulHandler.class)));
+        } finally {
+            System.clearProperty("explicitStatefulScan");
+        }
+    }
+
     private void assertRegisteredAsPrototype(Class<?> type) {
         assertTrue(beanFactory.getBeansOfType(FluxzeroPrototype.class).values().stream()
                            .anyMatch(prototype -> prototype.getType().equals(type)),
@@ -297,6 +314,15 @@ public class FluxzeroSpringConfigTest {
     public static class ConditionalSocketEndpointMissing {
     }
 
+    @Value
+    @Stateful
+    public static class ExplicitlyIncludedStatefulHandler {
+        MissingDependency dependency;
+    }
+
+    static class MissingDependency {
+    }
+
     @Configuration
     @Import(FluxzeroSpringConfig.class)
     @ComponentScan
@@ -323,6 +349,25 @@ public class FluxzeroSpringConfigTest {
         FluxzeroCustomizer secondCustomizer() {
             return builder -> builder.replacePropertySource(existing -> new SimplePropertySource(
                     Map.of("foo", "secondCustomizerValue")).andThen(existing));
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty("explicitStatefulScan")
+    @Import(FluxzeroSpringConfig.class)
+    @ComponentScan(basePackageClasses = FluxzeroSpringConfigTest.class,
+                   useDefaultFilters = false,
+                   includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Stateful.class))
+    static class ExplicitStatefulScanConfig {
+        @Autowired
+        void configure(FluxzeroBuilder builder) {
+            builder.makeApplicationInstance(false);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(UserProvider.class)
+        public UserProvider userProvider() {
+            return mockUserProvider;
         }
     }
 

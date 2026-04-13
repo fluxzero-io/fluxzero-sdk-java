@@ -38,7 +38,10 @@ import org.springframework.stereotype.Component;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -63,7 +66,9 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
         }
 
         ResourceLoader resourceLoader = new PathMatchingResourcePatternResolver(beanFactory.getBeanClassLoader());
-        findCandidateTypes(beanFactory, registry, resourceLoader)
+        Stream.concat(removeDirectBeanDefinitions(beanFactory, registry).stream(),
+                      findCandidateTypes(beanFactory, registry, resourceLoader))
+                .distinct()
                 .map(FluxzeroPrototype::new)
                 .forEach(prototype -> {
                     String beanName = prototype.getType().getName() + getBeanNameSuffix();
@@ -88,6 +93,23 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
     protected abstract Class<? extends Annotation> getTargetAnnotation();
 
     protected abstract String getBeanNameSuffix();
+
+    private Set<Class<?>> removeDirectBeanDefinitions(ConfigurableListableBeanFactory beanFactory,
+                                                      BeanDefinitionRegistry registry) {
+        Set<Class<?>> removedTypes = new LinkedHashSet<>();
+        Arrays.stream(beanFactory.getBeanDefinitionNames())
+                .map(beanName -> Map.entry(beanName, registry.getBeanDefinition(beanName)))
+                .filter(entry -> entry.getValue().getFactoryBeanName() == null
+                                 && entry.getValue().getFactoryMethodName() == null)
+                .map(entry -> Map.entry(entry.getKey(), beanFactory.getType(entry.getKey())))
+                .filter(entry -> entry.getValue() != null
+                                 && AnnotatedElementUtils.hasAnnotation(entry.getValue(), getTargetAnnotation()))
+                .forEach(entry -> {
+                    removedTypes.add(entry.getValue());
+                    registry.removeBeanDefinition(entry.getKey());
+                });
+        return removedTypes;
+    }
 
     private Stream<Class<?>> findCandidateTypes(ConfigurableListableBeanFactory beanFactory,
                                                 BeanDefinitionRegistry registry,
