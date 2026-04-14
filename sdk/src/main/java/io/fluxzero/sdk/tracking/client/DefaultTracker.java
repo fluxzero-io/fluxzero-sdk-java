@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.client;
 
-import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
@@ -26,8 +25,8 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.publishing.MetricsGateway;
+import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.FlowRegulator;
@@ -299,7 +298,7 @@ public class DefaultTracker implements Runnable, Registration {
                     if (notified.compareAndSet(false, true)) {
                         ofNullable(metricsGateway).ifPresent(g -> g.publish(new PauseTrackerEvent(
                                 tracker.getName(), tracker.getTrackerId()), Metadata.of(
-                                "messageType", trackingClient.getMessageType()), Guarantee.SENT).join());
+                                "messageType", trackingClient.getMessageType())));
                     }
                     Thread.sleep(duration.toMillis() - System.currentTimeMillis() + start);
                 }
