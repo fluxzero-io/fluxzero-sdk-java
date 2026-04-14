@@ -17,11 +17,13 @@ package io.fluxzero.sdk.givenwhenthen;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.CancelPeriodic;
 import io.fluxzero.sdk.scheduling.Periodic;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.GivenWhenThenAssertionError;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import lombok.AllArgsConstructor;
@@ -37,9 +39,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static io.fluxzero.sdk.Fluxzero.publishEvent;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GivenWhenThenSchedulingTest {
@@ -134,6 +138,61 @@ class GivenWhenThenSchedulingTest {
                 .expectTrue(fc -> !firstIndex.get().equals(fc.client().getSchedulingClient()
                                                                    .getSchedule(scheduleId).getMessage().getIndex()));
 
+    }
+
+    @Nested
+    class BranchIdTracing {
+        private final Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        private final TestFixture fixture = TestFixture.createAsync(new BranchIdCommandHandler(),
+                                                                    new BranchIdScheduleHandler())
+                .atFixedTime(start);
+
+        @Test
+        void propagatesBranchIdToDirectAndIndirectEffects() {
+            Instant deadline = start.plusSeconds(10);
+            String expectedBranchId = branchId("schedule-chain", deadline);
+
+            fixture.whenCommand(new StartScheduleChain("schedule-chain", deadline))
+                    .expectSchedule(s -> s.getScheduleId().equals("schedule-chain")
+                                         && expectedBranchId.equals(s.getMetadata().get("$trace.$branchId")))
+                    .andThen()
+                    .whenTimeAdvancesTo(deadline)
+                    .expectEvents((Predicate<Message>) e -> "direct-effect".equals(e.getPayload())
+                                                     && expectedBranchId.equals(e.getMetadata().get("$trace.$branchId")))
+                    .expectCommands((Predicate<Message>) c -> "indirect-command".equals(c.getPayload())
+                                                       && expectedBranchId.equals(c.getMetadata().get("$trace.$branchId")))
+                    .expectEvents((Predicate<Message>) e -> "indirect-effect".equals(e.getPayload())
+                                                     && expectedBranchId.equals(e.getMetadata().get("$trace.$branchId")));
+        }
+
+        @Test
+        void rescheduledScheduleGetsANewBranchId() {
+            Instant firstDeadline = start.plusSeconds(10);
+            Instant secondDeadline = firstDeadline.plusSeconds(5);
+            String firstBranchId = branchId("reschedule-chain", firstDeadline);
+            String secondBranchId = branchId("reschedule-chain", secondDeadline);
+
+            assertNotEquals(firstBranchId, secondBranchId);
+
+            fixture.whenCommand(new StartReschedulingChain("reschedule-chain", firstDeadline))
+                    .expectSchedule(s -> s.getScheduleId().equals("reschedule-chain")
+                                         && firstBranchId.equals(s.getMetadata().get("$trace.$branchId")))
+                    .andThen()
+                    .whenTimeAdvancesTo(firstDeadline)
+                    .expectEvents((Predicate<Message>) e -> e.getPayload().equals(new BranchObserved(0))
+                                                     && firstBranchId.equals(e.getMetadata().get("$trace.$branchId")))
+                    .expectSchedule(s -> s.getScheduleId().equals("reschedule-chain")
+                                         && secondDeadline.equals(s.getDeadline())
+                                         && secondBranchId.equals(s.getMetadata().get("$trace.$branchId")))
+                    .andThen()
+                    .whenTimeAdvancesTo(secondDeadline)
+                    .expectEvents((Predicate<Message>) e -> e.getPayload().equals(new BranchObserved(1))
+                                                     && secondBranchId.equals(e.getMetadata().get("$trace.$branchId")));
+        }
+
+        private String branchId(String scheduleId, Instant deadline) {
+            return "%s_%s".formatted(scheduleId, IndexUtils.indexFromTimestamp(deadline));
+        }
     }
 
     @Nested
@@ -569,6 +628,43 @@ class GivenWhenThenSchedulingTest {
         }
     }
 
+    static class BranchIdCommandHandler {
+        @HandleCommand
+        void handle(StartScheduleChain command) {
+            Fluxzero.schedule("scheduled-root", command.scheduleId(), command.deadline());
+        }
+
+        @HandleCommand
+        void handle(StartReschedulingChain command) {
+            Fluxzero.schedule(new ReschedulingPayload(0), command.scheduleId(), command.firstDeadline());
+        }
+
+        @HandleCommand
+        void handle(String command) {
+            if ("indirect-command".equals(command)) {
+                Fluxzero.publishEvent("indirect-effect");
+            }
+        }
+    }
+
+    static class BranchIdScheduleHandler {
+        @HandleSchedule
+        void handle(String payload) {
+            if ("scheduled-root".equals(payload)) {
+                Fluxzero.publishEvent("direct-effect");
+                Fluxzero.sendAndForgetCommand("indirect-command");
+            }
+        }
+
+        @HandleSchedule
+        void handle(ReschedulingPayload payload, Schedule schedule) {
+            Fluxzero.publishEvent(new BranchObserved(payload.iteration()));
+            if (payload.iteration() == 0) {
+                Fluxzero.schedule(schedule.withPayload(new ReschedulingPayload(1)).reschedule(Duration.ofSeconds(5)));
+            }
+        }
+    }
+
     static class InterfacePeriodicHandler {
         @HandleSchedule
         void handle(PeriodicScheduleFromInterface schedule) {
@@ -627,6 +723,18 @@ class GivenWhenThenSchedulingTest {
     @Value
     static class YieldsCommand {
         Object command;
+    }
+
+    record StartScheduleChain(String scheduleId, Instant deadline) {
+    }
+
+    record StartReschedulingChain(String scheduleId, Instant firstDeadline) {
+    }
+
+    record ReschedulingPayload(int iteration) {
+    }
+
+    record BranchObserved(int iteration) {
     }
 
     @Value

@@ -45,6 +45,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
 import static io.fluxzero.sdk.scheduling.CronExpression.parseCronExpression;
+import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 import static io.fluxzero.sdk.tracking.IndexUtils.millisFromIndex;
 import static java.lang.String.format;
 import static java.time.Duration.between;
@@ -155,10 +156,12 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     @Override
     public Message interceptDispatch(Message message, MessageType messageType, String topic) {
-        if (messageType == MessageType.SCHEDULE) {
+        if (message instanceof Schedule schedule) {
+            String branchId = "%s_%s".formatted(schedule.getScheduleId(), indexFromTimestamp(schedule.getDeadline()));
             message = message.withMetadata(
                     message.getMetadata()
-                            .with(Schedule.scheduleIdMetadataKey, ((Schedule) message).getScheduleId()));
+                            .with(Schedule.scheduleIdMetadataKey, schedule.getScheduleId())
+                            .withTrace("$branchId", branchId));
         }
         return message;
     }
