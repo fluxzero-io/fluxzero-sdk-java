@@ -21,6 +21,7 @@ import io.fluxzero.common.Backlog;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.RetryConfiguration;
+import io.fluxzero.common.RetryStatus;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.TimingUtils;
 import io.fluxzero.common.api.Command;
@@ -136,6 +137,7 @@ import static java.util.Optional.ofNullable;
  */
 public abstract class AbstractWebsocketClient extends Endpoint implements AutoCloseable {
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
+    protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".clientHandshakeConfigurator";
     protected static final String CLIENT_SESSION_ID_USER_PROPERTY =
@@ -230,25 +232,39 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
                 () -> connectToServer(container, endpointUri),
-                RetryConfiguration.builder()
-                        .delay(reconnectDelay)
-                        .errorTest(e -> {
-                            if (e instanceof Error) {
-                                log().error("Error while connecting to endpoint {}", endpointUri, e);
-                            }
-                            return !closed.get();
-                        })
-                        .successLogger(s -> log().info("Successfully reconnected to endpoint {}", endpointUri))
-                        .exceptionLogger(status -> {
-                            if (status.getNumberOfTimesRetried() == 0) {
-                                log().warn("Failed to connect to endpoint {}; reason: {}. Retrying every {} ms...",
-                                           endpointUri, status.getException().getMessage(),
-                                           status.getRetryConfiguration().getDelay().toMillis());
-                            } else if (status.getNumberOfTimesRetried() % 100 == 0) {
-                                log().warn("Still trying to connect to endpoint {}. Last error: {}.",
-                                           endpointUri, status.getException().getMessage());
-                            }
-                        }).build()));
+                createConnectionRetryConfiguration(endpointUri, reconnectDelay)));
+    }
+
+    protected RetryConfiguration createConnectionRetryConfiguration(URI endpointUri, Duration reconnectDelay) {
+        return RetryConfiguration.builder()
+                .delay(reconnectDelay)
+                .errorTest(e -> {
+                    if (e instanceof Error) {
+                        log().error("Error while connecting to endpoint {}", endpointUri, e);
+                    }
+                    return !closed.get();
+                })
+                .successLogger(status -> logSuccessfulReconnect(endpointUri, status))
+                .exceptionLogger(status -> logConnectionRetryStatus(endpointUri, status))
+                .build();
+    }
+
+    protected void logSuccessfulReconnect(URI endpointUri, RetryStatus status) {
+        log().info("Successfully reconnected to endpoint {} after {} {}",
+                   endpointUri, status.getNumberOfTimesRetried(),
+                   status.getNumberOfTimesRetried() == 1 ? "retry" : "retries");
+    }
+
+    protected void logConnectionRetryStatus(URI endpointUri, RetryStatus status) {
+        int retryCount = status.getNumberOfTimesRetried();
+        if (retryCount == 0) {
+            log().warn("Failed to connect to endpoint {}; reason: {}. Retrying every {} ms...",
+                       endpointUri, status.getException().getMessage(),
+                       status.getRetryConfiguration().getDelay().toMillis());
+        } else if (retryCount > 0 && retryCount % CONNECTION_RETRY_LOG_INTERVAL == 0) {
+            log().warn("Still trying to connect to endpoint {} after {} retries. Last error: {}.",
+                       endpointUri, retryCount, status.getException().getMessage());
+        }
     }
 
     protected Session connectToServer(WebSocketContainer container, URI endpointUri) throws Exception {

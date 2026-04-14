@@ -1,6 +1,8 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.RetryConfiguration;
+import io.fluxzero.common.RetryStatus;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
@@ -42,10 +44,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -212,6 +214,45 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void connectionRetryConfigurationLogsInitialAndPeriodicFailures() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        LoggingObservingClient client = new LoggingObservingClient(mock(WebSocketContainer.class), clientConfig);
+
+        RetryConfiguration configuration = client.retryConfiguration(URI.create("ws://localhost"), Duration.ofSeconds(1));
+
+        configuration.getExceptionLogger().accept(retryStatus(configuration, 0));
+        configuration.getExceptionLogger().accept(retryStatus(configuration, 1));
+        configuration.getExceptionLogger().accept(retryStatus(configuration, 9));
+        configuration.getExceptionLogger().accept(retryStatus(configuration, 10));
+        configuration.getExceptionLogger().accept(retryStatus(configuration, 20));
+
+        assertEquals(List.of(0, 10, 20), client.loggedFailureRetryCounts());
+        client.close();
+    }
+
+    @Test
+    void connectionRetryConfigurationLogsReconnectSuccessWithRetryCount() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        LoggingObservingClient client = new LoggingObservingClient(mock(WebSocketContainer.class), clientConfig);
+
+        RetryConfiguration configuration = client.retryConfiguration(URI.create("ws://localhost"), Duration.ofSeconds(1));
+        configuration.getSuccessLogger().accept(RetryStatus.builder()
+                                                   .retryConfiguration(configuration)
+                                                   .task("connect")
+                                                   .numberOfTimesRetried(3)
+                                                   .build());
+
+        assertEquals(List.of(3), client.loggedSuccessRetryCounts());
+        client.close();
+    }
+
+    @Test
     void connectAttemptUsesOuterFailsafeTimeout() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -319,6 +360,15 @@ class AbstractWebsocketClientTest {
         return session;
     }
 
+    private static RetryStatus retryStatus(RetryConfiguration configuration, int retryCount) {
+        return RetryStatus.builder()
+                .retryConfiguration(configuration)
+                .task("connect")
+                .exception(new IllegalStateException("boom-" + retryCount))
+                .numberOfTimesRetried(retryCount)
+                .build();
+    }
+
     @ClientEndpoint
     private static class InvalidAnnotatedClient extends AbstractWebsocketClient {
         InvalidAnnotatedClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
@@ -369,6 +419,40 @@ class AbstractWebsocketClientTest {
         public void close() {
             retryExecutor.shutdownNow();
             super.close();
+        }
+    }
+
+    private static class LoggingObservingClient extends TestClient {
+        private final List<RetryStatus> loggedFailures = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final List<RetryStatus> loggedSuccesses = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        LoggingObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        RetryConfiguration retryConfiguration(URI endpointUri, Duration reconnectDelay) {
+            return createConnectionRetryConfiguration(endpointUri, reconnectDelay);
+        }
+
+        @Override
+        protected void logConnectionRetryStatus(URI endpointUri, RetryStatus status) {
+            int retryCount = status.getNumberOfTimesRetried();
+            if (retryCount == 0 || retryCount > 0 && retryCount % CONNECTION_RETRY_LOG_INTERVAL == 0) {
+                loggedFailures.add(status);
+            }
+        }
+
+        @Override
+        protected void logSuccessfulReconnect(URI endpointUri, RetryStatus status) {
+            loggedSuccesses.add(status);
+        }
+
+        List<Integer> loggedFailureRetryCounts() {
+            return loggedFailures.stream().map(RetryStatus::getNumberOfTimesRetried).collect(Collectors.toList());
+        }
+
+        List<Integer> loggedSuccessRetryCounts() {
+            return loggedSuccesses.stream().map(RetryStatus::getNumberOfTimesRetried).collect(Collectors.toList());
         }
     }
 
