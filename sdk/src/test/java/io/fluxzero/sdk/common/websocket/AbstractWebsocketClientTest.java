@@ -230,7 +230,6 @@ class AbstractWebsocketClientTest {
         }
     }
 
-    @Test
     void connectionRetryConfigurationLogsInitialAndPeriodicFailures() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")

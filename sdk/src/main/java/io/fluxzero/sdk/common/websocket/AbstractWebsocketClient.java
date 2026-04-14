@@ -565,6 +565,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     requests.clear();
                 }
                 pingScheduler.shutdown();
+                resultExecutor.shutdown();
                 reconnectExecutor.shutdown();
                 sessionPool.close();
                 pingDeadlines.clear();
