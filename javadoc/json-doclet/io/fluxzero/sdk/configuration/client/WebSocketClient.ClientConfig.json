@@ -29,6 +29,17 @@
     "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to property\n {@code FLUXZERO_APPLICATION_ID}.\n",
     "constantValue" : null
   }, {
+    "name" : "connectionTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.connectionTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " How long a websocket connection attempt may take before it times out. Defaults to {@code 10 seconds}.\n",
+    "constantValue" : null
+  }, {
     "name" : "disableMetrics",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.disableMetrics",
     "type" : "boolean",

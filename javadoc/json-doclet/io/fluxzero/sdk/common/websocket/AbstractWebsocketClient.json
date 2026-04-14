@@ -26,6 +26,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "CONNECTION_RETRY_LOG_INTERVAL",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CONNECTION_RETRY_LOG_INTERVAL",
+    "type" : "int",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 10
+  }, {
+    "name" : "CONNECTION_TIMEOUT_FAILSAFE_GRACE",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CONNECTION_TIMEOUT_FAILSAFE_GRACE",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "RUNTIME_SESSION_ID_USER_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY",
     "type" : "java.lang.String",
@@ -149,6 +165,14 @@
     "name" : "pingScheduler",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.pingScheduler",
     "type" : "io.fluxzero.common.TaskScheduler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reconnectExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.reconnectExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -342,6 +366,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "connectToServer",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#connectToServer",
+    "returnType" : "jakarta.websocket.Session",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "container",
+      "type" : "jakarta.websocket.WebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endpointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createConnectionRetryConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#createConnectionRetryConfiguration",
+    "returnType" : "io.fluxzero.common.RetryConfiguration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reconnectDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createConnectionSetup",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#createConnectionSetup",
     "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ConnectionSetup",
@@ -370,6 +436,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConnectionTimeoutFailsafeGrace",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getConnectionTimeoutFailsafeGrace",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -425,6 +502,48 @@
     }, {
       "name" : "sessionId",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logConnectionRetryStatus",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#logConnectionRetryStatus",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "status",
+      "type" : "io.fluxzero.common.RetryStatus",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logSuccessfulReconnect",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#logSuccessfulReconnect",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "status",
+      "type" : "io.fluxzero.common.RetryStatus",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -559,6 +678,22 @@
   }, {
     "name" : "retryOutstandingRequests",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#retryOutstandingRequests",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "retryOutstandingRequestsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#retryOutstandingRequestsAsync",
     "returnType" : "void",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
