@@ -185,7 +185,15 @@ public class TimingUtils {
                     configuration.getSuccessLogger().accept(successStatus);
                 }
                 return result;
+            } catch (InterruptedException e) {
+                currentThread().interrupt();
+                log.warn("Thread interrupted while executing retry task {}", task, e);
+                throw e;
             } catch (Throwable e) {
+                if (currentThread().isInterrupted()) {
+                    log.warn("Thread interrupted while executing retry task {}", task, e);
+                    throw e;
+                }
                 retryStatus = retryStatus == null ?
                         RetryStatus.builder().retryConfiguration(configuration).exception(e).task(task).build() :
                         retryStatus.afterRetry(e);

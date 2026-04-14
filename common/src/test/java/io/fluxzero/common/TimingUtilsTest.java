@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimingUtilsTest {
 
@@ -153,6 +154,59 @@ class TimingUtilsTest {
 
         assertEquals("ok", result);
         assertEquals(0, successLogCalls.get());
+    }
+
+    @Test
+    void retryOnFailureStopsImmediatelyWhenTaskThrowsInterruptedException() {
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicInteger errorLogCalls = new AtomicInteger();
+
+        RetryConfiguration configuration = RetryConfiguration.builder()
+                .delay(Duration.ofMillis(1))
+                .exceptionLogger(status -> errorLogCalls.incrementAndGet())
+                .build();
+
+        try {
+            InterruptedException exception = assertThrows(InterruptedException.class, () -> TimingUtils.retryOnFailure(
+                    () -> {
+                        attempts.incrementAndGet();
+                        throw new InterruptedException("stop retrying");
+                    }, configuration));
+
+            assertEquals("stop retrying", exception.getMessage());
+            assertEquals(1, attempts.get());
+            assertEquals(0, errorLogCalls.get());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void retryOnFailureStopsImmediatelyWhenTaskLeavesThreadInterrupted() {
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicInteger errorLogCalls = new AtomicInteger();
+
+        RetryConfiguration configuration = RetryConfiguration.builder()
+                .delay(Duration.ofMillis(1))
+                .exceptionLogger(status -> errorLogCalls.incrementAndGet())
+                .build();
+
+        try {
+            IllegalStateException exception = assertThrows(IllegalStateException.class, () -> TimingUtils.retryOnFailure(
+                    () -> {
+                        attempts.incrementAndGet();
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("interrupted during task");
+                    }, configuration));
+
+            assertEquals("interrupted during task", exception.getMessage());
+            assertEquals(1, attempts.get());
+            assertEquals(0, errorLogCalls.get());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
 }
