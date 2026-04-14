@@ -20,12 +20,20 @@ import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.Tracker;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,6 +41,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -136,6 +145,54 @@ class DefaultTrackerTest {
             verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(resetIndex), same(config));
         } finally {
             registration.cancel();
+        }
+    }
+
+    @Test
+    void storePositionPreservesInterruptAndDoesNotRetryInterruptedWait() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        setRunning(defaultTracker, true);
+
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(42L))).thenReturn(new InterruptingFuture());
+
+        Method method = DefaultTracker.class.getDeclaredMethod("storePosition", Long.class, int[].class);
+        method.setAccessible(true);
+
+        try {
+            InvocationTargetException error = org.junit.jupiter.api.Assertions.assertThrows(
+                    InvocationTargetException.class, () -> method.invoke(defaultTracker, 42L, new int[]{0, 128}));
+
+            assertInstanceOf(io.fluxzero.sdk.tracking.TrackingException.class, error.getCause());
+            assertTrue(Thread.currentThread().isInterrupted());
+            verify(trackingClient, times(1)).storePosition(eq("consumer"), any(), eq(42L));
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DefaultTracker createTracker(TrackingClient trackingClient, ConsumerConfiguration config,
+                                                Tracker tracker) throws Exception {
+        Constructor<DefaultTracker> constructor = DefaultTracker.class.getDeclaredConstructor(
+                java.util.function.Consumer.class, ConsumerConfiguration.class, Tracker.class, TrackingClient.class);
+        constructor.setAccessible(true);
+        return constructor.newInstance((java.util.function.Consumer<List<io.fluxzero.common.api.SerializedMessage>>) m -> {
+        }, config, tracker, trackingClient);
+    }
+
+    private static void setRunning(DefaultTracker tracker, boolean value) throws Exception {
+        Field field = DefaultTracker.class.getDeclaredField("running");
+        field.setAccessible(true);
+        ((AtomicBoolean) field.get(tracker)).set(value);
+    }
+
+    private static class InterruptingFuture extends CompletableFuture<Void> {
+        @Override
+        public Void get() throws InterruptedException {
+            throw new InterruptedException("stop");
         }
     }
 }
