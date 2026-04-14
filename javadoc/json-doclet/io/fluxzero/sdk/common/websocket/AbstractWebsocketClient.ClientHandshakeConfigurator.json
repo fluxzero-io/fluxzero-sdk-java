@@ -43,6 +43,17 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "runtimeVersion",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator.runtimeVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "selectedCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator.selectedCompressionAlgorithm",
     "type" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",

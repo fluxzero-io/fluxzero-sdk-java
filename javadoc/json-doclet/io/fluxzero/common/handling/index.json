@@ -85,6 +85,11 @@
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver",
     "kind" : "interface"
   }, {
+    "file" : "PreparedParameterResolver.json",
+    "name" : "PreparedParameterResolver",
+    "qualifiedName" : "io.fluxzero.common.handling.PreparedParameterResolver",
+    "kind" : "interface"
+  }, {
     "file" : "TypedParameterResolver.json",
     "name" : "TypedParameterResolver",
     "qualifiedName" : "io.fluxzero.common.handling.TypedParameterResolver",

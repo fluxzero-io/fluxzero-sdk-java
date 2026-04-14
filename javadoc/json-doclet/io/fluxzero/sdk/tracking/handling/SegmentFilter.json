@@ -9,15 +9,7 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
-  "fields" : [ {
-    "name" : "routingKeyCache",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter.routingKeyCache",
-    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.publishing.routing.RoutingKey>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  } ],
+  "fields" : [ ],
   "constructors" : [ {
     "name" : "SegmentFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter#SegmentFilter",

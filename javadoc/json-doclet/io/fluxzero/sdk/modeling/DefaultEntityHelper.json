@@ -10,14 +10,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.modeling.EntityHelper" ],
   "fields" : [ {
-    "name" : "annotationCache",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.annotationCache",
-    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.Aggregate>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : " Caches resolved @Aggregate annotations for faster repeated access.\n",
-    "constantValue" : null
-  }, {
     "name" : "applyMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.applyMatchers",
     "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.lang.Boolean,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
@@ -294,6 +286,27 @@
     "varArgs" : false,
     "documentation" : " Returns an exception if the value is illegal for the current entity, or {@code Optional.empty()} if legal.\n"
   }, {
+    "name" : "explicitlyTargetsOtherEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#explicitlyTargetsOtherEntity",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getInterceptInvoker",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getInterceptInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -325,6 +338,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the cached or default @Aggregate annotation for a given type.\n"
+  }, {
+    "name" : "hasSelfReferentialMember",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#hasSelfReferentialMember",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entityType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "intercept",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#intercept",

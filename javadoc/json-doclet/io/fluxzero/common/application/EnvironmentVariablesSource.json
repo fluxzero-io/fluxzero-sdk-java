@@ -22,22 +22,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "envVariableNames",
-    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#envVariableNames",
-    "returnType" : "java.util.stream.Stream<java.lang.String>",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "name",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#get",
     "returnType" : "java.lang.String",

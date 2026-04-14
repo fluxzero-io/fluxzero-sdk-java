@@ -13,14 +13,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "VIRTUAL_THREADS_ALLOWED_PROPERTY",
-    "qualifiedName" : "io.fluxzero.common.ObjectUtils.VIRTUAL_THREADS_ALLOWED_PROPERTY",
-    "type" : "java.lang.String",
-    "modifiers" : [ "final", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : "fluxzero.virtual-threads.allowed"
-  }, {
     "name" : "noOpBiPredicate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils.noOpBiPredicate",
     "type" : "java.util.function.BiPredicate<java.lang.Object,java.lang.Object>",

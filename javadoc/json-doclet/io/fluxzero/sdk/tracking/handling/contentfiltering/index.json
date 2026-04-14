@@ -9,6 +9,11 @@
     "name" : "ContentFilterInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor",
     "kind" : "class"
+  }, {
+    "file" : "ContentFilterInterceptor.FilterContentMetadata.json",
+    "name" : "ContentFilterInterceptor.FilterContentMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor$FilterContentMetadata",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

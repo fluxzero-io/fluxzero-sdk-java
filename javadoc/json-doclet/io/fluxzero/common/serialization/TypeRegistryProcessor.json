@@ -65,6 +65,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "roundTypes",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.roundTypes",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "typesResource",
     "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor.typesResource",
     "type" : "javax.tools.FileObject",
@@ -167,6 +175,22 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasClassOutput",
+    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#hasClassOutput",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "binaryName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

@@ -8,10 +8,10 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Spring {@link BeanDefinitionRegistryPostProcessor} that detects beans annotated with {@link SocketEndpoint}\n and registers them as {@link FluxzeroPrototype} definitions for use in Fluxzero.\n <p>\n This enables WebSocket endpoints to be managed by Fluxzero, allowing handler methods within these types to respond\n to socket-based requests (e.g. via {@link io.fluxzero.sdk.web.WebRequest}).\n\n <h2>Usage</h2>\n To expose a WebSocket endpoint in your application:\n <pre>{@code\n @SocketEndpoint\n public class ChatSocketEndpoint {\n     @HandleSocketMessage\n     public ChatResponse handle(ChatRequest request) {\n         // respond to request via WebSocket\n     }\n }\n }</pre>\n Ensure that Spring picks up this processor, typically via:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n public class MyApp { ... }\n }</pre>\n\n @see SocketEndpoint\n @see FluxzeroPrototype\n @see FluxzeroSpringConfig\n",
+  "documentation" : " Spring {@link org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor} that detects\n {@link SocketEndpoint} types within the application's component-scan scope and registers them as\n {@link FluxzeroPrototype} definitions for use in Fluxzero.\n <p>\n This enables WebSocket endpoints to be activated per application scan scope without exposing those endpoint types as\n regular Spring beans.\n\n <h2>Usage</h2>\n To expose a WebSocket endpoint in your application:\n <pre>{@code\n @SocketEndpoint\n public class ChatSocketEndpoint {\n     @HandleSocketMessage\n     public ChatResponse handle(ChatRequest request) {\n         // respond to request via WebSocket\n     }\n }\n }</pre>\n Ensure that Spring picks up this processor, typically via:\n <pre>{@code\n @SpringBootApplication\n @Import(FluxzeroSpringConfig.class)\n public class MyApp { ... }\n }</pre>\n\n @see SocketEndpoint\n @see FluxzeroPrototype\n @see FluxzeroSpringConfig\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor" ],
+  "superClass" : "io.fluxzero.sdk.configuration.spring.ComponentScanPrototypePostProcessor",
+  "interfaces" : [ ],
   "fields" : [ ],
   "constructors" : [ {
     "name" : "SocketEndpointPostProcessor",
@@ -25,47 +25,31 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "postProcessBeanDefinitionRegistry",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor#postProcessBeanDefinitionRegistry",
-    "returnType" : "void",
-    "modifiers" : [ "public" ],
+    "name" : "getBeanNameSuffix",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor#getBeanNameSuffix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "registry",
-      "type" : "org.springframework.beans.factory.support.@lombok.NonNull BeanDefinitionRegistry",
-      "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "lombok.NonNull",
-        "values" : {}
-      } ]
-    } ],
-    "thrownTypes" : [ "org.springframework.beans.BeansException" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "postProcessBeanFactory",
-    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor#postProcessBeanFactory",
-    "returnType" : "void",
-    "modifiers" : [ "public" ],
+    "name" : "getTargetAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor#getTargetAnnotation",
+    "returnType" : "java.lang.Class<io.fluxzero.sdk.web.SocketEndpoint>",
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
     "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "beanFactory",
-      "type" : "org.springframework.beans.factory.config.@lombok.NonNull ConfigurableListableBeanFactory",
-      "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "lombok.NonNull",
-        "values" : {}
-      } ]
-    } ],
-    "thrownTypes" : [ "org.springframework.beans.BeansException" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],

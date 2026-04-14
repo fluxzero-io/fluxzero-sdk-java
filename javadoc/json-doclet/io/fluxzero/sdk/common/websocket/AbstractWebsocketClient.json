@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "RUNTIME_VERSION_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY",
     "type" : "java.lang.String",
@@ -369,6 +377,22 @@
     "name" : "getNegotiatedSessionId",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getNegotiatedSessionId",
     "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRuntimeVersion",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getRuntimeVersion",
+    "returnType" : "java.util.Optional<java.lang.String>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

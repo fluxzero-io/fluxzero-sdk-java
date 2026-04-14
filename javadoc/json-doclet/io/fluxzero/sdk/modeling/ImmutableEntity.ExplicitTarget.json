@@ -1,0 +1,70 @@
+{
+  "name" : "ExplicitTarget",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.ImmutableEntity.ExplicitTarget>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ExplicitTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget#ExplicitTarget",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.ExplicitTarget",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget#values",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.ExplicitTarget[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "CURRENT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget.CURRENT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "OTHER",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget.OTHER",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "UNKNOWN",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$ExplicitTarget.UNKNOWN",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

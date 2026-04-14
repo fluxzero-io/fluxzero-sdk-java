@@ -20,16 +20,8 @@
   }, {
     "annotationType" : "java.lang.annotation.Inherited",
     "values" : {}
-  }, {
-    "annotationType" : "org.springframework.stereotype.Component",
-    "values" : {}
-  }, {
-    "annotationType" : "org.springframework.context.annotation.Scope",
-    "values" : {
-      "value" : "prototype"
-    }
   } ],
-  "documentation" : " Declares a WebSocket endpoint that represents a single active client session.\n <p>\n This annotation is used on handler classes with annotations like {@link HandleSocketMessage} that manage WebSocket\n communication and lifecycle events (e.g. handshake, open, message, close).\n </p>\n\n <p>\n Socket endpoint beans are prototype-scoped, meaning a new instance is created per WebSocket session.\n Non-socket handlers on the same endpoint, such as {@code @HandleEvent}, may also use\n {@link io.fluxzero.sdk.tracking.handling.Association} to target only endpoint instances whose state matches the\n incoming message instead of invoking every active session.\n </p>\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n",
+  "documentation" : " Declares a WebSocket endpoint that represents a single active client session.\n <p>\n This annotation is used on handler classes with annotations like {@link HandleSocketMessage} that manage WebSocket\n communication and lifecycle events (e.g. handshake, open, message, close).\n </p>\n\n <p>\n Fluxzero creates a new endpoint instance per WebSocket session.\n Non-socket handlers on the same endpoint, such as {@code @HandleEvent}, may also use\n {@link io.fluxzero.sdk.tracking.handling.Association} to target only endpoint instances whose state matches the\n incoming message instead of invoking every active session.\n In Spring applications, endpoint types become active when they fall within the application's component-scan scope,\n but they are not exposed as regular injectable Spring beans. Type-level conditional annotations are still\n respected, including {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and\n {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}.\n </p>\n\n @see HandleSocketOpen\n @see HandleSocketMessage\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

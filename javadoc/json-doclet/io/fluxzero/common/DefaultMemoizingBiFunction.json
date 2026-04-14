@@ -15,7 +15,7 @@
   "fields" : [ {
     "name" : "function",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction.function",
-    "type" : "io.fluxzero.common.MemoizingFunction<java.util.Map.Entry<T,U>,R>",
+    "type" : "io.fluxzero.common.MemoizingFunction<io.fluxzero.common.DefaultMemoizingBiFunction.Key<T,U>,R>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -170,5 +170,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "Key",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingBiFunction$Key",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }
