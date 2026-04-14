@@ -163,6 +163,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ExecutorService resultExecutor;
+    private final ExecutorService reconnectExecutor;
     private final boolean allowMetrics;
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
@@ -224,6 +225,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         this.allowMetrics = allowMetrics;
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
+        this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
                 () -> container.connectToServer(
                         this, createConnectionSetup(clientConfig).endpointConfig(), endpointUri),
@@ -476,9 +478,16 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                        closeReason, getNegotiatedSessionId(session));
         }
         String sessionId = getNegotiatedSessionId(session);
-        ofNullable(sessionBacklogs.remove(sessionId)).ifPresent(Backlog::shutDown);
+        Backlog<Request> backlog = sessionBacklogs.remove(sessionId);
+        ofNullable(backlog).ifPresent(Backlog::shutDown);
         ofNullable(pingDeadlines.remove(sessionId)).ifPresent(PingRegistration::cancel);
-        retryOutstandingRequests(sessionId);
+        if (backlog != null && !closed.get()) {
+            retryOutstandingRequestsAsync(sessionId);
+        }
+    }
+
+    protected void retryOutstandingRequestsAsync(String sessionId) {
+        reconnectExecutor.execute(() -> retryOutstandingRequests(sessionId));
     }
 
     protected void retryOutstandingRequests(String sessionId) {
@@ -524,6 +533,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     requests.clear();
                 }
                 pingScheduler.shutdown();
+                reconnectExecutor.shutdown();
                 sessionPool.close();
                 pingDeadlines.clear();
                 if (!requests.isEmpty()) {

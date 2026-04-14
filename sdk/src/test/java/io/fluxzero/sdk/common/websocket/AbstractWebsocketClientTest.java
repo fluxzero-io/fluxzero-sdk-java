@@ -1,5 +1,6 @@
 package io.fluxzero.sdk.common.websocket;
 
+import io.fluxzero.common.Backlog;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
@@ -16,6 +17,7 @@ import jakarta.websocket.Session;
 import jakarta.websocket.WebSocketContainer;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.channels.ClosedChannelException;
@@ -25,16 +27,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
@@ -176,6 +189,97 @@ class AbstractWebsocketClientTest {
         assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session));
     }
 
+    @Test
+    void onCloseRetriesOutstandingRequestsAsynchronouslyWhenBacklogExists() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
+        Session session = mockSession("client123_runtime456");
+        @SuppressWarnings("unchecked")
+        Backlog<Request> backlog = mock(Backlog.class);
+        sessionBacklogs(client).put("client123_runtime456", backlog);
+
+        ExecutorService callerExecutor = Executors.newSingleThreadExecutor();
+        AtomicReference<String> onCloseThread = new AtomicReference<>();
+        try {
+            Future<?> onCloseFuture = callerExecutor.submit(() -> {
+                onCloseThread.set(Thread.currentThread().getName());
+                client.onClose(session, new jakarta.websocket.CloseReason(
+                        jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+            });
+
+            assertTrue(client.retryStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(onCloseFuture.isDone());
+            assertEquals("client123_runtime456", client.retrySessionId.get());
+            assertNotEquals(onCloseThread.get(), client.retryThread.get());
+            verify(backlog).shutDown();
+        } finally {
+            client.allowRetryToFinish.countDown();
+            callerExecutor.shutdownNow();
+            client.close();
+        }
+    }
+
+    @Test
+    void onCloseSkipsOutstandingRequestRetryWhenNoBacklogExists() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
+        Session session = mockSession("client123_runtime456");
+
+        try {
+            client.onClose(session, new jakarta.websocket.CloseReason(
+                    jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+
+            assertEquals(0, client.retrySchedules.get());
+        } finally {
+            client.allowRetryToFinish.countDown();
+            client.close();
+        }
+    }
+
+    @Test
+    void onCloseSkipsOutstandingRequestRetryWhenClientIsClosed() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
+        Session session = mockSession("client123_runtime456");
+        @SuppressWarnings("unchecked")
+        Backlog<Request> backlog = mock(Backlog.class);
+        sessionBacklogs(client).put("client123_runtime456", backlog);
+        client.close();
+
+        client.onClose(session, new jakarta.websocket.CloseReason(
+                jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+
+        assertEquals(0, client.retrySchedules.get());
+        verify(backlog).shutDown();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Backlog<Request>> sessionBacklogs(AbstractWebsocketClient client) throws Exception {
+        Field field = AbstractWebsocketClient.class.getDeclaredField("sessionBacklogs");
+        field.setAccessible(true);
+        return (Map<String, Backlog<Request>>) field.get(client);
+    }
+
+    private static Session mockSession(String sessionId) {
+        Session session = mock(Session.class);
+        String[] parts = sessionId.split("_", 2);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, parts[0],
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, parts[1])));
+        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost"));
+        when(session.isOpen()).thenReturn(false);
+        return session;
+    }
+
     @ClientEndpoint
     private static class InvalidAnnotatedClient extends AbstractWebsocketClient {
         InvalidAnnotatedClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
@@ -188,6 +292,51 @@ class AbstractWebsocketClientTest {
         TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
                   true, Duration.ofSeconds(1), defaultObjectMapper, 1);
+        }
+    }
+
+    private static class RetryObservingClient extends TestClient {
+        private final CountDownLatch retryStarted = new CountDownLatch(1);
+        private final CountDownLatch allowRetryToFinish = new CountDownLatch(1);
+        private final AtomicReference<String> retryThread = new AtomicReference<>();
+        private final AtomicReference<String> retrySessionId = new AtomicReference<>();
+        private final AtomicInteger retrySchedules = new AtomicInteger();
+        private final ExecutorService retryExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory());
+
+        RetryObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        @Override
+        protected void retryOutstandingRequestsAsync(String sessionId) {
+            retrySchedules.incrementAndGet();
+            retryExecutor.execute(() -> retryOutstandingRequests(sessionId));
+        }
+
+        @Override
+        protected void retryOutstandingRequests(String sessionId) {
+            retryThread.set(Thread.currentThread().getName());
+            retrySessionId.set(sessionId);
+            retryStarted.countDown();
+            try {
+                allowRetryToFinish.await(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override
+        public void close() {
+            retryExecutor.shutdownNow();
+            super.close();
+        }
+    }
+
+    private static class NamedThreadFactory implements ThreadFactory {
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "test-reconnect-thread");
         }
     }
 }
