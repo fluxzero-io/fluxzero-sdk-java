@@ -274,6 +274,12 @@ public class WebSocketClient extends AbstractClient {
         Duration pingDelay = Duration.ofSeconds(10);
 
         /**
+         * How long a websocket connection attempt may take before it times out. Defaults to {@code 10 seconds}.
+         */
+        @Default
+        Duration connectionTimeout = Duration.ofSeconds(10);
+
+        /**
          * Whether to disable sending metrics from this client.
          */
         boolean disableMetrics;

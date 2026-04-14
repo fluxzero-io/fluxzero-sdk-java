@@ -10,7 +10,12 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
+import io.undertow.websockets.jsr.ServerWebSocketContainer;
+import jakarta.websocket.ClientEndpointConfig;
 import jakarta.websocket.ClientEndpoint;
+import jakarta.websocket.DeploymentException;
+import jakarta.websocket.Endpoint;
+import jakarta.websocket.Extension;
 import jakarta.websocket.HandshakeResponse;
 import jakarta.websocket.RemoteEndpoint;
 import jakarta.websocket.Session;
@@ -19,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
@@ -33,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -44,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -105,6 +113,20 @@ class AbstractWebsocketClientTest {
         assertEquals(List.of(), WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
         assertEquals(connectionSetup.configurator().getClientSessionId(),
                      WebSocketCapabilities.getClientSessionId(headers).orElseThrow());
+    }
+
+    @Test
+    void endpointConfigPublishesConfiguredUndertowConnectionTimeout() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .connectionTimeout(Duration.ofMillis(1500))
+                .build();
+
+        AbstractWebsocketClient.ConnectionSetup connectionSetup =
+                AbstractWebsocketClient.createConnectionSetup(clientConfig);
+
+        assertEquals(1, connectionSetup.endpointConfig().getUserProperties().get(ServerWebSocketContainer.TIMEOUT));
     }
 
     @Test
@@ -187,6 +209,23 @@ class AbstractWebsocketClientTest {
 
         List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
         assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session));
+    }
+
+    @Test
+    void connectAttemptUsesOuterFailsafeTimeout() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .connectionTimeout(Duration.ofMillis(100))
+                .build();
+        BlockingWebSocketContainer container = new BlockingWebSocketContainer();
+
+        try (TimeoutObservingClient client = new TimeoutObservingClient(container, clientConfig,
+                                                                        Duration.ofMillis(50))) {
+            assertTimeout(Duration.ofSeconds(2), () -> assertThrows(TimeoutException.class, client::connectOnce));
+            assertTrue(container.connectStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(container.connectInterrupted.await(1, TimeUnit.SECONDS));
+        }
     }
 
     @Test
@@ -337,6 +376,102 @@ class AbstractWebsocketClientTest {
         @Override
         public Thread newThread(Runnable r) {
             return new Thread(r, "test-reconnect-thread");
+        }
+    }
+
+    private static class TimeoutObservingClient extends TestClient {
+        private final Duration connectionTimeoutFailsafeGrace;
+        private final WebSocketContainer container;
+
+        TimeoutObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig,
+                               Duration connectionTimeoutFailsafeGrace) {
+            super(container, clientConfig);
+            this.container = container;
+            this.connectionTimeoutFailsafeGrace = connectionTimeoutFailsafeGrace;
+        }
+
+        Session connectOnce() throws Exception {
+            return connectToServer(container, URI.create("ws://localhost"));
+        }
+
+        @Override
+        protected Duration getConnectionTimeoutFailsafeGrace() {
+            return connectionTimeoutFailsafeGrace;
+        }
+    }
+
+    private static class BlockingWebSocketContainer implements WebSocketContainer {
+        private final CountDownLatch connectStarted = new CountDownLatch(1);
+        private final CountDownLatch connectInterrupted = new CountDownLatch(1);
+
+        @Override
+        public long getDefaultAsyncSendTimeout() {
+            return 0;
+        }
+
+        @Override
+        public void setAsyncSendTimeout(long timeout) {
+        }
+
+        @Override
+        public Session connectToServer(Object endpoint, URI path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Session connectToServer(Class<?> annotatedEndpointClass, URI path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Session connectToServer(Endpoint endpoint, ClientEndpointConfig cec, URI path)
+                throws DeploymentException, IOException {
+            connectStarted.countDown();
+            try {
+                Thread.sleep(Duration.ofSeconds(30).toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                connectInterrupted.countDown();
+                throw new IOException("Interrupted while connecting", e);
+            }
+            throw new IOException("Connection unexpectedly completed");
+        }
+
+        @Override
+        public Session connectToServer(Class<? extends Endpoint> endpointClass, ClientEndpointConfig cec, URI path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long getDefaultMaxSessionIdleTimeout() {
+            return 0;
+        }
+
+        @Override
+        public void setDefaultMaxSessionIdleTimeout(long timeout) {
+        }
+
+        @Override
+        public int getDefaultMaxBinaryMessageBufferSize() {
+            return 0;
+        }
+
+        @Override
+        public void setDefaultMaxBinaryMessageBufferSize(int max) {
+        }
+
+        @Override
+        public int getDefaultMaxTextMessageBufferSize() {
+            return 0;
+        }
+
+        @Override
+        public void setDefaultMaxTextMessageBufferSize(int max) {
+        }
+
+        @Override
+        public Set<Extension> getInstalledExtensions() {
+            return Set.of();
         }
     }
 }

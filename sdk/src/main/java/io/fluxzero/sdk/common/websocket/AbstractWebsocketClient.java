@@ -44,6 +44,7 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
+import io.undertow.websockets.jsr.ServerWebSocketContainer;
 import jakarta.websocket.ClientEndpoint;
 import jakarta.websocket.ClientEndpointConfig;
 import jakarta.websocket.HandshakeResponse;
@@ -134,6 +135,7 @@ import static java.util.Optional.ofNullable;
  * @see ResultBatch
  */
 public abstract class AbstractWebsocketClient extends Endpoint implements AutoCloseable {
+    protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".clientHandshakeConfigurator";
     protected static final String CLIENT_SESSION_ID_USER_PROPERTY =
@@ -227,8 +229,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
-                () -> container.connectToServer(
-                        this, createConnectionSetup(clientConfig).endpointConfig(), endpointUri),
+                () -> connectToServer(container, endpointUri),
                 RetryConfiguration.builder()
                         .delay(reconnectDelay)
                         .errorTest(e -> {
@@ -248,6 +249,17 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                                            endpointUri, status.getException().getMessage());
                             }
                         }).build()));
+    }
+
+    protected Session connectToServer(WebSocketContainer container, URI endpointUri) throws Exception {
+        ConnectionSetup connectionSetup = createConnectionSetup(clientConfig);
+        return TimingUtils.callAndWait(
+                () -> container.connectToServer(this, connectionSetup.endpointConfig(), endpointUri),
+                clientConfig.getConnectionTimeout().plus(getConnectionTimeoutFailsafeGrace()));
+    }
+
+    protected Duration getConnectionTimeoutFailsafeGrace() {
+        return CONNECTION_TIMEOUT_FAILSAFE_GRACE;
     }
 
     @Override
@@ -329,7 +341,8 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
             }
         } catch (Exception e) {
             boolean closedChannel = e instanceof ClosedChannelException
-                    || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false);
+                                    || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed"))
+                                            .orElse(false);
             if (closed.get() && closedChannel) {
                 return;
             }
@@ -597,6 +610,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                 WebSocketCapabilities.newShortSessionId(), clientConfig);
         ClientEndpointConfig endpointConfig = ClientEndpointConfig.Builder.create().configurator(configurator).build();
         endpointConfig.getUserProperties().put(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
+        endpointConfig.getUserProperties().put(
+                ServerWebSocketContainer.TIMEOUT,
+                Math.toIntExact(Math.max(1L, clientConfig.getConnectionTimeout().toSeconds())));
         return new ConnectionSetup(endpointConfig, configurator);
     }
 
