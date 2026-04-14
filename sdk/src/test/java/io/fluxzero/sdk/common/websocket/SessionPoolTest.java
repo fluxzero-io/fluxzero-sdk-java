@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,5 +38,28 @@ class SessionPoolTest {
         assertNotSame(first, third);
         assertNotSame(second, third);
         assertSame(first, fourth);
+    }
+
+    @Test
+    void singleSessionPoolAlwaysReturnsTheSameSession() {
+        SessionPool sessionPool =
+                new SessionPool(1, () -> when(mock(Session.class).isOpen()).thenReturn(true).getMock());
+
+        Session first = sessionPool.get();
+        Session second = sessionPool.get();
+        Session third = sessionPool.get();
+
+        assertSame(first, second);
+        assertSame(first, third);
+    }
+
+    @Test
+    void constructorRejectsZeroSizedPool() {
+        assertThrows(IllegalArgumentException.class, () -> new SessionPool(0, () -> mock(Session.class)));
+    }
+
+    @Test
+    void constructorRejectsNegativeSizedPool() {
+        assertThrows(IllegalArgumentException.class, () -> new SessionPool(-1, () -> mock(Session.class)));
     }
 }

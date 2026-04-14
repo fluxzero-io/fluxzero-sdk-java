@@ -60,16 +60,16 @@ public class SessionPool implements AutoCloseable {
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
 
     public SessionPool(int size, Supplier<Session> sessionFactory) {
+        if (size < 1) {
+            throw new IllegalArgumentException("Session pool size must be at least 1");
+        }
         this.sessionFactory = sessionFactory;
         this.size = size;
         this.sessionMap = new ConcurrentHashMap<>();
     }
 
     public Session get() {
-        return get(counter.getAndAccumulate(1, (i, inc) -> {
-            int newIndex = i + inc;
-            return newIndex >= size ? 0 : newIndex;
-        }));
+        return get(counter.getAndUpdate(i -> Math.floorMod(i + 1, size)));
     }
 
     public Session get(String routingKey) {
