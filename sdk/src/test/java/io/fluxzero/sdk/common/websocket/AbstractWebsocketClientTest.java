@@ -1,8 +1,10 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
+import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
@@ -214,6 +216,21 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void pingSchedulerUsesDedicatedWorkerPool() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig, 2);
+
+        try {
+            assertFalse(pingSchedulerWorkerPool(client) instanceof DirectExecutorService);
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
     void connectionRetryConfigurationLogsInitialAndPeriodicFailures() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -369,6 +386,19 @@ class AbstractWebsocketClientTest {
                 .build();
     }
 
+    private static TaskScheduler pingScheduler(AbstractWebsocketClient client) throws Exception {
+        Field field = AbstractWebsocketClient.class.getDeclaredField("pingScheduler");
+        field.setAccessible(true);
+        return (TaskScheduler) field.get(client);
+    }
+
+    private static Object pingSchedulerWorkerPool(AbstractWebsocketClient client) throws Exception {
+        Object scheduler = pingScheduler(client);
+        Field field = scheduler.getClass().getDeclaredField("workerPool");
+        field.setAccessible(true);
+        return field.get(scheduler);
+    }
+
     @ClientEndpoint
     private static class InvalidAnnotatedClient extends AbstractWebsocketClient {
         InvalidAnnotatedClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
@@ -379,8 +409,12 @@ class AbstractWebsocketClientTest {
 
     private static class TestClient extends AbstractWebsocketClient {
         TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+            this(container, clientConfig, 1);
+        }
+
+        TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig, int numberOfSessions) {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
-                  true, Duration.ofSeconds(1), defaultObjectMapper, 1);
+                  true, Duration.ofSeconds(1), defaultObjectMapper, numberOfSessions);
         }
     }
 

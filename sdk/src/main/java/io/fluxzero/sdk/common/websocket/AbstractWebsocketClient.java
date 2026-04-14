@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.Backlog;
 import io.fluxzero.common.InMemoryTaskScheduler;
+import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
@@ -227,7 +228,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
-        this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
+        this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler",
+                                                       ObjectUtils.newWorkerPool(this + "-ping",
+                                                                                 Math.max(1, numberOfSessions)));
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
