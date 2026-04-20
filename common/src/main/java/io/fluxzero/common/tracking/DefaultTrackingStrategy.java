@@ -325,7 +325,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     private Long getLastIndex(List<SerializedMessage> messages) {
-        return messages.isEmpty() ? null : messages.get(messages.size() - 1).getIndex();
+        return messages.isEmpty() ? null : messages.getLast().getIndex();
     }
 
     private void drainUpdateNotifications() {
