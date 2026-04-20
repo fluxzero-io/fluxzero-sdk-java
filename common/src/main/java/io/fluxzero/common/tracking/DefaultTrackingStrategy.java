@@ -181,8 +181,14 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             tracker.send(emptyBatch);
             return;
         }
-        clusters.computeIfPresent(tracker.getConsumerName(),
+        var trackerCluster = clusters.computeIfPresent(tracker.getConsumerName(),
                 (p, c) -> c.contains(tracker) ? c.withWaitingTracker(tracker) : c);
+
+        if (trackerCluster == null || !trackerCluster.contains(tracker)) {
+            // this tracker has already been removed from the cluster
+            return;
+        }
+
         Registration scheduleToken = scheduler.schedule(tracker.getDeadline(), () -> {
             if (waitingTrackers.keySet().removeIf(t -> t == tracker)) {
                 clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
