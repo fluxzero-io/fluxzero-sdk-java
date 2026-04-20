@@ -227,6 +227,37 @@ class DefaultTrackingStrategyTest {
         }
     }
 
+    @Test
+    void disconnectedInFlightTrackerCannotBecomeActiveAgainAndLeaveReplacementWithNoSegment() throws Exception {
+        TestScheduler scheduler = new TestScheduler();
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseBatch = new CountDownLatch(1);
+        try (BlockingBatchStrategy subject = new BlockingBatchStrategy(mockSource(), scheduler, batchStarted,
+                                                                       releaseBatch)) {
+            TestTracker stale = tracker("consumer", "stale", batch -> {
+            }).withDeadline(System.currentTimeMillis() + 50);
+
+            // Start a long-running read so we can disconnect the tracker while getBatch() is still in flight.
+            CompletableFuture<Void> inFlight = CompletableFuture.runAsync(
+                    () -> subject.getBatch(stale, mockPositionStore()));
+            assertTrue(batchStarted.await(5, TimeUnit.SECONDS));
+
+            // Disconnect the tracker, but the in-flight read may still complete later.
+            subject.disconnectTrackers(stale::equals, false);
+
+            releaseBatch.countDown();
+            inFlight.get(5, TimeUnit.SECONDS);
+
+            // The stale tracker must not re-enter the cluster through waitForUpdate() and then become active again.
+            scheduler.runNextScheduledTask();
+
+            int[] replacementSegment = subject.claimSegment(tracker("consumer", "replacement", batch -> {
+            }));
+            // After the disconnect, the replacement tracker should own the full segment
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, replacementSegment);
+        }
+    }
+
     private static MessageStore mockSource() {
         MessageStore source = mock(MessageStore.class);
         when(source.registerMonitor(any())).thenReturn(() -> {
@@ -320,6 +351,29 @@ class DefaultTrackingStrategyTest {
         }
     }
 
+    private static class BlockingBatchStrategy extends DefaultTrackingStrategy {
+        private final CountDownLatch batchStarted;
+        private final CountDownLatch releaseBatch;
+
+        BlockingBatchStrategy(MessageStore source, TaskScheduler scheduler, CountDownLatch batchStarted,
+                              CountDownLatch releaseBatch) {
+            super(source, scheduler);
+            this.batchStarted = batchStarted;
+            this.releaseBatch = releaseBatch;
+        }
+
+        @Override
+        protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
+            batchStarted.countDown();
+            await(releaseBatch);
+            return List.of();
+        }
+
+        @Override
+        protected void purgeCeasedTrackers(Duration delay) {
+        }
+    }
+
     private static class TestScheduler implements TaskScheduler {
         private final ExecutorService executor = Executors.newSingleThreadExecutor();
         private final Queue<ThrowingRunnable> scheduledTasks = new ConcurrentLinkedQueue<>();
@@ -392,6 +446,11 @@ class DefaultTrackingStrategyTest {
         }
 
         TestTracker withTypeFilter(Predicate<String> typeFilter) {
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+                                   maxTimeout, lastTrackerIndex);
+        }
+
+        TestTracker withDeadline(long deadline) {
             return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
