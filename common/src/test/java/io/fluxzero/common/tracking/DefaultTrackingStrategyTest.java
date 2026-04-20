@@ -404,7 +404,10 @@ class DefaultTrackingStrategyTest {
         }
 
         void runNextScheduledTask() {
-            run(Objects.requireNonNull(scheduledTasks.poll()));
+            ThrowingRunnable nextTask = scheduledTasks.poll();
+            if (nextTask != null) {
+                run(nextTask);
+            }
         }
 
         void awaitIdle() throws Exception {
