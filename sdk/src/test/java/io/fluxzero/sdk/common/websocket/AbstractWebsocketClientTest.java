@@ -21,6 +21,7 @@ import jakarta.websocket.DeploymentException;
 import jakarta.websocket.Endpoint;
 import jakarta.websocket.Extension;
 import jakarta.websocket.HandshakeResponse;
+import jakarta.websocket.PongMessage;
 import jakarta.websocket.RemoteEndpoint;
 import jakarta.websocket.Session;
 import jakarta.websocket.WebSocketContainer;
@@ -358,6 +359,32 @@ class AbstractWebsocketClientTest {
         verify(backlog).shutDown();
     }
 
+    @Test
+    void onPongIsHandledAsynchronously() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        CallbackObservingClient client = new CallbackObservingClient(mock(WebSocketContainer.class), clientConfig);
+        Session session = mockSession("client123_runtime456");
+        ExecutorService callerExecutor = Executors.newSingleThreadExecutor();
+        AtomicReference<String> callerThread = new AtomicReference<>();
+
+        try {
+            Future<?> onPongFuture = callerExecutor.submit(() -> {
+                callerThread.set(Thread.currentThread().getName());
+                client.onPong(mock(PongMessage.class), session);
+            });
+
+            assertTrue(client.pongHandled.await(1, TimeUnit.SECONDS));
+            assertTrue(onPongFuture.isDone());
+            assertNotEquals(callerThread.get(), client.pongThread.get());
+        } finally {
+            callerExecutor.shutdownNow();
+            client.close();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Backlog<Request>> sessionBacklogs(AbstractWebsocketClient client) throws Exception {
         Field field = AbstractWebsocketClient.class.getDeclaredField("sessionBacklogs");
@@ -452,6 +479,21 @@ class AbstractWebsocketClientTest {
         public void close() {
             retryExecutor.shutdownNow();
             super.close();
+        }
+    }
+
+    private static class CallbackObservingClient extends TestClient {
+        private final CountDownLatch pongHandled = new CountDownLatch(1);
+        private final AtomicReference<String> pongThread = new AtomicReference<>();
+
+        CallbackObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        @Override
+        protected void handlePong(Session session) {
+            pongThread.set(Thread.currentThread().getName());
+            pongHandled.countDown();
         }
     }
 

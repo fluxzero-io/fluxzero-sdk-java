@@ -79,6 +79,8 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
@@ -376,29 +378,30 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     public void onMessage(byte[] bytes, Session session) {
-        resultExecutor.execute(() -> {
-            JsonType value;
-            try {
-                value = objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
-            } catch (Exception e) {
-                log().error("Could not parse input. Expected a Json message.", e);
-                return;
-            }
-            if (value instanceof ResultBatch) {
-                String batchId = Fluxzero.generateId();
-                ((ResultBatch) value).getResults()
-                        .forEach(r -> resultExecutor.execute(
-                                () -> handleResult(r, batchId, getNegotiatedSessionId(session))));
-            } else {
-                WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
-                if (webSocketRequest == null) {
-                    log().warn("Could not find outstanding read request for id {} (session {})",
-                               ((RequestResult) value).getRequestId(), getNegotiatedSessionId(session));
-                }
-                handleResult((RequestResult) value, null, getNegotiatedSessionId(session));
-            }
-        });
+        executeResultCallback("message", () -> handleMessage(bytes, session));
+    }
 
+    protected void handleMessage(byte[] bytes, Session session) {
+        JsonType value;
+        try {
+            value = objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
+        } catch (Exception e) {
+            log().error("Could not parse input. Expected a Json message.", e);
+            return;
+        }
+        if (value instanceof ResultBatch) {
+            String batchId = Fluxzero.generateId();
+            ((ResultBatch) value).getResults()
+                    .forEach(r -> executeResultCallback("result",
+                            () -> handleResult(r, batchId, getNegotiatedSessionId(session))));
+        } else {
+            WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
+            if (webSocketRequest == null) {
+                log().warn("Could not find outstanding read request for id {} (session {})",
+                           ((RequestResult) value).getRequestId(), getNegotiatedSessionId(session));
+            }
+            handleResult((RequestResult) value, null, getNegotiatedSessionId(session));
+        }
     }
 
     protected void handleResult(RequestResult result, String batchId, String sessionId) {
@@ -469,6 +472,10 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     public void onPong(PongMessage message, Session session) {
+        executeResultCallback("pong", () -> handlePong(session));
+    }
+
+    protected void handlePong(Session session) {
         pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
             if (v == null) {
                 return null;
@@ -497,6 +504,10 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
 
     @Override
     public void onClose(Session session, CloseReason closeReason) {
+        executeResultCallback("close", () -> handleClose(session, closeReason));
+    }
+
+    protected void handleClose(Session session, CloseReason closeReason) {
         if (session.isOpen() && session instanceof UndertowSession s) {
             try {
                 //this works around a bug in Undertow: after closing the session normally and receiving the onClose message
@@ -544,8 +555,24 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
 
     @Override
     public void onError(Session session, Throwable e) {
+        executeResultCallback("error", () -> handleError(session, e));
+    }
+
+    protected void handleError(Session session, Throwable e) {
         log().error("Client side error for web socket session {}, connected to endpoint {}",
                     getNegotiatedSessionId(session), session.getRequestURI(), e);
+    }
+
+    private void executeResultCallback(String callbackType, Runnable task) {
+        try {
+            resultExecutor.execute(task);
+        } catch (RejectedExecutionException e) {
+            if (closed.get()) {
+                log().info("Ignoring websocket {} callback because the client is already closed", callbackType);
+                return;
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -565,15 +592,29 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     requests.clear();
                 }
                 pingScheduler.shutdown();
-                resultExecutor.shutdown();
-                reconnectExecutor.shutdown();
                 sessionPool.close();
+                sessionBacklogs.values().forEach(Backlog::shutDown);
+                sessionBacklogs.clear();
+                shutdownExecutor(resultExecutor, "websocket result executor");
+                shutdownExecutor(reconnectExecutor, "websocket reconnect executor");
                 pingDeadlines.clear();
                 if (!requests.isEmpty()) {
                     log().warn("{}: Closed websocket session to endpoint with {} outstanding requests",
                                getClass().getSimpleName(), requests.size());
                 }
             }
+        }
+    }
+
+    private void shutdownExecutor(ExecutorService executor, String name) {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
+                log().info("Timed out while waiting for {} to terminate", name);
+            }
+        } catch (InterruptedException e) {
+            currentThread().interrupt();
+            log().info("Interrupted while waiting for {} to terminate", name);
         }
     }
 
