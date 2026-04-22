@@ -5,6 +5,7 @@ import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
@@ -214,6 +215,20 @@ class AbstractWebsocketClientTest {
 
         List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
         assertDoesNotThrow(() -> sendBatch.invoke(client, requests, session));
+    }
+
+    @Test
+    void metricsPublishingIsIgnoredAfterClientClose() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+
+        client.close();
+
+        assertDoesNotThrow(() -> client.publishTestMetric(
+                new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE)));
     }
 
     @Test
@@ -442,6 +457,10 @@ class AbstractWebsocketClientTest {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
                   true, Duration.ofSeconds(1), defaultObjectMapper, numberOfSessions);
         }
+
+        void publishTestMetric(Append append) {
+            tryPublishMetrics(append, Metadata.empty());
+        }
     }
 
     private static class RetryObservingClient extends TestClient {
@@ -471,7 +490,6 @@ class AbstractWebsocketClientTest {
                 allowRetryToFinish.await(1, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
             }
         }
 

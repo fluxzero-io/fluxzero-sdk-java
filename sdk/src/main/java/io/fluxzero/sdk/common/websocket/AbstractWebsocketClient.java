@@ -619,12 +619,21 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     protected void tryPublishMetrics(JsonType message, Metadata metadata) {
-        Object metric = message.toMetric();
-        if (allowMetrics && !clientConfig.isDisableMetrics() && metric != null) {
-            Fluxzero.getOptionally().ifPresentOrElse(
-                    f -> publishMetrics(metric, metadata),
-                    () -> client.getGatewayClient(METRICS).append(
-                            STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
+        if (!allowMetrics || clientConfig.isDisableMetrics() || closed.get()) {
+            return;
+        }
+        try {
+            Object metric = message.toMetric();
+            if (metric != null) {
+                Fluxzero.getOptionally().ifPresentOrElse(
+                        f -> publishMetrics(metric, metadata),
+                        () -> client.getGatewayClient(METRICS).append(
+                                STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
+            }
+        } catch (Exception e) {
+            if (!closed.get()) {
+                log().warn("Failed to publish websocket metric", e);
+            }
         }
     }
 
