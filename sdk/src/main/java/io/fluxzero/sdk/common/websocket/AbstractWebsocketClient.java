@@ -508,10 +508,10 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     protected void handleClose(Session session, CloseReason closeReason) {
-        if (session.isOpen() && session instanceof UndertowSession s) {
+        if (!closed.get() && session.isOpen() && session instanceof UndertowSession s) {
             try {
-                //this works around a bug in Undertow: after closing the session normally and receiving the onClose message
-                // session.isOpen() still returns true, causing all kinds of havoc. With this workaround we don't get that.
+                // During onClose, Undertow may still report the underlying channel as open. Force it closed while the
+                // client is active so the session pool will replace this session instead of reusing a closing one.
                 s.forceClose();
             } catch (Exception ignored) {
             }

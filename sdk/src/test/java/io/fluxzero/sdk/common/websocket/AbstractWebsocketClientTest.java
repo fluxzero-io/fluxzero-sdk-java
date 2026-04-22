@@ -15,9 +15,11 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
+import io.undertow.websockets.jsr.UndertowSession;
 import io.undertow.websockets.jsr.ServerWebSocketContainer;
 import jakarta.websocket.ClientEndpointConfig;
 import jakarta.websocket.ClientEndpoint;
+import jakarta.websocket.CloseReason;
 import jakarta.websocket.DeploymentException;
 import jakarta.websocket.Endpoint;
 import jakarta.websocket.Extension;
@@ -61,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -372,6 +375,35 @@ class AbstractWebsocketClientTest {
 
         assertEquals(0, client.retrySchedules.get());
         verify(backlog).shutDown();
+    }
+
+    @Test
+    void onCloseOnlyForceClosesWhileClientIsOpen() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+        UndertowSession session = mock(UndertowSession.class);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
+        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost"));
+        when(session.isOpen()).thenReturn(true);
+
+        try {
+            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "shutdown"));
+            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "done"));
+            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.UNEXPECTED_CONDITION, "abort"));
+
+            verify(session, times(3)).forceClose();
+            client.close();
+            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "shutdown"));
+
+            verify(session, times(3)).forceClose();
+        } finally {
+            client.close();
+        }
     }
 
     @Test
