@@ -235,6 +235,24 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void metricsPublishingIsIgnoredWhenMetricsClientIsClosed() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+
+        try {
+            websocketClient(client).getGatewayClient(MessageType.METRICS).close();
+
+            assertDoesNotThrow(() -> client.publishTestMetric(
+                    new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE)));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
     void pingSchedulerUsesDedicatedWorkerPool() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -470,6 +488,12 @@ class AbstractWebsocketClientTest {
         Field field = scheduler.getClass().getDeclaredField("workerPool");
         field.setAccessible(true);
         return field.get(scheduler);
+    }
+
+    private static WebSocketClient websocketClient(AbstractWebsocketClient client) throws Exception {
+        Field field = AbstractWebsocketClient.class.getDeclaredField("client");
+        field.setAccessible(true);
+        return (WebSocketClient) field.get(client);
     }
 
     @ClientEndpoint

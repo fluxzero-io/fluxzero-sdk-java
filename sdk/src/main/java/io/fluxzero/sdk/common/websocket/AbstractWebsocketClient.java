@@ -45,6 +45,7 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
 import io.undertow.websockets.jsr.ServerWebSocketContainer;
 import jakarta.websocket.ClientEndpoint;
@@ -630,6 +631,11 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                         () -> client.getGatewayClient(METRICS).append(
                                 STORED, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
             }
+        } catch (SessionPool.ClientClosedException ignored) {
+        } catch (GatewayException e) {
+            if (!closed.get() && !(e.getCause() instanceof SessionPool.ClientClosedException)) {
+                log().warn("Failed to publish websocket metric", e);
+            }
         } catch (Exception e) {
             if (!closed.get()) {
                 log().warn("Failed to publish websocket metric", e);
@@ -656,8 +662,13 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
             Session session;
             try {
                 session = request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
+            } catch (SessionPool.ClientClosedException e) {
+                result.completeExceptionally(e);
+                return (CompletableFuture<T>) result;
             } catch (Exception e) {
-                log().error("Failed to get websocket session to send request {}", request, e);
+                if (!closed.get()) {
+                    log().error("Failed to get websocket session to send request {}", request, e);
+                }
                 result.completeExceptionally(e);
                 return (CompletableFuture<T>) result;
             }

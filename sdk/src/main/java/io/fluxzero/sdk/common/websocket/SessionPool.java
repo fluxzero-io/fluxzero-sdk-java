@@ -83,7 +83,7 @@ public class SessionPool implements AutoCloseable {
         return sessionMap.compute(index, (i, s) -> {
             while (isClosed(s)) {
                 if (shuttingDown.get()) {
-                    throw new IllegalStateException("Cannot provide session. This client has closed");
+                    throw new ClientClosedException();
                 }
                 s = sessionFactory.get();
             }
@@ -115,6 +115,12 @@ public class SessionPool implements AutoCloseable {
         } catch (Exception e) {
             log.error("Failed to check if session is open", e);
             return true;
+        }
+    }
+
+    static class ClientClosedException extends IllegalStateException {
+        ClientClosedException() {
+            super("Cannot provide session. This client has closed");
         }
     }
 }
