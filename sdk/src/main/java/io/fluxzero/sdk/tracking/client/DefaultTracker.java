@@ -36,6 +36,7 @@ import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent;
 import jakarta.annotation.Nullable;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -221,6 +222,7 @@ public class DefaultTracker implements Runnable, Registration {
     }
 
     @Override
+    @SneakyThrows
     public void run() {
         if (running.compareAndSet(false, true)) {
             Tracker.current.set(tracker);
@@ -241,11 +243,27 @@ public class DefaultTracker implements Runnable, Registration {
                         }
                     }
                 }
+            } catch (Throwable e) {
+                if (!running.get() && causedByInterruption(e)) {
+                    currentThread().interrupt();
+                    return;
+                }
+                throw e;
             } finally {
                 thread.set(null);
                 Tracker.current.remove();
             }
         }
+    }
+
+    private boolean causedByInterruption(Throwable e) {
+        while (e != null) {
+            if (e instanceof InterruptedException) {
+                return true;
+            }
+            e = e.getCause();
+        }
+        return false;
     }
 
     protected Long currentStoredLowestIndex() {
@@ -309,15 +327,26 @@ public class DefaultTracker implements Runnable, Registration {
     }
 
     protected MessageBatch fetch(Long lastIndex) {
-        return retryOnFailure(() -> trackingClient.readAndWait(tracker.getTrackerId(),
-                                                               lastIndex, tracker.getConfiguration()),
-                              retryDelay, e -> {
+        return retryOnFailure(
+                () -> {
+                    try {
+                        return trackingClient.readAndWait(tracker.getTrackerId(), lastIndex, tracker.getConfiguration());
+                    } catch (Throwable e) {
+                        if (!running.get() && causedByInterruption(e)) {
+                            currentThread().interrupt();
+                            return null;
+                        }
+                        throw e;
+                    }
+                },
+                retryDelay, e -> {
                     if (e instanceof Error) {
                         log.error("Error while fetching messages for tracker {}, consumer {}", tracker.getTrackerId(),
                                   tracker.getName(), e);
                     }
                     return running.get();
-                });
+                }
+        );
     }
 
     protected void process(MessageBatch batch) {
@@ -414,6 +443,9 @@ public class DefaultTracker implements Runnable, Registration {
                                 return null;
                             } catch (InterruptedException e) {
                                 currentThread().interrupt();
+                                if (!running.get()) {
+                                    return null;
+                                }
                                 throw new TrackingException(
                                         format("Interrupted while storing position of segments %s for tracker %s to index %s",
                                                Arrays.toString(segment), tracker, index), e);

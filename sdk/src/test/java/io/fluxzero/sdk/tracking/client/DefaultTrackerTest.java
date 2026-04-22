@@ -30,9 +30,14 @@ import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -171,6 +176,61 @@ class DefaultTrackerTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    void storePositionStopsQuietlyWhenInterruptedAfterShutdown() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        setRunning(defaultTracker, false);
+
+        when(trackingClient.storePosition(eq("consumer"), any(), eq(42L))).thenReturn(new InterruptingFuture());
+
+        Method method = DefaultTracker.class.getDeclaredMethod("storePosition", Long.class, int[].class);
+        method.setAccessible(true);
+
+        try {
+            method.invoke(defaultTracker, 42L, new int[]{0, 128});
+
+            assertTrue(Thread.currentThread().isInterrupted());
+            verify(trackingClient, times(1)).storePosition(eq("consumer"), any(), eq(42L));
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void shutdownInterruptWhileFetchingStopsTrackerWithoutUncaughtException() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        CountDownLatch fetching = new CountDownLatch(1);
+        AtomicReference<Throwable> uncaught = new AtomicReference<>();
+
+        when(trackingClient.getPosition("consumer")).thenReturn(new Position(-1L));
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            fetching.countDown();
+            try {
+                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+                return null;
+            } catch (InterruptedException e) {
+                throw e;
+            }
+        });
+
+        Thread trackerThread = new Thread(defaultTracker, "test-tracker");
+        trackerThread.setUncaughtExceptionHandler((thread, error) -> uncaught.set(error));
+        trackerThread.start();
+
+        assertTrue(fetching.await(1, TimeUnit.SECONDS));
+        defaultTracker.cancel();
+        trackerThread.join(TimeUnit.SECONDS.toMillis(1));
+
+        assertFalse(trackerThread.isAlive());
+        assertNull(uncaught.get());
     }
 
     @SuppressWarnings("unchecked")
