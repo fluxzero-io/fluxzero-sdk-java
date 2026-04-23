@@ -18,6 +18,7 @@ package io.fluxzero.testserver.websocket;
 import io.fluxzero.common.MemoizingFunction;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.testserver.TestServerVersion;
 import io.undertow.Undertow;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
@@ -109,6 +110,10 @@ public class WebsocketDeploymentUtils {
                                 sec.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, runtimeSessionId);
                                 response.getHeaders().put(WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER,
                                                           List.of(runtimeSessionId));
+                                TestServerVersion.version().ifPresent(
+                                        version -> response.getHeaders().put(
+                                                WebSocketCapabilities.RUNTIME_VERSION_HEADER,
+                                                List.of(version)));
                                 WebSocketCapabilities.getPreferredCompressionAlgorithm(requestHeaders).ifPresent(
                                         compressionAlgorithm -> {
                                             sec.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
