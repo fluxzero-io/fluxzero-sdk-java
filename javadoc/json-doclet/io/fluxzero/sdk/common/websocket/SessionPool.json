@@ -150,5 +150,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ClientClosedException",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool$ClientClosedException",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  } ]
 }

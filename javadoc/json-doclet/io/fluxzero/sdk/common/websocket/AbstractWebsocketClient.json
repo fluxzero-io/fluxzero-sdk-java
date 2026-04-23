@@ -424,6 +424,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "executeResultCallback",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#executeResultCallback",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callbackType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getCompressionAlgorithm",
     "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
@@ -470,6 +491,85 @@
     "name" : "getRuntimeVersion",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getRuntimeVersion",
     "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleClose",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handleClose",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "jakarta.websocket.CloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleError",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handleError",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "e",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handleMessage",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlePong",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handlePong",
+    "returnType" : "void",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -864,6 +964,27 @@
     "parameters" : [ {
       "name" : "session",
       "type" : "jakarta.websocket.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutdownExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#shutdownExecutor",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executor",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

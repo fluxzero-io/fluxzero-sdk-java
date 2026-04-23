@@ -211,6 +211,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "causedByInterruption",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#causedByInterruption",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "currentStoredLowestIndex",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#currentStoredLowestIndex",
     "returnType" : "java.lang.Long",
@@ -335,6 +351,9 @@
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
       "values" : {}
     } ],
     "typeParameters" : [ ],

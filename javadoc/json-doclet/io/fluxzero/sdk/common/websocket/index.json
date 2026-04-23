@@ -44,6 +44,11 @@
     "name" : "SessionPool",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool",
     "kind" : "class"
+  }, {
+    "file" : "SessionPool.ClientClosedException.json",
+    "name" : "SessionPool.ClientClosedException",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool$ClientClosedException",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }
