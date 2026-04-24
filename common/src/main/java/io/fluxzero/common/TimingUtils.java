@@ -265,7 +265,7 @@ public class TimingUtils {
      * @return {@code true} if the task completed in time, {@code false} if it timed out
      */
     public static boolean runAndWaitSafely(ThrowingRunnable task, Duration maxDuration, boolean logFailure) {
-        return timeboxedExecutor.runAndWaitSafely(task, maxDuration);
+        return timeboxedExecutor.runAndWaitSafely(task, maxDuration, logFailure);
     }
 
     /**
