@@ -228,10 +228,12 @@ public class DefaultTracker implements Runnable, Registration {
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
-                Long storedLowestIndex = currentStoredLowestIndex();
                 if (maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
-                        Fluxzero.currentTime()) && isMaxIndexReached(storedLowestIndex)) {
-                    suspendUntilReset(storedLowestIndex);
+                        Fluxzero.currentTime())) {
+                    Long storedLowestIndex = currentStoredLowestIndex();
+                    if (isMaxIndexReached(storedLowestIndex)) {
+                        suspendUntilReset(storedLowestIndex);
+                    }
                 }
                 while (running.get()) {
                     pauseFetchIfNeeded();

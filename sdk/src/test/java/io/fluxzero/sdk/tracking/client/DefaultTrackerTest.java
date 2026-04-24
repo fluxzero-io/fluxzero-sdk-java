@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -52,6 +53,63 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultTrackerTest {
+
+    @Test
+    void doesNotFetchStoredPositionWhenNoMaxIndexIsConfigured() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        CountDownLatch fetching = new CountDownLatch(1);
+
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            fetching.countDown();
+            Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+            return null;
+        });
+
+        Thread trackerThread = new Thread(defaultTracker, "test-tracker");
+        trackerThread.start();
+
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+            verify(trackingClient, after(100).never()).getPosition("consumer");
+        } finally {
+            defaultTracker.cancel();
+            trackerThread.join(TimeUnit.SECONDS.toMillis(1));
+            assertFalse(trackerThread.isAlive());
+        }
+    }
+
+    @Test
+    void doesNotFetchStoredPositionWhenMaxIndexIsStillInTheFuture() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .maxIndexExclusive(IndexUtils.indexFromTimestamp(Instant.parse("2999-01-01T00:00:00Z")))
+                .build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        CountDownLatch fetching = new CountDownLatch(1);
+
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            fetching.countDown();
+            Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+            return null;
+        });
+
+        Thread trackerThread = new Thread(defaultTracker, "test-tracker");
+        trackerThread.start();
+
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+            verify(trackingClient, after(100).never()).getPosition("consumer");
+        } finally {
+            defaultTracker.cancel();
+            trackerThread.join(TimeUnit.SECONDS.toMillis(1));
+            assertFalse(trackerThread.isAlive());
+        }
+    }
 
     @Test
     void stopsBeforeFirstReadWhenStoredPositionAlreadyReachedMaxIndex() {
