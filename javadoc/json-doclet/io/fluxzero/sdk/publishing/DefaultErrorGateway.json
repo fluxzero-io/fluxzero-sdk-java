@@ -85,6 +85,30 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errors",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultErrorGateway#report",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "payload",
       "type" : "java.lang.Object",
       "varArgs" : false,

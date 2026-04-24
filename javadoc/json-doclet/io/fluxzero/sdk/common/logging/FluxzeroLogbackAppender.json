@@ -12,7 +12,15 @@
   "typeParameters" : [ ],
   "superClass" : "ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "executor",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender.executor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "FluxzeroLogbackAppender",
     "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#FluxzeroLogbackAppender",
@@ -92,6 +100,41 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Determines whether the given log event should be ignored.\n <p>\n Events marked with {@code ClientUtils.ignoreMarker} will be skipped and not sent to Fluxzero.\n\n @param event the logging event to check\n @return {@code true} if the event should be ignored, {@code false} otherwise\n"
+  }, {
+    "name" : "publishReport",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#publishReport",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stop",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#stop",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

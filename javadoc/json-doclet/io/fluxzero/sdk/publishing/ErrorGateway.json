@@ -14,6 +14,27 @@
   "methods" : [ {
     "name" : "report",
     "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errors",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Reports one or more error messages with the given delivery guarantee.\n <p>\n This method returns a future and does not block the caller while waiting for publication to complete.\n\n @param guarantee whether to ensure messages are sent or stored\n @param errors    the error messages to report\n @return a future that completes once the messages have been handled according to the guarantee\n"
+  }, {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",
     "returnType" : "void",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
