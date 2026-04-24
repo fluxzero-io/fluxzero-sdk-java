@@ -74,6 +74,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "lowestSpecificityPriority",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.lowestSpecificityPriority",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "methodAnnotation",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.methodAnnotation",
     "type" : "java.lang.annotation.Annotation",
@@ -208,6 +216,78 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "compare",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#compare",
+    "returnType" : "int",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "leftPriority",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "leftSpecificity",
+      "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.Specificity",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "leftParameterCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "leftMethodIndex",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rightPriority",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rightSpecificity",
+      "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.Specificity",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rightParameterCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rightMethodIndex",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compareForMessage",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#compareForMessage",
+    "returnType" : "int",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computeClassForSpecificity",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#computeClassForSpecificity",
     "returnType" : "java.lang.Class<?>",
@@ -215,6 +295,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeSpecificity",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#computeSpecificity",
+    "returnType" : "io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.Specificity",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -353,5 +449,11 @@
       "annotationType" : "lombok.AllArgsConstructor",
       "values" : {}
     } ]
+  }, {
+    "name" : "Specificity",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$Specificity",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
   } ]
 }

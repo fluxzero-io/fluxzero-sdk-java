@@ -45,6 +45,11 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$MethodHandlerInvoker",
     "kind" : "class"
   }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.Specificity.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.Specificity",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$Specificity",
+    "kind" : "record"
+  }, {
     "file" : "HandlerInspector.ObjectHandlerMatcher.json",
     "name" : "HandlerInspector.ObjectHandlerMatcher",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher",

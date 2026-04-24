@@ -94,6 +94,17 @@
     "varArgs" : false,
     "documentation" : " Resolves a {@link Parameter} of a handler method into a value function based on the given message.\n <p>\n If the parameter cannot be resolved by this resolver and {@link #matches} is not implemented, this method must\n return {@code null}.\n\n @param parameter        the parameter to resolve\n @param methodAnnotation the annotation present on the handler method (e.g., {@code @HandleEvent})\n @return a function that takes a message and returns a value to be injected into the method parameter, or\n {@code null} if the parameter cannot be resolved and {@link #matches} is not implemented.\n"
   }, {
+    "name" : "specificityPriority",
+    "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#specificityPriority",
+    "returnType" : "int",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Relative priority used when multiple specificity-determining resolvers could explain a matching handler.\n <p>\n Lower values win over higher values. This matches Fluxzero's regular ordering conventions and makes it possible\n to prefer semantically stronger matches, such as a\n direct payload parameter, over broader contextual injections such as an entity value.\n\n @return resolver priority for specificity comparisons; lower means more specific\n"
+  }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#test",
     "returnType" : "boolean",

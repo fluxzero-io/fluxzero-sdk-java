@@ -89,6 +89,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "specificityPriority",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#specificityPriority",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver#test",
     "returnType" : "boolean",
