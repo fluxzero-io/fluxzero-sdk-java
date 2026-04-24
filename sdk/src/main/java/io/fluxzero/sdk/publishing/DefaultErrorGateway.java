@@ -48,6 +48,11 @@ public class DefaultErrorGateway implements ErrorGateway {
     }
 
     @Override
+    public CompletableFuture<Void> report(Guarantee guarantee, Message... errors) {
+        return delegate.sendAndForget(guarantee, errors);
+    }
+
+    @Override
     public DefaultErrorGateway forDefaultNamespace() {
         return forNamespace(null);
     }

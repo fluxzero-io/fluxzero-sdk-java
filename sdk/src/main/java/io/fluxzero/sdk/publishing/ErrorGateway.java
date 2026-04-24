@@ -88,6 +88,17 @@ public interface ErrorGateway extends Namespaced<ErrorGateway>, HasLocalHandlers
     }
 
     /**
+     * Reports one or more error messages with the given delivery guarantee.
+     * <p>
+     * This method returns a future and does not block the caller while waiting for publication to complete.
+     *
+     * @param guarantee whether to ensure messages are sent or stored
+     * @param errors    the error messages to report
+     * @return a future that completes once the messages have been handled according to the guarantee
+     */
+    CompletableFuture<Void> report(Guarantee guarantee, Message... errors);
+
+    /**
      * Reports an error with the given payload, metadata, and delivery guarantee.
      * <p>
      * Returns a future that completes once the error message is sent or stored based on the provided guarantee.

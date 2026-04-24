@@ -22,9 +22,11 @@ import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.AppenderBase;
 import ch.qos.logback.core.Context;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -33,8 +35,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 
 import static java.lang.String.format;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.util.Optional.ofNullable;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
@@ -53,6 +57,7 @@ import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
  */
 @Slf4j
 public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
+    private final ExecutorService executor = newWorkerPool("FluxzeroLogbackAppender", 8);
 
     /**
      * Attaches this appender to the root logger in the Logback logging context.
@@ -91,7 +96,10 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
                 appenders.add(appender);
             }
         }
-        appenders.forEach(rootLogger::detachAppender);
+        appenders.forEach(appender -> {
+            rootLogger.detachAppender(appender);
+            appender.stop();
+        });
     }
 
     /**
@@ -115,9 +123,14 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
                 throwable.ifPresentOrElse(e -> log.info(errorMessage, e), () -> log.info(errorMessage));
                 return;
             }
+            Optional<Fluxzero> fluxzero = Fluxzero.getOptionally();
+            if (fluxzero.isEmpty()) {
+                log.debug(ClientUtils.ignoreMarker, "Skipping console error publication because Fluxzero is not set");
+                return;
+            }
             Metadata metadata = ofNullable(DeserializingMessage.getCurrent())
                     .map(DeserializingMessage::getMetadata).orElse(Metadata.empty());
-            metadata = metadata.with(
+            metadata = metadata.with(Fluxzero.currentCorrelationData()).with(
                     "stackTrace", format("[%s] %s %s - %s%s", event.getThreadName(), event.getLevel(),
                                          event.getLoggerName(), event.getFormattedMessage(),
                                          throwable.map(e -> "\n" + getStackTrace(e)).orElse("")),
@@ -140,10 +153,28 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
                 metadata = metadata.with(
                         "message", event.getFormattedMessage(), "errorMessage", event.getFormattedMessage());
             }
-            Fluxzero.get().errorGateway().report(
-                    event.getLevel() == Level.WARN ? new ConsoleWarning() : new ConsoleError(), metadata);
+            Message message = new Message(event.getLevel() == Level.WARN ? new ConsoleWarning() : new ConsoleError(),
+                                          metadata);
+            executor.execute(() -> publishReport(fluxzero.get(), message));
         } catch (Throwable e) {
-            log.info("Failed to publish console error", e);
+            log.info(ClientUtils.ignoreMarker, "Failed to publish console error", e);
+        }
+    }
+
+    private void publishReport(Fluxzero fluxzero, Message message) {
+        try {
+            fluxzero.execute(fc -> fc.errorGateway().report(Guarantee.NONE, message));
+        } catch (Throwable e) {
+            log.info(ClientUtils.ignoreMarker, "Failed to publish console error", e);
+        }
+    }
+
+    @Override
+    public void stop() {
+        try {
+            executor.shutdown();
+        } finally {
+            super.stop();
         }
     }
 
