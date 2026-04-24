@@ -69,4 +69,9 @@ public class PayloadParameterResolver implements ParameterResolver<HasMessage> {
     public boolean determinesSpecificity() {
         return true;
     }
+
+    @Override
+    public int specificityPriority() {
+        return -100;
+    }
 }

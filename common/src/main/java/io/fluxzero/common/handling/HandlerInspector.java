@@ -43,7 +43,6 @@ import static io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.
 import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
 import static java.util.Arrays.stream;
-import static java.util.Comparator.reverseOrder;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Stream.concat;
 
@@ -201,13 +200,15 @@ public class HandlerInspector {
      */
     @Getter
     public static class MethodHandlerMatcher<M> implements HandlerMatcher<Object, M> {
-        protected static final Comparator<MethodHandlerMatcher<?>> comparator = Comparator.comparing(
-                        (Function<MethodHandlerMatcher<?>, Integer>) MethodHandlerMatcher::getPriority, reverseOrder())
-                .thenComparing(
-                        (Function<MethodHandlerMatcher<?>, Class<?>>) MethodHandlerMatcher::getClassForSpecificity,
-                        ReflectionUtils.getClassSpecificityComparator())
-                .thenComparingInt(a -> -a.getParameterCount())
-                .thenComparingInt(MethodHandlerMatcher::getMethodIndex);
+        protected static final Comparator<MethodHandlerMatcher<?>> comparator = (left, right) -> compare(
+                left.getPriority(),
+                new Specificity(left.getClassForSpecificity(), Integer.MAX_VALUE),
+                left.getParameterCount(),
+                left.getMethodIndex(),
+                right.getPriority(),
+                new Specificity(right.getClassForSpecificity(), Integer.MAX_VALUE),
+                right.getParameterCount(),
+                right.getMethodIndex());
 
         private final int methodIndex;
         private final Executable executable;
@@ -217,6 +218,7 @@ public class HandlerInspector {
         private final MemberInvoker invoker;
         private final boolean hasReturnType;
         private final Class<?> classForSpecificity;
+        private final int lowestSpecificityPriority;
         private final Annotation methodAnnotation;
         private final Class<? extends Annotation> methodAnnotationType;
         private final int priority;
@@ -244,6 +246,9 @@ public class HandlerInspector {
             this.methodAnnotationType = Optional.ofNullable(this.methodAnnotation).map(Annotation::annotationType)
                     .orElse(null);
             this.classForSpecificity = computeClassForSpecificity();
+            this.lowestSpecificityPriority = this.parameterResolvers.stream()
+                    .filter(ParameterResolver::determinesSpecificity)
+                    .mapToInt(ParameterResolver::specificityPriority).min().orElse(Integer.MAX_VALUE);
             this.priority = getPriority(methodAnnotation);
             this.passive = isPassive(methodAnnotation);
             this.invoker = DefaultMemberInvoker.asInvoker(this.executable);
@@ -343,6 +348,49 @@ public class HandlerInspector {
             return handlerType;
         }
 
+        protected Specificity computeSpecificity(M message) {
+            Specificity result = new Specificity(classForSpecificity, Integer.MAX_VALUE);
+            for (Parameter p : parameters) {
+                for (ParameterResolver<? super M> r : parameterResolvers) {
+                    if (!r.determinesSpecificity()) {
+                        continue;
+                    }
+                    Function<? super M, Object> resolver = null;
+                    if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
+                        resolver = preparedParameterResolver.resolveIfPossible(p, methodAnnotation, message);
+                    } else if (r.matches(p, methodAnnotation, message) && r.test(message, p)) {
+                        resolver = r.resolve(p, methodAnnotation);
+                    }
+                    if (resolver != null) {
+                        Class<?> parameterType = p.getType();
+                        Class<?> candidate = classForSpecificity != null
+                                             && !classForSpecificity.isAssignableFrom(parameterType)
+                                             ? classForSpecificity : parameterType;
+                        if (result.type() == null
+                            || r.specificityPriority() < result.priority()
+                            || r.specificityPriority() == result.priority()
+                               && ReflectionUtils.getClassSpecificityComparator()
+                                       .compare(candidate, result.type()) < 0) {
+                            result = new Specificity(candidate, r.specificityPriority());
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        protected int compareForMessage(MethodHandlerMatcher<M> other, M message) {
+            return compare(
+                    priority,
+                    computeSpecificity(message),
+                    parameterCount,
+                    methodIndex,
+                    other.priority,
+                    other.computeSpecificity(message),
+                    other.parameterCount,
+                    other.methodIndex);
+        }
+
         protected int methodIndex(Method instanceMethod, Class<?> instanceType) {
             return ReflectionUtils.getAllMethods(instanceType).indexOf(instanceMethod);
         }
@@ -371,6 +419,32 @@ public class HandlerInspector {
                 return (boolean) match.get().invoke(annotation);
             }
             return false;
+        }
+
+        protected record Specificity(Class<?> type, int priority) {
+        }
+
+        protected static int compare(int leftPriority, Specificity leftSpecificity, int leftParameterCount,
+                                     int leftMethodIndex, int rightPriority, Specificity rightSpecificity,
+                                     int rightParameterCount, int rightMethodIndex) {
+            int result = Integer.compare(rightPriority, leftPriority);
+            if (result != 0) {
+                return result;
+            }
+            result = Integer.compare(leftSpecificity.priority(), rightSpecificity.priority());
+            if (result != 0) {
+                return result;
+            }
+            result = ReflectionUtils.getClassSpecificityComparator().compare(
+                    leftSpecificity.type(), rightSpecificity.type());
+            if (result != 0) {
+                return result;
+            }
+            result = Integer.compare(rightParameterCount, leftParameterCount);
+            if (result != 0) {
+                return result;
+            }
+            return Integer.compare(leftMethodIndex, rightMethodIndex);
         }
 
         @AllArgsConstructor
@@ -448,13 +522,36 @@ public class HandlerInspector {
                 }
                 return HandlerInvoker.join(invokers);
             }
+            if (methodHandlers.size() == 1) {
+                return methodHandlers.getFirst().getInvoker(target, message);
+            }
+            HandlerInvoker bestInvoker = null;
+            MethodHandlerMatcher<M> bestMatcher = null;
             for (HandlerMatcher<Object, M> d : methodHandlers) {
                 var s = d.getInvoker(target, message);
                 if (s.isPresent()) {
-                    return s;
+                    if (bestInvoker == null) {
+                        bestInvoker = s.get();
+                        if (d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                            @SuppressWarnings("unchecked")
+                            MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
+                            if (castMatcher.computeSpecificity(message).priority()
+                                <= castMatcher.lowestSpecificityPriority) {
+                                return s;
+                            }
+                            bestMatcher = castMatcher;
+                        }
+                    } else if (bestMatcher != null && d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
+                        @SuppressWarnings("unchecked")
+                        MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
+                        if (castMatcher.compareForMessage(bestMatcher, message) < 0) {
+                            bestInvoker = s.get();
+                            bestMatcher = castMatcher;
+                        }
+                    }
                 }
             }
-            return Optional.empty();
+            return Optional.ofNullable(bestInvoker);
         }
 
     }

@@ -36,6 +36,8 @@ import static io.fluxzero.common.handling.HandlerInspector.createHandler;
 class MethodInvokerBenchmark {
     private static final long iterations = 100_000_000L;
     private static final int WARM_UP = 2;
+    private static final Object[] objectSink = new Object[1024];
+    private static volatile long blackhole;
 
     public static void main(String[] args) throws Throwable {
         Person target = new Person("Ann");
@@ -61,66 +63,116 @@ class MethodInvokerBenchmark {
 
         System.out.println("starting");
 
-        TimingUtils.time(() -> testDirect(target), ms -> System.out.printf("direct: %dms, ", ms));
-        TimingUtils.time(() -> testReflection(method, target), ms -> System.out.printf("reflection: %dms, ", ms));
-        TimingUtils.time(() -> testMessageHandle(realMethodHandle, target), ms -> System.out.printf("method handle: %dms, ", ms));
-        TimingUtils.time(() -> testInvoker(invoker, target), ms -> System.out.printf("lambda invoker: %dms, ", ms));
+        TimingUtils.time(() -> testDirect(target), ms -> print("direct", ms));
+        TimingUtils.time(() -> testReflection(method, target), ms -> print("reflection", ms));
+        TimingUtils.time(() -> testMessageHandle(realMethodHandle, target), ms -> print("method handle", ms));
+        TimingUtils.time(() -> testInvoker(invoker, target), ms -> print("lambda invoker", ms));
         TimingUtils.time(() -> testFluxzeroInvoker(fluxzeroInvoker),
-                         elapsed -> System.out.printf("fluxzero invoker: %dms, ", elapsed), ChronoUnit.MILLIS);
-        TimingUtils.time(() -> testFluxzeroHandler(fluxzeroHandler), ms -> System.out.printf("fluxzero handler: %dms, ", ms));
+                         elapsed -> print("fluxzero invoker", elapsed), ChronoUnit.MILLIS);
+        TimingUtils.time(() -> testFluxzeroHandler(fluxzeroHandler), ms -> print("fluxzero handler", ms));
 
+    }
+
+    private static void print(String label, long elapsedMillis) {
+        System.out.printf("%s: %dms [%d], ", label, elapsedMillis, blackhole);
     }
 
     private static void testFluxzeroInvoker(HandlerInvoker invoker) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
-            invoker.invoke();
+            Object result = invoker.invoke();
+            consume(i, result);
+            checksum += ((String) result).length();
         }
+        blackhole = checksum + observeSink();
     }
 
     private static void testDirect(Person target) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
-            target.name();
+            String result = target.name();
+            consume(i, result);
+            checksum += result.length();
         }
+        blackhole = checksum + target.invocations() + observeSink();
     }
 
     private static void testInvoker(MemberInvoker invoker, Person target) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
-            invoker.invoke(target);
+            Object result = invoker.invoke(target);
+            consume(i, result);
+            checksum += ((String) result).length();
         }
+        blackhole = checksum + target.invocations() + observeSink();
     }
 
     private static void testFluxzeroHandler(Handler<Object> handler) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
-            handler.getInvoker(null).orElseThrow().invoke();
+            Object result = handler.getInvoker(null).orElseThrow().invoke();
+            consume(i, result);
+            checksum += ((String) result).length();
         }
+        blackhole = checksum + observeSink();
     }
 
     @SneakyThrows
     private static void testReflection(Method method, Person target) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
-            method.invoke(target);
+            Object result = method.invoke(target);
+            consume(i, result);
+            checksum += ((String) result).length();
         }
+        blackhole = checksum + target.invocations() + observeSink();
     }
 
     @SneakyThrows
     private static void testMessageHandle(MethodHandle mh, Person target) {
+        long checksum = 0L;
         for (long i = 0; i < iterations; i++) {
             String result = (String) mh.invokeExact(target);
+            consume(i, result);
+            checksum += result.length();
         }
+        blackhole = checksum + target.invocations() + observeSink();
+    }
+
+    private static void consume(long iteration, Object value) {
+        objectSink[(int) iteration & (objectSink.length - 1)] = value;
+    }
+
+    private static long observeSink() {
+        long result = 0L;
+        for (Object value : objectSink) {
+            result += value == null ? 0 : value.hashCode();
+        }
+        return result;
     }
 
     static class Person {
         private long i = 0;
-        private final String name;
+        private long state = 0x9E3779B97F4A7C15L;
+        private final String[] names;
 
         public Person(String name) {
-            this.name = name;
+            this.names = new String[]{name, name + "e", name + "a", name + "ette"};
         }
 
         @Handle
         private String name() {
+            long next = state;
+            next ^= next << 13;
+            next ^= next >>> 7;
+            next ^= next << 17;
+            state = next;
             i++;
-            return name;
+            return names[(int) next & (names.length - 1)];
+        }
+
+        private long invocations() {
+            return i + state;
         }
     }
 

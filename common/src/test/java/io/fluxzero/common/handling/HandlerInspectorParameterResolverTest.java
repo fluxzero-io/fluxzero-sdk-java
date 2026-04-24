@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,6 +58,20 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals(100L, subject.getInvoker(message).orElseThrow().invoke());
     }
 
+    @Test
+    void lowerSpecificityPriorityWinsOverResolverOrder() {
+        Handler<SpecificityMessage> handler = HandlerInspector.createHandler(
+                new SpecificityHandler(),
+                Handle.class,
+                List.of(new EntityResolver(), new PayloadResolver()));
+
+        Object result = handler.getInvoker(new SpecificityMessage(new CreatePayment(), new Payment()))
+                .orElseThrow()
+                .invoke();
+
+        assertEquals("payload", result);
+    }
+
     private static class Foo {
         @Handle
         public Object handle(String o, Instant time) {
@@ -73,6 +89,73 @@ public class HandlerInspectorParameterResolverTest {
     @Value
     private static class Message {
         Object payload;
+    }
+
+    @Value
+    private static class SpecificityMessage {
+        Object payload;
+        Object entity;
+    }
+
+    private static class SpecificityHandler {
+        @Handle
+        Object handle(Payment payment) {
+            return "entity";
+        }
+
+        @Handle
+        Object handle(CreatePayment payment) {
+            return "payload";
+        }
+    }
+
+    private static class PayloadResolver implements ParameterResolver<SpecificityMessage> {
+        @Override
+        public Function<SpecificityMessage, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                            java.lang.annotation.Annotation methodAnnotation) {
+            return SpecificityMessage::getPayload;
+        }
+
+        @Override
+        public boolean matches(java.lang.reflect.Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                               SpecificityMessage value) {
+            return parameter.getType().isAssignableFrom(value.getPayload().getClass());
+        }
+
+        @Override
+        public boolean determinesSpecificity() {
+            return true;
+        }
+
+        @Override
+        public int specificityPriority() {
+            return -100;
+        }
+    }
+
+    private static class EntityResolver implements ParameterResolver<SpecificityMessage> {
+        @Override
+        public Function<SpecificityMessage, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                            java.lang.annotation.Annotation methodAnnotation) {
+            return SpecificityMessage::getEntity;
+        }
+
+        @Override
+        public boolean matches(java.lang.reflect.Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                               SpecificityMessage value) {
+            return parameter.getType().isAssignableFrom(value.getEntity().getClass());
+        }
+
+        @Override
+        public boolean determinesSpecificity() {
+            return true;
+        }
+    }
+
+    private static class Payment {
+    }
+
+    private static class CreatePayment extends Payment {
     }
 
 }

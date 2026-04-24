@@ -844,6 +844,18 @@ public class AggregateEntitiesTest {
                         .expectEvents("updated child of: test");
             }
 
+            @Test
+            void payloadSpecificityWinsOverInjectedEntityValue() {
+                testFixture.registerHandlers(new SingleParameterSpecificityHandler())
+                        .whenEvent(new Message(
+                                new UpdateChild("id", "payload-wins"),
+                                Metadata.of(
+                                        Entity.AGGREGATE_ID_METADATA_KEY, "test",
+                                        Entity.AGGREGATE_TYPE_METADATA_KEY, Aggregate.class.getName())))
+                        .expectEvents("payload handler")
+                        .expectNoEventsLike("entity handler");
+            }
+
             @Value
             class AddChild {
                 MissingChildId missingChildId;
@@ -882,6 +894,18 @@ public class AggregateEntitiesTest {
                 @HandleEvent
                 void handle(Entity<String> entity) {
                     Fluxzero.publishEvent("added child to: " + entity.id());
+                }
+            }
+
+            class SingleParameterSpecificityHandler {
+                @HandleEvent
+                void handle(Aggregate aggregate) {
+                    Fluxzero.publishEvent("entity handler");
+                }
+
+                @HandleEvent
+                void handle(UpdateChild event) {
+                    Fluxzero.publishEvent("payload handler");
                 }
             }
         }

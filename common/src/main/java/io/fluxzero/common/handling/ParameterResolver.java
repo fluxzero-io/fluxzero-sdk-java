@@ -85,6 +85,19 @@ public interface ParameterResolver<M> {
     }
 
     /**
+     * Relative priority used when multiple specificity-determining resolvers could explain a matching handler.
+     * <p>
+     * Lower values win over higher values. This matches Fluxzero's regular ordering conventions and makes it possible
+     * to prefer semantically stronger matches, such as a
+     * direct payload parameter, over broader contextual injections such as an entity value.
+     *
+     * @return resolver priority for specificity comparisons; lower means more specific
+     */
+    default int specificityPriority() {
+        return 0;
+    }
+
+    /**
      * Determines whether a given message should be passed to a handler method based on this parameter's
      * characteristics.
      * <p>
