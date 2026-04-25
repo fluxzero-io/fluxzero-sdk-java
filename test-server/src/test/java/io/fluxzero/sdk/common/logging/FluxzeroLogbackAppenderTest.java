@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.logging;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.mockito.ArgumentMatcher;
 
 import java.time.Instant;
@@ -47,6 +49,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @Slf4j
+@Isolated
 class FluxzeroLogbackAppenderTest {
     private static final int port = 9127;
 
@@ -59,20 +62,26 @@ class FluxzeroLogbackAppenderTest {
 
     @BeforeEach
     void setUp() {
-        Fluxzero.instance.set(fluxzero);
         FluxzeroLogbackAppender.attach();
     }
 
     @AfterEach
     void tearDown() {
         FluxzeroLogbackAppender.detach();
-        Fluxzero.instance.remove();
     }
 
     @Test
     void testConsoleError() {
         log.error("mock error");
         verify(fluxzero.client().getGatewayClient(MessageType.ERROR), timeout(1_000)).append(
+                any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
+                        ConsoleError.class.getName().equals(message.getData().getType())));
+    }
+
+    @Test
+    void programmaticAttachPublishesSynchronously() {
+        log.error("mock synchronous error");
+        verify(fluxzero.client().getGatewayClient(MessageType.ERROR)).append(
                 any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
                         ConsoleError.class.getName().equals(message.getData().getType())));
     }
@@ -131,6 +140,8 @@ class FluxzeroLogbackAppenderTest {
 
     @Test
     void logbackAppenderCanPublishErrorLogToWebsocketErrorGateway() throws Exception {
+        FluxzeroLogbackAppender.detach();
+        FluxzeroLogbackAppender.attach(true);
         TestFixture fixture = TestFixture.createAsync(
                 DefaultFluxzero.builder().disableScheduledCommandHandler(),
                 WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()

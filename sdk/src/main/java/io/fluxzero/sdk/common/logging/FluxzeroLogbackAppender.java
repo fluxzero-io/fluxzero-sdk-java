@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.logging;
@@ -37,8 +38,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
-import static java.lang.String.format;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
+import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
@@ -58,6 +59,7 @@ import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
 @Slf4j
 public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
     private final ExecutorService executor = newWorkerPool("FluxzeroLogbackAppender", 8);
+    private final boolean async;
 
     /**
      * Attaches this appender to the root logger in the Logback logging context.
@@ -70,8 +72,17 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
      * preferred.
      */
     public static void attach() {
+        attach(false);
+    }
+
+    /**
+     * Attaches this appender to the root logger.
+     *
+     * @param async whether reports should be published on a worker thread
+     */
+    public static void attach(boolean async) {
         Context loggerContext = (Context) LoggerFactory.getILoggerFactory();
-        FluxzeroLogbackAppender appender = new FluxzeroLogbackAppender();
+        FluxzeroLogbackAppender appender = new FluxzeroLogbackAppender(async);
         LevelFilter filter = new LevelFilter();
         filter.setLevel(Level.WARN);
         appender.addFilter(filter);
@@ -100,6 +111,17 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             rootLogger.detachAppender(appender);
             appender.stop();
         });
+    }
+
+    /**
+     * Creates an asynchronous appender for Logback configuration.
+     */
+    public FluxzeroLogbackAppender() {
+        this(true);
+    }
+
+    protected FluxzeroLogbackAppender(boolean async) {
+        this.async = async;
     }
 
     /**
@@ -155,7 +177,11 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             }
             Message message = new Message(event.getLevel() == Level.WARN ? new ConsoleWarning() : new ConsoleError(),
                                           metadata);
-            executor.execute(() -> publishReport(fluxzero.get(), message));
+            if (async) {
+                executor.execute(() -> publishReport(fluxzero.get(), message));
+            } else {
+                publishReport(fluxzero.get(), message);
+            }
         } catch (Throwable e) {
             log.info(ClientUtils.ignoreMarker, "Failed to publish console error", e);
         }
