@@ -101,6 +101,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "eventSourced",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.eventSourced",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "lastCommitted",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.lastCommitted",
     "type" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -192,6 +200,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "entityHelper",
       "type" : "io.fluxzero.sdk.modeling.EntityHelper",
       "varArgs" : false,
@@ -217,6 +230,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "addAggregateMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#addAggregateMetadata",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "apply",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#apply",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -411,6 +445,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "entityHelper",
       "type" : "io.fluxzero.sdk.modeling.EntityHelper",
       "varArgs" : false,
@@ -445,6 +484,22 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldInterceptDispatchBeforeApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#shouldInterceptDispatchBeforeApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
