@@ -13,6 +13,14 @@
   "superClass" : "ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "async",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender.async",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "executor",
     "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender.executor",
     "type" : "java.util.concurrent.ExecutorService",
@@ -28,6 +36,21 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an asynchronous appender for Logback configuration.\n"
+  }, {
+    "name" : "FluxzeroLogbackAppender",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#FluxzeroLogbackAppender",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "async",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -62,6 +85,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Attaches this appender to the root logger in the Logback logging context.\n <p>\n Once attached, the appender will monitor and forward all warning and error logs to the Fluxzero error gateway as\n {@link ConsoleWarning} or {@link ConsoleError} messages.\n <p>\n Typically, this appender is configured automatically via Logback's own configuration. This method exists for\n dynamic attachment at runtime—e.g., during testing or in environments where programmatic logging configuration is\n preferred.\n"
+  }, {
+    "name" : "attach",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#attach",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "async",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attaches this appender to the root logger.\n\n @param async whether reports should be published on a worker thread\n"
   }, {
     "name" : "detach",
     "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender#detach",
