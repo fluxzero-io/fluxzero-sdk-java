@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/java25-debian13:nonroot@sha256:e689f0e2ef32caa54a12928edce92460f69653c68d0a2edff5691fb5116ae5c6
+FROM gcr.io/distroless/java25-debian13:nonroot@sha256:f25ab728deeafec63d7176a473536f4f4347d42db7e24b3bb0fb7b05ff84d248
 
 COPY target/fluxzero-proxy.jar .
 
