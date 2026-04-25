@@ -1,24 +1,39 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.Backlog;
 import io.fluxzero.common.DirectExecutorService;
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.RetryConfiguration;
 import io.fluxzero.common.RetryStatus;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
-import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.Request;
-import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.publishing.Append;
-import io.undertow.websockets.jsr.UndertowSession;
 import io.undertow.websockets.jsr.ServerWebSocketContainer;
-import jakarta.websocket.ClientEndpointConfig;
+import io.undertow.websockets.jsr.UndertowSession;
 import jakarta.websocket.ClientEndpoint;
+import jakarta.websocket.ClientEndpointConfig;
 import jakarta.websocket.CloseReason;
 import jakarta.websocket.DeploymentException;
 import jakarta.websocket.Endpoint;
@@ -30,9 +45,9 @@ import jakarta.websocket.Session;
 import jakarta.websocket.WebSocketContainer;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
@@ -59,8 +74,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -442,9 +457,10 @@ class AbstractWebsocketClientTest {
             });
 
             assertTrue(client.pongHandled.await(1, TimeUnit.SECONDS));
-            assertTrue(onPongFuture.isDone());
+            onPongFuture.get(1, TimeUnit.SECONDS);
             assertNotEquals(callerThread.get(), client.pongThread.get());
         } finally {
+            client.allowPongToFinish.countDown();
             callerExecutor.shutdownNow();
             client.close();
         }
@@ -558,6 +574,7 @@ class AbstractWebsocketClientTest {
 
     private static class CallbackObservingClient extends TestClient {
         private final CountDownLatch pongHandled = new CountDownLatch(1);
+        private final CountDownLatch allowPongToFinish = new CountDownLatch(1);
         private final AtomicReference<String> pongThread = new AtomicReference<>();
 
         CallbackObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
@@ -568,6 +585,11 @@ class AbstractWebsocketClientTest {
         protected void handlePong(Session session) {
             pongThread.set(Thread.currentThread().getName());
             pongHandled.countDown();
+            try {
+                allowPongToFinish.await(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
