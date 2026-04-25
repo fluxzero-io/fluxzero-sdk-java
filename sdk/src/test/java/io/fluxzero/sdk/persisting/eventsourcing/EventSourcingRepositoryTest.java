@@ -25,13 +25,19 @@ import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.authentication.FixedUserProvider;
+import io.fluxzero.sdk.tracking.handling.authentication.MockUser;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -117,6 +123,70 @@ class EventSourcingRepositoryTest {
                     .whenQuery(new GetModel())
                     .<TestModel>expectResult()
                     .expectResult(r -> r.metadata.entrySet().containsAll(metaData.entrySet()));
+        }
+
+        @Test
+        void applySeesDispatchInterceptedMetadataDuringApplyAndReplay() {
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .disableAutomaticAggregateCaching()
+                                       .addDispatchInterceptor((message, messageType, topic) ->
+                                                                       message.withMetadata(
+                                                                               message.getMetadata().with(
+                                                                                       "dispatch", "intercepted")),
+                                                               MessageType.EVENT),
+                               new Handler())
+                    .whenCommand(new CreateModelWithMetadata())
+                    .andThen()
+                    .whenQuery(new GetModel())
+                    .<TestModel>expectResult()
+                    .expectResult(r -> r.metadata.entrySet()
+                            .containsAll(Metadata.of("dispatch", "intercepted").entrySet()))
+                    .andThen()
+                    .given(fc -> fc.cache().clear())
+                    .whenQuery(new GetModel())
+                    .<TestModel>expectResult()
+                    .expectResult(r -> r.metadata.entrySet()
+                            .containsAll(Metadata.of("dispatch", "intercepted").entrySet()));
+        }
+
+        @Test
+        void applySeesUserDuringApplyAndReplay() {
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .disableAutomaticAggregateCaching()
+                                       .registerUserProvider(new FixedUserProvider(new MockUser("apply"))),
+                               new UserAwareHandler())
+                    .whenCommand(new RecordUser())
+                    .andThen()
+                    .given(fc -> fc.cache().clear())
+                    .whenApplying(fc -> loadAggregate("user-aware", UserAwareAggregate.class).get())
+                    .<UserAwareAggregate>expectResult()
+                    .expectResult(r -> r.users.equals(List.of("mockUser")));
+        }
+
+        @Test
+        void notNullProtectedDataIsValidatedBeforeDispatchInterceptionAndApplySeesSanitizedEvent() {
+            TestFixture.create(DefaultFluxzero.builder().disableAutomaticAggregateCaching(),
+                               new ProtectedDataHandler())
+                    .whenCommand(new ProtectedDataEvent("top-secret"))
+                    .expectEvents(new ProtectedDataEvent(null))
+                    .andThen()
+                    .whenApplying(fc -> loadAggregate("protected-data", ProtectedDataAggregate.class).get())
+                    .<ProtectedDataAggregate>expectResult()
+                    .expectResult(r -> r.values.size() == 1 && r.values.getFirst() == null);
+        }
+
+        @Test
+        void dispatchBlockedEventIsNotApplied() {
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .disableAutomaticAggregateCaching()
+                                       .addDispatchInterceptor((message, messageType, topic) ->
+                                                                       message.getPayload() instanceof UpdateModel
+                                                                               ? null : message,
+                                                               MessageType.EVENT),
+                               new Handler())
+                    .givenCommands(new CreateModel(), new UpdateModel())
+                    .whenQuery(new GetModel())
+                    .expectResult(new TestModel(List.of(new CreateModel()), Metadata.empty()));
         }
 
         @Test
@@ -248,6 +318,20 @@ class EventSourcingRepositoryTest {
             }
 
         }
+
+        private class UserAwareHandler {
+            @HandleCommand
+            void handle(RecordUser command) {
+                loadAggregate("user-aware", UserAwareAggregate.class).apply(command);
+            }
+        }
+
+        private class ProtectedDataHandler {
+            @HandleCommand
+            void handle(ProtectedDataEvent command) {
+                loadAggregate("protected-data", ProtectedDataAggregate.class).assertAndApply(command);
+            }
+        }
     }
 
     @Nested
@@ -311,6 +395,17 @@ class EventSourcingRepositoryTest {
             SelfApplyingCommand a = new SelfApplyingCommand(PublishNeverModel.class);
             SelfApplyingCommand b = new SelfApplyingCommand(PublishNeverModel.class);
             testFixture.givenCommands(a).whenCommand(b).expectNoEvents();
+        }
+
+        @Test
+        void publishNeverIsNotBlockedByDispatchInterceptor() {
+            var command = new SelfApplyingCommand(PublishNeverModel.class);
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .addDispatchInterceptor((message, messageType, topic) -> null,
+                                                               MessageType.EVENT))
+                    .whenCommand(command)
+                    .expectNoEvents()
+                    .expectTrue(fc -> command.equals(loadAggregate("test", PublishNeverModel.class).get().event()));
         }
 
         @Test
@@ -746,11 +841,87 @@ class EventSourcingRepositoryTest {
                     });
         }
 
+        @Test
+        void notEventSourcedAggregateIsNotBlockedByDispatchInterceptor() {
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .addDispatchInterceptor((message, messageType, topic) -> null,
+                                                               MessageType.EVENT),
+                               new SearchableHandler())
+                    .givenCommands(new CreateModel(), new UpdateModel())
+                    .whenApplying(fc -> loadAggregate(aggregateId.toString(),
+                                                      SearchableTestModelNotEventSourced.class).get())
+                    .<SearchableTestModelNotEventSourced>expectResult()
+                    .expectResult(result -> result.getNames()
+                            .equals(List.of(CreateModel.class.getSimpleName(), UpdateModel.class.getSimpleName())));
+        }
+
+        @Test
+        void notEventSourcedAggregatePublishesDispatchInterceptedEventAfterApply() {
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .addDispatchInterceptor((message, messageType, topic) ->
+                                                                       message.getPayload() instanceof UpdateModel
+                                                                               ? message.withPayload(new CreateModel())
+                                                                               : message,
+                                                               MessageType.EVENT),
+                               new Handler())
+                    .givenCommands(new CreateModel())
+                    .whenCommand(new UpdateModel())
+                    .expectEvents(new CreateModel())
+                    .expectThat(fc -> {
+                        TestModelNotEventSourced result =
+                                loadAggregate(aggregateId.toString(), TestModelNotEventSourced.class).get();
+                        assertEquals(List.of(CreateModel.class.getSimpleName(), UpdateModel.class.getSimpleName()),
+                                     result.getNames());
+                    });
+        }
+
+        @Test
+        void searchableNotEventSourcedAggregatePublishesInterceptApplyResult() {
+            TestFixture.create(new UpsertSearchableHandler())
+                    .whenCommand(new UpsertSearchableModel())
+                    .expectEvents(new AddSearchableModel())
+                    .expectThat(fc -> {
+                        SearchableUpsertModel result =
+                                loadAggregate("searchable-upsert", SearchableUpsertModel.class).get();
+                        assertEquals(1, result.getCount());
+                    });
+        }
+
+        @Test
+        void searchableNotEventSourcedAggregateDoesNotPublishInterceptedUpdateWithNeverPublication() {
+            TestFixture.create(new UpsertSearchableHandler())
+                    .givenCommands(new UpsertSearchableModel())
+                    .whenCommand(new UpsertSearchableModel())
+                    .expectNoEvents()
+                    .expectThat(fc -> {
+                        SearchableUpsertModel result =
+                                loadAggregate("searchable-upsert", SearchableUpsertModel.class).get();
+                        assertEquals(2, result.getCount());
+                    });
+        }
+
         private static class Handler {
             @HandleCommand
             void handle(Object command) {
                 loadAggregate(aggregateId.toString(), TestModelNotEventSourced.class).assertLegal(command)
                         .apply(command);
+            }
+        }
+
+        private static class SearchableHandler {
+            @HandleCommand
+            void handle(Object command) {
+                loadAggregate(aggregateId.toString(), SearchableTestModelNotEventSourced.class).assertLegal(command)
+                        .apply(command);
+            }
+        }
+
+        private static class UpsertSearchableHandler {
+            @HandleCommand
+            void handle(UpsertSearchableModel command) {
+                loadAggregate("searchable-upsert", SearchableUpsertModel.class)
+                        .assertAndApply(command)
+                        .commit();
             }
         }
     }
@@ -771,6 +942,53 @@ class EventSourcingRepositoryTest {
             names.add(event.getClass().getSimpleName());
             return this;
         }
+    }
+
+    @Aggregate(eventSourced = false, cached = false, searchable = true)
+    @Value
+    @NoArgsConstructor
+    static class SearchableTestModelNotEventSourced {
+        List<String> names = new ArrayList<>();
+
+        @Apply
+        public SearchableTestModelNotEventSourced(CreateModel event) {
+            names.add(event.getClass().getSimpleName());
+        }
+
+        @Apply
+        public SearchableTestModelNotEventSourced apply(UpdateModel event) {
+            names.add(event.getClass().getSimpleName());
+            return this;
+        }
+    }
+
+    record UpsertSearchableModel() {
+        @InterceptApply
+        Object intercept(@Nullable SearchableUpsertModel model) {
+            return model == null ? new AddSearchableModel() : new UpdateSearchableModel();
+        }
+    }
+
+    record AddSearchableModel() {
+        @Apply
+        SearchableUpsertModel create() {
+            return new SearchableUpsertModel(1);
+        }
+    }
+
+    record UpdateSearchableModel() {
+        @Apply(eventPublication = NEVER)
+        SearchableUpsertModel update(SearchableUpsertModel model) {
+            return new SearchableUpsertModel(model.count + 1);
+        }
+    }
+
+    @Aggregate(eventSourced = false, cached = false, searchable = true)
+    @Value
+    static class SearchableUpsertModel {
+        @EntityId
+        String id = "searchable-upsert";
+        int count;
     }
 
     @Nested
@@ -1060,6 +1278,12 @@ class EventSourcingRepositoryTest {
     record ApplyNonsense() {
     }
 
+    record RecordUser() {
+    }
+
+    record ProtectedDataEvent(@ProtectData @NotNull String value) {
+    }
+
     record FailToCreateModel() {
     }
 
@@ -1067,6 +1291,30 @@ class EventSourcingRepositoryTest {
     }
 
     record CreateModelWithMetadata() {
+    }
+
+    @Aggregate(cached = false)
+    @lombok.Data
+    @NoArgsConstructor
+    static class UserAwareAggregate {
+        List<String> users = new ArrayList<>();
+
+        @Apply
+        public UserAwareAggregate(RecordUser event, User user) {
+            users.add(user.getName());
+        }
+    }
+
+    @Aggregate
+    @lombok.Data
+    @NoArgsConstructor
+    static class ProtectedDataAggregate {
+        List<String> values = new ArrayList<>();
+
+        @Apply
+        public ProtectedDataAggregate(ProtectedDataEvent event) {
+            values.add(event.value());
+        }
     }
 
     @AllArgsConstructor

@@ -113,12 +113,13 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     public static <T> Entity<T> load(
             Object aggregateId, Supplier<Entity<T>> loader, boolean commitInBatch, EventPublication eventPublication,
-            EventPublicationStrategy publicationStrategy,
+            EventPublicationStrategy publicationStrategy, boolean eventSourced,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
         return ModifiableAggregateRoot.<T>getIfActive(aggregateId).orElseGet(
                 () -> new ModifiableAggregateRoot<>(loader.get(), commitInBatch, eventPublication, publicationStrategy,
-                                                    entityHelper, serializer, dispatchInterceptor, commitHandler));
+                                                    eventSourced, entityHelper, serializer, dispatchInterceptor,
+                                                    commitHandler));
     }
 
     private Entity<T> lastCommitted;
@@ -127,6 +128,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     private final EventPublication aggregateEventPublication;
     private final EventPublicationStrategy aggregatePublicationStrategy;
+    private final boolean eventSourced;
     private final EntityHelper entityHelper;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
@@ -139,7 +141,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     protected ModifiableAggregateRoot(Entity<T> delegate, boolean commitInBatch,
                                       EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
-                                      EntityHelper entityHelper, Serializer serializer,
+                                      boolean eventSourced, EntityHelper entityHelper, Serializer serializer,
                                       DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         super(delegate);
         this.entityHelper = entityHelper;
@@ -148,6 +150,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.commitInBatch = commitInBatch;
         this.aggregateEventPublication = eventPublication;
         this.aggregatePublicationStrategy = publicationStrategy;
+        this.eventSourced = eventSourced;
         this.serializer = serializer;
         this.dispatchInterceptor = dispatchInterceptor;
         this.commitHandler = commitHandler;
@@ -178,10 +181,6 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     protected Entity<T> apply(Message message, boolean assertLegal) {
         return handleUpdate(a -> {
-            if (assertLegal) {
-                entityHelper.assertLegal(message, a);
-            }
-
             Optional<Apply> applyAnnotation = entityHelper.applyInvoker(
                             new DeserializingMessage(message, EVENT, null, serializer), a, true)
                     .map(HandlerInvoker::getMethodAnnotation);
@@ -191,9 +190,23 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             var publicationStrategy = applyAnnotation.map(Apply::publicationStrategy)
                     .filter(ep -> ep != EventPublicationStrategy.DEFAULT).orElse(this.aggregatePublicationStrategy);
 
+            if (assertLegal) {
+                entityHelper.assertLegal(message, a);
+            }
+
+            boolean interceptBeforeApply = shouldInterceptDispatchBeforeApply(eventPublication);
+            Message dispatchMessage = message;
+            if (interceptBeforeApply) {
+                dispatchMessage = dispatchInterceptor.interceptDispatch(message, EVENT, null);
+                if (dispatchMessage == null) {
+                    return a;
+                }
+                dispatchMessage = addAggregateMetadata(dispatchMessage, publicationStrategy);
+            }
+
             int hashCodeBefore = eventPublication == IF_MODIFIED ? a.get() == null ? -1 : a.get().hashCode() : -1;
 
-            Entity<T> result = a.apply(message);
+            Entity<T> result = a.apply(interceptBeforeApply ? dispatchMessage : message);
             if (publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY && result.get() == a.get()) {
                 result = a;
             }
@@ -203,27 +216,41 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                                     || (result.get() != null && result.get().hashCode() != hashCodeBefore);
                 case NEVER -> false;
             }) {
-                Message intercepted = dispatchInterceptor.interceptDispatch(message, EVENT, null);
-                if (intercepted == null) {
-                    return a;
+                if (!interceptBeforeApply) {
+                    dispatchMessage = dispatchInterceptor.interceptDispatch(message, EVENT, null);
+                    if (dispatchMessage == null) {
+                        return result;
+                    }
+                    dispatchMessage = addAggregateMetadata(dispatchMessage, publicationStrategy);
                 }
-                Message m = publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY
-                        ? intercepted.addMetadata(Entity.AGGREGATE_ID_METADATA_KEY, id().toString(),
-                                                  Entity.AGGREGATE_TYPE_METADATA_KEY, type().getName())
-                        : intercepted.addMetadata(Entity.AGGREGATE_ID_METADATA_KEY, id().toString(),
-                                                  Entity.AGGREGATE_TYPE_METADATA_KEY, type().getName(),
-                                                  Entity.AGGREGATE_SN_METADATA_KEY,
-                                                  String.valueOf(getDelegate().sequenceNumber() + 1L));
                 var serializedEvent =
-                        dispatchInterceptor.modifySerializedMessage(m.serialize(serializer), m, EVENT, null);
+                        dispatchInterceptor.modifySerializedMessage(dispatchMessage.serialize(serializer), dispatchMessage,
+                                                                    EVENT, null);
                 if (serializedEvent == null) {
-                    return a;
+                    return interceptBeforeApply ? a : result;
                 }
+                Message appliedMessage = dispatchMessage;
                 applied.add(new AppliedEvent(new DeserializingMessage(serializedEvent, type ->
-                        serializer.convert(m.getPayload(), type), EVENT, null, serializer), publicationStrategy));
+                        serializer.convert(appliedMessage.getPayload(), type), EVENT, null, serializer),
+                                             publicationStrategy));
             }
             return result;
         });
+    }
+
+    private boolean shouldInterceptDispatchBeforeApply(EventPublication eventPublication) {
+        return eventSourced && eventPublication != EventPublication.NEVER;
+    }
+
+    private Message addAggregateMetadata(Message message, EventPublicationStrategy publicationStrategy) {
+        if (publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY) {
+            return message.addMetadata(Entity.AGGREGATE_ID_METADATA_KEY, id().toString(),
+                                       Entity.AGGREGATE_TYPE_METADATA_KEY, type().getName());
+        }
+        return message.addMetadata(Entity.AGGREGATE_ID_METADATA_KEY, id().toString(),
+                                   Entity.AGGREGATE_TYPE_METADATA_KEY, type().getName(),
+                                   Entity.AGGREGATE_SN_METADATA_KEY,
+                                   String.valueOf(getDelegate().sequenceNumber() + 1L));
     }
 
     protected Entity<T> handleUpdate(UnaryOperator<Entity<T>> update) {

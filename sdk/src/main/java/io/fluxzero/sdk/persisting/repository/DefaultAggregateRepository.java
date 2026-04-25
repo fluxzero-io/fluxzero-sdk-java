@@ -327,7 +327,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             }
                         }
                         return eventSourceModel(loadSnapshot(id));
-                    }), commitInBatch, eventPublication, publicationStrategy,
+                    }), commitInBatch, eventPublication, publicationStrategy, eventSourced,
                     entityHelper, serializer, dispatchInterceptor, this::commit);
         }
 
