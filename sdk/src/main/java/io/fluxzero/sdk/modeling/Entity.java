@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -846,9 +846,10 @@ public interface Entity<T> {
                 return false;
             }
             Entity<?> parent = parent();
-            Object routeValue = getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
-            if (routeValue == null && parent != null && parent.idProperty() != null) {
-                routeValue = readProperty(parent.idProperty(), payload).orElse(null);
+            Object routeValue = parent != null && parent.idProperty() != null
+                    ? readProperty(parent.idProperty(), payload).orElse(null) : null;
+            if (routeValue == null) {
+                routeValue = getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
             }
             if (routeValue == null || parent == null || !hasSelfReferentialMember(parent.type())) {
                 return true;

@@ -119,6 +119,54 @@ public class AggregateEntitiesTest {
         return current;
     }
 
+    private boolean endpointState(EndpointOrganisation organisation, String locationId, String connectionId,
+                                  List<String> expectedEndpointIds) {
+        EndpointConnection connection = findConnection(organisation, locationId, connectionId);
+        return connection != null && connection.endpoints().stream().map(Endpoint::endpointId).toList()
+                .equals(expectedEndpointIds);
+    }
+
+    private Endpoint findEndpoint(EndpointOrganisation organisation, String locationId, String connectionId,
+                                  String endpointId) {
+        EndpointConnection connection = findConnection(organisation, locationId, connectionId);
+        if (connection == null) {
+            return null;
+        }
+        return connection.endpoints().stream()
+                .filter(endpoint -> Objects.equals(endpoint.endpointId(), endpointId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private EndpointConnection findConnection(EndpointOrganisation organisation, String locationId, String connectionId) {
+        if (organisation == null) {
+            return null;
+        }
+        return organisation.locations().stream()
+                .filter(location -> Objects.equals(location.locationId(), locationId))
+                .flatMap(location -> location.connections().stream())
+                .filter(connection -> Objects.equals(connection.connectionId(), connectionId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Credential findCredential(CredentialOrganisation organisation, String locationId, String connectionId,
+                                      String endpointId, String credentialId) {
+        if (organisation == null) {
+            return null;
+        }
+        return organisation.locations().stream()
+                .filter(location -> Objects.equals(location.locationId(), locationId))
+                .flatMap(location -> location.connections().stream())
+                .filter(connection -> Objects.equals(connection.connectionId(), connectionId))
+                .flatMap(connection -> connection.endpoints().stream())
+                .filter(endpoint -> Objects.equals(endpoint.endpointId(), endpointId))
+                .flatMap(endpoint -> endpoint.credentials().stream())
+                .filter(credential -> Objects.equals(credential.credentialId(), credentialId))
+                .findFirst()
+                .orElse(null);
+    }
+
     @Nested
     class FindEntityTests {
 
@@ -729,6 +777,274 @@ public class AggregateEntitiesTest {
                                        new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .whenCommand(new CreateTypedPaymentAttempt(paymentId, paymentAttemptId))
                         .expectExceptionalResult(IllegalCommandException.class);
+            }
+
+            @Test
+            void addNestedChildWithParentRoutingKeyUsesMatchingParent() {
+                TestFixture.create().given(fc -> loadAggregate("organisation", Organisation.class)
+                                .update(s -> new Organisation("organisation",
+                                                              List.of(new Location("location-1", List.of()),
+                                                                      new Location("location-2", List.of())))))
+                        .registerHandlers(new Object() {
+                            @HandleCommand
+                            void handle(AddConnection command) {
+                                loadAggregate("organisation", Organisation.class).apply(command);
+                            }
+                        })
+                        .whenCommand(new AddConnection("location-2", "connection-2"))
+                        .expectTrue(fc -> {
+                            Organisation organisation = loadAggregate("organisation", Organisation.class).get();
+                            Location first = organisation.locations().getFirst();
+                            Location second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(Connection::connectionId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayNestedChildWithParentRoutingKeyUsesMatchingParent() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(Object command) {
+                                loadAggregate("organisation", Organisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateOrganisation("organisation", List.of("location-1", "location-2")),
+                                new AddConnection("location-2", "connection-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", Organisation.class).get())
+                        .expectResult((Predicate<Organisation>) organisation -> {
+                            Location first = organisation.locations().getFirst();
+                            Location second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(Connection::connectionId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayNestedChildWithAggregateRoutingKeyAndParentIdUsesMatchingParent() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateOrganisation command) {
+                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddConnectionRoutedByOrganisation command) {
+                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateOrganisation("organisation", List.of("location-1", "location-2")),
+                                new AddConnectionRoutedByOrganisation("organisation", "location-2", "connection-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", Organisation.class).get())
+                        .expectResult((Predicate<Organisation>) organisation -> {
+                            Location first = organisation.locations().getFirst();
+                            Location second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(Connection::connectionId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayNestedChildWithTypedParentIdFallsBackFromAggregateRoutingKeyToParentId() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateTypedOrganisation command) {
+                                loadAggregate(command.organisationId(), TypedOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddTypedConnectionRoutedByOrganisation command) {
+                                loadAggregate(command.organisationId(), TypedOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateTypedOrganisation("organisation", List.of("location-1", "location-2")),
+                                new AddTypedConnectionRoutedByOrganisation("organisation", "location-2", "connection-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", TypedOrganisation.class).get())
+                        .expectResult((Predicate<TypedOrganisation>) organisation -> {
+                            TypedLocation first = organisation.locations().getFirst();
+                            TypedLocation second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(TypedConnection::connectionId)
+                                           .map(TypedConnectionId::getId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayNestedChildWithAggregateRoutingKeyCanUseParentAlias() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateAliasOrganisation command) {
+                                loadAggregate(command.organisationId(), AliasOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddAliasConnectionRoutedByOrganisation command) {
+                                loadAggregate(command.organisationId(), AliasOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateAliasOrganisation("organisation"),
+                                new AddAliasConnectionRoutedByOrganisation("organisation", "loc-alias-2", "connection-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", AliasOrganisation.class).get())
+                        .expectResult((Predicate<AliasOrganisation>) organisation -> {
+                            AliasLocation first = organisation.locations().getFirst();
+                            AliasLocation second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(AliasConnection::connectionId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayNestedChildWithChildRoutingKeyAndParentIdUsesMatchingParent() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateOrganisation command) {
+                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddConnectionRoutedByConnection command) {
+                                loadAggregate(command.organisationId(), Organisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateOrganisation("organisation", List.of("location-1", "location-2")),
+                                new AddConnectionRoutedByConnection("organisation", "location-2", "connection-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", Organisation.class).get())
+                        .expectResult((Predicate<Organisation>) organisation -> {
+                            Location first = organisation.locations().getFirst();
+                            Location second = organisation.locations().get(1);
+                            return first.connections().isEmpty()
+                                   && second.connections().stream()
+                                           .map(Connection::connectionId)
+                                           .toList()
+                                           .equals(List.of("connection-2"));
+                        });
+            }
+
+            @Test
+            void replayDeepNestedChildWithRootRoutingKeyUsesMatchingGrandParentAndParent() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateEndpointOrganisation command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddEndpointRoutedByOrganisation command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateEndpointOrganisation("organisation"),
+                                new AddEndpointRoutedByOrganisation("organisation", "location-2", "connection-2",
+                                                                    "endpoint-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", EndpointOrganisation.class).get())
+                        .expectResult((Predicate<EndpointOrganisation>) organisation -> endpointState(
+                                organisation, "location-2", "connection-2", List.of("endpoint-2"))
+                                                                   && endpointState(
+                                                                           organisation, "location-1", "connection-1",
+                                                                           List.of()));
+            }
+
+            @Test
+            void replayDeepNestedChildWithParentRoutingKeyUsesMatchingParent() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateEndpointOrganisation command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddEndpointRoutedByConnection command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateEndpointOrganisation("organisation"),
+                                new AddEndpointRoutedByConnection("organisation", "connection-2", "endpoint-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", EndpointOrganisation.class).get())
+                        .expectResult((Predicate<EndpointOrganisation>) organisation -> endpointState(
+                                organisation, "location-2", "connection-2", List.of("endpoint-2"))
+                                                                   && endpointState(
+                                                                           organisation, "location-1", "connection-1",
+                                                                           List.of()));
+            }
+
+            @Test
+            void replayDeepNestedChildWithChildRoutingKeyUpdatesExistingChild() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateEndpointOrganisation command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddEndpointRoutedByConnection command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(UpdateEndpointRoutedByEndpoint command) {
+                                loadAggregate(command.organisationId(), EndpointOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateEndpointOrganisation("organisation"),
+                                new AddEndpointRoutedByConnection("organisation", "connection-2", "endpoint-2"),
+                                new UpdateEndpointRoutedByEndpoint("organisation", "location-2", "connection-2",
+                                                                   "endpoint-2", "online"))
+                        .whenApplying(fc -> loadAggregate("organisation", EndpointOrganisation.class).get())
+                        .expectResult((Predicate<EndpointOrganisation>) organisation -> {
+                            Endpoint endpoint = findEndpoint(organisation, "location-2", "connection-2", "endpoint-2");
+                            return endpoint != null && "online".equals(endpoint.status())
+                                   && findEndpoint(organisation, "location-1", "connection-1", "endpoint-2") == null;
+                        });
+            }
+
+            @Test
+            void replayFourthLevelChildWithRootRoutingKeyUsesAllIntermediateIds() {
+                TestFixture.create(new Object() {
+                            @HandleCommand
+                            void handle(CreateCredentialOrganisation command) {
+                                loadAggregate(command.organisationId(), CredentialOrganisation.class).apply(command);
+                            }
+
+                            @HandleCommand
+                            void handle(AddCredentialRoutedByOrganisation command) {
+                                loadAggregate(command.organisationId(), CredentialOrganisation.class).apply(command);
+                            }
+                        })
+                        .givenCommands(
+                                new CreateCredentialOrganisation("organisation"),
+                                new AddCredentialRoutedByOrganisation("organisation", "location-2", "connection-2",
+                                                                      "endpoint-2", "credential-2"))
+                        .whenApplying(fc -> loadAggregate("organisation", CredentialOrganisation.class).get())
+                        .expectResult((Predicate<CredentialOrganisation>) organisation -> {
+                            Credential credential = findCredential(organisation, "location-2", "connection-2",
+                                                                   "endpoint-2", "credential-2");
+                            return credential != null
+                                   && findCredential(organisation, "location-1", "connection-1", "endpoint-1",
+                                                     "credential-2") == null;
+                        });
             }
 
             @Test
@@ -1838,6 +2154,78 @@ public class AggregateEntitiesTest {
     record File(@EntityId String fileId) {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
+    record Organisation(@EntityId String organisationId, @Member @With List<Location> locations) {
+    }
+
+    record Location(@EntityId String locationId, @Member @With List<Connection> connections) {
+    }
+
+    record Connection(@EntityId String connectionId) {
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    record AliasOrganisation(@EntityId String organisationId, @Member @With List<AliasLocation> locations) {
+    }
+
+    record AliasLocation(@EntityId String locationId, @Alias String locationAlias,
+                         @Member @With List<AliasConnection> connections) {
+    }
+
+    record AliasConnection(@EntityId String connectionId) {
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    record TypedOrganisation(@EntityId String organisationId, @Member @With List<TypedLocation> locations) {
+    }
+
+    record TypedLocation(@EntityId TypedLocationId locationId, @Member @With List<TypedConnection> connections) {
+    }
+
+    record TypedConnection(@EntityId TypedConnectionId connectionId) {
+    }
+
+    static class TypedLocationId extends Id<TypedLocation> {
+        TypedLocationId(String functionalId) {
+            super(functionalId);
+        }
+    }
+
+    static class TypedConnectionId extends Id<TypedConnection> {
+        TypedConnectionId(String functionalId) {
+            super(functionalId);
+        }
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    record EndpointOrganisation(@EntityId String organisationId, @Member @With List<EndpointLocation> locations) {
+    }
+
+    record EndpointLocation(@EntityId String locationId, @Member @With List<EndpointConnection> connections) {
+    }
+
+    record EndpointConnection(@EntityId String connectionId, @Member @With List<Endpoint> endpoints) {
+    }
+
+    record Endpoint(@EntityId String endpointId, String status) {
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    record CredentialOrganisation(@EntityId String organisationId, @Member @With List<CredentialLocation> locations) {
+    }
+
+    record CredentialLocation(@EntityId String locationId, @Member @With List<CredentialConnection> connections) {
+    }
+
+    record CredentialConnection(@EntityId String connectionId, @Member @With List<CredentialEndpoint> endpoints) {
+    }
+
+    record CredentialEndpoint(@EntityId String endpointId, @Member @With List<Credential> credentials) {
+    }
+
+    record Credential(@EntityId String credentialId) {
+    }
+
     record CreateFolder(String folderId) {
         @Apply
         Folder apply() {
@@ -1912,6 +2300,133 @@ public class AggregateEntitiesTest {
         @Apply
         File apply(File file) {
             return null;
+        }
+    }
+
+    record CreateOrganisation(String organisationId, List<String> locationIds) {
+        @Apply
+        Organisation apply() {
+            return new Organisation(organisationId,
+                                    locationIds.stream().map(id -> new Location(id, List.of())).toList());
+        }
+    }
+
+    record AddConnection(@RoutingKey String locationId, String connectionId) {
+        @Apply
+        Connection apply(Location location) {
+            return new Connection(connectionId);
+        }
+    }
+
+    record AddConnectionRoutedByOrganisation(@RoutingKey String organisationId, String locationId, String connectionId) {
+        @Apply
+        Connection apply(Location location) {
+            return new Connection(connectionId);
+        }
+    }
+
+    record AddConnectionRoutedByConnection(String organisationId, String locationId, @RoutingKey String connectionId) {
+        @Apply
+        Connection apply(Location location) {
+            return new Connection(connectionId);
+        }
+    }
+
+    record CreateAliasOrganisation(String organisationId) {
+        @Apply
+        AliasOrganisation apply() {
+            return new AliasOrganisation(organisationId,
+                                         List.of(new AliasLocation("location-1", "loc-alias-1", List.of()),
+                                                 new AliasLocation("location-2", "loc-alias-2", List.of())));
+        }
+    }
+
+    record AddAliasConnectionRoutedByOrganisation(@RoutingKey String organisationId, String locationId,
+                                                  String connectionId) {
+        @Apply
+        AliasConnection apply(AliasLocation location) {
+            return new AliasConnection(connectionId);
+        }
+    }
+
+    record CreateTypedOrganisation(String organisationId, List<String> locationIds) {
+        @Apply
+        TypedOrganisation apply() {
+            return new TypedOrganisation(organisationId,
+                                         locationIds.stream()
+                                                 .map(id -> new TypedLocation(new TypedLocationId(id), List.of()))
+                                                 .toList());
+        }
+    }
+
+    record AddTypedConnectionRoutedByOrganisation(@RoutingKey String organisationId, String locationId,
+                                                  String connectionId) {
+        @Apply
+        TypedConnection apply(TypedLocation location) {
+            return new TypedConnection(new TypedConnectionId(connectionId));
+        }
+    }
+
+    record CreateEndpointOrganisation(String organisationId) {
+        @Apply
+        EndpointOrganisation apply() {
+            return new EndpointOrganisation(organisationId,
+                                            List.of(new EndpointLocation(
+                                                            "location-1",
+                                                            List.of(new EndpointConnection("connection-1", List.of()))),
+                                                    new EndpointLocation(
+                                                            "location-2",
+                                                            List.of(new EndpointConnection("connection-2", List.of())))));
+        }
+    }
+
+    record AddEndpointRoutedByOrganisation(@RoutingKey String organisationId, String locationId, String connectionId,
+                                           String endpointId) {
+        @Apply
+        Endpoint apply(EndpointConnection connection) {
+            return new Endpoint(endpointId, "created");
+        }
+    }
+
+    record AddEndpointRoutedByConnection(String organisationId, @RoutingKey String connectionId, String endpointId) {
+        @Apply
+        Endpoint apply(EndpointConnection connection) {
+            return new Endpoint(endpointId, "created");
+        }
+    }
+
+    record UpdateEndpointRoutedByEndpoint(String organisationId, String locationId, String connectionId,
+                                          @RoutingKey String endpointId, String status) {
+        @Apply
+        Endpoint apply(Endpoint endpoint) {
+            return new Endpoint(endpoint.endpointId(), status);
+        }
+    }
+
+    record CreateCredentialOrganisation(String organisationId) {
+        @Apply
+        CredentialOrganisation apply() {
+            return new CredentialOrganisation(organisationId,
+                                              List.of(new CredentialLocation(
+                                                              "location-1",
+                                                              List.of(new CredentialConnection(
+                                                                      "connection-1",
+                                                                      List.of(new CredentialEndpoint("endpoint-1",
+                                                                                                     List.of()))))),
+                                                      new CredentialLocation(
+                                                              "location-2",
+                                                              List.of(new CredentialConnection(
+                                                                      "connection-2",
+                                                                      List.of(new CredentialEndpoint("endpoint-2",
+                                                                                                     List.of())))))));
+        }
+    }
+
+    record AddCredentialRoutedByOrganisation(@RoutingKey String organisationId, String locationId, String connectionId,
+                                             String endpointId, String credentialId) {
+        @Apply
+        Credential apply(CredentialEndpoint endpoint) {
+            return new Credential(credentialId);
         }
     }
 

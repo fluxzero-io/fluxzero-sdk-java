@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,8 +51,8 @@ import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
@@ -383,7 +383,14 @@ public class ImmutableEntity<T> implements Entity<T> {
     private Entity<?> resolveDirectTarget(Object payload) {
         Object routingKey = getRoutingKey(payload);
         if (routingKey != null) {
-            return resolveDirectTarget(routingKey.toString());
+            String routingKeyValue = routingKey.toString();
+            Entity<?> target = resolveDirectTarget(routingKeyValue);
+            if (target != null) {
+                return target;
+            }
+            if (!matchesCurrentRoute(routingKeyValue)) {
+                return null;
+            }
         }
         for (String routeValue : routeCandidates(payload)) {
             Entity<?> target = resolveDirectTarget(routeValue);
