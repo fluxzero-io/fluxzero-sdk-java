@@ -1,9 +1,23 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 package io.fluxzero.testserver.websocket;
 
+import io.fluxzero.common.api.ConnectEvent;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
-import io.fluxzero.common.api.ConnectEvent;
-import jakarta.websocket.Session;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,7 +32,7 @@ class WebsocketEndpointTest {
 
     @Test
     void capabilityHeaderTakesPrecedenceOverLegacyCompressionParameter() {
-        Session session = mock(Session.class);
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
                 WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)))));
@@ -30,7 +44,7 @@ class WebsocketEndpointTest {
 
     @Test
     void selectedCompressionAlgorithmTakesPrecedenceOverSupportedList() {
-        Session session = mock(Session.class);
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
                 WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)),
@@ -44,7 +58,7 @@ class WebsocketEndpointTest {
 
     @Test
     void legacyCompressionParameterRemainsFallbackWhenNoCapabilitiesAreSent() {
-        Session session = mock(Session.class);
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
         when(session.getRequestParameterMap()).thenReturn(
                 Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
@@ -54,7 +68,7 @@ class WebsocketEndpointTest {
 
     @Test
     void clientSdkVersionIsAddedToSessionMetadataWhenAdvertisedInHandshake() {
-        Session session = mock(Session.class);
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
                 Map.of(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, List.of("cli1234567890"),
@@ -72,7 +86,7 @@ class WebsocketEndpointTest {
 
     @Test
     void connectEventContainsSdkAndRuntimeVersion() {
-        Session session = mock(Session.class);
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
                 Map.of(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, List.of("cli1234567890"),
@@ -96,19 +110,19 @@ class WebsocketEndpointTest {
             return "9.8.7";
         }
 
-        CompressionAlgorithm getCompressionAlgorithmForTest(Session session) {
+        CompressionAlgorithm getCompressionAlgorithmForTest(ServerWebsocketSession session) {
             return getCompressionAlgorithm(session);
         }
 
-        String getClientSdkVersionForTest(Session session) {
+        String getClientSdkVersionForTest(ServerWebsocketSession session) {
             return getClientSdkVersion(session);
         }
 
-        io.fluxzero.common.api.Metadata sessionMetadataForTest(Session session) {
+        io.fluxzero.common.api.Metadata sessionMetadataForTest(ServerWebsocketSession session) {
             return sessionMetadata(session);
         }
 
-        ConnectEvent createConnectEventForTest(Session session) {
+        ConnectEvent createConnectEventForTest(ServerWebsocketSession session) {
             return new ConnectEvent(getClientName(session), getClientId(session), getNegotiatedSessionId(session),
                                     toString(), getClientSdkVersion(session), getRuntimeVersion());
         }

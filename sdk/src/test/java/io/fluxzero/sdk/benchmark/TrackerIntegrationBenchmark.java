@@ -65,13 +65,16 @@ public class TrackerIntegrationBenchmark {
         int distinctKeys = ApplicationProperties.getIntegerProperty("distinctKeys", 2048);
         int payloadBytes = ApplicationProperties.getIntegerProperty("payloadBytes", 2048);
         int benchmarkTimeoutMs = ApplicationProperties.getIntegerProperty("benchmarkTimeoutMs", 60_000);
+        int port = ApplicationProperties.getIntegerProperty(
+                "FLUXZERO_PORT", ApplicationProperties.getIntegerProperty(
+                        "FLUX_PORT", ApplicationProperties.getIntegerProperty("port", 8888)));
         boolean concurrentPublish = ApplicationProperties.getBooleanProperty("concurrentPublish", true);
         PublishMode publishMode = PublishMode.valueOf(
                 System.getProperty("publishMode", concurrentPublish ? "CONCURRENT" : "BULK")
                         .toUpperCase(Locale.ROOT));
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
-            8888, clientCount, consumerCount, threadCount, messageCount, publisherCount,
+            port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
             publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
         log.info("Shutting down");
         System.exit(0);
@@ -85,12 +88,12 @@ public class TrackerIntegrationBenchmark {
              PublishMode publishMode) {
 
         log.info("""
-                         Starting TrackerIntegrationBenchmark with clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
+                         Starting TrackerIntegrationBenchmark with port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
                          benchmarkTimeoutMs={}, publishMode={}
                          """.replaceAll("\\s+", " "),
-                 clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize, distinctKeys,
-                 payloadBytes, benchmarkTimeoutMs, publishMode);
+                 port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
+                 distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);

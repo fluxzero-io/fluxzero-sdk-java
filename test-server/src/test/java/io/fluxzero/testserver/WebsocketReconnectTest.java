@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,13 @@ import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
-import io.fluxzero.sdk.tracking.client.WebsocketTrackingClient;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
+import io.fluxzero.sdk.tracking.client.WebsocketTrackingClient;
 import io.fluxzero.testserver.websocket.ConsumerEndpoint;
-import io.undertow.Undertow;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.websockets.jsr.UndertowSession;
-import jakarta.websocket.Session;
+import io.fluxzero.testserver.websocket.JettyWebsocketRouter;
+import io.fluxzero.testserver.websocket.ServerWebsocketSession;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -46,26 +45,24 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.ServicePathBuilder.trackingPath;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.deploy;
-import static io.undertow.Handlers.path;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 class WebsocketReconnectTest {
     private static final int port = 9125;
-    private static Undertow server;
+    private static Server server;
 
     @BeforeAll
-    static void beforeAll() {
-        PathHandler pathHandler = deploy(
+    static void beforeAll() throws Exception {
+        JettyWebsocketRouter router = deploy(
                 ignored -> new ClosingConsumerEndpoint(),
-                "/%s/".formatted(trackingPath(MessageType.EVENT)), path());
-        server = Undertow.builder().addHttpListener(port, "0.0.0.0").setHandler(pathHandler).build();
-        server.start();
+                "/%s/".formatted(trackingPath(MessageType.EVENT)), new JettyWebsocketRouter());
+        server = router.start(port);
     }
 
     @AfterAll
-    static void afterAll() {
+    static void afterAll() throws Exception {
         server.stop();
     }
 
@@ -95,8 +92,8 @@ class WebsocketReconnectTest {
                        "Expected a replacement websocket session to be opened");
             assertTrue(trackingClient.awaitCloseHandled(1, TimeUnit.SECONDS),
                        "Expected the abnormal close to be handled");
-            assertFalse(trackingClient.getCloseThreadName().contains("XNIO"),
-                        "Close handling should not run on an XNIO I/O thread");
+            assertFalse(trackingClient.getCloseThreadName().contains("HttpClient"),
+                        "Close handling should not run on the JDK HttpClient websocket thread");
         } finally {
             read.cancel(true);
             trackingClient.close();
@@ -109,13 +106,9 @@ class WebsocketReconnectTest {
         }
 
         @Override
-        protected void handleMessage(Session session, JsonType message) {
+        protected void handleMessage(ServerWebsocketSession session, JsonType message) {
             log.info("Abnormally closing test websocket session {} on first request", getNegotiatedSessionId(session));
-            if (session instanceof UndertowSession undertowSession) {
-                undertowSession.forceClose();
-            } else {
-                super.handleMessage(session, message);
-            }
+            session.abort(new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "abnormal test close"));
         }
     }
 

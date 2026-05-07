@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.testserver.websocket;
@@ -33,8 +34,7 @@ import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.common.tracking.PositionStore;
 import io.fluxzero.common.tracking.TrackingStrategy;
 import io.fluxzero.common.tracking.WebSocketTracker;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.Session;
+import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,14 +55,14 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
-    void handle(Read read, Session session) {
+    void handle(Read read, ServerWebsocketSession session) {
         trackingStrategy.getBatch(
                 new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch
                         -> doSendResult(session, new ReadResult(read.getRequestId(), batch))), positionStore);
     }
 
     @Handle
-    void handle(ClaimSegment read, Session session) {
+    void handle(ClaimSegment read, ServerWebsocketSession session) {
         trackingStrategy.claimSegment(
                 new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch ->
                         doSendResult(session, new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
@@ -100,7 +100,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     }
 
     @Override
-    public void onClose(Session session, CloseReason closeReason) {
+    public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         var trackers = trackingStrategy.disconnectTrackers(t -> t instanceof WebSocketTracker
                                                                 && ((WebSocketTracker) t).getSessionId()
                                                                         .equals(getNegotiatedSessionId(session)),

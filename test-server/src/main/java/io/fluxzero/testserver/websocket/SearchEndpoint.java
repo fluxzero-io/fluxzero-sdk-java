@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 package io.fluxzero.testserver.websocket;
 
+import io.fluxzero.common.api.BooleanResult;
 import io.fluxzero.common.api.search.*;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -80,6 +81,11 @@ public class SearchEndpoint extends WebsocketEndpoint {
             log.error("Failed to handle {}", request, e);
             return new SearchDocumentsResult(request.getRequestId(), emptyList());
         }
+    }
+
+    @Handle
+    BooleanResult handle(HasDocument request) {
+        return new BooleanResult(request.getRequestId(), store.documentExists(request));
     }
 
     @Handle

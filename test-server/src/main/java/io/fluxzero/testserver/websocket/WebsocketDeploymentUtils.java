@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,37 +16,27 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.MemoizingFunction;
-import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.testserver.TestServerVersion;
-import io.undertow.Undertow;
-import io.undertow.connector.ByteBufferPool;
-import io.undertow.server.DefaultByteBufferPool;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.servlet.Servlets;
-import io.undertow.servlet.api.DeploymentManager;
-import io.undertow.websockets.jsr.WebSocketDeploymentInfo;
-import jakarta.websocket.Endpoint;
-import jakarta.websocket.Session;
-import jakarta.websocket.server.ServerEndpointConfig;
-import lombok.SneakyThrows;
-import org.xnio.OptionMap;
-import org.xnio.Options;
-import org.xnio.Xnio;
-import org.xnio.XnioWorker;
+import org.eclipse.jetty.http.HttpFields;
+import org.eclipse.jetty.websocket.server.ServerUpgradeRequest;
+import org.eclipse.jetty.websocket.server.ServerUpgradeResponse;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
-import static io.undertow.servlet.Servlets.deployment;
 import static java.util.Optional.ofNullable;
 
 /**
- * Utility class for deploying WebSocket server endpoints using Undertow or similar frameworks. Provides methods for
- * setting up WebSocket endpoints, maintaining endpoint configurations, and managing namespace extraction from WebSocket
- * sessions.
+ * Utility methods for mapping Fluxzero test-server WebSocket endpoints onto the embedded Jetty transport.
  */
 public class WebsocketDeploymentUtils {
     public static final String HANDSHAKE_HEADERS_USER_PROPERTY =
@@ -56,121 +46,80 @@ public class WebsocketDeploymentUtils {
     public static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             WebsocketDeploymentUtils.class.getName() + ".selectedCompressionAlgorithm";
 
-    private static final ByteBufferPool bufferPool =
-            new DefaultByteBufferPool(false, 1024, 100, 12);
-
     /**
-     * Deploys a WebSocket server endpoint for the specified path using an endpoint supplier and a path handler. The
-     * method relies on a memoized session-to-namespace mapping function and integrates the deployment into the provided
-     * path handler.
-     *
-     * @param endpointSupplier a function mapping WebSocket session identifiers to their corresponding endpoints
-     * @param path             the URL path under which the WebSocket endpoint will be made accessible
-     * @param pathHandler      the handler managing path mappings for deployment
-     * @return a {@link PathHandler} that includes the new WebSocket endpoint's path configuration
+     * Registers a namespace-aware endpoint route.
      */
-    public static PathHandler deploy(Function<String, Endpoint> endpointSupplier, String path,
-                                     PathHandler pathHandler) {
+    public static JettyWebsocketRouter deploy(Function<String, WebsocketEndpoint> endpointSupplier, String path,
+                                              JettyWebsocketRouter router) {
         return deployFromSession(memoize(endpointSupplier).compose(WebsocketDeploymentUtils::getNamespace),
-                                 path, pathHandler);
+                                 path, router);
     }
 
     /**
-     * Deploys a WebSocket server endpoint using a specified session-to-endpoint mapping function, path, and handler.
-     * The method sets up a deployment configuration for the provided path and registers the WebSocket endpoint to
-     * handle requests at the specified path.
-     *
-     * @param endpointSupplier a memoizing function mapping WebSocket sessions to their respective endpoints
-     * @param path             the URL path under which the WebSocket endpoint is made available
-     * @param pathHandler      the handler that manages path mappings for deployment
-     * @return a {@link PathHandler} with the WebSocket path mapping added to it
+     * Registers a route whose endpoint can be resolved from the complete WebSocket session.
      */
-    @SneakyThrows
-    public static PathHandler deployFromSession(MemoizingFunction<Session, Endpoint> endpointSupplier, String path,
-                                                PathHandler pathHandler) {
-        ServerEndpointConfig config = ServerEndpointConfig.Builder
-                .create(MultiClientEndpoint.class, "/")
-                .configurator(
-                        new ServerEndpointConfig.Configurator() {
-                            final MultiClientEndpoint endpoint = new MultiClientEndpoint(endpointSupplier);
-
-                            @Override
-                            public <T> T getEndpointInstance(Class<T> endpointClass) {
-                                return endpointClass.cast(endpoint);
-                            }
-
-                            @Override
-                            public void modifyHandshake(ServerEndpointConfig sec,
-                                                        jakarta.websocket.server.HandshakeRequest request,
-                                                        jakarta.websocket.HandshakeResponse response) {
-                                super.modifyHandshake(sec, request, response);
-                                Map<String, List<String>> requestHeaders = copyHeaders(request.getHeaders());
-                                sec.getUserProperties().put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
-                                String runtimeSessionId = WebSocketCapabilities.newShortSessionId();
-                                sec.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, runtimeSessionId);
-                                response.getHeaders().put(WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER,
-                                                          List.of(runtimeSessionId));
-                                TestServerVersion.version().ifPresent(
-                                        version -> response.getHeaders().put(
-                                                WebSocketCapabilities.RUNTIME_VERSION_HEADER,
-                                                List.of(version)));
-                                WebSocketCapabilities.getPreferredCompressionAlgorithm(requestHeaders).ifPresent(
-                                        compressionAlgorithm -> {
-                                            sec.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
-                                                                        compressionAlgorithm);
-                                            response.getHeaders().put(
-                                                    WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER,
-                                                    List.of(compressionAlgorithm.name()));
-                                        });
-                            }
-                        }
-                )
-                .build();
-        DeploymentManager deploymentManager = Servlets.defaultContainer()
-                .addDeployment(deployment()
-                                       .setContextPath("/")
-                                       .addServletContextAttribute(WebSocketDeploymentInfo.ATTRIBUTE_NAME,
-                                                                   createWebsocketDeploymentInfo()
-                                                                           .addEndpoint(config))
-                                       .setDeploymentName(path)
-                                       .setClassLoader(Undertow.class.getClassLoader()));
-        deploymentManager.deploy();
-        return pathHandler.addPrefixPath(path, deploymentManager.start());
+    public static JettyWebsocketRouter deployFromSession(
+            MemoizingFunction<ServerWebsocketSession, WebsocketEndpoint> endpointSupplier, String path,
+            JettyWebsocketRouter router) {
+        return router.addRoute(path, endpointSupplier);
     }
 
     /**
-     * Creates and configures a {@link WebSocketDeploymentInfo} instance, setting up the buffer pool and worker for
-     * handling WebSocket connections.
-     *
-     * @return a configured {@link WebSocketDeploymentInfo} instance
+     * Resolves the test-server namespace from modern {@code namespace} or legacy {@code projectId} query parameters.
      */
-    public static WebSocketDeploymentInfo createWebsocketDeploymentInfo() {
-        return new WebSocketDeploymentInfo().setBuffers(bufferPool).setWorker(createWorker());
-    }
-
-    /**
-     * Extracts the namespace from the given WebSocket session, using the {@code namespace} parameter.
-     * <p>
-     * If the parameter is not present, the legacy {@code projectId} parameter is used instead. If no {@code namespace}
-     * or {@code projectsId} parameter is present in the session, the method defaults to {@code "public"}.
-     *
-     * @param session the WebSocket session
-     * @return the resolved namespace (never {@code null})
-     */
-    public static String getNamespace(Session session) {
+    public static String getNamespace(ServerWebsocketSession session) {
         return ofNullable(session.getRequestParameterMap().get("namespace")).map(List::getFirst)
                 .or(() -> ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst))
                 .orElse("public");
     }
 
-    @SneakyThrows
-    private static XnioWorker createWorker() {
-        return Xnio.getInstance().createWorker(OptionMap.create(Options.THREAD_DAEMON, true));
+    static JettyWebsocketHandshake createHandshake(ServerUpgradeRequest request, ServerUpgradeResponse response) {
+        Map<String, List<String>> requestHeaders = copyHeaders(request.getHeaders());
+        Map<String, Object> userProperties = new java.util.concurrent.ConcurrentHashMap<>();
+        userProperties.put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
+
+        String runtimeSessionId = WebSocketCapabilities.newShortSessionId();
+        userProperties.put(RUNTIME_SESSION_ID_USER_PROPERTY, runtimeSessionId);
+        response.getHeaders().put(WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, runtimeSessionId);
+
+        TestServerVersion.version().ifPresent(version ->
+                response.getHeaders().put(WebSocketCapabilities.RUNTIME_VERSION_HEADER, version));
+
+        WebSocketCapabilities.getPreferredCompressionAlgorithm(requestHeaders).ifPresent(compressionAlgorithm -> {
+            userProperties.put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, compressionAlgorithm);
+            response.getHeaders().put(WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER,
+                                      compressionAlgorithm.name());
+        });
+
+        URI requestUri = request.getHttpURI().toURI();
+        return new JettyWebsocketHandshake(requestUri, parseQuery(request.getHttpURI().getQuery()),
+                                           requestHeaders, userProperties);
     }
 
-    private static Map<String, List<String>> copyHeaders(Map<String, List<String>> headers) {
-        var copy = new java.util.LinkedHashMap<String, List<String>>();
-        headers.forEach((name, values) -> copy.put(name, List.copyOf(values)));
-        return copy;
+    private static Map<String, List<String>> copyHeaders(HttpFields headers) {
+        Map<String, List<String>> copy = new LinkedHashMap<>();
+        headers.forEach(field -> copy.computeIfAbsent(field.getName(), ignored -> new ArrayList<>())
+                .addAll(field.getValueList()));
+        copy.replaceAll((ignored, values) -> List.copyOf(values));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static Map<String, List<String>> parseQuery(String rawQuery) {
+        if (rawQuery == null || rawQuery.isBlank()) {
+            return Map.of();
+        }
+        Map<String, List<String>> parameters = new LinkedHashMap<>();
+        for (String pair : rawQuery.split("&")) {
+            int separator = pair.indexOf('=');
+            String name = decode(separator < 0 ? pair : pair.substring(0, separator));
+            String value = separator < 0 ? "" : decode(pair.substring(separator + 1));
+            parameters.computeIfAbsent(name, ignored -> new ArrayList<>()).add(value);
+        }
+        parameters.replaceAll((ignored, values) -> List.copyOf(values));
+        return Collections.unmodifiableMap(parameters);
+    }
+
+    private static String decode(String value) {
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 }

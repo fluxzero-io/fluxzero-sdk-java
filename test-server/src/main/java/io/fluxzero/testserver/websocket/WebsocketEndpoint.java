@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,15 +37,10 @@ import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
-import io.fluxzero.testserver.metrics.MetricsLog;
+import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.testserver.TestServerVersion;
+import io.fluxzero.testserver.metrics.MetricsLog;
 import io.fluxzero.testserver.metrics.NoOpMetricsLog;
-import io.undertow.util.SameThreadExecutor;
-import jakarta.annotation.Nullable;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.Endpoint;
-import jakarta.websocket.EndpointConfig;
-import jakarta.websocket.Session;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -56,9 +51,9 @@ import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -81,14 +76,12 @@ import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
-import static jakarta.websocket.CloseReason.CloseCodes.NO_STATUS_CODE;
-import static jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
 
 @Slf4j
-public abstract class WebsocketEndpoint extends Endpoint {
+public abstract class WebsocketEndpoint {
 
     private static final ObjectMapper defaultObjectMapper = JsonMapper.builder()
             .findAndAddModules().disable(WRITE_DATES_AS_TIMESTAMPS)
@@ -117,10 +110,10 @@ public abstract class WebsocketEndpoint extends Endpoint {
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
-    protected WebsocketEndpoint(@Nullable Executor requestExecutor) {
+    protected WebsocketEndpoint(Executor requestExecutor) {
         this.objectMapper = defaultObjectMapper;
         this.ownedRequestExecutor = null;
-        this.requestExecutor = ofNullable(requestExecutor).orElse(SameThreadExecutor.INSTANCE);
+        this.requestExecutor = ofNullable(requestExecutor).orElse(Runnable::run);
         getRuntime().addShutdownHook(
                 Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
@@ -140,42 +133,19 @@ public abstract class WebsocketEndpoint extends Endpoint {
                     return true;
                 }
             }, (p, a) -> {
-                if (p.getType().equals(Session.class)) {
+                if (p.getType().equals(ServerWebsocketSession.class)) {
                     return ClientMessage::getSession;
                 }
                 return null;
             }));
 
-    @Override
-    public void onOpen(Session session, EndpointConfig config) {
+    public void onOpen(ServerWebsocketSession session) {
         if (shuttingDown.get()) {
             throw new IllegalStateException("Cannot accept client. Endpoint is shutting down");
         }
         sessionBacklogs.put(getNegotiatedSessionId(session), new SessionBacklog(
                 Backlog.forConsumer(results -> sendResultBatch(session, results)), session));
 
-        session.addMessageHandler(byte[].class, bytes -> {
-            Runnable task = () -> {
-                try {
-                    JsonType request = deserializeRequest(session, bytes);
-                    if (shutDown) {
-                        throw new IllegalStateException(
-                                format("Rejecting request %s from client %s with id %s because the service is shutting down",
-                                       request, getClientName(session), getClientId(session)));
-                    }
-                    if (shuttingDown.get()) {
-                        log.info(
-                                "Silently ignoring request {} from client {} with id {} because the service is shutting down",
-                                request, getClientName(session), getClientId(session));
-                        return;
-                    }
-                    handleMessage(session, request);
-                } catch (Throwable e) {
-                    log.error("Failed to handle request", e);
-                }
-            };
-            requestExecutor.execute(task);
-        });
         registerMetrics(new ConnectEvent(
                                 getClientName(session), getClientId(session), getNegotiatedSessionId(session),
                                 toString(), getClientSdkVersion(session), getRuntimeVersion()),
@@ -183,11 +153,34 @@ public abstract class WebsocketEndpoint extends Endpoint {
     }
 
     @SneakyThrows
-    protected JsonType deserializeRequest(Session session, byte[] bytes) {
+    protected JsonType deserializeRequest(ServerWebsocketSession session, byte[] bytes) {
         return objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
     }
 
-    protected void handleMessage(Session session, JsonType message) {
+    public void onMessage(byte[] bytes, ServerWebsocketSession session) {
+        Runnable task = () -> {
+            try {
+                JsonType request = deserializeRequest(session, bytes);
+                if (shutDown) {
+                    throw new IllegalStateException(
+                            format("Rejecting request %s from client %s with id %s because the service is shutting down",
+                                   request, getClientName(session), getClientId(session)));
+                }
+                if (shuttingDown.get()) {
+                    log.info(
+                            "Silently ignoring request {} from client {} with id {} because the service is shutting down",
+                            request, getClientName(session), getClientId(session));
+                    return;
+                }
+                handleMessage(session, request);
+            } catch (Throwable e) {
+                log.error("Failed to handle request", e);
+            }
+        };
+        requestExecutor.execute(task);
+    }
+
+    protected void handleMessage(ServerWebsocketSession session, JsonType message) {
         if (message instanceof RequestBatch<?> batch) {
             createTasks(batch, session).forEach(requestExecutor::execute);
         } else {
@@ -200,7 +193,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
         }
     }
 
-    private void trySendResult(Session session, JsonType message, Object result) {
+    private void trySendResult(ServerWebsocketSession session, JsonType message, Object result) {
         if (message instanceof Request request && (!(request instanceof Command command)
                                                    || command.getGuarantee().compareTo(STORED) >= 0)) {
             if (result instanceof RequestResult response) {
@@ -228,24 +221,24 @@ public abstract class WebsocketEndpoint extends Endpoint {
         }
     }
 
-    protected void doSendResult(Session session, RequestResult result) {
+    protected void doSendResult(ServerWebsocketSession session, RequestResult result) {
         ofNullable(sessionBacklogs.get(getNegotiatedSessionId(session))).or(() -> findAlternativeBacklog(session))
                 .ifPresentOrElse(backlog -> backlog.add(result), () ->
                         log.info("Not sending result {}. Could not find any suitable sessions for client {}.",
                                  result, getClientId(session)));
     }
 
-    protected Stream<Runnable> createTasks(RequestBatch<?> batch, Session session) {
+    protected Stream<Runnable> createTasks(RequestBatch<?> batch, ServerWebsocketSession session) {
         return batch.getRequests().stream().map(r -> () -> handleMessage(session, r));
     }
 
-    protected void sendResultBatch(Session session, List<RequestResult> results) {
+    protected void sendResultBatch(ServerWebsocketSession session, List<RequestResult> results) {
         try {
             var result = results.size() == 1 ? results.getFirst() : new ResultBatch(results);
             if (session.isOpen()) {
-                try (OutputStream outputStream = session.getBasicRemote().getSendStream()) {
+                try {
                     byte[] bytes = objectMapper.writeValueAsBytes(result);
-                    outputStream.write(compress(bytes, getCompressionAlgorithm(session)));
+                    session.sendBinary(ByteBuffer.wrap(compress(bytes, getCompressionAlgorithm(session))));
                 } catch (Exception e) {
                     log.error("Failed to send websocket result to client {}, id {} (session {})",
                               getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
@@ -262,35 +255,34 @@ public abstract class WebsocketEndpoint extends Endpoint {
         }
     }
 
-    protected Optional<SessionBacklog> findAlternativeBacklog(Session closedSession) {
+    protected Optional<SessionBacklog> findAlternativeBacklog(ServerWebsocketSession closedSession) {
         String clientId = getClientId(closedSession);
         return sessionBacklogs.values().stream()
                 .filter(b -> clientId.equals(getClientId(b.getSession())) && !getNegotiatedSessionId(closedSession)
                         .equals(getNegotiatedSessionId(b.getSession()))).findFirst();
     }
 
-    @Override
-    public void onClose(Session session, CloseReason closeReason) {
+    public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         sessionBacklogs.remove(getNegotiatedSessionId(session));
         if (!shuttingDown.get()) {
-            if (closeReason.getCloseCode() != UNEXPECTED_CONDITION
-                && closeReason.getCloseCode().getCode() > NO_STATUS_CODE.getCode()) {
+            if (closeReason.code() != WebsocketCloseReason.UNEXPECTED_CONDITION
+                && closeReason.code() > WebsocketCloseReason.NO_STATUS_CODE) {
                 log.warn("Websocket session {} to endpoint {} for client {} with id {} closed abnormally: {}",
                          getNegotiatedSessionId(session), getClass().getSimpleName(), getClientName(session),
                          getClientId(session), closeReason);
             }
             registerMetrics(new DisconnectEvent(
                     getClientName(session), getClientId(session), getNegotiatedSessionId(session), toString(),
-                    closeReason.getCloseCode().getCode(), closeReason.getReasonPhrase()), session);
+                    closeReason.code(), closeReason.reason()), session);
         }
     }
 
-    @Override
-    public void onError(Session session, Throwable e) {
+    public void onError(ServerWebsocketSession session, Throwable e) {
         log.error("Error in session {} for client {} with id {}",
                   getNegotiatedSessionId(session), getClientName(session), getClientId(session), e);
         try {
-            session.close(new CloseReason(UNEXPECTED_CONDITION, "The websocket closed because of an error"));
+            session.close(new WebsocketCloseReason(
+                    WebsocketCloseReason.UNEXPECTED_CONDITION, "The websocket closed because of an error"));
         } catch (IOException ignored) {
         }
     }
@@ -308,7 +300,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
             } finally {
                 shutDown = true;
                 ofNullable(ownedRequestExecutor).ifPresent(ExecutorService::shutdown);
-                sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(Session::isOpen).forEach(s -> {
+                sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(ServerWebsocketSession::isOpen).forEach(s -> {
                     try {
                         s.close();
                     } catch (Exception ignored) {
@@ -318,7 +310,7 @@ public abstract class WebsocketEndpoint extends Endpoint {
         }
     }
 
-    protected CompressionAlgorithm getCompressionAlgorithm(Session session) {
+    protected CompressionAlgorithm getCompressionAlgorithm(ServerWebsocketSession session) {
         return ofNullable(
                         session.getUserProperties().get(WebsocketDeploymentUtils.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY))
                 .filter(CompressionAlgorithm.class::isInstance)
@@ -331,28 +323,28 @@ public abstract class WebsocketEndpoint extends Endpoint {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, List<String>> getRequestHeaders(Session session) {
+    protected Map<String, List<String>> getRequestHeaders(ServerWebsocketSession session) {
         return ofNullable(
                         session.getUserProperties().get(WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY))
                 .filter(Map.class::isInstance)
                 .map(Map.class::cast)
-                .orElseGet(Map::of);
+                .orElseGet(() -> ofNullable(session.getRequestHeaders()).orElseGet(Map::of));
     }
 
-    protected String getNamespace(Session session) {
+    protected String getNamespace(ServerWebsocketSession session) {
         return ofNullable(session.getRequestParameterMap().get("projectId")).map(List::getFirst)
                 .orElse("public");
     }
 
-    protected String getClientId(Session session) {
+    protected String getClientId(ServerWebsocketSession session) {
         return session.getRequestParameterMap().get("clientId").getFirst();
     }
 
-    protected String getClientName(Session session) {
+    protected String getClientName(ServerWebsocketSession session) {
         return session.getRequestParameterMap().get("clientName").getFirst();
     }
 
-    protected String getClientSdkVersion(Session session) {
+    protected String getClientSdkVersion(ServerWebsocketSession session) {
         return WebSocketCapabilities.getClientSdkVersion(getRequestHeaders(session)).orElse(null);
     }
 
@@ -360,18 +352,18 @@ public abstract class WebsocketEndpoint extends Endpoint {
         return TestServerVersion.version().orElse(null);
     }
 
-    protected String getNegotiatedSessionId(Session session) {
+    protected String getNegotiatedSessionId(ServerWebsocketSession session) {
         return "%s_%s".formatted(
                 WebSocketCapabilities.getClientSessionId(getRequestHeaders(session)).orElse("?"),
                 ofNullable(session.getUserProperties().get(RUNTIME_SESSION_ID_USER_PROPERTY))
                         .map(Object::toString).orElseThrow());
     }
 
-    protected void registerMetrics(JsonType event, Session session) {
+    protected void registerMetrics(JsonType event, ServerWebsocketSession session) {
         metricsLog.registerMetrics(event, sessionMetadata(session));
     }
 
-    protected Metadata sessionMetadata(Session session) {
+    protected Metadata sessionMetadata(ServerWebsocketSession session) {
         return Metadata.of("$clientId", getClientId(session), "$clientName", getClientName(session))
                 .with("$clientSdkVersion", getClientSdkVersion(session))
                 .with("sessionId", getNegotiatedSessionId(session));
@@ -380,13 +372,13 @@ public abstract class WebsocketEndpoint extends Endpoint {
     @Value
     protected static class ClientMessage {
         JsonType payload;
-        Session session;
+        ServerWebsocketSession session;
     }
 
     @Value
     protected static class SessionBacklog {
         @Delegate
         Backlog<RequestResult> delegate;
-        Session session;
+        ServerWebsocketSession session;
     }
 }

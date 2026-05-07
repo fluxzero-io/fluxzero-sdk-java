@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,15 +29,13 @@ import io.fluxzero.testserver.metrics.NoOpMetricsLog;
 import io.fluxzero.testserver.scheduling.TestServerScheduleStore;
 import io.fluxzero.testserver.websocket.ConsumerEndpoint;
 import io.fluxzero.testserver.websocket.EventSourcingEndpoint;
+import io.fluxzero.testserver.websocket.JettyWebsocketRouter;
 import io.fluxzero.testserver.websocket.KeyValueEndPoint;
 import io.fluxzero.testserver.websocket.ProducerEndpoint;
 import io.fluxzero.testserver.websocket.SchedulingEndpoint;
 import io.fluxzero.testserver.websocket.SearchEndpoint;
-import io.undertow.Undertow;
-import io.undertow.server.handlers.GracefulShutdownHandler;
-import io.undertow.server.handlers.PathHandler;
-import jakarta.websocket.Endpoint;
-import jakarta.websocket.Session;
+import io.fluxzero.testserver.websocket.ServerWebsocketSession;
+import io.fluxzero.testserver.websocket.WebsocketEndpoint;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import lombok.With;
@@ -70,8 +68,6 @@ import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProp
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.deploy;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.deployFromSession;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.getNamespace;
-import static io.undertow.Handlers.path;
-import static io.undertow.util.Headers.CONTENT_TYPE;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
@@ -89,70 +85,69 @@ public class TestServer {
     }
 
     public static void start(int port) {
-        PathHandler pathHandler = path();
+        JettyWebsocketRouter router = new JettyWebsocketRouter();
         for (MessageType messageType : Arrays.asList(METRICS, EVENT, COMMAND, QUERY, RESULT, ERROR, WEBREQUEST, WEBRESPONSE)) {
-            pathHandler = deploy(namespace -> new ProducerEndpoint(getMessageStore(namespace, messageType))
-                                         .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
-                                 format("/%s/", gatewayPath(messageType)), pathHandler);
-            pathHandler = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, messageType), messageType)
-                                         .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
-                                 format("/%s/", trackingPath(messageType)), pathHandler);
+            router = deploy(namespace -> new ProducerEndpoint(getMessageStore(namespace, messageType))
+                                    .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
+                            format("/%s/", gatewayPath(messageType)), router);
+            router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, messageType), messageType)
+                                    .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
+                            format("/%s/", trackingPath(messageType)), router);
         }
-        pathHandler = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, NOTIFICATION), NOTIFICATION)
-                                     .metricsLog(metricsLogSupplier.apply(namespace)),
-                             format("/%s/", trackingPath(NOTIFICATION)), pathHandler);
+        router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, NOTIFICATION), NOTIFICATION)
+                                .metricsLog(metricsLogSupplier.apply(namespace)),
+                        format("/%s/", trackingPath(NOTIFICATION)), router);
 
         for (MessageType messageType : MessageType.values()) {
             switch (messageType) {
                 case CUSTOM: {
-                    pathHandler = deployFromSession(
-                            ObjectUtils.<String, String, Endpoint>memoize((namespace, topic) -> new ProducerEndpoint(
+                    router = deployFromSession(
+                            ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ProducerEndpoint(
                                             getMessageStore(namespace, messageType, topic))
                                             .metricsLog(metricsLogSupplier.apply(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
-                            format("/%s/", gatewayPath(messageType)), pathHandler);
+                            format("/%s/", gatewayPath(messageType)), router);
                 }
                 case DOCUMENT: {
-                    pathHandler = deployFromSession(
-                            ObjectUtils.<String, String, Endpoint>memoize((namespace, topic) -> new ConsumerEndpoint(
+                    router = deployFromSession(
+                            ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ConsumerEndpoint(
                                             getMessageStore(namespace, messageType, topic), messageType)
                                             .metricsLog(metricsLogSupplier.apply(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
-                            format("/%s/", trackingPath(messageType)), pathHandler);
+                            format("/%s/", trackingPath(messageType)), router);
                     break;
                 }
             }
         }
 
-        pathHandler = deploy(namespace -> new EventSourcingEndpoint(clients.apply(namespace).getEventStoreClient())
-                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", eventSourcingPath()), pathHandler);
-        pathHandler = deploy(namespace -> new KeyValueEndPoint(clients.apply(namespace).getKeyValueClient())
-                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", keyValuePath()), pathHandler);
-        pathHandler = deploy(namespace -> new SearchEndpoint(clients.apply(namespace).getSearchClient())
-                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", searchPath()), pathHandler);
-        pathHandler = deploy(namespace -> new SchedulingEndpoint(clients.apply(namespace).getSchedulingClient())
-                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", schedulingPath()), pathHandler);
-        pathHandler = deploy(namespace -> new ConsumerEndpoint((MessageStore) clients.apply(namespace).getSchedulingClient(), SCHEDULE)
-                                     .metricsLog(metricsLogSupplier.apply(namespace)),
-                             format("/%s/", trackingPath(SCHEDULE)), pathHandler);
-        pathHandler = pathHandler.addPrefixPath("/health", exchange -> {
-            exchange.getResponseHeaders().put(CONTENT_TYPE, "text/plain");
-            exchange.getResponseSender().send("Healthy");
-        });
+        router = deploy(namespace -> new EventSourcingEndpoint(clients.apply(namespace).getEventStoreClient())
+                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", eventSourcingPath()), router);
+        router = deploy(namespace -> new KeyValueEndPoint(clients.apply(namespace).getKeyValueClient())
+                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", keyValuePath()), router);
+        router = deploy(namespace -> new SearchEndpoint(clients.apply(namespace).getSearchClient())
+                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", searchPath()), router);
+        router = deploy(namespace -> new SchedulingEndpoint(clients.apply(namespace).getSchedulingClient())
+                .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", schedulingPath()), router);
+        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) clients.apply(namespace).getSchedulingClient(), SCHEDULE)
+                                .metricsLog(metricsLogSupplier.apply(namespace)),
+                        format("/%s/", trackingPath(SCHEDULE)), router);
 
-        GracefulShutdownHandler shutdownHandler = new GracefulShutdownHandler(pathHandler);
-
-        Undertow server = Undertow.builder().addHttpListener(port, "0.0.0.0").setHandler(shutdownHandler).build();
-        server.start();
+        org.eclipse.jetty.server.Server server;
+        try {
+            server = router.start(port);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to start Fluxzero test server on port " + port, e);
+        }
 
         getRuntime().addShutdownHook(Thread.ofPlatform().name("fluxzero-test-server-shutdown").unstarted(() -> {
             log.info("Initiating controlled shutdown");
-            shutdownHandler.shutdown();
             try {
-                shutdownHandler.awaitShutdown(1000);
+                server.stop();
             } catch (InterruptedException e) {
                 log.warn("Thread to kill server was interrupted");
                 Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.warn("Failed to stop test server", e);
             }
         }));
 
@@ -183,12 +178,12 @@ public class TestServer {
         }
     }
 
-    static String getTopic(Session s) {
+    static String getTopic(ServerWebsocketSession s) {
         return ofNullable(s.getRequestParameterMap().get("topic")).map(List::getFirst)
                 .orElseThrow(() -> new IllegalStateException("Topic parameter missing"));
     }
 
-    static StoreIdentifier getStoreIdentifier(MessageType messageType, Session s) {
+    static StoreIdentifier getStoreIdentifier(MessageType messageType, ServerWebsocketSession s) {
         return new StoreIdentifier(
                 getNamespace(s), messageType,
                 ofNullable(s.getRequestParameterMap().get("topic")).map(List::getFirst)

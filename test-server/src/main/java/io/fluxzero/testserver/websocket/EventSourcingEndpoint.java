@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.testserver.websocket;
@@ -22,6 +23,9 @@ import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetRelationships;
+import io.fluxzero.common.api.modeling.GetRelationshipsResult;
+import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -64,7 +68,17 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    CompletableFuture<Void> handle(RepairRelationships request) {
+        return eventStore.repairRelationships(request);
+    }
+
+    @Handle
     GetAggregateIdsResult handle(GetAggregateIds request) {
         return new GetAggregateIdsResult(request.getRequestId(), eventStore.getAggregateIds(request));
+    }
+
+    @Handle
+    GetRelationshipsResult handle(GetRelationships request) {
+        return new GetRelationshipsResult(request.getRequestId(), eventStore.getRelationships(request));
     }
 }
