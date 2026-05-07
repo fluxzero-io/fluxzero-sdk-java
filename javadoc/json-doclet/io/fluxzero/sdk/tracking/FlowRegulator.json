@@ -4,7 +4,10 @@
   "packageName" : "io.fluxzero.sdk.tracking",
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
-  "annotations" : [ ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
   "documentation" : " Interface for controlling flow regulation in a consumer. Implementations of this interface can dictate whether the\n consumer should pause fetching or consuming messages, and for how long. This is useful in scenarios where controlling\n message consumption rate ensures better system performance or resource utilization.\n",
   "typeParameters" : [ ],
   "superClass" : null,
@@ -15,7 +18,7 @@
     "name" : "pauseDuration",
     "qualifiedName" : "io.fluxzero.sdk.tracking.FlowRegulator#pauseDuration",
     "returnType" : "java.util.Optional<java.time.Duration>",
-    "modifiers" : [ "default", "public" ],
+    "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
