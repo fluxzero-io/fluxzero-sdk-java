@@ -23,7 +23,7 @@
   }, {
     "name" : "session",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$ClientMessage.session",
-    "type" : "jakarta.websocket.Session",
+    "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,

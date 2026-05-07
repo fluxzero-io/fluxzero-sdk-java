@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Utility class for deploying WebSocket server endpoints using Undertow or similar frameworks. Provides methods for\n setting up WebSocket endpoints, maintaining endpoint configurations, and managing namespace extraction from WebSocket\n sessions.\n",
+  "documentation" : " Utility methods for mapping Fluxzero test-server WebSocket endpoints onto the embedded Jetty transport.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -33,14 +33,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
-  }, {
-    "name" : "bufferPool",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.bufferPool",
-    "type" : "io.undertow.connector.ByteBufferPool",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebsocketDeploymentUtils",
@@ -62,7 +54,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "headers",
-      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "type" : "org.eclipse.jetty.http.HttpFields",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -70,40 +62,52 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "createWebsocketDeploymentInfo",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWebsocketDeploymentInfo",
-    "returnType" : "io.undertow.websockets.jsr.WebSocketDeploymentInfo",
-    "modifiers" : [ "public", "static" ],
+    "name" : "createHandshake",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createHandshake",
+    "returnType" : "io.fluxzero.testserver.websocket.JettyWebsocketHandshake",
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "org.eclipse.jetty.websocket.server.ServerUpgradeRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "response",
+      "type" : "org.eclipse.jetty.websocket.server.ServerUpgradeResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates and configures a {@link WebSocketDeploymentInfo} instance, setting up the buffer pool and worker for\n handling WebSocket connections.\n\n @return a configured {@link WebSocketDeploymentInfo} instance\n"
+    "documentation" : null
   }, {
-    "name" : "createWorker",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#createWorker",
-    "returnType" : "org.xnio.XnioWorker",
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#decode",
+    "returnType" : "java.lang.String",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   }, {
     "name" : "deploy",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#deploy",
-    "returnType" : "io.undertow.server.handlers.PathHandler",
+    "returnType" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "endpointSupplier",
-      "type" : "java.util.function.Function<java.lang.String,jakarta.websocket.Endpoint>",
+      "type" : "java.util.function.Function<java.lang.String,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -112,27 +116,24 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "pathHandler",
-      "type" : "io.undertow.server.handlers.PathHandler",
+      "name" : "router",
+      "type" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deploys a WebSocket server endpoint for the specified path using an endpoint supplier and a path handler. The\n method relies on a memoized session-to-namespace mapping function and integrates the deployment into the provided\n path handler.\n\n @param endpointSupplier a function mapping WebSocket session identifiers to their corresponding endpoints\n @param path             the URL path under which the WebSocket endpoint will be made accessible\n @param pathHandler      the handler managing path mappings for deployment\n @return a {@link PathHandler} that includes the new WebSocket endpoint's path configuration\n"
+    "documentation" : " Registers a namespace-aware endpoint route.\n"
   }, {
     "name" : "deployFromSession",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#deployFromSession",
-    "returnType" : "io.undertow.server.handlers.PathHandler",
+    "returnType" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "endpointSupplier",
-      "type" : "io.fluxzero.common.MemoizingFunction<jakarta.websocket.Session,jakarta.websocket.Endpoint>",
+      "type" : "io.fluxzero.common.MemoizingFunction<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -141,14 +142,14 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "pathHandler",
-      "type" : "io.undertow.server.handlers.PathHandler",
+      "name" : "router",
+      "type" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deploys a WebSocket server endpoint using a specified session-to-endpoint mapping function, path, and handler.\n The method sets up a deployment configuration for the provided path and registers the WebSocket endpoint to\n handle requests at the specified path.\n\n @param endpointSupplier a memoizing function mapping WebSocket sessions to their respective endpoints\n @param path             the URL path under which the WebSocket endpoint is made available\n @param pathHandler      the handler that manages path mappings for deployment\n @return a {@link PathHandler} with the WebSocket path mapping added to it\n"
+    "documentation" : " Registers a route whose endpoint can be resolved from the complete WebSocket session.\n"
   }, {
     "name" : "getNamespace",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#getNamespace",
@@ -158,13 +159,29 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Extracts the namespace from the given WebSocket session, using the {@code namespace} parameter.\n <p>\n If the parameter is not present, the legacy {@code projectId} parameter is used instead. If no {@code namespace}\n or {@code projectsId} parameter is present in the session, the method defaults to {@code \"public\"}.\n\n @param session the WebSocket session\n @return the resolved namespace (never {@code null})\n"
+    "documentation" : " Resolves the test-server namespace from modern {@code namespace} or legacy {@code projectId} query parameters.\n"
+  }, {
+    "name" : "parseQuery",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#parseQuery",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rawQuery",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

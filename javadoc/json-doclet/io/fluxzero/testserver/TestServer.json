@@ -101,7 +101,7 @@
       "annotations" : [ ]
     }, {
       "name" : "s",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -117,7 +117,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "s",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

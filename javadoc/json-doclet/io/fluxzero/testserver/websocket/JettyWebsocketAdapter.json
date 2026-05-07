@@ -1,0 +1,177 @@
+{
+  "name" : "JettyWebsocketAdapter",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Jetty listener that adapts a physical WebSocket connection to the test server endpoint contract.\n <p>\n Jetty invokes listener callbacks from outside this package, so this adapter must be public.\n",
+  "typeParameters" : [ ],
+  "superClass" : "org.eclipse.jetty.websocket.api.Session.Listener.AbstractAutoDemanding",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "endpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.endpoint",
+    "type" : "io.fluxzero.testserver.websocket.WebsocketEndpoint",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "endpointSupplier",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.endpointSupplier",
+    "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handshake",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.handshake",
+    "type" : "io.fluxzero.testserver.websocket.JettyWebsocketHandshake",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "session",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.session",
+    "type" : "io.fluxzero.testserver.websocket.JettyWebsocketSession",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JettyWebsocketAdapter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#JettyWebsocketAdapter",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpointSupplier",
+      "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handshake",
+      "type" : "io.fluxzero.testserver.websocket.JettyWebsocketHandshake",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "copyBytes",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#copyBytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "buffer",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onWebSocketBinary",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketBinary",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "org.eclipse.jetty.websocket.api.Callback",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onWebSocketClose",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketClose",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "statusCode",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reason",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "org.eclipse.jetty.websocket.api.Callback",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onWebSocketError",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketError",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onWebSocketOpen",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketOpen",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jettySession",
+      "type" : "org.eclipse.jetty.websocket.api.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

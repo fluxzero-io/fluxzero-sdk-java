@@ -26,7 +26,7 @@
   }, {
     "name" : "session",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$SessionBacklog.session",
-    "type" : "jakarta.websocket.Session",
+    "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,

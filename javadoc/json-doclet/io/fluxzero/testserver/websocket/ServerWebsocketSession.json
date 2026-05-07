@@ -1,0 +1,148 @@
+{
+  "name" : "ServerWebsocketSession",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Minimal server-side WebSocket session contract used by the in-memory Fluxzero test server.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "abort",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#abort",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Terminates the connection without waiting for a close handshake.\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Closes the session normally.\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Closes the session with the provided WebSocket close code and reason.\n"
+  }, {
+    "name" : "getRequestHeaders",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#getRequestHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the headers from the WebSocket upgrade request.\n"
+  }, {
+    "name" : "getRequestParameterMap",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#getRequestParameterMap",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the decoded query parameters from the WebSocket upgrade request.\n"
+  }, {
+    "name" : "getRequestURI",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#getRequestURI",
+    "returnType" : "java.net.URI",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the URI that was used for the WebSocket upgrade request.\n"
+  }, {
+    "name" : "getUserProperties",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#getUserProperties",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns per-session attributes derived during the WebSocket handshake.\n"
+  }, {
+    "name" : "isOpen",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#isOpen",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the underlying transport still accepts frames.\n"
+  }, {
+    "name" : "sendBinary",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#sendBinary",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Sends a complete binary message.\n"
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession#sendPing",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "applicationData",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Sends a ping frame with optional application data.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

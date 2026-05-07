@@ -20,14 +20,29 @@
     "qualifiedName" : "io.fluxzero.testserver.websocket.Handle",
     "kind" : "annotation_type"
   }, {
+    "file" : "JettyWebsocketAdapter.json",
+    "name" : "JettyWebsocketAdapter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.json",
+    "name" : "JettyWebsocketRouter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.HealthHandler.json",
+    "name" : "JettyWebsocketRouter.HealthHandler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$HealthHandler",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.Route.json",
+    "name" : "JettyWebsocketRouter.Route",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route",
+    "kind" : "record"
+  }, {
     "file" : "KeyValueEndPoint.json",
     "name" : "KeyValueEndPoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.KeyValueEndPoint",
-    "kind" : "class"
-  }, {
-    "file" : "MultiClientEndpoint.json",
-    "name" : "MultiClientEndpoint",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.MultiClientEndpoint",
     "kind" : "class"
   }, {
     "file" : "ProducerEndpoint.json",
@@ -44,6 +59,11 @@
     "name" : "SearchEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint",
     "kind" : "class"
+  }, {
+    "file" : "ServerWebsocketSession.json",
+    "name" : "ServerWebsocketSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+    "kind" : "interface"
   }, {
     "file" : "WebsocketDeploymentUtils.json",
     "name" : "WebsocketDeploymentUtils",

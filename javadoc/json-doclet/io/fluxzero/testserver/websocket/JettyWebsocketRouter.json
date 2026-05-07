@@ -1,0 +1,141 @@
+{
+  "name" : "JettyWebsocketRouter",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Embedded Jetty router for the test server's WebSocket endpoints and health check.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "UNLIMITED_WEBSOCKET_SIZE",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter.UNLIMITED_WEBSOCKET_SIZE",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  }, {
+    "name" : "routes",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter.routes",
+    "type" : "java.util.List<io.fluxzero.testserver.websocket.JettyWebsocketRouter.Route>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JettyWebsocketRouter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#JettyWebsocketRouter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addRoute",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#addRoute",
+    "returnType" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endpointSupplier",
+      "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a WebSocket route.\n\n @param path             route path, with or without leading/trailing slash\n @param endpointSupplier creates the Fluxzero endpoint for each accepted session\n @return this router\n"
+  }, {
+    "name" : "configureContainer",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#configureContainer",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "container",
+      "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#createHandler",
+    "returnType" : "org.eclipse.jetty.server.Handler",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "normalizePath",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#normalizePath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#start",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Starts Jetty on the given port.\n\n @return the started Jetty server, owned by the caller\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "HealthHandler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$HealthHandler",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Route",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

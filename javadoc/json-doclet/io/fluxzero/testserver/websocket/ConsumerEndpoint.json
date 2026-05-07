@@ -86,7 +86,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -148,7 +148,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -224,12 +224,12 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "closeReason",
-      "type" : "jakarta.websocket.CloseReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
