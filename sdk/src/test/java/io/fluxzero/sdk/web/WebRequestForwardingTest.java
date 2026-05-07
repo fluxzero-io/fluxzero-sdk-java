@@ -20,21 +20,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
-import io.undertow.Undertow;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Application;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.MultivaluedMap;
-import jakarta.ws.rs.ext.MessageBodyReader;
-import jakarta.ws.rs.ext.Provider;
-import lombok.SneakyThrows;
-import lombok.Value;
-import lombok.extern.slf4j.Slf4j;
-import org.jboss.resteasy.plugins.server.undertow.UndertowJaxrsServer;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -42,31 +29,29 @@ import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Type;
-import java.util.Set;
+import java.net.InetSocketAddress;
 
-import static jakarta.ws.rs.core.MediaType.APPLICATION_JSON;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-@Path("")
-@Slf4j
-public class WebRequestForwardingTest extends Application {
+public class WebRequestForwardingTest {
 
-    private static final UndertowJaxrsServer server = new UndertowJaxrsServer();
     private static final int port = TestUtils.getAvailablePort();
+    private static HttpServer server;
 
     @BeforeAll
-    @SneakyThrows
-    static void beforeAll() {
-        server.deploy(WebRequestForwardingTest.class);
-        server.start(Undertow.builder().addHttpListener(port, "0.0.0.0"));
+    static void beforeAll() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(port), 0);
+        server.createContext("/get", WebRequestForwardingTest::handleGet);
+        server.createContext("/string", WebRequestForwardingTest::handleString);
+        server.createContext("/object", WebRequestForwardingTest::handleObject);
+        server.start();
     }
 
     @AfterAll
     static void afterAll() {
-        server.stop();
+        server.stop(0);
     }
 
     private final TestFixture testFixture = TestFixture.createAsync(
@@ -95,52 +80,54 @@ public class WebRequestForwardingTest extends Application {
                 .expectResult("object".getBytes());
     }
 
-    @GET
-    @Path("/get")
-    public String get() {
-        return "get";
+    private static void handleGet(HttpExchange exchange) throws IOException {
+        if (methodIs(exchange, "GET")) {
+            respond(exchange, "get".getBytes(UTF_8));
+        }
     }
 
-    @POST
-    @Path("/string")
-    public String post(String payload) {
-        return payload;
+    private static void handleString(HttpExchange exchange) throws IOException {
+        if (methodIs(exchange, "POST")) {
+            respond(exchange, readBody(exchange));
+        }
     }
 
-    @POST
-    @Path("/object")
-    @Consumes(APPLICATION_JSON)
-    public String postObject(Foo payload) {
-        return "object";
+    private static void handleObject(HttpExchange exchange) throws IOException {
+        if (!methodIs(exchange, "POST")) {
+            return;
+        }
+        Foo payload = JacksonSerializer.defaultObjectMapper.readValue(readBody(exchange), Foo.class);
+        respond(exchange, "bar".equals(payload.bar()) ? 200 : 400, "object".getBytes(UTF_8));
     }
 
-    @Override
-    public Set<Object> getSingletons() {
-        return Set.of(this, new JsonBodyReader());
-    }
-
-    @Value
-    private static class Foo {
-        String bar;
-    }
-
-    @Provider
-    @Consumes(APPLICATION_JSON)
-    private static  class JsonBodyReader implements MessageBodyReader<Object> {
-
-        @Override
-        public boolean isReadable(Class type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+    private static boolean methodIs(HttpExchange exchange, String method) throws IOException {
+        if (method.equals(exchange.getRequestMethod())) {
             return true;
         }
+        respond(exchange, 405, new byte[0]);
+        return false;
+    }
 
-        @Override
-        public Object readFrom(Class<Object> type, Type genericType, Annotation[] annotations, MediaType mediaType,
-                               MultivaluedMap<String, String> httpHeaders,
-                               InputStream entityStream) throws IOException, WebApplicationException {
-            try (entityStream) {
-               return JacksonSerializer.defaultObjectMapper.readValue(entityStream.readAllBytes(), type);
+    private static byte[] readBody(HttpExchange exchange) throws IOException {
+        try (InputStream body = exchange.getRequestBody()) {
+            return body.readAllBytes();
+        }
+    }
+
+    private static void respond(HttpExchange exchange, byte[] body) throws IOException {
+        respond(exchange, 200, body);
+    }
+
+    private static void respond(HttpExchange exchange, int status, byte[] body) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+        exchange.sendResponseHeaders(status, body.length);
+        try (var response = exchange.getResponseBody()) {
+            if (body.length > 0) {
+                response.write(body);
             }
         }
     }
-}
 
+    private record Foo(String bar) {
+    }
+}
