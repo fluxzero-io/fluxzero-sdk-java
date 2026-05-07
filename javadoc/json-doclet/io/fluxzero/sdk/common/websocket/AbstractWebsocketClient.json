@@ -7,8 +7,8 @@
   "annotations" : [ ],
   "documentation" : " Abstract base class for all WebSocket-based clients in the Fluxzero Java client.\n <p>\n This class provides robust connection management, message dispatching, result handling, batching, metrics publishing,\n and ping-based health checking. It underpins core components such as {@code WebsocketGatewayClient}, providing the\n shared infrastructure needed for durable, resilient WebSocket communication with the Fluxzero Runtime.\n\n <h2>Core Responsibilities</h2>\n <ul>\n   <li>Establishing and maintaining WebSocket connections with automatic reconnection support</li>\n   <li>Managing message sending and batching via {@link Request} and {@link RequestBatch}</li>\n   <li>Receiving and processing incoming {@link RequestResult} and {@link ResultBatch} messages</li>\n   <li>Supporting command guarantees (e.g., SENT, STORED) with retries and backpressure handling</li>\n   <li>Sending periodic ping frames to detect connection drops</li>\n   <li>Integrating with the Fluxzero metrics infrastructure for custom performance telemetry</li>\n </ul>\n\n <h2>Key Features</h2>\n <ul>\n   <li><b>Session Pooling:</b> Maintains multiple concurrent sessions to handle high-throughput scenarios</li>\n   <li><b>Request Backlogs:</b> Each session has a backlog to buffer and batch outgoing requests</li>\n   <li><b>Ping Scheduling:</b> Scheduled tasks detect broken sessions using WebSocket pings</li>\n   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly</li>\n   <li><b>Async Result Handling:</b> Responses are handled on a separate thread pool to avoid blocking I/O</li>\n   <li><b>Metrics Publishing:</b> Optional emission of message-related metrics based on configuration</li>\n </ul>\n\n @see WebsocketGatewayClient\n @see Command\n @see WebSocketRequest\n @see SessionPool\n @see Request\n @see RequestResult\n @see ResultBatch\n",
   "typeParameters" : [ ],
-  "superClass" : "jakarta.websocket.Endpoint",
-  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.websocket.WebsocketEndpoint", "java.lang.AutoCloseable" ],
   "fields" : [ {
     "name" : "CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY",
@@ -106,9 +106,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "defaultWebSocketContainer",
-    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.defaultWebSocketContainer",
-    "type" : "jakarta.websocket.WebSocketContainer",
+    "name" : "defaultWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.defaultWebsocketConnector",
+    "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -217,8 +217,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "container",
-      "type" : "jakarta.websocket.WebSocketContainer",
+      "name" : "connector",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -254,7 +254,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a WebSocket client with fine-grained control over connection setup. This constructor allows you to\n specify a custom container, reconnect delay, object mapper, and session count. It is primarily used for advanced\n configuration or test scenarios.\n\n @param container        the WebSocket container to use for establishing connections\n @param endpointUri      the WebSocket server endpoint\n @param client           the client providing config and access to the Fluxzero Runtime\n @param allowMetrics     flag to enable or disable automatic metrics publishing\n @param reconnectDelay   the delay between reconnect attempts if the connection is lost\n @param objectMapper     the Jackson object mapper for (de)serializing requests and responses\n @param numberOfSessions the number of WebSocket sessions to establish in parallel\n"
+    "documentation" : " Constructs a WebSocket client with fine-grained control over connection setup. This constructor allows you to\n specify a custom container, reconnect delay, object mapper, and session count. It is primarily used for advanced\n configuration or test scenarios.\n\n @param connector        the WebSocket connector to use for establishing connections\n @param endpointUri      the WebSocket server endpoint\n @param client           the client providing config and access to the Fluxzero Runtime\n @param allowMetrics     flag to enable or disable automatic metrics publishing\n @param reconnectDelay   the delay between reconnect attempts if the connection is lost\n @param objectMapper     the Jackson object mapper for (de)serializing requests and responses\n @param numberOfSessions the number of WebSocket sessions to establish in parallel\n"
   }, {
     "name" : "AbstractWebsocketClient",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#AbstractWebsocketClient",
@@ -323,7 +323,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -368,13 +368,13 @@
   }, {
     "name" : "connectToServer",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#connectToServer",
-    "returnType" : "jakarta.websocket.Session",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "container",
-      "type" : "jakarta.websocket.WebSocketContainer",
+      "name" : "connector",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -453,7 +453,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -480,7 +480,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -496,7 +496,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -512,12 +512,12 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "closeReason",
-      "type" : "jakarta.websocket.CloseReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -533,7 +533,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -559,7 +559,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -575,7 +575,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -673,12 +673,12 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "closeReason",
-      "type" : "jakarta.websocket.CloseReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -697,7 +697,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -723,7 +723,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -742,12 +742,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "config",
-      "type" : "jakarta.websocket.EndpointConfig",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -763,12 +758,12 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "message",
-      "type" : "jakarta.websocket.PongMessage",
+      "type" : "java.nio.ByteBuffer",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -816,7 +811,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -861,7 +856,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -928,7 +923,7 @@
       "annotations" : [ ]
     }, {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -963,7 +958,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "session",
-      "type" : "jakarta.websocket.Session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

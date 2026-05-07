@@ -1,0 +1,227 @@
+{
+  "name" : "JdkWebsocketConnector",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Low-level Fluxzero websocket connector backed by the JDK {@link HttpClient} websocket implementation.\n\n <p>The JDK WebSocket API does not expose successful {@code 101 Switching Protocols} response headers directly.\n This connector captures them through a per-connection {@link CookieHandler} wrapper while preserving any cookie\n handler configured on the supplied {@link HttpClient}.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.websocket.WebsocketConnector" ],
+  "fields" : [ {
+    "name" : "httpClient",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.httpClient",
+    "type" : "java.net.http.HttpClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "openSessions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.openSessions",
+    "type" : "java.util.Set<io.fluxzero.sdk.common.websocket.WebsocketSession>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JdkWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a connector backed by a default HTTP/1.1 {@link HttpClient}.\n"
+  }, {
+    "name" : "JdkWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>Per-connection clients are derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
+  } ],
+  "methods" : [ {
+    "name" : "addOpenSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#addOpenSession",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyHeaders",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#applyHeaders",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "builder",
+      "type" : "java.net.http.WebSocket.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applySubprotocols",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#applySubprotocols",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "builder",
+      "type" : "java.net.http.WebSocket.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "subprotocols",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "connect",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#connect",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Opens a native JDK WebSocket and adapts it to Fluxzero's low-level {@link WebsocketSession} contract.\n"
+  }, {
+    "name" : "createHttpClient",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#createHttpClient",
+    "returnType" : "java.net.http.HttpClient",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handshakeResponse",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getOpenSessions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#getOpenSessions",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.common.websocket.WebsocketSession>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeOpenSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#removeOpenSession",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unwrapConnectionFailure",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#unwrapConnectionFailure",
+    "returnType" : "java.io.IOException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "e",
+      "type" : "java.lang.Exception",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "CapturedHandshakeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CapturingCookieHandler",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,102 @@
+{
+  "name" : "CapturingCookieHandler",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.net.CookieHandler",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.delegate",
+    "type" : "java.net.CookieHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handshakeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.handshakeResponse",
+    "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CapturingCookieHandler",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#CapturingCookieHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.net.CookieHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handshakeResponse",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#get",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestHeaders",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#put",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseHeaders",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

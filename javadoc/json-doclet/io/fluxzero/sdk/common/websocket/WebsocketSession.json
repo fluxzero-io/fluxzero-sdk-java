@@ -1,0 +1,148 @@
+{
+  "name" : "WebsocketSession",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Minimal websocket session contract needed by the Fluxzero runtime clients.\n\n <p>The contract is binary-frame oriented because Fluxzero runtime traffic is serialized and compressed before it is\n sent. Implementations should make close and abort callbacks idempotent so higher-level retry logic can safely react\n to transport races.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "abort",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#abort",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Immediately aborts the underlying transport and reports the given close reason to the endpoint.\n\n @param closeReason synthetic close status and reason to report\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Closes the session with a normal close reason.\n\n @throws IOException when the close frame cannot be sent\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Closes the session with a specific close reason.\n\n @param closeReason close status and reason to send\n @throws IOException when the close frame cannot be sent\n"
+  }, {
+    "name" : "getHandshakeResponseHeaders",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#getHandshakeResponseHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the response headers from the successful opening handshake.\n"
+  }, {
+    "name" : "getOpenSessions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#getOpenSessions",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.common.websocket.WebsocketSession>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a snapshot of currently open sessions owned by the same connector.\n"
+  }, {
+    "name" : "getRequestURI",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#getRequestURI",
+    "returnType" : "java.net.URI",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the URI used to open this session.\n"
+  }, {
+    "name" : "getUserProperties",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#getUserProperties",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns mutable metadata associated with this session.\n\n <p>Fluxzero clients use these properties to store negotiated session identifiers, runtime version information,\n and selected compression settings.</p>\n"
+  }, {
+    "name" : "isOpen",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#isOpen",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the session is still open for application traffic.\n"
+  }, {
+    "name" : "sendBinary",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#sendBinary",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Sends one complete binary WebSocket message.\n\n @param data bytes from the buffer's current position to its limit\n @throws IOException when the frame cannot be sent\n"
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#sendPing",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "applicationData",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Sends a ping frame.\n\n @param applicationData ping payload from the buffer's current position to its limit\n @throws IOException when the frame cannot be sent\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -10,7 +10,7 @@
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
-  "superClass" : "jakarta.websocket.ClientEndpointConfig.Configurator",
+  "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
     "name" : "clientConfig",
@@ -81,14 +81,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator#afterResponse",
     "returnType" : "void",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "response",
-      "type" : "jakarta.websocket.HandshakeResponse",
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -100,10 +97,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator#beforeRequest",
     "returnType" : "void",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "headers",

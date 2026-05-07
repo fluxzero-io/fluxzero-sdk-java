@@ -1,0 +1,118 @@
+{
+  "name" : "WebsocketEndpoint",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Callback contract for low-level Fluxzero runtime websocket sessions.\n\n <p>Implementations should return quickly from these callbacks. Higher-level Fluxzero clients dispatch expensive\n result handling onto worker executors so transport callbacks do not block the underlying WebSocket implementation.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "onClose",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint#onClose",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Called once when a session closes or is aborted.\n\n @param session     the closed session\n @param closeReason the close status and optional reason\n"
+  }, {
+    "name" : "onError",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint#onError",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Called when the underlying WebSocket implementation reports an error.\n\n @param session the session that failed\n @param error   the reported error\n"
+  }, {
+    "name" : "onMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint#onMessage",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Called when a complete binary message has been received.\n\n @param bytes   the full binary message payload\n @param session the session that received the message\n"
+  }, {
+    "name" : "onOpen",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint#onOpen",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Called after the opening handshake has completed and the session metadata is available.\n\n @param session the newly opened session\n"
+  }, {
+    "name" : "onPong",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint#onPong",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Called when a pong frame has been received.\n\n @param data    the pong application data\n @param session the session that received the pong\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

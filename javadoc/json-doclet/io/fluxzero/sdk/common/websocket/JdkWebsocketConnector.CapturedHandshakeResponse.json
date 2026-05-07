@@ -1,0 +1,79 @@
+{
+  "name" : "CapturedHandshakeResponse",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse.headers",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CapturedHandshakeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse#CapturedHandshakeResponse",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "capture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse#capture",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseHeaders",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "copyHeaders",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse#copyHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse#headers",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

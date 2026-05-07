@@ -30,9 +30,19 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest",
     "kind" : "class"
   }, {
-    "file" : "DefaultWebSocketContainerProvider.json",
-    "name" : "DefaultWebSocketContainerProvider",
-    "qualifiedName" : "io.fluxzero.sdk.common.websocket.DefaultWebSocketContainerProvider",
+    "file" : "JdkWebsocketConnector.json",
+    "name" : "JdkWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector",
+    "kind" : "class"
+  }, {
+    "file" : "JdkWebsocketConnector.CapturedHandshakeResponse.json",
+    "name" : "JdkWebsocketConnector.CapturedHandshakeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturedHandshakeResponse",
+    "kind" : "class"
+  }, {
+    "file" : "JdkWebsocketConnector.CapturingCookieHandler.json",
+    "name" : "JdkWebsocketConnector.CapturingCookieHandler",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler",
     "kind" : "class"
   }, {
     "file" : "ServiceUrlBuilder.json",
@@ -49,6 +59,31 @@
     "name" : "SessionPool.ClientClosedException",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool$ClientClosedException",
     "kind" : "class"
+  }, {
+    "file" : "WebsocketCloseReason.json",
+    "name" : "WebsocketCloseReason",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+    "kind" : "record"
+  }, {
+    "file" : "WebsocketConnectionOptions.json",
+    "name" : "WebsocketConnectionOptions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+    "kind" : "record"
+  }, {
+    "file" : "WebsocketConnector.json",
+    "name" : "WebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketEndpoint.json",
+    "name" : "WebsocketEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketSession.json",
+    "name" : "WebsocketSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "kind" : "interface"
   } ],
   "subdirectories" : [ ]
 }
