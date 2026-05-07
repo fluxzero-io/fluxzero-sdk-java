@@ -33,7 +33,6 @@ import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.Fluxzero;
@@ -47,17 +46,6 @@ import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
-import io.undertow.websockets.jsr.ServerWebSocketContainer;
-import jakarta.websocket.ClientEndpoint;
-import jakarta.websocket.ClientEndpointConfig;
-import jakarta.websocket.HandshakeResponse;
-import io.undertow.websockets.jsr.UndertowSession;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.Endpoint;
-import jakarta.websocket.EndpointConfig;
-import jakarta.websocket.PongMessage;
-import jakarta.websocket.Session;
-import jakarta.websocket.WebSocketContainer;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -68,7 +56,6 @@ import lombok.experimental.Delegate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.OutputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -97,8 +84,6 @@ import static io.fluxzero.sdk.Fluxzero.publishMetrics;
 import static io.fluxzero.sdk.common.ClientUtils.ignoreMarker;
 import static io.fluxzero.sdk.common.Message.asMessage;
 import static io.fluxzero.sdk.publishing.AdhocDispatchInterceptor.getAdhocInterceptor;
-import static jakarta.websocket.CloseReason.CloseCodes.GOING_AWAY;
-import static jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.Thread.currentThread;
 import static java.lang.Thread.sleep;
@@ -139,7 +124,7 @@ import static java.util.Optional.ofNullable;
  * @see RequestResult
  * @see ResultBatch
  */
-public abstract class AbstractWebsocketClient extends Endpoint implements AutoCloseable {
+public abstract class AbstractWebsocketClient implements WebsocketEndpoint, AutoCloseable {
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
@@ -153,7 +138,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     protected static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".selectedCompressionAlgorithm";
 
-    public static WebSocketContainer defaultWebSocketContainer = new DefaultWebSocketContainerProvider().getContainer();
+    public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
     public static ObjectMapper defaultObjectMapper = JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES)
             .findAndAddModules().disable(WRITE_DATES_AS_TIMESTAMPS).build();
 
@@ -201,7 +186,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
      */
     public AbstractWebsocketClient(URI endpointUri, WebSocketClient client, boolean allowMetrics,
                                    int numberOfSessions) {
-        this(defaultWebSocketContainer, endpointUri, client, allowMetrics, Duration.ofSeconds(1),
+        this(defaultWebsocketConnector, endpointUri, client, allowMetrics, Duration.ofSeconds(1),
              defaultObjectMapper, numberOfSessions);
     }
 
@@ -210,7 +195,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
      * specify a custom container, reconnect delay, object mapper, and session count. It is primarily used for advanced
      * configuration or test scenarios.
      *
-     * @param container        the WebSocket container to use for establishing connections
+     * @param connector        the WebSocket connector to use for establishing connections
      * @param endpointUri      the WebSocket server endpoint
      * @param client           the client providing config and access to the Fluxzero Runtime
      * @param allowMetrics     flag to enable or disable automatic metrics publishing
@@ -218,15 +203,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
      * @param objectMapper     the Jackson object mapper for (de)serializing requests and responses
      * @param numberOfSessions the number of WebSocket sessions to establish in parallel
      */
-    public AbstractWebsocketClient(WebSocketContainer container, URI endpointUri, WebSocketClient client,
+    public AbstractWebsocketClient(WebsocketConnector connector, URI endpointUri, WebSocketClient client,
                                    boolean allowMetrics, Duration reconnectDelay, ObjectMapper objectMapper,
                                    int numberOfSessions) {
-        if (ReflectionUtils.isAnnotationPresent(getClass(), ClientEndpoint.class)) {
-            throw new IllegalStateException(("""
-                    %s may not be annotated with @ClientEndpoint when extending AbstractWebsocketClient.
-                    Remove the annotation and rely on AbstractWebsocketClient's programmatic websocket configuration.
-                    """).formatted(getClass().getName()).strip());
-        }
         this.client = client;
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
@@ -237,7 +216,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
         this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
-                () -> connectToServer(container, endpointUri),
+                () -> connectToServer(connector, endpointUri),
                 createConnectionRetryConfiguration(endpointUri, reconnectDelay)));
     }
 
@@ -273,10 +252,10 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         }
     }
 
-    protected Session connectToServer(WebSocketContainer container, URI endpointUri) throws Exception {
+    protected WebsocketSession connectToServer(WebsocketConnector connector, URI endpointUri) throws Exception {
         ConnectionSetup connectionSetup = createConnectionSetup(clientConfig);
         return TimingUtils.callAndWait(
-                () -> container.connectToServer(this, connectionSetup.endpointConfig(), endpointUri),
+                () -> connector.connect(this, connectionSetup.options(), endpointUri),
                 clientConfig.getConnectionTimeout().plus(getConnectionTimeoutFailsafeGrace()));
     }
 
@@ -285,11 +264,12 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     @Override
-    public void onOpen(Session session, EndpointConfig config) {
-        Optional.ofNullable(config.getUserProperties().get(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY))
+    public void onOpen(WebsocketSession session) {
+        Optional.ofNullable(session.getUserProperties().get(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY))
                 .filter(ClientHandshakeConfigurator.class::isInstance)
                 .map(ClientHandshakeConfigurator.class::cast)
                 .ifPresent(configurator -> {
+                    configurator.afterResponse(session.getHandshakeResponseHeaders());
                     session.getUserProperties().put(CLIENT_SESSION_ID_USER_PROPERTY,
                                                     configurator.getClientSessionId());
                     session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY,
@@ -300,10 +280,9 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     session.getUserProperties().put(
                             SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
                             ofNullable(configurator.getSelectedCompressionAlgorithm())
-                                    .orElseGet(clientConfig::getPreferredCompressionAlgorithm));
+                                    .or(() -> clientConfig.getSupportedCompressionAlgorithms().stream().findFirst())
+                                    .orElse(CompressionAlgorithm.NONE));
                 });
-        session.addMessageHandler(byte[].class, bytes -> onMessage(bytes, session));
-        session.addMessageHandler(PongMessage.class, message -> onPong(message, session));
         log().info("Session {} is connected to endpoint {} (runtime version: {})",
                    getNegotiatedSessionId(session), session.getRequestURI(),
                    getRuntimeVersion(session).orElse("unknown"));
@@ -340,7 +319,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
 
     @SneakyThrows
     private CompletableFuture<Void> send(Request request, Map<String, String> correlationData,
-                                         Session session) {
+                                         WebsocketSession session) {
         String sessionId = getNegotiatedSessionId(session);
         try {
             return sessionBacklogs.computeIfAbsent(
@@ -352,12 +331,12 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     @SneakyThrows
-    private void sendBatch(List<Request> requests, Session session) {
+    private void sendBatch(List<Request> requests, WebsocketSession session) {
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
-        try (OutputStream outputStream = session.getBasicRemote().getSendStream()) {
+        try {
             byte[] bytes = objectMapper.writeValueAsBytes(object);
             if (session.isOpen()) {
-                outputStream.write(compress(bytes, getCompressionAlgorithm(session)));
+                session.sendBinary(ByteBuffer.wrap(compress(bytes, getCompressionAlgorithm(session))));
             } else if (!closed.get()) {
                 abort(session, "Channel closed ahead of sending");
             }
@@ -378,11 +357,11 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         }
     }
 
-    public void onMessage(byte[] bytes, Session session) {
+    public void onMessage(byte[] bytes, WebsocketSession session) {
         executeResultCallback("message", () -> handleMessage(bytes, session));
     }
 
-    protected void handleMessage(byte[] bytes, Session session) {
+    protected void handleMessage(byte[] bytes, WebsocketSession session) {
         JsonType value;
         try {
             value = objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
@@ -439,7 +418,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         }
     }
 
-    protected PingRegistration schedulePing(Session session) {
+    protected PingRegistration schedulePing(WebsocketSession session) {
         return pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
             if (v != null) {
                 v.cancel();
@@ -450,7 +429,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     @SneakyThrows
-    protected void sendPing(Session session) {
+    protected void sendPing(WebsocketSession session) {
         if (!closed.get()) {
             if (session.isOpen()) {
                 var registration = pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
@@ -464,7 +443,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     }));
                 });
                 try {
-                    session.getAsyncRemote().sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
+                    session.sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
                 } catch (Exception e) {
                     log().warn("Failed to send ping message", e);
                 }
@@ -472,11 +451,11 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         }
     }
 
-    public void onPong(PongMessage message, Session session) {
+    public void onPong(ByteBuffer message, WebsocketSession session) {
         executeResultCallback("pong", () -> handlePong(session));
     }
 
-    protected void handlePong(Session session) {
+    protected void handlePong(WebsocketSession session) {
         pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
             if (v == null) {
                 return null;
@@ -494,30 +473,22 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     @SneakyThrows
-    protected void abort(Session session, String reason) {
-        CloseReason closeReason = new CloseReason(UNEXPECTED_CONDITION, reason);
+    protected void abort(WebsocketSession session, String reason) {
+        WebsocketCloseReason closeReason = new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, reason);
         log().warn("Aborting session {} due to {}", getNegotiatedSessionId(session), reason);
-        if (!TimingUtils.runAndWaitSafely(() -> session.close(closeReason), Duration.ofSeconds(5))) {
-            log().warn("Failed to close session {} after abort", getNegotiatedSessionId(session));
-            onClose(session, closeReason);
-        }
+        session.abort(closeReason);
     }
 
     @Override
-    public void onClose(Session session, CloseReason closeReason) {
+    public void onClose(WebsocketSession session, WebsocketCloseReason closeReason) {
         executeResultCallback("close", () -> handleClose(session, closeReason));
     }
 
-    protected void handleClose(Session session, CloseReason closeReason) {
-        if (!closed.get() && session.isOpen() && session instanceof UndertowSession s) {
-            try {
-                // During onClose, Undertow may still report the underlying channel as open. Force it closed while the
-                // client is active so the session pool will replace this session instead of reusing a closing one.
-                s.forceClose();
-            } catch (Exception ignored) {
-            }
+    protected void handleClose(WebsocketSession session, WebsocketCloseReason closeReason) {
+        if (!closed.get() && session.isOpen()) {
+            session.abort(closeReason);
         }
-        if (closeReason.getCloseCode().getCode() > GOING_AWAY.getCode()) {
+        if (closeReason.code() > WebsocketCloseReason.GOING_AWAY) {
             log().warn("Connection to endpoint {} closed with reason {} (session: {})", session.getRequestURI(),
                        closeReason, getNegotiatedSessionId(session));
         }
@@ -555,11 +526,11 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     }
 
     @Override
-    public void onError(Session session, Throwable e) {
+    public void onError(WebsocketSession session, Throwable e) {
         executeResultCallback("error", () -> handleError(session, e));
     }
 
-    protected void handleError(Session session, Throwable e) {
+    protected void handleError(WebsocketSession session, Throwable e) {
         log().error("Client side error for web socket session {}, connected to endpoint {}",
                     getNegotiatedSessionId(session), session.getRequestURI(), e);
     }
@@ -659,7 +630,7 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
 
         @SuppressWarnings("unchecked")
         protected <T extends RequestResult> CompletableFuture<T> send() {
-            Session session;
+            WebsocketSession session;
             try {
                 session = request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
             } catch (SessionPool.ClientClosedException e) {
@@ -689,35 +660,34 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
     protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig) {
         ClientHandshakeConfigurator configurator = new ClientHandshakeConfigurator(
                 WebSocketCapabilities.newShortSessionId(), clientConfig);
-        ClientEndpointConfig endpointConfig = ClientEndpointConfig.Builder.create().configurator(configurator).build();
-        endpointConfig.getUserProperties().put(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
-        endpointConfig.getUserProperties().put(
-                ServerWebSocketContainer.TIMEOUT,
-                Math.toIntExact(Math.max(1L, clientConfig.getConnectionTimeout().toSeconds())));
-        return new ConnectionSetup(endpointConfig, configurator);
+        Map<String, List<String>> headers = new java.util.LinkedHashMap<>();
+        configurator.beforeRequest(headers);
+        Map<String, Object> userProperties = Map.of(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
+        return new ConnectionSetup(new WebsocketConnectionOptions(
+                headers, userProperties, clientConfig.getConnectionTimeout(), List.of()), configurator);
     }
 
-    protected String getNegotiatedSessionId(Session session) {
+    protected String getNegotiatedSessionId(WebsocketSession session) {
         return "%s_%s".formatted(Optional.ofNullable(session.getUserProperties().get(CLIENT_SESSION_ID_USER_PROPERTY))
                                          .map(Object::toString).orElseThrow(), Optional.ofNullable(
                 session.getUserProperties().get(RUNTIME_SESSION_ID_USER_PROPERTY)).map(Object::toString).orElseThrow());
     }
 
-    protected CompressionAlgorithm getCompressionAlgorithm(Session session) {
+    protected CompressionAlgorithm getCompressionAlgorithm(WebsocketSession session) {
         return (CompressionAlgorithm) session.getUserProperties().get(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY);
     }
 
-    protected Optional<String> getRuntimeVersion(Session session) {
+    protected Optional<String> getRuntimeVersion(WebsocketSession session) {
         return ofNullable(session.getUserProperties().get(RUNTIME_VERSION_USER_PROPERTY))
                 .map(Object::toString)
                 .filter(version -> !version.isBlank());
     }
 
-    protected record ConnectionSetup(ClientEndpointConfig endpointConfig, ClientHandshakeConfigurator configurator) {
+    protected record ConnectionSetup(WebsocketConnectionOptions options, ClientHandshakeConfigurator configurator) {
     }
 
     @RequiredArgsConstructor
-    protected static class ClientHandshakeConfigurator extends ClientEndpointConfig.Configurator {
+    protected static class ClientHandshakeConfigurator {
         @Getter
         private final String clientSessionId;
         private final ClientConfig clientConfig;
@@ -728,7 +698,6 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
         @Getter
         private volatile CompressionAlgorithm selectedCompressionAlgorithm;
 
-        @Override
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
             SdkVersion.version().ifPresent(sdkVersion ->
@@ -738,12 +707,11 @@ public abstract class AbstractWebsocketClient extends Endpoint implements AutoCl
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
         }
 
-        @Override
-        public void afterResponse(HandshakeResponse response) {
-            runtimeSessionId = WebSocketCapabilities.getRuntimeSessionId(response.getHeaders()).orElse(null);
-            runtimeVersion = WebSocketCapabilities.getRuntimeVersion(response.getHeaders()).orElse(null);
+        public void afterResponse(Map<String, List<String>> headers) {
+            runtimeSessionId = WebSocketCapabilities.getRuntimeSessionId(headers).orElse(null);
+            runtimeVersion = WebSocketCapabilities.getRuntimeVersion(headers).orElse(null);
             selectedCompressionAlgorithm =
-                    WebSocketCapabilities.getSelectedCompressionAlgorithm(response.getHeaders()).orElse(null);
+                    WebSocketCapabilities.getSelectedCompressionAlgorithm(headers).orElse(null);
         }
     }
 

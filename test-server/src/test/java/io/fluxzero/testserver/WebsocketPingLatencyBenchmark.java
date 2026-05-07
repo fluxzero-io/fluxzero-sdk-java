@@ -22,15 +22,13 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
+import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
+import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.client.WebsocketTrackingClient;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.EndpointConfig;
-import jakarta.websocket.PongMessage;
-import jakarta.websocket.Session;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -267,13 +265,13 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        public void onOpen(Session session, EndpointConfig config) {
+        public void onOpen(WebsocketSession session) {
             metrics.opens.increment();
-            super.onOpen(session, config);
+            super.onOpen(session);
         }
 
         @Override
-        protected PingRegistration schedulePing(Session session) {
+        protected PingRegistration schedulePing(WebsocketSession session) {
             String sessionId = getNegotiatedSessionId(session);
             timings.put(sessionId, new PingTiming(nanoTime() + pingDelay.toNanos()));
             metrics.scheduled.increment();
@@ -281,7 +279,7 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        protected void sendPing(Session session) {
+        protected void sendPing(WebsocketSession session) {
             String sessionId = getNegotiatedSessionId(session);
             long now = nanoTime();
             PingTiming timing = timings.computeIfAbsent(sessionId, ignored -> new PingTiming(now));
@@ -293,14 +291,14 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        public void onPong(PongMessage message, Session session) {
+        public void onPong(ByteBuffer message, WebsocketSession session) {
             String sessionId = getNegotiatedSessionId(session);
             long now = nanoTime();
             PingTiming timing = timings.get(sessionId);
             if (timing != null) {
                 timing.callbackAtNanos = now;
                 metrics.recordPongCallbackLatency(now - timing.sentAtNanos);
-                metrics.recordPongId(message.getApplicationData());
+                metrics.recordPongId(message);
             }
             metrics.pongCallbacks.increment();
             metrics.recordThread(Thread.currentThread().getName(), metrics.pongCallbackThreads);
@@ -308,7 +306,7 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        protected void handlePong(Session session) {
+        protected void handlePong(WebsocketSession session) {
             String sessionId = getNegotiatedSessionId(session);
             long now = nanoTime();
             PingTiming timing = timings.get(sessionId);
@@ -322,7 +320,7 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        protected void abort(Session session, String reason) {
+        protected void abort(WebsocketSession session, String reason) {
             if ("Ping failed".equals(reason)) {
                 metrics.timeouts.increment();
                 log.warn("Ping timeout observed for client {} session {}", clientIndex, getNegotiatedSessionId(session));
@@ -331,7 +329,7 @@ public class WebsocketPingLatencyBenchmark {
         }
 
         @Override
-        protected void handleClose(Session session, CloseReason closeReason) {
+        protected void handleClose(WebsocketSession session, WebsocketCloseReason closeReason) {
             metrics.closes.increment();
             metrics.recordThread(Thread.currentThread().getName(), metrics.closeThreads);
             super.handleClose(session, closeReason);

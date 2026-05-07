@@ -19,6 +19,8 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
+import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
+import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.client.WebsocketTrackingClient;
@@ -27,8 +29,6 @@ import io.fluxzero.testserver.websocket.ConsumerEndpoint;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.websockets.jsr.UndertowSession;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.EndpointConfig;
 import jakarta.websocket.Session;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
@@ -130,9 +130,9 @@ class WebsocketReconnectTest {
         }
 
         @Override
-        public void onOpen(Session session, EndpointConfig config) {
+        public void onOpen(WebsocketSession session) {
             int count = openCount.incrementAndGet();
-            super.onOpen(session, config);
+            super.onOpen(session);
             log.info("Observed websocket open #{}: {}", count, getNegotiatedSessionId(session));
             if (count >= 2) {
                 reconnected.countDown();
@@ -140,7 +140,7 @@ class WebsocketReconnectTest {
         }
 
         @Override
-        protected void handleClose(Session session, CloseReason closeReason) {
+        protected void handleClose(WebsocketSession session, WebsocketCloseReason closeReason) {
             closeThreadName.set(Thread.currentThread().getName());
             closeHandled.countDown();
             super.handleClose(session, closeReason);

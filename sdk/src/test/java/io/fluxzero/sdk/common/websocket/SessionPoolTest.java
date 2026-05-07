@@ -14,7 +14,6 @@
 
 package io.fluxzero.sdk.common.websocket;
 
-import jakarta.websocket.Session;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -28,11 +27,11 @@ class SessionPoolTest {
     @Test
     void testPoolCyclesSessions() {
         SessionPool sessionPool =
-                new SessionPool(3, () -> when(mock(Session.class).isOpen()).thenReturn(true).getMock());
-        Session first = sessionPool.get();
-        Session second = sessionPool.get();
-        Session third = sessionPool.get();
-        Session fourth = sessionPool.get();
+                new SessionPool(3, () -> when(mock(WebsocketSession.class).isOpen()).thenReturn(true).getMock());
+        WebsocketSession first = sessionPool.get();
+        WebsocketSession second = sessionPool.get();
+        WebsocketSession third = sessionPool.get();
+        WebsocketSession fourth = sessionPool.get();
 
         assertNotSame(first, second);
         assertNotSame(first, third);
@@ -43,11 +42,11 @@ class SessionPoolTest {
     @Test
     void singleSessionPoolAlwaysReturnsTheSameSession() {
         SessionPool sessionPool =
-                new SessionPool(1, () -> when(mock(Session.class).isOpen()).thenReturn(true).getMock());
+                new SessionPool(1, () -> when(mock(WebsocketSession.class).isOpen()).thenReturn(true).getMock());
 
-        Session first = sessionPool.get();
-        Session second = sessionPool.get();
-        Session third = sessionPool.get();
+        WebsocketSession first = sessionPool.get();
+        WebsocketSession second = sessionPool.get();
+        WebsocketSession third = sessionPool.get();
 
         assertSame(first, second);
         assertSame(first, third);
@@ -55,11 +54,11 @@ class SessionPoolTest {
 
     @Test
     void constructorRejectsZeroSizedPool() {
-        assertThrows(IllegalArgumentException.class, () -> new SessionPool(0, () -> mock(Session.class)));
+        assertThrows(IllegalArgumentException.class, () -> new SessionPool(0, () -> mock(WebsocketSession.class)));
     }
 
     @Test
     void constructorRejectsNegativeSizedPool() {
-        assertThrows(IllegalArgumentException.class, () -> new SessionPool(-1, () -> mock(Session.class)));
+        assertThrows(IllegalArgumentException.class, () -> new SessionPool(-1, () -> mock(WebsocketSession.class)));
     }
 }

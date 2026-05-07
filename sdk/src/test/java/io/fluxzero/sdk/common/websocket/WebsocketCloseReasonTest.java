@@ -14,17 +14,17 @@
 
 package io.fluxzero.sdk.common.websocket;
 
-import io.undertow.websockets.jsr.UndertowContainerProvider;
-import jakarta.websocket.ContainerProvider;
-import jakarta.websocket.WebSocketContainer;
+import org.junit.jupiter.api.Test;
 
-/**
- * The default {@link ContainerProvider} used to create and manage websocket sessions with Fluxzero Runtime.
- */
-public class DefaultWebSocketContainerProvider extends UndertowContainerProvider {
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-    @Override
-    public WebSocketContainer getContainer() {
-        return super.getContainer();
+class WebsocketCloseReasonTest {
+
+    @Test
+    void normalizesNullReasonToEmptyString() {
+        WebsocketCloseReason closeReason = new WebsocketCloseReason(WebsocketCloseReason.NO_STATUS_CODE, null);
+
+        assertEquals("", closeReason.reason());
+        assertEquals("CloseReason[1005,]", closeReason.toString());
     }
 }

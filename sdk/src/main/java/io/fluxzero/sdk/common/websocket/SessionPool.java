@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.ConsistentHashing;
-import jakarta.websocket.Session;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -25,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * A thread-safe pool of reusable WebSocket {@link Session} objects, supporting concurrent access and routing.
+ * A thread-safe pool of reusable {@link WebsocketSession} objects, supporting concurrent access and routing.
  * <p>
  * This class provides a mechanism to manage multiple active WebSocket sessions, either round-robin or keyed by a
  * {@code routingKey}. It lazily initializes sessions on demand using a configurable {@link Supplier}, ensuring that
@@ -53,13 +52,13 @@ import java.util.function.Supplier;
  */
 @Slf4j
 public class SessionPool implements AutoCloseable {
-    private final Map<Integer, Session> sessionMap;
+    private final Map<Integer, WebsocketSession> sessionMap;
     private final int size;
     private final AtomicInteger counter = new AtomicInteger();
-    private final Supplier<Session> sessionFactory;
+    private final Supplier<WebsocketSession> sessionFactory;
     private final AtomicBoolean shuttingDown = new AtomicBoolean();
 
-    public SessionPool(int size, Supplier<Session> sessionFactory) {
+    public SessionPool(int size, Supplier<WebsocketSession> sessionFactory) {
         if (size < 1) {
             throw new IllegalArgumentException("Session pool size must be at least 1");
         }
@@ -68,18 +67,18 @@ public class SessionPool implements AutoCloseable {
         this.sessionMap = new ConcurrentHashMap<>();
     }
 
-    public Session get() {
+    public WebsocketSession get() {
         return get(counter.getAndUpdate(i -> Math.floorMod(i + 1, size)));
     }
 
-    public Session get(String routingKey) {
+    public WebsocketSession get(String routingKey) {
         if (routingKey == null) {
             return get();
         }
         return get(ConsistentHashing.computeSegment(routingKey, size));
     }
 
-    protected Session get(int index) {
+    protected WebsocketSession get(int index) {
         return sessionMap.compute(index, (i, s) -> {
             while (isClosed(s)) {
                 if (shuttingDown.get()) {
@@ -109,7 +108,7 @@ public class SessionPool implements AutoCloseable {
         }
     }
 
-    private static boolean isClosed(Session session) {
+    private static boolean isClosed(WebsocketSession session) {
         try {
             return session == null || !session.isOpen();
         } catch (Exception e) {

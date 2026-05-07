@@ -42,6 +42,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <undertow.version>2.3.24.Final</undertow.version>
+        <jakarta.websocket.version>2.1.1</jakarta.websocket.version>
+        <jakarta.annotation.version>2.1.1</jakarta.annotation.version>
         <kotlin.version>2.3.21</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <mockito.version>5.23.0</mockito.version>
@@ -64,6 +66,21 @@
                 <groupId>io.undertow</groupId>
                 <artifactId>undertow-servlet</artifactId>
                 <version>${undertow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-api</artifactId>
+                <version>${jakarta.websocket.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-client-api</artifactId>
+                <version>${jakarta.websocket.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.annotation</groupId>
+                <artifactId>jakarta.annotation-api</artifactId>
+                <version>${jakarta.annotation.version}</version>
             </dependency>
 
             <dependency>

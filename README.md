@@ -5228,16 +5228,16 @@ compatible with recent versions.
 
 #### 🌐 Web and Transport
 
-| Dependency                            | Scope   |
-|---------------------------------------|---------|
-| `io.undertow:undertow-websockets-jsr` | runtime |
-| `io.jooby:jooby`                      | runtime |
+| Dependency       | Scope   |
+|------------------|---------|
+| `io.jooby:jooby` | runtime |
 
 #### ⚙️ Utilities
 
-| Dependency                         | Scope   |
-|------------------------------------|---------|
-| `org.apache.commons:commons-lang3` | runtime |
+| Dependency                                    | Scope   |
+|-----------------------------------------------|---------|
+| `jakarta.annotation:jakarta.annotation-api`   | runtime |
+| `org.apache.commons:commons-lang3`            | runtime |
 
 ---
 

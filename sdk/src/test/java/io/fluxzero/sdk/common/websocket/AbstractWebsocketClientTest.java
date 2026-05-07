@@ -30,25 +30,13 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
-import io.undertow.websockets.jsr.ServerWebSocketContainer;
-import io.undertow.websockets.jsr.UndertowSession;
-import jakarta.websocket.ClientEndpoint;
-import jakarta.websocket.ClientEndpointConfig;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.DeploymentException;
-import jakarta.websocket.Endpoint;
-import jakarta.websocket.Extension;
-import jakarta.websocket.HandshakeResponse;
-import jakarta.websocket.PongMessage;
-import jakarta.websocket.RemoteEndpoint;
-import jakarta.websocket.Session;
-import jakarta.websocket.WebSocketContainer;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.EnumSet;
@@ -77,6 +65,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -99,7 +89,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void endpointConfigPublishesSupportedCompressionAlgorithmsHeader() {
+    void connectionOptionsPublishSupportedCompressionAlgorithmsHeader() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -107,10 +97,9 @@ class AbstractWebsocketClientTest {
                         Stream.of(GZIP), EnumSet.complementOf(EnumSet.of(GZIP)).stream()).toList())
                 .build();
 
-        var headers = new HashMap<String, List<String>>();
         AbstractWebsocketClient.ConnectionSetup connectionSetup =
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
-        connectionSetup.endpointConfig().getConfigurator().beforeRequest(headers);
+        Map<String, List<String>> headers = connectionSetup.options().headers();
 
         assertEquals(clientConfig.getSupportedCompressionAlgorithms(),
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
@@ -122,17 +111,16 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void endpointConfigCanSuppressCapabilityHeaders() {
+    void connectionOptionsCanSuppressCapabilityHeaders() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .supportedCompressionAlgorithms(List.of())
                 .build();
 
-        var headers = new HashMap<String, List<String>>();
         AbstractWebsocketClient.ConnectionSetup connectionSetup =
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
-        connectionSetup.endpointConfig().getConfigurator().beforeRequest(headers);
+        Map<String, List<String>> headers = connectionSetup.options().headers();
 
         assertEquals(List.of(), WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
         assertEquals(connectionSetup.configurator().getClientSessionId(),
@@ -140,7 +128,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void endpointConfigPublishesConfiguredUndertowConnectionTimeout() {
+    void connectionOptionsPublishConfiguredJdkConnectionTimeout() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -150,11 +138,11 @@ class AbstractWebsocketClientTest {
         AbstractWebsocketClient.ConnectionSetup connectionSetup =
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
 
-        assertEquals(1, connectionSetup.endpointConfig().getUserProperties().get(ServerWebSocketContainer.TIMEOUT));
+        assertEquals(Duration.ofMillis(1500), connectionSetup.options().connectTimeout());
     }
 
     @Test
-    void endpointConfigCapturesNegotiatedHandshakeResponse() {
+    void connectionOptionsCaptureNegotiatedHandshakeResponse() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -163,13 +151,12 @@ class AbstractWebsocketClientTest {
                 .build();
         AbstractWebsocketClient.ConnectionSetup connectionSetup =
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
-        HandshakeResponse response = mock(HandshakeResponse.class);
-        when(response.getHeaders()).thenReturn(Map.of(
+        Map<String, List<String>> responseHeaders = Map.of(
                 WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, List.of("srv123456789"),
                 WebSocketCapabilities.RUNTIME_VERSION_HEADER, List.of("1.2.3"),
-                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("LZ4")));
+                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("LZ4"));
 
-        connectionSetup.endpointConfig().getConfigurator().afterResponse(response);
+        connectionSetup.configurator().afterResponse(responseHeaders);
 
         assertEquals("srv123456789", connectionSetup.configurator().getRuntimeSessionId());
         assertEquals("1.2.3", connectionSetup.configurator().getRuntimeVersion());
@@ -177,7 +164,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void endpointConfigLeavesNegotiatedValuesEmptyForLegacyRuntime() {
+    void connectionOptionsLeaveNegotiatedValuesEmptyForLegacyRuntime() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -186,29 +173,12 @@ class AbstractWebsocketClientTest {
                 .build();
         AbstractWebsocketClient.ConnectionSetup connectionSetup =
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
-        HandshakeResponse response = mock(HandshakeResponse.class);
-        when(response.getHeaders()).thenReturn(Map.of());
 
-        connectionSetup.endpointConfig().getConfigurator().afterResponse(response);
+        connectionSetup.configurator().afterResponse(Map.of());
 
         assertNull(connectionSetup.configurator().getRuntimeSessionId());
         assertNull(connectionSetup.configurator().getRuntimeVersion());
         assertNull(connectionSetup.configurator().getSelectedCompressionAlgorithm());
-    }
-
-    @Test
-    void constructorRejectsSubclassesAnnotatedWithClientEndpoint() {
-        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
-                .runtimeBaseUrl("ws://localhost")
-                .name("test-client")
-                .build();
-
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-                                                   () -> new InvalidAnnotatedClient(mock(WebSocketContainer.class),
-                                                                                    clientConfig));
-
-        assertTrue(error.getMessage().contains("@ClientEndpoint"));
-        assertTrue(error.getMessage().contains(InvalidAnnotatedClient.class.getName()));
     }
 
     @Test
@@ -217,18 +187,19 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
-        Session session = mock(Session.class);
-        RemoteEndpoint.Basic remote = mock(RemoteEndpoint.Basic.class);
-        when(session.getBasicRemote()).thenReturn(remote);
-        when(remote.getSendStream()).thenThrow(new ClosedChannelException());
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mock(WebsocketSession.class);
+        when(session.isOpen()).thenReturn(true);
+        doThrow(new ClosedChannelException()).when(session).sendBinary(any());
         when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
-                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456",
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE)));
 
         client.close();
 
-        Method sendBatch = AbstractWebsocketClient.class.getDeclaredMethod("sendBatch", List.class, Session.class);
+        Method sendBatch = AbstractWebsocketClient.class.getDeclaredMethod("sendBatch", List.class,
+                                                                           WebsocketSession.class);
         sendBatch.setAccessible(true);
 
         List<Request> requests = List.of(new Append(MessageType.EVENT, List.<SerializedMessage>of(), Guarantee.NONE));
@@ -241,7 +212,7 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
 
         client.close();
 
@@ -255,7 +226,7 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
 
         try {
             websocketClient(client).getGatewayClient(MessageType.METRICS).close();
@@ -273,7 +244,7 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig, 2);
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, 2);
 
         try {
             assertFalse(pingSchedulerWorkerPool(client) instanceof DirectExecutorService);
@@ -287,7 +258,7 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        LoggingObservingClient client = new LoggingObservingClient(mock(WebSocketContainer.class), clientConfig);
+        LoggingObservingClient client = new LoggingObservingClient(mock(WebsocketConnector.class), clientConfig);
 
         RetryConfiguration configuration = client.retryConfiguration(URI.create("ws://localhost"), Duration.ofSeconds(1));
 
@@ -307,7 +278,7 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        LoggingObservingClient client = new LoggingObservingClient(mock(WebSocketContainer.class), clientConfig);
+        LoggingObservingClient client = new LoggingObservingClient(mock(WebsocketConnector.class), clientConfig);
 
         RetryConfiguration configuration = client.retryConfiguration(URI.create("ws://localhost"), Duration.ofSeconds(1));
         configuration.getSuccessLogger().accept(RetryStatus.builder()
@@ -327,7 +298,7 @@ class AbstractWebsocketClientTest {
                 .name("test-client")
                 .connectionTimeout(Duration.ofMillis(100))
                 .build();
-        BlockingWebSocketContainer container = new BlockingWebSocketContainer();
+        BlockingWebsocketConnector container = new BlockingWebsocketConnector();
 
         try (TimeoutObservingClient client = new TimeoutObservingClient(container, clientConfig,
                                                                         Duration.ofMillis(50))) {
@@ -343,8 +314,8 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
-        Session session = mockSession("client123_runtime456");
+        RetryObservingClient client = new RetryObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
         @SuppressWarnings("unchecked")
         Backlog<Request> backlog = mock(Backlog.class);
         sessionBacklogs(client).put("client123_runtime456", backlog);
@@ -354,8 +325,7 @@ class AbstractWebsocketClientTest {
         try {
             Future<?> onCloseFuture = callerExecutor.submit(() -> {
                 onCloseThread.set(Thread.currentThread().getName());
-                client.onClose(session, new jakarta.websocket.CloseReason(
-                        jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+                client.onClose(session, new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "boom"));
             });
 
             assertTrue(client.retryStarted.await(1, TimeUnit.SECONDS));
@@ -376,12 +346,11 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
-        Session session = mockSession("client123_runtime456");
+        RetryObservingClient client = new RetryObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
 
         try {
-            client.onClose(session, new jakarta.websocket.CloseReason(
-                    jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+            client.onClose(session, new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "boom"));
 
             assertEquals(0, client.retrySchedules.get());
         } finally {
@@ -396,28 +365,27 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        RetryObservingClient client = new RetryObservingClient(mock(WebSocketContainer.class), clientConfig);
-        Session session = mockSession("client123_runtime456");
+        RetryObservingClient client = new RetryObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
         @SuppressWarnings("unchecked")
         Backlog<Request> backlog = mock(Backlog.class);
         sessionBacklogs(client).put("client123_runtime456", backlog);
         client.close();
 
-        client.onClose(session, new jakarta.websocket.CloseReason(
-                jakarta.websocket.CloseReason.CloseCodes.UNEXPECTED_CONDITION, "boom"));
+        client.onClose(session, new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "boom"));
 
         assertEquals(0, client.retrySchedules.get());
         verify(backlog).shutDown();
     }
 
     @Test
-    void onCloseOnlyForceClosesWhileClientIsOpen() {
+    void onCloseAbortsOpenSessionsWhileClientIsOpen() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        TestClient client = new TestClient(mock(WebSocketContainer.class), clientConfig);
-        UndertowSession session = mock(UndertowSession.class);
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mock(WebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
                 AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
@@ -425,15 +393,15 @@ class AbstractWebsocketClientTest {
         when(session.isOpen()).thenReturn(true);
 
         try {
-            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "shutdown"));
-            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "done"));
-            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.UNEXPECTED_CONDITION, "abort"));
+            client.handleClose(session, new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "shutdown"));
+            client.handleClose(session, new WebsocketCloseReason(WebsocketCloseReason.NORMAL_CLOSURE, "done"));
+            client.handleClose(session, new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, "abort"));
 
-            verify(session, times(3)).forceClose();
+            verify(session, times(3)).abort(any());
             client.close();
-            client.handleClose(session, new CloseReason(CloseReason.CloseCodes.GOING_AWAY, "shutdown"));
+            client.handleClose(session, new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "shutdown"));
 
-            verify(session, times(3)).forceClose();
+            verify(session, times(3)).abort(any());
         } finally {
             client.close();
         }
@@ -445,15 +413,15 @@ class AbstractWebsocketClientTest {
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
-        CallbackObservingClient client = new CallbackObservingClient(mock(WebSocketContainer.class), clientConfig);
-        Session session = mockSession("client123_runtime456");
+        CallbackObservingClient client = new CallbackObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mockSession("client123_runtime456");
         ExecutorService callerExecutor = Executors.newSingleThreadExecutor();
         AtomicReference<String> callerThread = new AtomicReference<>();
 
         try {
             Future<?> onPongFuture = callerExecutor.submit(() -> {
                 callerThread.set(Thread.currentThread().getName());
-                client.onPong(mock(PongMessage.class), session);
+                client.onPong(ByteBuffer.allocate(0), session);
             });
 
             assertTrue(client.pongHandled.await(1, TimeUnit.SECONDS));
@@ -473,8 +441,8 @@ class AbstractWebsocketClientTest {
         return (Map<String, Backlog<Request>>) field.get(client);
     }
 
-    private static Session mockSession(String sessionId) {
-        Session session = mock(Session.class);
+    private static WebsocketSession mockSession(String sessionId) {
+        WebsocketSession session = mock(WebsocketSession.class);
         String[] parts = sessionId.split("_", 2);
         when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, parts[0],
@@ -512,20 +480,12 @@ class AbstractWebsocketClientTest {
         return (WebSocketClient) field.get(client);
     }
 
-    @ClientEndpoint
-    private static class InvalidAnnotatedClient extends AbstractWebsocketClient {
-        InvalidAnnotatedClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
-            super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
-                  true, Duration.ofSeconds(1), defaultObjectMapper, 1);
-        }
-    }
-
     private static class TestClient extends AbstractWebsocketClient {
-        TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+        TestClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
             this(container, clientConfig, 1);
         }
 
-        TestClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig, int numberOfSessions) {
+        TestClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig, int numberOfSessions) {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
                   true, Duration.ofSeconds(1), defaultObjectMapper, numberOfSessions);
         }
@@ -543,7 +503,7 @@ class AbstractWebsocketClientTest {
         private final AtomicInteger retrySchedules = new AtomicInteger();
         private final ExecutorService retryExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory());
 
-        RetryObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+        RetryObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
             super(container, clientConfig);
         }
 
@@ -577,12 +537,12 @@ class AbstractWebsocketClientTest {
         private final CountDownLatch allowPongToFinish = new CountDownLatch(1);
         private final AtomicReference<String> pongThread = new AtomicReference<>();
 
-        CallbackObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+        CallbackObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
             super(container, clientConfig);
         }
 
         @Override
-        protected void handlePong(Session session) {
+        protected void handlePong(WebsocketSession session) {
             pongThread.set(Thread.currentThread().getName());
             pongHandled.countDown();
             try {
@@ -597,7 +557,7 @@ class AbstractWebsocketClientTest {
         private final List<RetryStatus> loggedFailures = new java.util.concurrent.CopyOnWriteArrayList<>();
         private final List<RetryStatus> loggedSuccesses = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        LoggingObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig) {
+        LoggingObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
             super(container, clientConfig);
         }
 
@@ -636,16 +596,16 @@ class AbstractWebsocketClientTest {
 
     private static class TimeoutObservingClient extends TestClient {
         private final Duration connectionTimeoutFailsafeGrace;
-        private final WebSocketContainer container;
+        private final WebsocketConnector container;
 
-        TimeoutObservingClient(WebSocketContainer container, WebSocketClient.ClientConfig clientConfig,
+        TimeoutObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
                                Duration connectionTimeoutFailsafeGrace) {
             super(container, clientConfig);
             this.container = container;
             this.connectionTimeoutFailsafeGrace = connectionTimeoutFailsafeGrace;
         }
 
-        Session connectOnce() throws Exception {
+        WebsocketSession connectOnce() throws Exception {
             return connectToServer(container, URI.create("ws://localhost"));
         }
 
@@ -655,32 +615,13 @@ class AbstractWebsocketClientTest {
         }
     }
 
-    private static class BlockingWebSocketContainer implements WebSocketContainer {
+    private static class BlockingWebsocketConnector implements WebsocketConnector {
         private final CountDownLatch connectStarted = new CountDownLatch(1);
         private final CountDownLatch connectInterrupted = new CountDownLatch(1);
 
         @Override
-        public long getDefaultAsyncSendTimeout() {
-            return 0;
-        }
-
-        @Override
-        public void setAsyncSendTimeout(long timeout) {
-        }
-
-        @Override
-        public Session connectToServer(Object endpoint, URI path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Session connectToServer(Class<?> annotatedEndpointClass, URI path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Session connectToServer(Endpoint endpoint, ClientEndpointConfig cec, URI path)
-                throws DeploymentException, IOException {
+        public WebsocketSession connect(WebsocketEndpoint endpoint, WebsocketConnectionOptions options, URI uri)
+                throws IOException {
             connectStarted.countDown();
             try {
                 Thread.sleep(Duration.ofSeconds(30).toMillis());
@@ -690,43 +631,6 @@ class AbstractWebsocketClientTest {
                 throw new IOException("Interrupted while connecting", e);
             }
             throw new IOException("Connection unexpectedly completed");
-        }
-
-        @Override
-        public Session connectToServer(Class<? extends Endpoint> endpointClass, ClientEndpointConfig cec, URI path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long getDefaultMaxSessionIdleTimeout() {
-            return 0;
-        }
-
-        @Override
-        public void setDefaultMaxSessionIdleTimeout(long timeout) {
-        }
-
-        @Override
-        public int getDefaultMaxBinaryMessageBufferSize() {
-            return 0;
-        }
-
-        @Override
-        public void setDefaultMaxBinaryMessageBufferSize(int max) {
-        }
-
-        @Override
-        public int getDefaultMaxTextMessageBufferSize() {
-            return 0;
-        }
-
-        @Override
-        public void setDefaultMaxTextMessageBufferSize(int max) {
-        }
-
-        @Override
-        public Set<Extension> getInstalledExtensions() {
-            return Set.of();
         }
     }
 }

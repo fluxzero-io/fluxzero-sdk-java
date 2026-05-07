@@ -36,8 +36,6 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static io.fluxzero.common.serialization.JsonUtils.fromFile;
-import static org.wildfly.common.Assert.assertTrue;
-
 public class GivenWhenThenUpcasterChainTest {
     private static final String aggregateId = "test";
 
@@ -83,7 +81,7 @@ public class GivenWhenThenUpcasterChainTest {
                 .whenApplying(fc -> Fluxzero.loadAggregate("test", TestModelIgnoringUnknownEvent.class))
                 .<Entity<TestModelIgnoringUnknownEvent>>expectResult(
                         e -> e != null && e.type().equals(TestModelIgnoringUnknownEvent.class)
-                             && assertTrue(e.isEmpty()) && e.sequenceNumber() == 0L);
+                             && e.isEmpty() && e.sequenceNumber() == 0L);
     }
 
     public static class JsonNodeUpcaster {
