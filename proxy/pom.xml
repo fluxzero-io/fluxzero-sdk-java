@@ -28,6 +28,42 @@
     <description>Server library that forwards web requests to Fluxzero.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
+    <properties>
+        <undertow.version>2.3.24.Final</undertow.version>
+        <jakarta.websocket.version>2.2.0</jakarta.websocket.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--server-->
+            <dependency>
+                <groupId>io.undertow</groupId>
+                <artifactId>undertow-core</artifactId>
+                <version>${undertow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.undertow</groupId>
+                <artifactId>undertow-servlet</artifactId>
+                <version>${undertow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.undertow</groupId>
+                <artifactId>undertow-websockets-jsr</artifactId>
+                <version>${undertow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-api</artifactId>
+                <version>${jakarta.websocket.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-client-api</artifactId>
+                <version>${jakarta.websocket.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>io.fluxzero</groupId>
