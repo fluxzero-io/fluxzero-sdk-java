@@ -42,7 +42,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <undertow.version>2.3.24.Final</undertow.version>
-        <jakarta.websocket.version>2.1.1</jakarta.websocket.version>
+        <jakarta.websocket.version>2.2.0</jakarta.websocket.version>
         <jakarta.annotation.version>2.1.1</jakarta.annotation.version>
         <kotlin.version>2.3.21</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
