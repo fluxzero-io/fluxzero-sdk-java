@@ -1853,6 +1853,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isNullableAnnotation",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isNullableAnnotation",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isNullableAnnotationPresent",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isNullableAnnotationPresent",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isOrHas",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isOrHas",
     "returnType" : "boolean",

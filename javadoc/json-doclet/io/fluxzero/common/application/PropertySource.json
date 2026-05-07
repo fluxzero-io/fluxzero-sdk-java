@@ -171,14 +171,11 @@
       "name" : "template",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "javax.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Substitutes all placeholders of the form <code>${property[:default]}</code> in the given template string.\n <p>\n Supports recursive substitutions and default fallback values (e.g. <code>${env:dev}</code>).\n\n @param template the template containing substitutions\n @return the fully substituted string\n"
+    "documentation" : " Substitutes all placeholders of the form <code>${property[:default]}</code> in the given template string.\n <p>\n Supports recursive substitutions and default fallback values (e.g. <code>${env:dev}</code>).\n\n @param template the template containing substitutions, or {@code null}\n @return the fully substituted string, or {@code null} if the template is {@code null}\n"
   }, {
     "name" : "substituteProperties",
     "qualifiedName" : "io.fluxzero.common.application.PropertySource#substituteProperties",

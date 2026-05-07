@@ -352,10 +352,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#downcastIntermediate",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "private" ],
-    "annotations" : [ {
-      "annotationType" : "org.jetbrains.annotations.Nullable",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "data",

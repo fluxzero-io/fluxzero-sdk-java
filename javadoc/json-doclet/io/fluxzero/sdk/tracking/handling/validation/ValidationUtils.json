@@ -72,10 +72,7 @@
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ "io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException", "io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException" ],
     "varArgs" : false,
@@ -101,10 +98,7 @@
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -125,10 +119,7 @@
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "requiredRoles",
       "type" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.RequiredRole[]",
@@ -196,10 +187,7 @@
       "name" : "target",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "executable",
       "type" : "java.lang.reflect.Executable",
@@ -330,10 +318,7 @@
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -359,10 +344,7 @@
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

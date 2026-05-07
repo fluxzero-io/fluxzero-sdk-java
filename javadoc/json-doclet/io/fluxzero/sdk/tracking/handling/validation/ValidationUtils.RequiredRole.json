@@ -38,10 +38,7 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils$RequiredRole.value",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ {
-      "annotationType" : "jakarta.annotation.Nullable",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   } ],
@@ -55,10 +52,7 @@
       "name" : "value",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "throwIfUnauthorized",
       "type" : "boolean",
@@ -155,10 +149,7 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils$RequiredRole#value",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "jakarta.annotation.Nullable",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
@@ -184,10 +175,7 @@
   }, {
     "name" : "value",
     "type" : "java.lang.String",
-    "annotations" : [ {
-      "annotationType" : "jakarta.annotation.Nullable",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : null
   } ],
   "nestedTypes" : [ ]

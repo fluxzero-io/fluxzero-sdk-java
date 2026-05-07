@@ -143,18 +143,12 @@
       "name" : "handler",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "method",
       "type" : "java.lang.reflect.Executable",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -217,10 +211,7 @@
       "name" : "handler",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "method",
       "type" : "java.lang.reflect.Executable",

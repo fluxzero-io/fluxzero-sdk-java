@@ -54,10 +54,7 @@
       "name" : "target",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ {
-        "annotationType" : "jakarta.annotation.Nullable",
-        "values" : {}
-      } ]
+      "annotations" : [ ]
     }, {
       "name" : "executable",
       "type" : "java.lang.reflect.Executable",
