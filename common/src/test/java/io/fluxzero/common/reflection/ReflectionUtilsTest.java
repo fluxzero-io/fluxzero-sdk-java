@@ -33,6 +33,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Parameter;
 import java.time.Instant;
 import java.util.List;
 
@@ -277,6 +278,33 @@ class ReflectionUtilsTest {
         }
     }
 
+    @Nested
+    class NullableTests {
+        @Test
+        void detectsParameterNullableAnnotation() throws Exception {
+            Parameter parameter = NullableFixture.class.getDeclaredMethod("parameterNullable", String.class)
+                    .getParameters()[0];
+
+            assertTrue(ReflectionUtils.isNullable(parameter));
+        }
+
+        @Test
+        void detectsTypeUseNullableAnnotation() throws Exception {
+            Parameter parameter = NullableFixture.class.getDeclaredMethod("typeUseNullable", String.class)
+                    .getParameters()[0];
+
+            assertTrue(ReflectionUtils.isNullable(parameter));
+        }
+
+        @Test
+        void ignoresNullableTypeArgumentWhenParameterItselfIsNotNullable() throws Exception {
+            Parameter parameter = NullableFixture.class.getDeclaredMethod("nullableElement", List.class)
+                    .getParameters()[0];
+
+            assertFalse(ReflectionUtils.isNullable(parameter));
+        }
+    }
+
     @Marker
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.FIELD, ElementType.METHOD})
@@ -332,6 +360,31 @@ class ReflectionUtilsTest {
         @Override
         public String getValue() {
             return value;
+        }
+    }
+
+    private static class ParameterAnnotations {
+        @Retention(RetentionPolicy.RUNTIME)
+        @Target(ElementType.PARAMETER)
+        private @interface Nullable {
+        }
+    }
+
+    private static class TypeUseAnnotations {
+        @Retention(RetentionPolicy.RUNTIME)
+        @Target(ElementType.TYPE_USE)
+        private @interface Nullable {
+        }
+    }
+
+    private static class NullableFixture {
+        void parameterNullable(@ParameterAnnotations.Nullable String value) {
+        }
+
+        void typeUseNullable(@TypeUseAnnotations.Nullable String value) {
+        }
+
+        void nullableElement(List<@TypeUseAnnotations.Nullable String> values) {
         }
     }
 

@@ -147,8 +147,7 @@ public class ReflectionUtils {
                         return true;
                     }
                 }
-                return stream(p.getAnnotations()).anyMatch(
-                        a -> a.annotationType().getSimpleName().equals("Nullable"));
+                return isNullableAnnotationPresent(p);
             })
     );
 
@@ -606,6 +605,15 @@ public class ReflectionUtils {
 
     public static boolean isNullable(Parameter parameter) {
         return isNullableCache.apply(parameter);
+    }
+
+    private static boolean isNullableAnnotationPresent(Parameter parameter) {
+        return stream(parameter.getAnnotations()).anyMatch(ReflectionUtils::isNullableAnnotation)
+               || stream(parameter.getAnnotatedType().getAnnotations()).anyMatch(ReflectionUtils::isNullableAnnotation);
+    }
+
+    private static boolean isNullableAnnotation(Annotation annotation) {
+        return annotation.annotationType().getSimpleName().equals("Nullable");
     }
 
     @SuppressWarnings("unchecked")
