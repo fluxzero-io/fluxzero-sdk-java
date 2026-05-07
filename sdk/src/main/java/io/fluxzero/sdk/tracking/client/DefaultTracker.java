@@ -320,7 +320,10 @@ public class DefaultTracker implements Runnable, Registration {
                                 tracker.getName(), tracker.getTrackerId()), Metadata.of(
                                 "messageType", trackingClient.getMessageType())));
                     }
-                    Thread.sleep(duration.toMillis() - System.currentTimeMillis() + start);
+                    long millisToSleep = duration.toMillis() - System.currentTimeMillis() + start;
+                    if (millisToSleep > 0L) {
+                        Thread.sleep(millisToSleep);
+                    }
                 }
             } while (duration != null);
         } catch (InterruptedException e) {

@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.FlowRegulator;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import org.junit.jupiter.api.Test;
@@ -27,14 +28,20 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Thread.currentThread;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,6 +60,36 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultTrackerTest {
+
+    @Test
+    void pauseFetchContinuesWhenPauseDurationHasAlreadyElapsed() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        AtomicInteger pauseChecks = new AtomicInteger();
+        FlowRegulator flowRegulator = new FlowRegulator() {
+            @Override
+            public Optional<Duration> pauseDuration() {
+                if (pauseChecks.incrementAndGet() == 1) {
+                    try {
+                        Thread.sleep(20);
+                    } catch (InterruptedException e) {
+                        currentThread().interrupt();
+                    }
+                    return Optional.of(Duration.ofMillis(1));
+                }
+                return Optional.empty();
+            }
+        };
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .flowRegulator(flowRegulator)
+                .build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+
+        assertDoesNotThrow(defaultTracker::pauseFetchIfNeeded);
+
+        assertEquals(2, pauseChecks.get());
+    }
 
     @Test
     void doesNotFetchStoredPositionWhenNoMaxIndexIsConfigured() throws Exception {
