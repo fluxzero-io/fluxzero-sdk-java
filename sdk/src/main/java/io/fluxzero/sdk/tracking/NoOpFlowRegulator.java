@@ -17,6 +17,9 @@ package io.fluxzero.sdk.tracking;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
+import java.time.Duration;
+import java.util.Optional;
+
 /**
  * A no-op implementation of the {@link FlowRegulator} interface that never requests a pause.
  * <p>
@@ -45,4 +48,9 @@ public class NoOpFlowRegulator implements FlowRegulator {
      */
     @Getter
     private static final NoOpFlowRegulator instance = new NoOpFlowRegulator();
+
+    @Override
+    public Optional<Duration> pauseDuration() {
+        return Optional.empty();
+    }
 }

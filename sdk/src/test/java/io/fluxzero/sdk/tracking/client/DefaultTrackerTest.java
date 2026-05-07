@@ -65,19 +65,16 @@ class DefaultTrackerTest {
     void pauseFetchContinuesWhenPauseDurationHasAlreadyElapsed() throws Exception {
         TrackingClient trackingClient = mock(TrackingClient.class);
         AtomicInteger pauseChecks = new AtomicInteger();
-        FlowRegulator flowRegulator = new FlowRegulator() {
-            @Override
-            public Optional<Duration> pauseDuration() {
-                if (pauseChecks.incrementAndGet() == 1) {
-                    try {
-                        Thread.sleep(20);
-                    } catch (InterruptedException e) {
-                        currentThread().interrupt();
-                    }
-                    return Optional.of(Duration.ofMillis(1));
+        FlowRegulator flowRegulator = () -> {
+            if (pauseChecks.incrementAndGet() == 1) {
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException e) {
+                    currentThread().interrupt();
                 }
-                return Optional.empty();
+                return Optional.of(Duration.ofMillis(1));
             }
+            return Optional.empty();
         };
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")

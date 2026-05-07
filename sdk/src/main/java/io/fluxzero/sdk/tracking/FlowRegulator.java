@@ -22,6 +22,7 @@ import java.util.Optional;
  * consumer should pause fetching or consuming messages, and for how long. This is useful in scenarios where controlling
  * message consumption rate ensures better system performance or resource utilization.
  */
+@FunctionalInterface
 public interface FlowRegulator {
 
     /**
@@ -31,8 +32,6 @@ public interface FlowRegulator {
      * After the given pause duration, this method will be called again to determine if fetching should continue or be
      * paused for longer – i.e., the consumer will not continue until this method returns an empty optional.
      */
-    default Optional<Duration> pauseDuration() {
-        return Optional.empty();
-    }
+    Optional<Duration> pauseDuration();
 
 }
