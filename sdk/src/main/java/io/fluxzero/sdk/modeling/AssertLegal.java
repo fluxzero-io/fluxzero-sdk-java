@@ -40,7 +40,9 @@ import java.lang.annotation.Target;
  *     <li>Other framework-specific types like {@link io.fluxzero.sdk.common.Message} or {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
  * </ul>
  * <p>
- * Note that empty entities (i.e., those with {@code null} values) are not injected unless the parameter is annotated with {@code @Nullable}.
+ * Note that empty entities (i.e., those with {@code null} values) are not injected unless the parameter is declared
+ * nullable. In Java, annotate the parameter with a runtime-visible {@code @Nullable} annotation. Fluxzero recognizes
+ * nullable annotations by simple name, so the SDK does not require a specific annotation package.
  *
  * <h3>Example: Validate entity does not exist yet</h3>
  * <pre>{@code

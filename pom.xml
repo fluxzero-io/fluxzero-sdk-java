@@ -44,7 +44,6 @@
         <undertow.version>2.3.24.Final</undertow.version>
         <jetty.version>12.1.9</jetty.version>
         <jakarta.websocket.version>2.2.0</jakarta.websocket.version>
-        <jakarta.annotation.version>2.1.1</jakarta.annotation.version>
         <kotlin.version>2.3.21</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <mockito.version>5.23.0</mockito.version>
@@ -77,11 +76,6 @@
                 <groupId>jakarta.websocket</groupId>
                 <artifactId>jakarta.websocket-client-api</artifactId>
                 <version>${jakarta.websocket.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>jakarta.annotation</groupId>
-                <artifactId>jakarta.annotation-api</artifactId>
-                <version>${jakarta.annotation.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>

@@ -19,7 +19,6 @@ import jakarta.validation.Path;
 import jakarta.validation.TraversableResolver;
 import jakarta.validation.Validation;
 import jakarta.validation.metadata.ConstraintDescriptor;
-import jakarta.annotation.Nullable;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.ElementType;
@@ -80,7 +79,7 @@ public class Jsr380Validator implements Validator {
 
     @Override
     public Optional<ValidationException> checkParameterValidity(
-            @Nullable Object target, Executable executable, Object[] arguments) {
+            Object target, Executable executable, Object[] arguments) {
         Collection<? extends ConstraintViolation<?>> violations;
         if (executable instanceof Method method) {
             if (target == null) {

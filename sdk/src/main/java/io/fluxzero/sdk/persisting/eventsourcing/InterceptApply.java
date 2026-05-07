@@ -56,8 +56,9 @@ import java.util.Collection;
  * </ul>
  *
  * <p>
- * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is annotated with
- * {@code @Nullable}.
+ * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is declared
+ * nullable. In Java, annotate the parameter with a runtime-visible {@code @Nullable} annotation. Fluxzero recognizes
+ * nullable annotations by simple name, so the SDK does not require a specific annotation package.
  *
  * <h2>Examples</h2>
  *

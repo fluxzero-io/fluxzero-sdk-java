@@ -15,7 +15,6 @@
 
 package io.fluxzero.common.application;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -108,10 +107,10 @@ public interface PropertySource {
      * <p>
      * Supports recursive substitutions and default fallback values (e.g. <code>${env:dev}</code>).
      *
-     * @param template the template containing substitutions
-     * @return the fully substituted string
+     * @param template the template containing substitutions, or {@code null}
+     * @return the fully substituted string, or {@code null} if the template is {@code null}
      */
-    default String substituteProperties(@Nullable String template) {
+    default String substituteProperties(String template) {
         if (template == null) {
             return null;
         }

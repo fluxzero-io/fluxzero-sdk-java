@@ -25,7 +25,6 @@ import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
-import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
@@ -205,7 +204,7 @@ public class ValidationUtils {
      * @param executable the executable that will be invoked
      * @param arguments  resolved argument values in declaration order
      */
-    public static void assertValidParameters(@Nullable Object target, Executable executable, Object[] arguments) {
+    public static void assertValidParameters(Object target, Executable executable, Object[] arguments) {
         defaultValidator.assertValidParameters(target, executable, arguments);
     }
 
@@ -248,7 +247,7 @@ public class ValidationUtils {
      * @throws UnauthenticatedException if authentication is required but the user is {@code null}
      * @throws UnauthorizedException    if the user lacks required roles
      */
-    public static boolean assertAuthorized(Class<?> payloadType, @Nullable User user) throws UnauthenticatedException, UnauthorizedException {
+    public static boolean assertAuthorized(Class<?> payloadType, User user) throws UnauthenticatedException, UnauthorizedException {
         return assertAuthorized(payloadType.getSimpleName(), user, requiredRolesCache.apply(payloadType));
     }
 
@@ -262,7 +261,7 @@ public class ValidationUtils {
      * @param user        the user whose authorization is being evaluated; may be null for unauthenticated access
      * @return {@code true} if the operation should be ignored silently, {@code false} otherwise
      */
-    public static boolean ignoreSilently(Class<?> payloadType, @Nullable User user) {
+    public static boolean ignoreSilently(Class<?> payloadType, User user) {
         try {
             if (!assertAuthorized(payloadType, user)) {
                 return true;
@@ -289,7 +288,7 @@ public class ValidationUtils {
      * @throws UnauthenticatedException if authentication is required but the user is {@code null}
      * @throws UnauthorizedException    if the user lacks required roles
      */
-    public static boolean assertAuthorized(Class<?> target, Executable method, @Nullable User user) {
+    public static boolean assertAuthorized(Class<?> target, Executable method, User user) {
         return assertAuthorized("%s#%s".formatted(target.getSimpleName(), method.getName()),
                                 user, requiredRolesForMethodCache.apply(target, method));
     }
@@ -307,7 +306,7 @@ public class ValidationUtils {
      * @return {@code true} if the method invocation should be ignored without raising an exception, {@code false}
      * otherwise
      */
-    public static boolean ignoreSilently(Class<?> target, Executable method, @Nullable User user) {
+    public static boolean ignoreSilently(Class<?> target, Executable method, User user) {
         try {
             if (!assertAuthorized(target, method, user)) {
                 return true;
@@ -317,7 +316,7 @@ public class ValidationUtils {
         return false;
     }
 
-    protected static boolean assertAuthorized(String action, @Nullable User user, RequiredRole[] requiredRoles) {
+    protected static boolean assertAuthorized(String action, User user, RequiredRole[] requiredRoles) {
         if (requiredRoles == null || Arrays.asList(requiredRoles).contains(noUserRequired)) {
             return true;
         }
@@ -450,7 +449,7 @@ public class ValidationUtils {
                 .map(m -> (boolean) m.invoke(holder));
     }
 
-    protected record RequiredRole(@Nullable String value, boolean throwIfUnauthorized, boolean requiresUser,
+    protected record RequiredRole(String value, boolean throwIfUnauthorized, boolean requiresUser,
                                   boolean forbidsUser) {
     }
 

@@ -23,7 +23,6 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
-import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -269,7 +268,7 @@ public interface When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    Then<Object> whenWebRequestByUser(@Nullable Object user, WebRequest request);
+    Then<Object> whenWebRequestByUser(Object user, WebRequest request);
 
     /**
      * Simulates a POST request to the specified path with the given payload.

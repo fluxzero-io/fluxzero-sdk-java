@@ -58,12 +58,6 @@
             </exclusions>
         </dependency>
 
-        <!--nullable annotations used by public SDK APIs-->
-        <dependency>
-            <groupId>jakarta.annotation</groupId>
-            <artifactId>jakarta.annotation-api</artifactId>
-        </dependency>
-
         <!--validating interceptor-->
         <dependency>
             <groupId>org.hibernate.validator</groupId>

@@ -5236,7 +5236,6 @@ compatible with recent versions.
 
 | Dependency                                    | Scope   |
 |-----------------------------------------------|---------|
-| `jakarta.annotation:jakarta.annotation-api`   | runtime |
 | `org.apache.commons:commons-lang3`            | runtime |
 
 ---

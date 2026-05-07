@@ -20,7 +20,6 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
-import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -262,7 +261,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * The user may be {@code null}, or a {@link User} object or an identifier. If an ID is provided, the
      * {@link UserProvider} will resolve it to a {@code User}.
      */
-    Self givenWebRequestByUser(@Nullable Object user, WebRequest webRequest);
+    Self givenWebRequestByUser(Object user, WebRequest webRequest);
 
     /**
      * Simulates a POST request to the specified {@code path} with the given {@code payload}.
