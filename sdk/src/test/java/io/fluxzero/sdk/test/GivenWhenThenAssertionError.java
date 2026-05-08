@@ -46,6 +46,7 @@ import static java.util.stream.Collectors.toList;
  * {@link AssertionFailedError} constructor to enable clear diffs in IDEs and test runners.
  */
 public class GivenWhenThenAssertionError extends AssertionFailedError {
+    private static final String VERBOSE_ASSERTIONS_PROPERTY = "fluxzero.maven.enabled";
 
     /**
      * Shared JSON object writer used to serialize expected and actual values for comparison.
@@ -82,7 +83,7 @@ public class GivenWhenThenAssertionError extends AssertionFailedError {
      * @param actual   the actual value
      */
     public GivenWhenThenAssertionError(String message, Object expected, Object actual) {
-        super(message, formatForComparison(expected), formatForComparison(actual));
+        super(formatMessage(message, expected, actual), formatForComparison(expected), formatForComparison(actual));
     }
 
     /**
@@ -96,7 +97,36 @@ public class GivenWhenThenAssertionError extends AssertionFailedError {
      * @param cause    the exception that caused this failure
      */
     public GivenWhenThenAssertionError(String message, Object expected, Object actual, Throwable cause) {
-        super(message, formatForComparison(expected), formatForComparison(actual), cause);
+        super(formatMessage(message, expected, actual), formatForComparison(expected), formatForComparison(actual),
+              cause);
+    }
+
+    private static String formatMessage(String message, Object expected, Object actual) {
+        if (!Boolean.getBoolean(VERBOSE_ASSERTIONS_PROPERTY)) {
+            return message;
+        }
+        return message + System.lineSeparator() + System.lineSeparator()
+               + "Expected:" + System.lineSeparator() + renderInMessage(formatForComparison(expected))
+               + System.lineSeparator() + System.lineSeparator()
+               + "Actual:" + System.lineSeparator() + renderInMessage(formatForComparison(actual));
+    }
+
+    private static String renderInMessage(Object value) {
+        if (value instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return "<empty>";
+            }
+            StringBuilder builder = new StringBuilder();
+            int i = 0;
+            for (Object item : collection) {
+                if (i > 0) {
+                    builder.append(System.lineSeparator()).append(System.lineSeparator());
+                }
+                builder.append('[').append(i++).append("] ").append(renderInMessage(item));
+            }
+            return builder.toString();
+        }
+        return Objects.toString(value);
     }
 
     /**
