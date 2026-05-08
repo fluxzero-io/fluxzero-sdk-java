@@ -150,7 +150,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Strategy that determines how applied updates are persisted and/or published, and whether publish-only updates\n advance aggregate state.\n <p>\n The default strategy is {@link EventPublicationStrategy#STORE_AND_PUBLISH}, unless overridden.\n"
+    "documentation" : " Strategy that determines how applied updates are persisted and/or published, and whether publish-only updates\n advance aggregate state for this aggregate type.\n <p>\n The default strategy is {@link EventPublicationStrategy#STORE_AND_PUBLISH}, unless overridden.\n"
   }, {
     "name" : "searchable",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#searchable",

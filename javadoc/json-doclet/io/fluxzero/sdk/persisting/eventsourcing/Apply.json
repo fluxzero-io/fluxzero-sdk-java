@@ -56,7 +56,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate\n state. This strategy takes precedence over {@link #eventPublication()} if explicitly set.\n\n @return strategy for persisting and/or publishing the applied update\n"
+    "documentation" : " Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate\n state for the owning aggregate type. This strategy takes precedence over {@link #eventPublication()} if explicitly\n set.\n\n @return strategy for persisting and/or publishing the applied update\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
