@@ -495,7 +495,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
         }
 
         protected boolean updatesAggregateState(AppliedEvent event) {
-            return event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
+            return !eventSourced || event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
         }
 
         @SneakyThrows

@@ -207,7 +207,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             int hashCodeBefore = eventPublication == IF_MODIFIED ? a.get() == null ? -1 : a.get().hashCode() : -1;
 
             Entity<T> result = a.apply(interceptBeforeApply ? dispatchMessage : message);
-            boolean skipStateUpdate = publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY;
+            boolean skipStateUpdate = eventSourced && publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY;
             boolean publishEvent = switch (eventPublication) {
                 case ALWAYS, DEFAULT -> true;
                 case IF_MODIFIED -> !Objects.equals(a.get(), result.get())

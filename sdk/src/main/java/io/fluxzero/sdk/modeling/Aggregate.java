@@ -147,7 +147,7 @@ public @interface Aggregate {
 
     /**
      * Strategy that determines how applied updates are persisted and/or published, and whether publish-only updates
-     * advance aggregate state.
+     * advance aggregate state for this aggregate type.
      * <p>
      * The default strategy is {@link EventPublicationStrategy#STORE_AND_PUBLISH}, unless overridden.
      */

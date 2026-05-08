@@ -55,11 +55,11 @@ public enum EventPublicationStrategy {
     STORE_ONLY,
 
     /**
-     * Publish the update to the global event log but do not store it in the aggregate event store and do not update
-     * aggregate state.
+     * Publish the update to the global event log but do not store it in the aggregate event store.
      * <p>
-     * This disables event sourcing for the update. When used in the aggregate repository lifecycle, the update is
-     * published but does not advance the aggregate state in cache, snapshots, or search indexing.
+     * This disables event sourcing for the update. On event-sourced aggregates, the apply result does not advance
+     * aggregate state in cache, snapshots, or search indexing because replay would not be able to reconstruct it. On
+     * non-event-sourced, document-backed aggregates, the apply result still updates aggregate/search state.
      */
     PUBLISH_ONLY
 }

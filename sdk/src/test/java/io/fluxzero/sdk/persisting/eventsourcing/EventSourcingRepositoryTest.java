@@ -536,7 +536,25 @@ class EventSourcingRepositoryTest {
                     .expectMetrics("success")
                     .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.EVENT)).append(any(), any()))
                     .expectThat(fc -> verify(fc.client().getEventStoreClient(), never()).storeEvents(any(), anyList(),
-                                                                                                     anyBoolean()));
+                                                                                                     anyBoolean()))
+                    .expectThat(fc -> assertTrue(loadAggregate("test", PublishOnlyModel.class).isEmpty()));
+        }
+
+        @Test
+        void publishOnlyDocumentBackedUpdatesState() {
+            testFixture
+                    .registerHandlers(new Object() {
+                        @HandleEvent
+                        void handle(Object event) {
+                            Fluxzero.publishMetrics("success");
+                        }
+                    })
+                    .whenCommand(new SelfApplyingCommand(PublishOnlyDocumentModel.class))
+                    .expectMetrics("success")
+                    .expectThat(fc -> verify(fc.client().getGatewayClient(MessageType.EVENT)).append(any(), any()))
+                    .expectThat(fc -> verify(fc.client().getEventStoreClient(), never()).storeEvents(any(), anyList(),
+                                                                                                     anyBoolean()))
+                    .expectThat(fc -> assertTrue(loadAggregate("test", PublishOnlyDocumentModel.class).isPresent()));
         }
 
     }
@@ -552,6 +570,14 @@ class EventSourcingRepositoryTest {
     record PublishOnlyModel(Object event) {
         @Apply
         PublishOnlyModel {
+        }
+    }
+
+    @Aggregate(eventSourced = false, cached = false, searchable = true,
+            publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+    record PublishOnlyDocumentModel(Object event) {
+        @Apply
+        PublishOnlyDocumentModel {
         }
     }
 
