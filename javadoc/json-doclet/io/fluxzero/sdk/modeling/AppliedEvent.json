@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Represents an event that has been applied to an aggregate along with its intended publication strategy.\n\n <p>This object combines a deserialized event with its {@link EventPublicationStrategy}, allowing the system\n to determine how the event should be treated upon commit:\n <ul>\n   <li>Whether it should be published immediately to the event gateway</li>\n   <li>Whether it should only be persisted in the event store of the aggregate</li>\n   <li>Or both (default behavior)</li>\n </ul>\n",
+  "documentation" : " Represents an event that has been applied to an aggregate along with its intended publication strategy.\n\n <p>This object combines a deserialized event with its {@link EventPublicationStrategy}, allowing the system\n to determine how the event should be treated upon commit:\n <ul>\n   <li>Whether it should be published to the global event log</li>\n   <li>Whether it should be persisted in the aggregate event store</li>\n   <li>Whether its apply result should advance aggregate state</li>\n </ul>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],

@@ -172,7 +172,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Stores a list of events for the given aggregate using a specified publication strategy.\n\n @param aggregateId The ID of the aggregate.\n @param events      The events to store.\n @param strategy    Whether to publish the events in addition to storing them.\n @return A future that completes once the operation is acknowledged.\n"
+    "documentation" : " Stores and/or publishes a list of events for the given aggregate using a specified publication strategy.\n <p>\n Depending on the strategy, events may be written to the aggregate event store, appended only to the global event\n log, or stored without publication.\n\n @param aggregateId The ID of the aggregate.\n @param events      The events to store.\n @param strategy    How to store and/or publish the events.\n @return A future that completes once the operation is acknowledged.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

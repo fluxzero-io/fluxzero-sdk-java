@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Strategy for controlling how applied updates (typically from {@link Apply @Apply} methods)\n are handled in terms of storage and publication.\n <p>\n This strategy determines whether an update is published, stored in the event store, or both.\n It can be configured at the aggregate level, or overridden per update.\n\n @see Apply\n @see Aggregate\n @see EventPublication\n",
+  "documentation" : " Strategy for controlling how applied updates (typically from {@link Apply @Apply} methods)\n are handled in terms of event storage, event publication, and aggregate state updates.\n <p>\n This strategy determines whether an update is published to the global event log, stored in the aggregate event store,\n and whether its apply result should advance the aggregate state in cache, snapshots, relationships, and search\n indexing.\n It can be configured at the aggregate level, or overridden per update.\n\n @see Apply\n @see Aggregate\n @see EventPublication\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.EventPublicationStrategy>",
   "interfaces" : [ ],
@@ -58,17 +58,17 @@
     "name" : "PUBLISH_ONLY",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY",
     "annotations" : [ ],
-    "documentation" : " Publish the update to event handlers but do not store it in the event store.\n <p>\n This disables event sourcing for the update and is typically used for transient projections or\n side-effect-only operations.\n"
+    "documentation" : " Publish the update to the global event log but do not store it in the aggregate event store and do not update\n aggregate state.\n <p>\n This disables event sourcing for the update. When used in the aggregate repository lifecycle, the update is\n published but does not advance the aggregate state in cache, snapshots, or search indexing.\n"
   }, {
     "name" : "STORE_AND_PUBLISH",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_AND_PUBLISH",
     "annotations" : [ ],
-    "documentation" : " Store the applied update in the event store and also publish it to event handlers.\n <p>\n This is the default behavior used for event-sourced aggregates.\n"
+    "documentation" : " Store the applied update in the aggregate event store, publish it to the global event log, and update aggregate\n state.\n <p>\n This is the default behavior used for event-sourced aggregates.\n"
   }, {
     "name" : "STORE_ONLY",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY",
     "annotations" : [ ],
-    "documentation" : " Store the applied update in the event store but do not publish it to event handlers.\n <p>\n Useful when updates must be persisted but should not trigger side effects or listeners.\n"
+    "documentation" : " Store the applied update in the aggregate event store and update aggregate state, but do not publish it to the\n global event log.\n <p>\n Useful when updates must be persisted but should not trigger side effects or listeners.\n"
   } ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

@@ -308,6 +308,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "updatesAggregateState",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#updatesAggregateState",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.modeling.AppliedEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "withHistoricalSnapshots",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#withHistoricalSnapshots",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
