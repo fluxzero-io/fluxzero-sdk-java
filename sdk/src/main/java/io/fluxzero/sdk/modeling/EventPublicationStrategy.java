@@ -18,9 +18,11 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 /**
  * Strategy for controlling how applied updates (typically from {@link Apply @Apply} methods)
- * are handled in terms of storage and publication.
+ * are handled in terms of event storage, event publication, and aggregate state updates.
  * <p>
- * This strategy determines whether an update is published, stored in the event store, or both.
+ * This strategy determines whether an update is published to the global event log, stored in the aggregate event store,
+ * and whether its apply result should advance the aggregate state in cache, snapshots, relationships, and search
+ * indexing.
  * It can be configured at the aggregate level, or overridden per update.
  *
  * @see Apply
@@ -37,24 +39,27 @@ public enum EventPublicationStrategy {
     DEFAULT,
 
     /**
-     * Store the applied update in the event store and also publish it to event handlers.
+     * Store the applied update in the aggregate event store, publish it to the global event log, and update aggregate
+     * state.
      * <p>
      * This is the default behavior used for event-sourced aggregates.
      */
     STORE_AND_PUBLISH,
 
     /**
-     * Store the applied update in the event store but do not publish it to event handlers.
+     * Store the applied update in the aggregate event store and update aggregate state, but do not publish it to the
+     * global event log.
      * <p>
      * Useful when updates must be persisted but should not trigger side effects or listeners.
      */
     STORE_ONLY,
 
     /**
-     * Publish the update to event handlers but do not store it in the event store.
+     * Publish the update to the global event log but do not store it in the aggregate event store and do not update
+     * aggregate state.
      * <p>
-     * This disables event sourcing for the update and is typically used for transient projections or
-     * side-effect-only operations.
+     * This disables event sourcing for the update. When used in the aggregate repository lifecycle, the update is
+     * published but does not advance the aggregate state in cache, snapshots, or search indexing.
      */
     PUBLISH_ONLY
 }

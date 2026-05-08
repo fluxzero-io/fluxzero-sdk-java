@@ -146,7 +146,8 @@ public @interface Aggregate {
     EventPublication eventPublication() default EventPublication.DEFAULT;
 
     /**
-     * Strategy that determines how applied updates are persisted and/or published.
+     * Strategy that determines how applied updates are persisted and/or published, and whether publish-only updates
+     * advance aggregate state.
      * <p>
      * The default strategy is {@link EventPublicationStrategy#STORE_AND_PUBLISH}, unless overridden.
      */

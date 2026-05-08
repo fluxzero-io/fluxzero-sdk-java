@@ -69,11 +69,14 @@ public interface EventStore extends Namespaced<EventStore>, HasLocalHandlers {
     }
 
     /**
-     * Stores a list of events for the given aggregate using a specified publication strategy.
+     * Stores and/or publishes a list of events for the given aggregate using a specified publication strategy.
+     * <p>
+     * Depending on the strategy, events may be written to the aggregate event store, appended only to the global event
+     * log, or stored without publication.
      *
      * @param aggregateId The ID of the aggregate.
      * @param events      The events to store.
-     * @param strategy    Whether to publish the events in addition to storing them.
+     * @param strategy    How to store and/or publish the events.
      * @return A future that completes once the operation is acknowledged.
      */
     CompletableFuture<Void> storeEvents(Object aggregateId, List<?> events, EventPublicationStrategy strategy);

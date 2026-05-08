@@ -23,9 +23,9 @@ import lombok.Value;
  * <p>This object combines a deserialized event with its {@link EventPublicationStrategy}, allowing the system
  * to determine how the event should be treated upon commit:
  * <ul>
- *   <li>Whether it should be published immediately to the event gateway</li>
- *   <li>Whether it should only be persisted in the event store of the aggregate</li>
- *   <li>Or both (default behavior)</li>
+ *   <li>Whether it should be published to the global event log</li>
+ *   <li>Whether it should be persisted in the aggregate event store</li>
+ *   <li>Whether its apply result should advance aggregate state</li>
  * </ul>
  */
 @Value

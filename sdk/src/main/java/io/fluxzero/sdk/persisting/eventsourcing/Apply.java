@@ -150,8 +150,8 @@ public @interface Apply {
     EventPublication eventPublication() default EventPublication.DEFAULT;
 
     /**
-     * Controls how the applied update is stored and/or published. This strategy takes precedence over
-     * {@link #eventPublication()} if explicitly set.
+     * Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate
+     * state. This strategy takes precedence over {@link #eventPublication()} if explicitly set.
      *
      * @return strategy for persisting and/or publishing the applied update
      */

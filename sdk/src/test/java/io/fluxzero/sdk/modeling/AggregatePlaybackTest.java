@@ -245,6 +245,40 @@ class AggregatePlaybackTest {
     }
 
     @Test
+    void ifModifiedNoOpDoesNotCreatePendingCachedVersion() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            Entity<IfModifiedPlaybackAggregate> afterCreate =
+                    delegateRepository.load("if-modified", IfModifiedPlaybackAggregate.class)
+                            .apply(new CreateIfModifiedPlaybackAggregate("value-1"));
+            assertEquals(0L, afterCreate.sequenceNumber());
+
+            Entity<IfModifiedPlaybackAggregate> afterNoOp =
+                    delegateRepository.load("if-modified", IfModifiedPlaybackAggregate.class)
+                            .apply(new SetIfModifiedPlaybackValue("value-1"));
+            assertEquals(0L, afterNoOp.sequenceNumber());
+            assertEquals(afterCreate.lastEventId(), afterNoOp.lastEventId());
+
+            Entity<IfModifiedPlaybackAggregate> afterUpdate =
+                    delegateRepository.load("if-modified", IfModifiedPlaybackAggregate.class)
+                            .apply(new SetIfModifiedPlaybackValue("value-2"));
+            assertEquals(1L, afterUpdate.sequenceNumber());
+
+            List<DeserializingMessage> events = fc.eventStore().getEvents("if-modified").toList();
+            assertEquals(2, events.size());
+            events.forEach(e -> e.getSerializedObject().setSource(fc.client().id()));
+
+            assertDoesNotThrow(() -> invokeCachingAggregateTracker(
+                    fc, events.stream().map(DeserializingMessage::getSerializedObject).toList()));
+            Entity<IfModifiedPlaybackAggregate> cached =
+                    fc.aggregateRepository().load("if-modified", IfModifiedPlaybackAggregate.class);
+            assertEquals("value-2", cached.get().value());
+            assertEquals(events.getLast().getIndex(), cached.lastEventIndex());
+            assertEquals(events.getFirst().getIndex(), cached.previous().lastEventIndex());
+        }).expectNoErrors();
+    }
+
+    @Test
     void publishOnlyWithoutStateChangeSkipsCacheAndSearchUpdates() throws Exception {
         TestFixture spyFixture = TestFixture.create().spy();
         spyFixture.whenExecuting(fc -> {
@@ -292,6 +326,63 @@ class AggregatePlaybackTest {
             invokeCachingAggregateTracker(fc, List.of(storedEvent));
             assertTrue(fc.cache().containsKey(aggregateCacheKey("publish-only")));
             verify(fc.client().getSearchClient(), never()).index(anyList(), eq(Guarantee.STORED), anyBoolean());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void publishOnlyStateChangePublishesWithoutChangingAggregateState() throws Exception {
+        TestFixture spyFixture = TestFixture.create().spy();
+        spyFixture.whenExecuting(fc -> {
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load("publish-only-state", PublishOnlyPlaybackAggregate.class)
+                    .apply(new CreatePublishOnlyPlaybackAggregate());
+
+            List<DeserializingMessage> events = fc.eventStore().getEvents("publish-only-state").toList();
+            assertEquals(1, events.size());
+            SerializedMessage createEvent = events.getFirst().getSerializedObject();
+            createEvent.setSource(fc.client().id());
+            invokeCachingAggregateTracker(fc, List.of(createEvent));
+
+            clearInvocations(fc.client().getSearchClient());
+            Entity<PublishOnlyPlaybackAggregate> afterPublishOnly =
+                    delegateRepository.load("publish-only-state", PublishOnlyPlaybackAggregate.class)
+                            .apply(new PublishOnlySetStoredValue("transient"));
+            assertNull(afterPublishOnly.get().storedValue());
+
+            Entity<PublishOnlyPlaybackAggregate> cachedAfterPublishOnly =
+                    fc.aggregateRepository().load("publish-only-state", PublishOnlyPlaybackAggregate.class);
+            assertNull(cachedAfterPublishOnly.get().storedValue());
+            assertEquals(0L, cachedAfterPublishOnly.sequenceNumber());
+            assertEquals(createEvent.getIndex(), cachedAfterPublishOnly.lastEventIndex());
+            verify(fc.client().getSearchClient(), never()).index(anyList(), eq(Guarantee.STORED), anyBoolean());
+            assertEquals(1, fc.eventStore().getEvents("publish-only-state").toList().size());
+
+            Entity<PublishOnlyPlaybackAggregate> latest = delegateRepository.load(
+                    "publish-only-state", PublishOnlyPlaybackAggregate.class).apply(new SetStoredValue("value-1"));
+            assertEquals(1L, latest.sequenceNumber());
+            assertEquals("value-1", latest.get().storedValue());
+
+            events = fc.eventStore().getEvents("publish-only-state").toList();
+            assertEquals(2, events.size());
+            SerializedMessage storedEvent = events.getLast().getSerializedObject();
+            storedEvent.setSource(fc.client().id());
+
+            assertDoesNotThrow(() -> invokeCachingAggregateTracker(fc, List.of(storedEvent)));
+            Entity<PublishOnlyPlaybackAggregate> cachedLatest =
+                    fc.aggregateRepository().load("publish-only-state", PublishOnlyPlaybackAggregate.class);
+            assertEquals("value-1", cachedLatest.get().storedValue());
+            assertEquals(storedEvent.getIndex(), cachedLatest.lastEventIndex());
+            assertEquals(createEvent.getIndex(), cachedLatest.previous().lastEventIndex());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void sideEffectFreeEntityStillAppliesPublishOnlyStateChanges() {
+        testFixture.whenExecuting(fc -> {
+            Entity<PublishOnlyPlaybackAggregate> after =
+                    Fluxzero.asEntity(PublishOnlyPlaybackAggregate.builder().build())
+                            .apply(new PublishOnlySetStoredValue("transient"));
+            assertEquals("transient", after.get().storedValue());
         }).expectNoErrors();
     }
 
@@ -537,6 +628,25 @@ class AggregatePlaybackTest {
                            boolean secondFlag, boolean auxiliaryFlag) {
     }
 
+    record CreateIfModifiedPlaybackAggregate(String value) {
+        @Apply
+        IfModifiedPlaybackAggregate apply() {
+            return IfModifiedPlaybackAggregate.builder().value(value).build();
+        }
+    }
+
+    record SetIfModifiedPlaybackValue(String value) {
+        @Apply
+        IfModifiedPlaybackAggregate apply(IfModifiedPlaybackAggregate aggregate) {
+            return aggregate.toBuilder().value(value).build();
+        }
+    }
+
+    @Aggregate(eventPublication = EventPublication.IF_MODIFIED)
+    @Builder(toBuilder = true)
+    record IfModifiedPlaybackAggregate(String value) {
+    }
+
     record CreatePublishOnlyPlaybackAggregate() {
         @Apply
         PublishOnlyPlaybackAggregate apply() {
@@ -552,6 +662,13 @@ class AggregatePlaybackTest {
 
     record SetStoredValue(String value) {
         @Apply
+        PublishOnlyPlaybackAggregate apply(PublishOnlyPlaybackAggregate aggregate) {
+            return aggregate.toBuilder().storedValue(value).build();
+        }
+    }
+
+    record PublishOnlySetStoredValue(String value) {
+        @Apply(publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
         PublishOnlyPlaybackAggregate apply(PublishOnlyPlaybackAggregate aggregate) {
             return aggregate.toBuilder().storedValue(value).build();
         }

@@ -446,12 +446,14 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 return;
             }
             boolean stateChanged = after != before;
+            List<AppliedEvent> aggregateStateEvents = unpublishedEvents.stream()
+                    .filter(this::updatesAggregateState).toList();
             try {
                 if (stateChanged) {
                     aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
                             current == null || current == before ? after
-                                    : unpublishedEvents.isEmpty() ? null
-                                    : current.apply(unpublishedEvents.stream().map(AppliedEvent::getEvent).toList()));
+                                    : aggregateStateEvents.isEmpty() ? null
+                                    : current.apply(aggregateStateEvents.stream().map(AppliedEvent::getEvent).toList()));
                     Set<Relationship> associations = after.associations(before), dissociations =
                             after.dissociations(before);
                     dissociations.forEach(
@@ -471,7 +473,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 }
                 if (!unpublishedEvents.isEmpty()) {
                     storeEvents(after.id().toString(), unpublishedEvents);
-                    if (stateChanged && snapshotTrigger.shouldCreateSnapshot(after, unpublishedEvents)) {
+                    if (stateChanged && !aggregateStateEvents.isEmpty()
+                        && snapshotTrigger.shouldCreateSnapshot(after, aggregateStateEvents)) {
                         snapshotStore.storeSnapshot(after);
                     }
                 }
@@ -489,6 +492,10 @@ public class DefaultAggregateRepository implements AggregateRepository {
                 log.error("Failed to commit aggregate {}", after.id(), e);
                 aggregateCache.remove(after.id().toString());
             }
+        }
+
+        protected boolean updatesAggregateState(AppliedEvent event) {
+            return event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
         }
 
         @SneakyThrows

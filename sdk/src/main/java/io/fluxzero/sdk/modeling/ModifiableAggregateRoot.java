@@ -207,19 +207,18 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             int hashCodeBefore = eventPublication == IF_MODIFIED ? a.get() == null ? -1 : a.get().hashCode() : -1;
 
             Entity<T> result = a.apply(interceptBeforeApply ? dispatchMessage : message);
-            if (publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY && result.get() == a.get()) {
-                result = a;
-            }
-            if (switch (eventPublication) {
+            boolean skipStateUpdate = publicationStrategy == EventPublicationStrategy.PUBLISH_ONLY;
+            boolean publishEvent = switch (eventPublication) {
                 case ALWAYS, DEFAULT -> true;
                 case IF_MODIFIED -> !Objects.equals(a.get(), result.get())
                                     || (result.get() != null && result.get().hashCode() != hashCodeBefore);
                 case NEVER -> false;
-            }) {
+            };
+            if (publishEvent) {
                 if (!interceptBeforeApply) {
                     dispatchMessage = dispatchInterceptor.interceptDispatch(message, EVENT, null);
                     if (dispatchMessage == null) {
-                        return result;
+                        return skipStateUpdate ? a : result;
                     }
                     dispatchMessage = addAggregateMetadata(dispatchMessage, publicationStrategy);
                 }
@@ -227,15 +226,33 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                         dispatchInterceptor.modifySerializedMessage(dispatchMessage.serialize(serializer), dispatchMessage,
                                                                     EVENT, null);
                 if (serializedEvent == null) {
-                    return interceptBeforeApply ? a : result;
+                    return interceptBeforeApply || skipStateUpdate ? a : result;
                 }
                 Message appliedMessage = dispatchMessage;
                 applied.add(new AppliedEvent(new DeserializingMessage(serializedEvent, type ->
                         serializer.convert(appliedMessage.getPayload(), type), EVENT, null, serializer),
                                              publicationStrategy));
             }
+            if (skipStateUpdate) {
+                return a;
+            }
+            if (!publishEvent) {
+                return eventPublication == IF_MODIFIED ? a : withoutPublishedEventMetadata(a, result);
+            }
             return result;
         });
+    }
+
+    private Entity<T> withoutPublishedEventMetadata(Entity<T> before, Entity<T> result) {
+        if (result instanceof ImmutableAggregateRoot<T> root) {
+            return root.toBuilder()
+                    .lastEventId(before.lastEventId())
+                    .lastEventIndex(before.lastEventIndex())
+                    .previous(before.previous())
+                    .sequenceNumber(before.sequenceNumber())
+                    .build();
+        }
+        return result;
     }
 
     private boolean shouldInterceptDispatchBeforeApply(EventPublication eventPublication) {
