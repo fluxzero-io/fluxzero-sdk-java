@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.publishing.correlation;
@@ -23,6 +24,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -66,7 +68,7 @@ class CorrelationDataProviderTest {
     private static class TestCorrelationDataProvider implements CorrelationDataProvider {
 
         @Override
-        public Map<String, String> getCorrelationData(DeserializingMessage currentMessage) {
+        public Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
             Client client = Fluxzero.getOptionally().map(Fluxzero::client).orElse(null);
             if (currentMessage == null) {
                 return getCorrelationData(client, null, null);
@@ -75,7 +77,8 @@ class CorrelationDataProviderTest {
         }
 
         @Override
-        public Map<String, String> getCorrelationData(Client client, SerializedMessage msg, MessageType messageType) {
+        public Map<String, String> getCorrelationData(Client client, @Nullable SerializedMessage msg,
+                                                      @Nullable MessageType messageType) {
             Map<String, String> result = new HashMap<>(Map.of("foo", "bar"));
             if (msg != null) {
                 result.put("msgId", msg.getMessageId());

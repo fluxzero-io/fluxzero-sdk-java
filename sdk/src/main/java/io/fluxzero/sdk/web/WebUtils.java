@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import jakarta.annotation.Nullable;
 import lombok.NonNull;
 
 import java.lang.reflect.AnnotatedElement;
@@ -43,8 +44,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.ObjectUtils.concat;
+import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
@@ -142,7 +143,7 @@ public class WebUtils {
      * @param method      the method to inspect
      * @return a list of {@link WebPattern} instances associated with the method
      */
-    public static List<WebPattern> getWebPatterns(Class<?> targetClass, Object handler, Executable method) {
+    public static List<WebPattern> getWebPatterns(Class<?> targetClass, @Nullable Object handler, Executable method) {
         String root = getHandlerPath(targetClass, handler, method);
         return ReflectionUtils.getMethodAnnotations(method, HandleWeb.class)
                 .stream().flatMap(a -> ReflectionUtils.getAnnotationAs(a, HandleWeb.class, WebParameters.class)
@@ -163,7 +164,7 @@ public class WebUtils {
      * {@code @Path} values are joined together in the order listed above, with a slash as delimiter. If any of
      * the {@code @Path} values start with a slash or contain an absolute URL, the chain is reset.
      */
-    public static String getHandlerPath(Class<?> targetClass, Object handler, Executable method) {
+    public static String getHandlerPath(Class<?> targetClass, @Nullable Object handler, @Nullable Executable method) {
         var mapper = pathValues();
         List<String> hierarchy = concat(
                 getPackageAndParentPackages(targetClass.getPackage()).reversed().stream().flatMap(mapper),

@@ -35,6 +35,7 @@ import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent;
+import jakarta.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -154,7 +155,7 @@ public class DefaultTracker implements Runnable, Registration {
      * {@link ConsumerConfiguration}.
      */
     public static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType,
-                                     String topic, ConsumerConfiguration config, Client client) {
+                                     @Nullable String topic, ConsumerConfiguration config, Client client) {
         List<DefaultTracker> trackers = IntStream.range(0, config.getThreads())
                 .mapToObj(i -> new DefaultTracker(consumer, config, new Tracker(
                         config.getTrackerIdFactory().apply(client), messageType, topic, config, null),

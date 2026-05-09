@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 package io.fluxzero.common.application;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -107,10 +108,10 @@ public interface PropertySource {
      * <p>
      * Supports recursive substitutions and default fallback values (e.g. <code>${env:dev}</code>).
      *
-     * @param template the template containing substitutions, or {@code null}
-     * @return the fully substituted string, or {@code null} if the template is {@code null}
+     * @param template the template containing substitutions
+     * @return the fully substituted string
      */
-    default String substituteProperties(String template) {
+    default String substituteProperties(@Nullable String template) {
         if (template == null) {
             return null;
         }

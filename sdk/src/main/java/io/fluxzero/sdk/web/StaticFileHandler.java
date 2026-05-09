@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.reflection.ReflectionUtils;
+import jakarta.annotation.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
@@ -92,9 +93,9 @@ public class StaticFileHandler implements Closeable {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final String webRoot;
 
-    private final Path fsBaseDirectory;
-    private final URI resourceBaseUri;
-    private final String fallbackFile;
+    private final @Nullable Path fsBaseDirectory;
+    private final @Nullable URI resourceBaseUri;
+    private final @Nullable String fallbackFile;
     private final Set<String> ignorePaths;
     private final Set<String> immutableCandidateExtensions;
     private final long maxAgeSeconds;
@@ -111,24 +112,24 @@ public class StaticFileHandler implements Closeable {
         this(webRoot, resourceBasePath, null);
     }
 
-    public StaticFileHandler(String webRoot, String resourceBasePath, String fallbackFile) {
+    public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile) {
         this(webRoot, resourceBasePath, fallbackFile, Set.of("html", "js", "css", "json", "svg"));
     }
 
-    public StaticFileHandler(String webRoot, String resourceBasePath, String fallbackFile,
+    public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
                              Set<String> immutableCandidateExtensions) {
         this(webRoot, resourceBasePath, fallbackFile, Set.of(), immutableCandidateExtensions, 86400L);
     }
 
-    public StaticFileHandler(String webRoot, String resourceBasePath, String fallbackFile,
+    public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
                              Set<String> ignorePaths, Set<String> immutableCandidateExtensions, long maxAgeSeconds) {
         this(webRoot, Optional.ofNullable(getFileSystemUri(resourceBasePath)).map(Paths::get).orElse(null),
              getResourceBaseUri(resourceBasePath), fallbackFile, ignorePaths, immutableCandidateExtensions,
              maxAgeSeconds);
     }
 
-    public StaticFileHandler(@NonNull String webRoot, Path fsBaseDirectory, URI resourceBaseUri,
-                             String fallbackFile, Set<String> ignorePaths,
+    public StaticFileHandler(@NonNull String webRoot, @Nullable Path fsBaseDirectory, @Nullable URI resourceBaseUri,
+                             @Nullable String fallbackFile, Set<String> ignorePaths,
                              Set<String> immutableCandidateExtensions,
                              long maxAgeSeconds) {
         if (fallbackFile != null) {

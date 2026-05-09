@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,9 +58,8 @@ import java.lang.annotation.Target;
  * </ul>
  *
  * <p>
- * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter is
- * declared nullable. In Java, annotate the parameter with a runtime-visible {@code @Nullable} annotation. Fluxzero
- * recognizes nullable annotations by simple name, so the SDK does not require a specific annotation package.
+ * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter
+ * is annotated with {@code @Nullable}.
  *
  * <h2>Examples</h2>
  *

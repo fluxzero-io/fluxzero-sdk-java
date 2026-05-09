@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.web;
@@ -34,8 +35,8 @@ import io.jooby.Router;
 import io.jooby.Sender;
 import io.jooby.ServerSentEmitter;
 import io.jooby.StatusCode;
-import io.jooby.output.Output;
 import io.jooby.WebSocket;
+import io.jooby.output.Output;
 import io.jooby.value.ConversionHint;
 import io.jooby.value.ValueFactory;
 import lombok.AllArgsConstructor;
@@ -47,6 +48,7 @@ import lombok.experimental.Accessors;
 import lombok.experimental.Delegate;
 import lombok.experimental.NonFinal;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -168,6 +170,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
     @Getter(lazy = true)
     String requestPath = getUri().getRawPath();
     @Getter(lazy = true)
+    @jakarta.annotation.Nullable
     String origin = Optional.ofNullable(getUri().getScheme())
             .map(scheme -> scheme + "://" + getUri().getHost() + Optional.ofNullable(getUri().getPort())
                     .filter(p -> p >= 0).map(p -> ":" + p).orElse("")).orElse(null);
@@ -399,6 +402,7 @@ public class DefaultWebRequestContext implements DefaultContext, WebRequestConte
         return this;
     }
 
+    @Nullable
     @Override
     public String getResponseHeader(@NotNull String name) {
         return null;

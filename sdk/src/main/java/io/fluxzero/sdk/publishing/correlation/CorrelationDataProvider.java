@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.Invocation;
+import jakarta.annotation.Nullable;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -92,7 +93,7 @@ public interface CorrelationDataProvider {
      * @param currentMessage the message currently being handled (can be {@code null})
      * @return a map of correlation metadata entries
      */
-    default Map<String, String> getCorrelationData(DeserializingMessage currentMessage) {
+    default Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
         Map<String, String> result = getBasicCorrelationData(
                 Fluxzero.getOptionally().map(Fluxzero::client).orElse(null));
         ofNullable(currentMessage).ifPresent(m -> {
@@ -118,9 +119,9 @@ public interface CorrelationDataProvider {
      * @param messageType    the type of the outgoing message (e.g. {@code COMMAND}, {@code EVENT}, etc.)
      * @return a map of correlation metadata entries
      */
-    default Map<String, String> getCorrelationData(Client client,
-                                                   SerializedMessage currentMessage,
-                                                   MessageType messageType) {
+    default Map<String, String> getCorrelationData(@Nullable Client client,
+                                                   @Nullable SerializedMessage currentMessage,
+                                                   @Nullable MessageType messageType) {
         Map<String, String> result = getBasicCorrelationData(client);
         ofNullable(currentMessage).ifPresent(m -> {
             String correlationId = ofNullable(m.getIndex()).map(Object::toString).orElse(m.getMessageId());
@@ -135,7 +136,7 @@ public interface CorrelationDataProvider {
         return result;
     }
 
-    private HashMap<String, String> getBasicCorrelationData(Client client) {
+    private HashMap<String, String> getBasicCorrelationData(@Nullable Client client) {
         var result = new HashMap<String, String>();
         Optional.ofNullable(client).ifPresent(f -> {
             Optional.ofNullable(client.applicationId())
@@ -276,15 +277,15 @@ public interface CorrelationDataProvider {
 
         return new CorrelationDataProvider() {
             @Override
-            public Map<String, String> getCorrelationData(DeserializingMessage currentMessage) {
+            public Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
                 Map<String, String> result = new HashMap<>(first.getCorrelationData(currentMessage));
                 result.putAll(next.getCorrelationData(currentMessage));
                 return result;
             }
 
             @Override
-            public Map<String, String> getCorrelationData(Client client, SerializedMessage currentMessage,
-                                                          MessageType messageType) {
+            public Map<String, String> getCorrelationData(Client client, @Nullable SerializedMessage currentMessage,
+                                                          @Nullable MessageType messageType) {
                 Map<String, String> result =
                         new HashMap<>(first.getCorrelationData(client, currentMessage, messageType));
                 result.putAll(next.getCorrelationData(client, currentMessage, messageType));

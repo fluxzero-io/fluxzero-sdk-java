@@ -10,9 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling.validation;
+
+import jakarta.annotation.Nullable;
 
 import java.lang.reflect.Executable;
 import java.util.Optional;
@@ -105,7 +108,7 @@ public interface Validator {
      * @return an optional validation exception
      */
     default Optional<ValidationException> checkParameterValidity(
-            Object target, Executable executable, Object[] arguments) {
+            @Nullable Object target, Executable executable, Object[] arguments) {
         return Optional.empty();
     }
 
@@ -117,7 +120,7 @@ public interface Validator {
      * @param arguments  invocation arguments
      * @throws ValidationException if arguments are invalid
      */
-    default void assertValidParameters(Object target, Executable executable, Object[] arguments)
+    default void assertValidParameters(@Nullable Object target, Executable executable, Object[] arguments)
             throws ValidationException {
         checkParameterValidity(target, executable, arguments).ifPresent(e -> {
             throw e;
@@ -132,7 +135,7 @@ public interface Validator {
      * @param arguments  invocation arguments
      * @return {@code true} if valid, {@code false} otherwise
      */
-    default boolean areParametersValid(Object target, Executable executable, Object[] arguments) {
+    default boolean areParametersValid(@Nullable Object target, Executable executable, Object[] arguments) {
         return checkParameterValidity(target, executable, arguments).isEmpty();
     }
 }

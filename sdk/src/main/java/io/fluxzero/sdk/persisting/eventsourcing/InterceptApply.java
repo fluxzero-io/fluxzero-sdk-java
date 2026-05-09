@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.eventsourcing;
@@ -56,9 +57,8 @@ import java.util.Collection;
  * </ul>
  *
  * <p>
- * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is declared
- * nullable. In Java, annotate the parameter with a runtime-visible {@code @Nullable} annotation. Fluxzero recognizes
- * nullable annotations by simple name, so the SDK does not require a specific annotation package.
+ * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is annotated with
+ * {@code @Nullable}.
  *
  * <h2>Examples</h2>
  *

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+  ~ Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -56,6 +56,12 @@
                     <artifactId>spotbugs-annotations</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <!--nullable annotations used by public SDK APIs-->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
 
         <!--validating interceptor-->

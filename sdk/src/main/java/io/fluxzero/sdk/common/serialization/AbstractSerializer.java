@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.serialization;
@@ -25,6 +26,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.TypeUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -347,6 +349,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
     /**
      * Internal helper to run the downcaster chain and extract the object(s) at the desired revision.
      */
+    @Nullable
     private Object downcastIntermediate(Data<I> data, int desiredRevision) {
         var result = downcasterChain.cast(Stream.of(data), desiredRevision).map(Data::getValue)
                 .filter(Objects::nonNull).toList();
