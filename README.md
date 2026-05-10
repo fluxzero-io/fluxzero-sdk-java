@@ -2157,6 +2157,7 @@ If the `value` is left empty, the framework will use the parameter name (`id` in
 Route patterns support literal segments, `{name}` path parameters, `{name:regex}` constrained parameters, and `*`
 wildcards. A non-final `*` matches within a single path segment, so routes like `/meters/*/readings` are valid. A final
 `*` matches the rest of the path and is mainly useful for static or SPA fallback routes.
+Trailing slashes on non-root paths are ignored, so `/users` and `/users/` match the same route.
 
 When multiple web handlers match the same request, Fluxzero selects the most specific route: literal segments win over
 path parameters, constrained parameters win over plain parameters, and wildcard/catch-all routes are treated as

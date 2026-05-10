@@ -369,6 +369,12 @@ public class HandleWebTest {
         }
 
         @Test
+        void testTrailingSlashIsIgnored() {
+            testFixture.whenGet("/get/").expectResult("get");
+            testFixture.whenGet("/trailingSlash").expectResult("trailingSlash");
+        }
+
+        @Test
         void testWrongPath() {
             testFixture.whenWebRequest(WebRequest.builder().method(GET).url("/unknown").build())
                     .expectExceptionalResult(TimeoutException.class);
@@ -433,6 +439,11 @@ public class HandleWebTest {
             @HandleGet("/get")
             String get() {
                 return "get";
+            }
+
+            @HandleGet("/trailingSlash/")
+            String trailingSlash() {
+                return "trailingSlash";
             }
 
             @HandleGet(value = "/getWithoutAutoHead", autoHead = false)

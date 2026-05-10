@@ -31,6 +31,8 @@ import java.util.stream.Stream;
  * The matcher intentionally keeps the route rules limited to the SDK's annotation model: literal path parts,
  * {@code {pathParam}} parameters, {@code {pathParam:regex}} parameters, and {@code *} wildcards.
  * <p>
+ * Trailing slashes on non-root paths are ignored, so {@code /users} and {@code /users/} match the same route.
+ * <p>
  * When multiple routes match, the most specific route wins. Literal path parts outrank parameters, constrained
  * parameters outrank unconstrained parameters, and wildcard or catch-all routes are treated as fallbacks.
  */
@@ -107,7 +109,7 @@ class WebRouteMatcher<T> {
             int catchAllCount
     ) {
         static CompiledPath compile(String path) {
-            String normalizedPath = normalizePath(path);
+            String normalizedPath = normalizeRoutePath(normalizePath(path));
             StringBuilder regex = new StringBuilder("^");
             List<ParameterGroup> parameters = new ArrayList<>();
             int literalChars = 0;
@@ -158,12 +160,22 @@ class WebRouteMatcher<T> {
                 }
                 regex.append(Pattern.quote(normalizedPath.substring(start, i)));
             }
+            if (!normalizedPath.isEmpty() && !"/".equals(normalizedPath)) {
+                regex.append("/?");
+            }
             regex.append("$");
 
             return new CompiledPath(
                     Pattern.compile(regex.toString()), List.copyOf(parameters), literalChars,
                     literalSegments(normalizedPath), segmentCount(normalizedPath), parameterCount,
                     regexParameterCount, wildcardCount, catchAllCount);
+        }
+
+        private static String normalizeRoutePath(String path) {
+            while (path.length() > 1 && path.endsWith("/")) {
+                path = path.substring(0, path.length() - 1);
+            }
+            return path;
         }
 
         Optional<Map<String, String>> match(String path) {

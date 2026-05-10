@@ -33,6 +33,17 @@ class WebRouteMatcherTest {
     }
 
     @Test
+    void nonRootTrailingSlashIsIgnored() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/users", GET), "users");
+        matcher.add(new WebPattern("/projects/", GET), "projects");
+
+        assertEquals("users", matcher.match(GET, null, "/users/").orElseThrow().value());
+        assertEquals("projects", matcher.match(GET, null, "/projects").orElseThrow().value());
+        assertEquals("projects", matcher.match(GET, null, "/projects/").orElseThrow().value());
+    }
+
+    @Test
     void literalBeatsPathParameterAndPathParameterBeatsWildcard() {
         WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
         matcher.add(new WebPattern("/a/*/c", GET), "wildcard");
