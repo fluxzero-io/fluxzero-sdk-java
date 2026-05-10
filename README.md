@@ -2192,7 +2192,8 @@ forwarded as `WebRequest`s.
 
 #### API Documentation and OpenAPI
 
-Fluxzero can extract a format-neutral API documentation catalog from web handlers and render it as OpenAPI 3.1 JSON.
+Fluxzero can extract a format-neutral API documentation catalog from web handlers and render it as OpenAPI 3.0.1 JSON.
+OpenAPI 3.1 can be enabled when needed.
 Most route, parameter, request body, and response type information is inferred from existing `@Handle...`, `@Path`,
 and parameter annotations:
 
@@ -2202,9 +2203,45 @@ String openApiJson = OpenApiRenderer.renderPrettyJson(
         catalog, new OpenApiOptions("Meters API", "1.0.0", "", List.of("https://api.example.com")));
 ```
 
-Use `@ApiDoc` only for human-authored metadata such as summaries, descriptions, operation ids, and tags. Use repeatable
-`@ApiDocResponse` annotations for additional error or status responses, and `@ApiDocExclude` to exclude a package,
-class, or method from generated documentation without disabling the runtime endpoint.
+When annotation processing is enabled, Fluxzero also generates `META-INF/fluxzero/openapi.json` during compilation if
+the module contains web handlers opted in with `@ApiDoc`. Configure global document metadata with javac options such as
+`-Afluxzero.openapi.title="Meters API"`, `-Afluxzero.openapi.version=1.0.0`, and
+`-Afluxzero.openapi.servers=https://api.example.com`. The generated path can be changed with
+`-Afluxzero.openapi.output=...`, the OpenAPI version with `-Afluxzero.openapi.specVersion=3.1.0`, and generation can
+be disabled with `-Afluxzero.openapi.enabled=false`.
+
+For dependency-free document metadata in source, place `@ApiDocInfo` on a package or handler type:
+
+```java
+@ApiDocInfo(
+        title = "Meters API",
+        version = "1.0.0",
+        description = "Public meter endpoints.",
+        contactName = "API support",
+        contactEmail = "support@example.com",
+        logoUrl = "https://example.com/logo.png",
+        logoAltText = "Example logo",
+        servers = @ApiDocServer(url = "https://api.example.com", description = "Production"),
+        components = @ApiDocComponent(path = "responses.error", json = """
+                {"description":"Invalid request"}
+                """))
+package com.example.meters;
+```
+
+Only web handlers opted in with `@ApiDoc` are included in generated API documentation. Place `@ApiDoc` on a package,
+handler class, or handler method; empty `@ApiDoc` is enough when all metadata should be inferred. Use it for
+human-authored metadata such as summaries, descriptions, operation ids, tags, and schema hints that cannot be inferred.
+It can also be placed on fields, parameters, record components, and type arguments, for example
+`List<@ApiDoc(description = "Connection item") Connection>` to document array items without OpenAPI-specific
+annotations. Optional schema hints include `type`, `format`, `example`, `defaultValue`, `minimum`, `maximum`,
+`allowableValues`, `required`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
+`@Size`, `@Pattern`, and `@Email` are reflected in endpoint parameter and model schemas when present. Use repeatable
+`@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
+repeating its body type. Array properties in response models are documented as required by default; input models only
+use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` to
+exclude a package, class, method, parameter, field, record component, or type use from generated documentation without
+disabling the runtime endpoint or model. Use `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI
+components such as reusable responses or security schemes when automatic inference is not enough.
 
 #### Other Parameter Annotations
 

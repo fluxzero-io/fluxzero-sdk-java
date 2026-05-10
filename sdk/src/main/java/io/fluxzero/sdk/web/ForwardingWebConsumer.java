@@ -48,7 +48,7 @@ import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
 import static java.net.http.HttpRequest.BodyPublishers.ofByteArray;
 
 /**
- * A specialized, opt-in {web request consumer that forwards incoming
+ * A specialized, opt-in web request consumer that forwards incoming
  * {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server.
  * <p>
  * This class is internally initialized when
@@ -58,7 +58,7 @@ import static java.net.http.HttpRequest.BodyPublishers.ofByteArray;
  *
  * <h2>Purpose</h2>
  * This mechanism exists primarily for interoperability: it allows applications to integrate with their own HTTP servers
- * (e.g., frameworks like Spring Boot, Jooby, or Vert.x) rather than adopting the Fluxzero message-based web handler
+ * (e.g., frameworks like Spring Boot, Quarkus, or Vert.x) rather than adopting the Fluxzero message-based web handler
  * framework.
  *
  * <h2><span style="color:red;">⚠️ Caution: Limited Use Case</span></h2>

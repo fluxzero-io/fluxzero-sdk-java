@@ -83,6 +83,11 @@ class ApiDocExtractorTest {
         assertTrue(ApiDocExtractor.extract(ExcludedApiDocHandler.class).endpoints().isEmpty());
     }
 
+    @Test
+    void onlyIncludesHandlersOptedInWithApiDoc() {
+        assertTrue(ApiDocExtractor.extract(UndocumentedHandler.class).endpoints().isEmpty());
+    }
+
     private static void assertParameter(ApiDocEndpoint endpoint, String name, WebParameterSource source, Type type) {
         ApiDocParameter parameter = endpoint.parameters().stream()
                 .filter(p -> p.source() == source && p.name().equals(name))
@@ -91,6 +96,7 @@ class ApiDocExtractorTest {
     }
 
     @Path("/v1")
+    @ApiDoc
     static class AutoHandler {
         @HandlePost("/meters/{meterId}/readings")
         ReadingResponse createReading(
@@ -107,6 +113,7 @@ class ApiDocExtractorTest {
     }
 
     @Path("/optional")
+    @ApiDoc
     static class OptionalHandler {
         @HandleGet("/users[/{id}]")
         String getUser(@PathParam("id") String id) {
@@ -126,6 +133,7 @@ class ApiDocExtractorTest {
         }
     }
 
+    @ApiDoc
     static class PartiallyExcludedHandler {
         @HandleGet("/visible")
         String visible() {
@@ -144,6 +152,13 @@ class ApiDocExtractorTest {
         @HandleGet("/hidden")
         String hidden() {
             return "hidden";
+        }
+    }
+
+    static class UndocumentedHandler {
+        @HandleGet("/internal")
+        String internal() {
+            return "internal";
         }
     }
 

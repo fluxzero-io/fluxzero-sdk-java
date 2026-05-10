@@ -117,6 +117,29 @@ class WebRouteMatcherTest {
     }
 
     @Test
+    void leadingPathParameterStillMatches() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/{tenant}/meters/{id}", GET), "tenantMeter");
+
+        var match = matcher.match(GET, null, "/acme/meters/42").orElseThrow();
+
+        assertEquals("tenantMeter", match.value());
+        assertEquals("acme", match.pathParameters().get("tenant"));
+        assertEquals("42", match.pathParameters().get("id"));
+    }
+
+    @Test
+    void literalPrefixBeforeInlineParameterStillMatches() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/files/{name:[a-z]+}.json", GET), "jsonFile");
+
+        var match = matcher.match(GET, null, "/files/report.json").orElseThrow();
+
+        assertEquals("jsonFile", match.value());
+        assertEquals("report", match.pathParameters().get("name"));
+    }
+
+    @Test
     void catchAllMatchesNestedPathButLosesToLiteralRoute() {
         WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
         matcher.add(new WebPattern("/assets/*", GET), "catchAll");

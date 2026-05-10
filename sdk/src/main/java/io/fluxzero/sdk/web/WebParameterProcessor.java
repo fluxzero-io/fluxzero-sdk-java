@@ -31,11 +31,14 @@ import javax.lang.model.element.Name;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,10 +146,12 @@ public class WebParameterProcessor extends AbstractProcessor {
 
         content.append("\tstatic Map<String, List<String>> methodParameters() {\n");
         content.append("\t\tMap<String, List<String>> result = new HashMap<>();\n");
-        methods.forEach(m -> {
-            content.append("\t\tresult.put(\"").append(signature(m)).append("\", List.of(")
-                    .append(String.join(", ", m.getParameters().stream().map(VariableElement::getSimpleName)
-                            .map(Name::toString).map(name -> "\"" + name + "\"").toList()))
+        Map<String, ExecutableElement> uniqueMethods = new LinkedHashMap<>();
+        methods.forEach(method -> uniqueMethods.putIfAbsent(signature(method), method));
+        uniqueMethods.forEach((signature, method) -> {
+            content.append("\t\tresult.put(").append(javaString(signature)).append(", List.of(")
+                    .append(String.join(", ", method.getParameters().stream().map(VariableElement::getSimpleName)
+                            .map(Name::toString).map(this::javaString).toList()))
                     .append("));\n");
         });
         content.append("\t\treturn result;\n");
@@ -170,10 +175,38 @@ public class WebParameterProcessor extends AbstractProcessor {
         String parameterTypes = method.getParameters().stream()
                 .map(VariableElement::asType)
                 .map(type -> processingEnv.getTypeUtils().erasure(type))
-                .map(TypeMirror::toString)
+                .map(this::typeName)
                 .reduce((a, b) -> a + "," + b)
                 .orElse("");
         return methodName + "(" + parameterTypes + ")";
+    }
+
+    private String typeName(TypeMirror type) {
+        if (type instanceof DeclaredType declaredType && declaredType.asElement() instanceof TypeElement element) {
+            return element.getQualifiedName().toString();
+        }
+        if (type instanceof ArrayType arrayType) {
+            return typeName(processingEnv.getTypeUtils().erasure(arrayType.getComponentType())) + "[]";
+        }
+        return type.toString();
+    }
+
+    private String javaString(String value) {
+        StringBuilder result = new StringBuilder("\"");
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\\' -> result.append("\\\\");
+                case '"' -> result.append("\\\"");
+                case '\b' -> result.append("\\b");
+                case '\t' -> result.append("\\t");
+                case '\n' -> result.append("\\n");
+                case '\f' -> result.append("\\f");
+                case '\r' -> result.append("\\r");
+                default -> result.append(c);
+            }
+        }
+        return result.append('"').toString();
     }
 
     @Override

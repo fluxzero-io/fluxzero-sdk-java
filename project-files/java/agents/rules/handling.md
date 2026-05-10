@@ -493,15 +493,37 @@ Fluxzero can derive HTTP helpers from route declarations:
 
 ### API Documentation and OpenAPI
 
-Fluxzero can extract a format-neutral `ApiDocCatalog` from web handlers and render it as OpenAPI 3.1 JSON.
+Fluxzero can extract a format-neutral `ApiDocCatalog` from web handlers and render it as OpenAPI 3.0.1 JSON.
+OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVersion=3.1.0`.
 
 - Prefer automatic inference from `@Handle...`, `@Path`, and web parameter annotations.
-- Use `@ApiDoc` only for summaries, descriptions, operation ids, tags, or deprecation metadata that cannot be inferred.
-- Use repeatable `@ApiDocResponse` annotations for additional status/error responses.
-- Use `@ApiDocExclude` to exclude package/class/method endpoints from generated docs only; it does not disable runtime
-  handling.
+- Generated API docs are opt-in: only endpoints with `@ApiDoc` on a super-package/package, handler class, or handler
+  method are included. Empty `@ApiDoc` is enough when all endpoint metadata can be inferred.
+- Use `@ApiDoc` only for summaries, descriptions, operation ids, tags, deprecation metadata, or schema hints that cannot
+  be inferred.
+  It may also document fields, parameters, record components, and type arguments such as
+  `List<@ApiDoc(description = "Connection item") Connection>`; prefer this over OpenAPI-specific array annotations.
+  For dependency-free schema metadata, use its optional `type`, `format`, `example`, `defaultValue`, `minimum`,
+  `maximum`, `allowableValues`, `required`, and `implementation` attributes instead of Swagger `@Schema`.
+- Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
+  response without repeating its body type.
+- Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
+  generated docs only; it does not disable runtime handling.
+- Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,
+  contact, logo, servers, shared components via `@ApiDocComponent`, and top-level vendor extensions. Prefer this over
+  external Swagger configuration files.
+- Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
+  where possible, including required flags, numeric bounds, sizes, patterns, and email format.
+- Array properties in response models are required by default; array properties in input models must be made required
+  explicitly with validation or `@ApiDoc(required = true)`.
 - Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global
   title/version/servers with `OpenApiOptions`.
+- When annotation processing is enabled, `OpenApiProcessor` generates `META-INF/fluxzero/openapi.json` for modules that
+  contain web handlers opted in with `@ApiDoc`. Configure it with javac options like `-Afluxzero.openapi.title=...`,
+  `-Afluxzero.openapi.version=...`, `-Afluxzero.openapi.servers=...`, `-Afluxzero.openapi.specVersion=3.1.0`, or
+  disable it with `-Afluxzero.openapi.enabled=false`.
+- If route paths depend on runtime `@Path` properties, use `ApiDocExtractor.extract(handlerInstance)` for exact runtime
+  docs; the compile-time processor can only see static annotation values.
 
 ---
 

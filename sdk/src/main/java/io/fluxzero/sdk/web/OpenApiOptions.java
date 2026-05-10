@@ -25,20 +25,32 @@ public record OpenApiOptions(
         String title,
         String version,
         String description,
-        List<String> servers
+        List<String> servers,
+        String openApiVersion
 ) {
+    public static final String DEFAULT_OPENAPI_VERSION = "3.0.1";
+
+    public OpenApiOptions(String title, String version, String description, List<String> servers) {
+        this(title, version, description, servers, DEFAULT_OPENAPI_VERSION);
+    }
+
     public OpenApiOptions {
         title = isBlank(title) ? "Fluxzero API" : title;
         version = isBlank(version) ? "0.0.0" : version;
         description = isBlank(description) ? "" : description;
         servers = servers == null ? List.of() : servers.stream().filter(s -> !isBlank(s)).toList();
+        openApiVersion = isBlank(openApiVersion) ? DEFAULT_OPENAPI_VERSION : openApiVersion;
     }
 
     public static OpenApiOptions defaults() {
-        return new OpenApiOptions("Fluxzero API", "0.0.0", "", List.of());
+        return new OpenApiOptions("Fluxzero API", "0.0.0", "", List.of(), DEFAULT_OPENAPI_VERSION);
     }
 
     public static OpenApiOptions of(String title, String version) {
         return new OpenApiOptions(title, version, "", List.of());
+    }
+
+    static boolean isOpenApi31(String version) {
+        return !isBlank(version) && version.trim().startsWith("3.1");
     }
 }

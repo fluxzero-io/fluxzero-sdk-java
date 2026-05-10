@@ -15,32 +15,26 @@
 package io.fluxzero.sdk.web;
 
 import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Excludes a package, type, handler method, parameter, field, record component, or type use from generated API
- * documentation.
- * <p>
- * This annotation affects documentation generation only. It does not disable or alter the runtime web handler or model.
- * </p>
+ * Describes a server entry for generated API documentation.
  *
- * @see ApiDocExtractor
- * @see OpenApiProcessor
+ * @see ApiDocInfo
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({
-        ElementType.METHOD,
-        ElementType.CONSTRUCTOR,
-        ElementType.TYPE,
-        ElementType.PACKAGE,
-        ElementType.FIELD,
-        ElementType.PARAMETER,
-        ElementType.RECORD_COMPONENT,
-        ElementType.TYPE_USE
-})
+@Target({})
 @Documented
-public @interface ApiDocExclude {
+public @interface ApiDocServer {
+    /**
+     * Server URL, such as {@code https://api.example.com}.
+     */
+    String url();
+
+    /**
+     * Optional human-readable server description.
+     */
+    String description() default "";
 }

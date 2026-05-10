@@ -26,6 +26,11 @@ class RestTests {
         }
 
         @Test
+        void testDocumentedPathParam_String() {
+            testFixture.whenGet("/documented-string/123").expectResult("123");
+        }
+
+        @Test
         void testPathParam_Number() {
             testFixture.whenGet("/number/123").expectResult(123);
         }
@@ -58,6 +63,12 @@ class RestTests {
         static class Handler {
             @HandleGet("string/{foo}")
             Object get(@PathParam String foo) {
+                return foo;
+            }
+
+            @HandleGet("documented-string/{foo}")
+            Object getDocumented(@PathParam @ApiDoc(description = "Documented path value", example = "123")
+                                  String foo) {
                 return foo;
             }
 

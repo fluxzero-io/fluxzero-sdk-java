@@ -16,6 +16,7 @@ package io.fluxzero.sdk.web;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +52,18 @@ class WebRouteMatcher<T> {
             .thenComparingInt(m -> -m.route().order());
 
     private final List<Route<T>> routes = new ArrayList<>();
+    private final Map<RouteLookupKey, List<Route<T>>> routesByMethodOriginAndPrefix = new HashMap<>();
 
     void add(WebPattern pattern, T value) {
         for (RouteVariant variant : RouteVariants.expand(pattern.getPath())) {
-            routes.add(new Route<>(
+            Route<T> route = new Route<>(
                     pattern, CompiledPath.compile(variant.path(), variant.optionalFragmentCount()), value,
-                    routes.size()));
+                    routes.size());
+            routes.add(route);
+            routesByMethodOriginAndPrefix
+                    .computeIfAbsent(new RouteLookupKey(pattern.getMethod(), pattern.getOrigin(),
+                                                        route.path().literalPrefix()), ignored -> new ArrayList<>())
+                    .add(route);
         }
     }
 
@@ -65,7 +72,10 @@ class WebRouteMatcher<T> {
     }
 
     Optional<Match<T>> match(String method, String origin, String path, Predicate<WebPattern> predicate) {
-        return matches(origin, path, pattern -> Objects.equals(method, pattern.getMethod()) && predicate.test(pattern))
+        String normalizedPath = normalizePath(path);
+        return candidateRoutes(method, origin, normalizedPath)
+                .filter(route -> predicate.test(route.pattern()))
+                .flatMap(route -> route.match(normalizedPath).stream())
                 .max((a, b) -> MOST_SPECIFIC.compare(a, b));
     }
 
@@ -75,6 +85,12 @@ class WebRouteMatcher<T> {
                 .filter(route -> predicate.test(route.pattern()))
                 .filter(route -> Objects.equals(origin, route.pattern().getOrigin()))
                 .flatMap(route -> route.match(normalizedPath).stream());
+    }
+
+    private Stream<Route<T>> candidateRoutes(String method, String origin, String normalizedPath) {
+        return literalPrefixes(normalizedPath).stream()
+                .flatMap(prefix -> routesByMethodOriginAndPrefix
+                        .getOrDefault(new RouteLookupKey(method, origin, prefix), List.of()).stream());
     }
 
     static boolean matchesPath(String pattern, String path) {
@@ -89,6 +105,26 @@ class WebRouteMatcher<T> {
             return "";
         }
         return path.startsWith("/") ? path : "/" + path;
+    }
+
+    private static List<String> literalPrefixes(String path) {
+        String normalizedPath = CompiledPath.normalizeRoutePath(path);
+        List<String> result = new ArrayList<>();
+        result.add("");
+        if (normalizedPath.isEmpty() || "/".equals(normalizedPath)) {
+            return result;
+        }
+        int segmentStart = 1;
+        while (segmentStart <= normalizedPath.length()) {
+            int slash = normalizedPath.indexOf('/', segmentStart);
+            if (slash < 0) {
+                result.add(normalizedPath);
+                return result;
+            }
+            result.add(normalizedPath.substring(0, slash));
+            segmentStart = slash + 1;
+        }
+        return result;
     }
 
     record Match<T>(Route<T> route, Map<String, String> pathParameters) {
@@ -117,7 +153,8 @@ class WebRouteMatcher<T> {
             int regexParameterCount,
             int wildcardCount,
             int catchAllCount,
-            int optionalFragmentCount
+            int optionalFragmentCount,
+            String literalPrefix
     ) {
         static CompiledPath compile(String path) {
             return compile(path, 0);
@@ -183,7 +220,8 @@ class WebRouteMatcher<T> {
             return new CompiledPath(
                     Pattern.compile(regex.toString()), List.copyOf(parameters), literalChars,
                     literalSegments(normalizedPath), segmentCount(normalizedPath), parameterCount,
-                    regexParameterCount, wildcardCount, catchAllCount, optionalFragmentCount);
+                    regexParameterCount, wildcardCount, catchAllCount, optionalFragmentCount,
+                    literalPrefix(normalizedPath));
         }
 
         private static String normalizeRoutePath(String path) {
@@ -191,6 +229,33 @@ class WebRouteMatcher<T> {
                 path = path.substring(0, path.length() - 1);
             }
             return path;
+        }
+
+        private static String literalPrefix(String normalizedPath) {
+            if (normalizedPath.isEmpty() || "/".equals(normalizedPath)) {
+                return "";
+            }
+            int dynamicStart = firstDynamicPathElement(normalizedPath);
+            if (dynamicStart < 0) {
+                return normalizedPath;
+            }
+            int segmentStart = normalizedPath.lastIndexOf('/', Math.max(0, dynamicStart - 1));
+            if (segmentStart <= 0) {
+                return "";
+            }
+            return normalizedPath.substring(0, segmentStart);
+        }
+
+        private static int firstDynamicPathElement(String path) {
+            int parameter = path.indexOf('{');
+            int wildcard = path.indexOf('*');
+            if (parameter < 0) {
+                return wildcard;
+            }
+            if (wildcard < 0) {
+                return parameter;
+            }
+            return Math.min(parameter, wildcard);
         }
 
         Optional<Map<String, String>> match(String path) {
@@ -256,6 +321,9 @@ class WebRouteMatcher<T> {
     }
 
     record ParameterGroup(String name, String groupName) {
+    }
+
+    record RouteLookupKey(String method, String origin, String literalPrefix) {
     }
 
     record RouteVariant(String path, int optionalFragmentCount) {

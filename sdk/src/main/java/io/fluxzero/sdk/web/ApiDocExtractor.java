@@ -81,7 +81,8 @@ public final class ApiDocExtractor {
         List<ApiDocEndpoint> endpoints = new ArrayList<>();
         for (Executable executable : handlerExecutables(handlerType).toList()) {
             if (!ReflectionUtils.isMethodAnnotationPresent(executable, HandleWeb.class)
-                || isExcluded(handlerType, executable)) {
+                || isExcluded(handlerType, executable)
+                || !isDocumented(handlerType, executable)) {
                 continue;
             }
             for (WebPattern pattern : getWebPatterns(handlerType, handler, executable)) {
@@ -187,6 +188,12 @@ public final class ApiDocExtractor {
         return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDocExclude.class))
                || handlerType.isAnnotationPresent(ApiDocExclude.class)
                || executable.isAnnotationPresent(ApiDocExclude.class);
+    }
+
+    private static boolean isDocumented(Class<?> handlerType, Executable executable) {
+        return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDoc.class))
+               || handlerType.isAnnotationPresent(ApiDoc.class)
+               || executable.isAnnotationPresent(ApiDoc.class);
     }
 
     private static Stream<Package> packages(Class<?> handlerType) {
