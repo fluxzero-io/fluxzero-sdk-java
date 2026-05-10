@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -85,6 +86,17 @@ class DefaultWebResponseMapperTest {
                 "application/json");
 
         assertEquals("text/csv", response.getContentType());
+    }
+
+    @Test
+    void ignoresNonWebCurrentMessageDuringNegotiation() {
+        DeserializingMessage message = new DeserializingMessage(
+                new Message("notification"), NOTIFICATION, mock(Serializer.class));
+
+        WebResponse response = message.apply(__ -> WebResponseContentNegotiator.negotiate(
+                mapper.map(Map.of("answer", 42))));
+
+        assertNull(response.getContentType());
     }
 
     @Test

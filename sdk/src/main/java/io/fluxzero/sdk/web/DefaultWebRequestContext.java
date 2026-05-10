@@ -56,8 +56,9 @@ public class DefaultWebRequestContext implements WebRequestContext {
      * or {@code null} if no such message is available.
      */
     public static DefaultWebRequestContext getCurrentWebRequestContext() {
-        return Optional.ofNullable(DeserializingMessage.getCurrent()).map(
-                DefaultWebRequestContext::getWebRequestContext).orElse(null);
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        return message != null && message.getMessageType() == MessageType.WEBREQUEST
+                ? getWebRequestContext(message) : null;
     }
 
     /**
