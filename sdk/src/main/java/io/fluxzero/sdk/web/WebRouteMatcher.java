@@ -40,19 +40,10 @@ import java.util.stream.Stream;
  * parameters outrank unconstrained parameters, and wildcard or catch-all routes are treated as fallbacks.
  */
 class WebRouteMatcher<T> {
-    static final Comparator<Match<?>> MOST_SPECIFIC = Comparator
-            .<Match<?>>comparingInt(m -> m.route().path().literalChars())
-            .thenComparingInt(m -> m.route().path().literalSegments())
-            .thenComparingInt(m -> m.route().path().segmentCount())
-            .thenComparingInt(m -> m.route().path().regexParameterCount())
-            .thenComparingInt(m -> -m.route().path().catchAllCount())
-            .thenComparingInt(m -> -m.route().path().wildcardCount())
-            .thenComparingInt(m -> -m.route().path().parameterCount())
-            .thenComparingInt(m -> -m.route().path().optionalFragmentCount())
-            .thenComparingInt(m -> -m.route().order());
+    static final Comparator<Match<?>> MOST_SPECIFIC = (a, b) -> compareRoutes(a.route(), b.route());
 
     private final List<Route<T>> routes = new ArrayList<>();
-    private final Map<RouteLookupKey, List<Route<T>>> routesByMethodOriginAndPrefix = new HashMap<>();
+    private final Map<MethodOriginKey, Map<String, List<Route<T>>>> routesByMethodOriginAndPrefix = new HashMap<>();
 
     void add(WebPattern pattern, T value) {
         for (RouteVariant variant : RouteVariants.expand(pattern.getPath())) {
@@ -61,8 +52,9 @@ class WebRouteMatcher<T> {
                     routes.size());
             routes.add(route);
             routesByMethodOriginAndPrefix
-                    .computeIfAbsent(new RouteLookupKey(pattern.getMethod(), pattern.getOrigin(),
-                                                        route.path().literalPrefix()), ignored -> new ArrayList<>())
+                    .computeIfAbsent(new MethodOriginKey(pattern.getMethod(), pattern.getOrigin()),
+                                     ignored -> new HashMap<>())
+                    .computeIfAbsent(route.path().literalPrefix(), ignored -> new ArrayList<>())
                     .add(route);
         }
     }
@@ -73,10 +65,8 @@ class WebRouteMatcher<T> {
 
     Optional<Match<T>> match(String method, String origin, String path, Predicate<WebPattern> predicate) {
         String normalizedPath = normalizePath(path);
-        return candidateRoutes(method, origin, normalizedPath)
-                .filter(route -> predicate.test(route.pattern()))
-                .flatMap(route -> route.match(normalizedPath).stream())
-                .max((a, b) -> MOST_SPECIFIC.compare(a, b));
+        Route<T> best = bestRoute(method, origin, normalizedPath, predicate);
+        return best == null ? Optional.empty() : best.match(normalizedPath);
     }
 
     Stream<Match<T>> matches(String origin, String path, Predicate<WebPattern> predicate) {
@@ -85,12 +75,6 @@ class WebRouteMatcher<T> {
                 .filter(route -> predicate.test(route.pattern()))
                 .filter(route -> Objects.equals(origin, route.pattern().getOrigin()))
                 .flatMap(route -> route.match(normalizedPath).stream());
-    }
-
-    private Stream<Route<T>> candidateRoutes(String method, String origin, String normalizedPath) {
-        return literalPrefixes(normalizedPath).stream()
-                .flatMap(prefix -> routesByMethodOriginAndPrefix
-                        .getOrDefault(new RouteLookupKey(method, origin, prefix), List.of()).stream());
     }
 
     static boolean matchesPath(String pattern, String path) {
@@ -107,24 +91,75 @@ class WebRouteMatcher<T> {
         return path.startsWith("/") ? path : "/" + path;
     }
 
-    private static List<String> literalPrefixes(String path) {
-        String normalizedPath = CompiledPath.normalizeRoutePath(path);
-        List<String> result = new ArrayList<>();
-        result.add("");
-        if (normalizedPath.isEmpty() || "/".equals(normalizedPath)) {
-            return result;
+    private Route<T> bestRoute(String method, String origin, String normalizedPath, Predicate<WebPattern> predicate) {
+        Map<String, List<Route<T>>> routesByPrefix =
+                routesByMethodOriginAndPrefix.get(new MethodOriginKey(method, origin));
+        if (routesByPrefix == null) {
+            return null;
+        }
+        Route<T> best = bestCandidate(null, routesByPrefix.get(""), normalizedPath, predicate);
+        String routePath = CompiledPath.normalizeRoutePath(normalizedPath);
+        if (routePath.isEmpty() || "/".equals(routePath)) {
+            return best;
         }
         int segmentStart = 1;
-        while (segmentStart <= normalizedPath.length()) {
-            int slash = normalizedPath.indexOf('/', segmentStart);
+        while (segmentStart <= routePath.length()) {
+            int slash = routePath.indexOf('/', segmentStart);
+            String prefix = slash < 0 ? routePath : routePath.substring(0, slash);
+            best = bestCandidate(best, routesByPrefix.get(prefix), normalizedPath, predicate);
             if (slash < 0) {
-                result.add(normalizedPath);
-                return result;
+                return best;
             }
-            result.add(normalizedPath.substring(0, slash));
             segmentStart = slash + 1;
         }
-        return result;
+        return best;
+    }
+
+    private Route<T> bestCandidate(Route<T> best, List<Route<T>> candidates, String normalizedPath,
+                                   Predicate<WebPattern> predicate) {
+        if (candidates == null) {
+            return best;
+        }
+        for (Route<T> route : candidates) {
+            if (predicate.test(route.pattern()) && route.matches(normalizedPath)
+                && (best == null || compareRoutes(route, best) > 0)) {
+                best = route;
+            }
+        }
+        return best;
+    }
+
+    private static int compareRoutes(Route<?> first, Route<?> second) {
+        int result = Integer.compare(first.path().literalChars(), second.path().literalChars());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(first.path().literalSegments(), second.path().literalSegments());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(first.path().segmentCount(), second.path().segmentCount());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(first.path().regexParameterCount(), second.path().regexParameterCount());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(second.path().catchAllCount(), first.path().catchAllCount());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(second.path().wildcardCount(), first.path().wildcardCount());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(second.path().parameterCount(), first.path().parameterCount());
+        if (result != 0) {
+            return result;
+        }
+        result = Integer.compare(second.path().optionalFragmentCount(), first.path().optionalFragmentCount());
+        return result != 0 ? result : Integer.compare(second.order(), first.order());
     }
 
     record Match<T>(Route<T> route, Map<String, String> pathParameters) {
@@ -138,6 +173,10 @@ class WebRouteMatcher<T> {
     }
 
     record Route<T>(WebPattern pattern, CompiledPath path, T value, int order) {
+        boolean matches(String path) {
+            return this.path.matches(path);
+        }
+
         Optional<Match<T>> match(String path) {
             return this.path.match(path).map(parameters -> new Match<>(this, parameters));
         }
@@ -270,6 +309,10 @@ class WebRouteMatcher<T> {
             return Optional.of(pathParameters);
         }
 
+        boolean matches(String path) {
+            return regex.matcher(path).matches();
+        }
+
         private static int findParameterEnd(String path, int start) {
             int depth = 0;
             for (int i = start; i < path.length(); i++) {
@@ -323,7 +366,7 @@ class WebRouteMatcher<T> {
     record ParameterGroup(String name, String groupName) {
     }
 
-    record RouteLookupKey(String method, String origin, String literalPrefix) {
+    record MethodOriginKey(String method, String origin) {
     }
 
     record RouteVariant(String path, int optionalFragmentCount) {
