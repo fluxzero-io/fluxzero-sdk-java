@@ -189,6 +189,9 @@
       "values" : {
         "lazy" : "true"
       }
+    }, {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -468,6 +471,9 @@
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {
+      "annotationType" : "org.jetbrains.annotations.Nullable",
+      "values" : {}
+    }, {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],

@@ -496,7 +496,10 @@
       "name" : "topic",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "config",
       "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",

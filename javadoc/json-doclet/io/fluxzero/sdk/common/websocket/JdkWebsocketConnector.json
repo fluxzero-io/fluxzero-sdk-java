@@ -10,6 +10,30 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.websocket.WebsocketConnector" ],
   "fields" : [ {
+    "name" : "DEFAULT_EXECUTOR",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.DEFAULT_EXECUTOR",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "DEFAULT_EXECUTOR_THREAD_PREFIX",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.DEFAULT_EXECUTOR_THREAD_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero-websocket-jdk-"
+  }, {
+    "name" : "executor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.executor",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "httpClient",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.httpClient",
     "type" : "java.net.http.HttpClient",
@@ -51,6 +75,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>Per-connection clients are derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
+  }, {
+    "name" : "JdkWebsocketConnector",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executor",
+      "type" : "java.util.concurrent.Executor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for per-connection HTTP clients derived from the supplied client and for dispatching\n native JDK websocket listener callbacks.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
   } ],
   "methods" : [ {
     "name" : "addOpenSession",
@@ -181,6 +225,22 @@
     "parameters" : [ {
       "name" : "session",
       "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#resolveExecutor",
+    "returnType" : "java.util.concurrent.Executor",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

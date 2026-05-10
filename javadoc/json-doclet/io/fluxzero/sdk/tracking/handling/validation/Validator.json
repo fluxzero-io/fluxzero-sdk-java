@@ -25,7 +25,10 @@
       "name" : "target",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "executable",
       "type" : "java.lang.reflect.Executable",
@@ -72,7 +75,10 @@
       "name" : "target",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "executable",
       "type" : "java.lang.reflect.Executable",
@@ -98,7 +104,10 @@
       "name" : "target",
       "type" : "java.lang.Object",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "executable",
       "type" : "java.lang.reflect.Executable",

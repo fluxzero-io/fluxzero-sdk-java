@@ -67,11 +67,14 @@
       "name" : "timeout",
       "type" : "java.time.Duration",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a single request with a custom timeout and returns a future for the corresponding response.\n\n @param request       The request message to be sent.\n @param requestSender A callback used to dispatch the request.\n @param timeout       The timeout for this request, or {@code null} for the default timeout. A negative value\n                      indicates no timeout.\n @return A {@link CompletableFuture} that completes with the response or fails on timeout.\n"
+    "documentation" : " Sends a single request with a custom timeout and returns a future for the corresponding response.\n\n @param request       The request message to be sent.\n @param requestSender A callback used to dispatch the request.\n @param timeout       The timeout for this request. A negative value indicates no timeout.\n @return A {@link CompletableFuture} that completes with the response or fails on timeout.\n"
   }, {
     "name" : "sendRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.RequestHandler#sendRequest",
@@ -171,11 +174,14 @@
       "name" : "timeout",
       "type" : "java.time.Duration",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends multiple requests with a custom timeout and returns a list of futures for their responses.\n\n @param requests      The requests to send.\n @param requestSender A callback used to dispatch the requests.\n @param timeout       The timeout to apply per request, or {@code null} for the default timeout. A negative value\n                      disables the timeout.\n @return A list of {@link CompletableFuture} instances, one for each request.\n"
+    "documentation" : " Sends multiple requests with a custom timeout and returns a list of futures for their responses.\n\n @param requests      The requests to send.\n @param requestSender A callback used to dispatch the requests.\n @param timeout       The timeout to apply per request. A negative value disables the timeout.\n @return A list of {@link CompletableFuture} instances, one for each request.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -49,7 +49,10 @@
       "name" : "client",
       "type" : "io.fluxzero.sdk.configuration.client.Client",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -109,7 +112,10 @@
       "name" : "currentMessage",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -125,17 +131,26 @@
       "name" : "client",
       "type" : "io.fluxzero.sdk.configuration.client.Client",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "currentMessage",
       "type" : "io.fluxzero.common.api.SerializedMessage",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "messageType",
       "type" : "io.fluxzero.common.MessageType",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

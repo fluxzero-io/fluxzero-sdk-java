@@ -34,7 +34,10 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.fallbackFile",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -50,7 +53,10 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.fsBaseDirectory",
     "type" : "java.nio.file.Path",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -90,7 +96,10 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.resourceBaseUri",
     "type" : "java.net.URI",
     "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -140,17 +149,26 @@
       "name" : "fsBaseDirectory",
       "type" : "java.nio.file.Path",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "resourceBaseUri",
       "type" : "java.net.URI",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "fallbackFile",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "ignorePaths",
       "type" : "java.util.Set<java.lang.String>",
@@ -225,7 +243,10 @@
       "name" : "fallbackFile",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -250,7 +271,10 @@
       "name" : "fallbackFile",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "immutableCandidateExtensions",
       "type" : "java.util.Set<java.lang.String>",
@@ -280,7 +304,10 @@
       "name" : "fallbackFile",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
     }, {
       "name" : "ignorePaths",
       "type" : "java.util.Set<java.lang.String>",
