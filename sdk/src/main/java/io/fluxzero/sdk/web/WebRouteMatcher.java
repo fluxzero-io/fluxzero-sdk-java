@@ -31,6 +31,8 @@ import java.util.stream.Stream;
  * The matcher intentionally keeps the route rules limited to the SDK's annotation model: literal path parts,
  * {@code {pathParam}} parameters, {@code {pathParam:regex}} parameters, and {@code *} wildcards.
  * <p>
+ * Optional path fragments can be declared with square brackets, for example {@code /users[/{id}]}.
+ * <p>
  * Trailing slashes on non-root paths are ignored, so {@code /users} and {@code /users/} match the same route.
  * <p>
  * When multiple routes match, the most specific route wins. Literal path parts outrank parameters, constrained
@@ -45,12 +47,17 @@ class WebRouteMatcher<T> {
             .thenComparingInt(m -> -m.route().path().catchAllCount())
             .thenComparingInt(m -> -m.route().path().wildcardCount())
             .thenComparingInt(m -> -m.route().path().parameterCount())
+            .thenComparingInt(m -> -m.route().path().optionalFragmentCount())
             .thenComparingInt(m -> -m.route().order());
 
     private final List<Route<T>> routes = new ArrayList<>();
 
     void add(WebPattern pattern, T value) {
-        routes.add(new Route<>(pattern, CompiledPath.compile(pattern.getPath()), value, routes.size()));
+        for (RouteVariant variant : RouteVariants.expand(pattern.getPath())) {
+            routes.add(new Route<>(
+                    pattern, CompiledPath.compile(variant.path(), variant.optionalFragmentCount()), value,
+                    routes.size()));
+        }
     }
 
     Optional<Match<T>> match(String method, String origin, String path) {
@@ -71,7 +78,10 @@ class WebRouteMatcher<T> {
     }
 
     static boolean matchesPath(String pattern, String path) {
-        return CompiledPath.compile(pattern).match(normalizePath(path)).isPresent();
+        String normalizedPath = normalizePath(path);
+        return RouteVariants.expand(pattern).stream()
+                .anyMatch(variant -> CompiledPath.compile(
+                        variant.path(), variant.optionalFragmentCount()).match(normalizedPath).isPresent());
     }
 
     static String normalizePath(String path) {
@@ -106,9 +116,14 @@ class WebRouteMatcher<T> {
             int parameterCount,
             int regexParameterCount,
             int wildcardCount,
-            int catchAllCount
+            int catchAllCount,
+            int optionalFragmentCount
     ) {
         static CompiledPath compile(String path) {
+            return compile(path, 0);
+        }
+
+        static CompiledPath compile(String path, int optionalFragmentCount) {
             String normalizedPath = normalizeRoutePath(normalizePath(path));
             StringBuilder regex = new StringBuilder("^");
             List<ParameterGroup> parameters = new ArrayList<>();
@@ -168,7 +183,7 @@ class WebRouteMatcher<T> {
             return new CompiledPath(
                     Pattern.compile(regex.toString()), List.copyOf(parameters), literalChars,
                     literalSegments(normalizedPath), segmentCount(normalizedPath), parameterCount,
-                    regexParameterCount, wildcardCount, catchAllCount);
+                    regexParameterCount, wildcardCount, catchAllCount, optionalFragmentCount);
         }
 
         private static String normalizeRoutePath(String path) {
@@ -241,5 +256,64 @@ class WebRouteMatcher<T> {
     }
 
     record ParameterGroup(String name, String groupName) {
+    }
+
+    record RouteVariant(String path, int optionalFragmentCount) {
+    }
+
+    static class RouteVariants {
+        static List<RouteVariant> expand(String path) {
+            return expand(path, 0);
+        }
+
+        private static List<RouteVariant> expand(String path, int optionalFragmentCount) {
+            OptionalFragment fragment = firstOptionalFragment(path);
+            if (fragment == null) {
+                return List.of(new RouteVariant(path, optionalFragmentCount));
+            }
+            String prefix = path.substring(0, fragment.start());
+            String optional = path.substring(fragment.start() + 1, fragment.end());
+            String suffix = path.substring(fragment.end() + 1);
+            List<RouteVariant> result = new ArrayList<>();
+            result.addAll(expand(prefix + optional + suffix, optionalFragmentCount + 1));
+            result.addAll(expand(prefix + suffix, optionalFragmentCount + 1));
+            return result;
+        }
+
+        private static OptionalFragment firstOptionalFragment(String path) {
+            int parameterDepth = 0;
+            int optionalDepth = 0;
+            int start = -1;
+            for (int i = 0; i < path.length(); i++) {
+                char current = path.charAt(i);
+                if (current == '{') {
+                    parameterDepth++;
+                } else if (current == '}') {
+                    parameterDepth = Math.max(0, parameterDepth - 1);
+                } else if (parameterDepth == 0 && current == '[') {
+                    if (optionalDepth == 0) {
+                        start = i;
+                    }
+                    optionalDepth++;
+                } else if (parameterDepth == 0 && current == ']') {
+                    if (optionalDepth == 0) {
+                        throw new IllegalArgumentException(
+                                "Route optional fragment opening delimiter '[' is missing in: " + path);
+                    }
+                    optionalDepth--;
+                    if (optionalDepth == 0) {
+                        return new OptionalFragment(start, i);
+                    }
+                }
+            }
+            if (optionalDepth > 0) {
+                throw new IllegalArgumentException(
+                        "Route optional fragment closing delimiter ']' is missing in: " + path);
+            }
+            return null;
+        }
+    }
+
+    record OptionalFragment(int start, int end) {
     }
 }

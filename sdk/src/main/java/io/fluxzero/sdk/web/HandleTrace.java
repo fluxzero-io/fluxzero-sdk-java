@@ -39,7 +39,8 @@ public @interface HandleTrace {
      * <p>
      * Patterns support literal path parts, {@code {name}} parameters, {@code {name:regex}} constrained parameters,
      * and {@code *} wildcards. A non-final {@code *} matches within a single path segment, while a final {@code *}
-     * matches the rest of the path.
+     * matches the rest of the path. Optional path fragments can be declared with square brackets, for example
+     * {@code /users[/{id}]}. Trailing slashes on non-root paths are ignored.
      */
     String[] value() default {};
 

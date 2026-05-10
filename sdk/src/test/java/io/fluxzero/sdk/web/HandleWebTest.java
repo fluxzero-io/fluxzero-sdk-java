@@ -375,6 +375,17 @@ public class HandleWebTest {
         }
 
         @Test
+        void testOptionalSegment() {
+            testFixture.whenGet("/optional").expectResult("optional");
+            testFixture.whenGet("/optional/42").expectResult("optional:42");
+        }
+
+        @Test
+        void testLiteralRouteWinsOverOptionalSegment() {
+            testFixture.whenGet("/optional/literal").expectResult("optionalLiteral");
+        }
+
+        @Test
         void testWrongPath() {
             testFixture.whenWebRequest(WebRequest.builder().method(GET).url("/unknown").build())
                     .expectExceptionalResult(TimeoutException.class);
@@ -444,6 +455,16 @@ public class HandleWebTest {
             @HandleGet("/trailingSlash/")
             String trailingSlash() {
                 return "trailingSlash";
+            }
+
+            @HandleGet("/optional[/{id}]")
+            String optional(@PathParam("id") String id) {
+                return id == null ? "optional" : "optional:" + id;
+            }
+
+            @HandleGet("/optional/literal")
+            String optionalLiteral() {
+                return "optionalLiteral";
             }
 
             @HandleGet(value = "/getWithoutAutoHead", autoHead = false)

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebRouteMatcherTest {
@@ -41,6 +42,57 @@ class WebRouteMatcherTest {
         assertEquals("users", matcher.match(GET, null, "/users/").orElseThrow().value());
         assertEquals("projects", matcher.match(GET, null, "/projects").orElseThrow().value());
         assertEquals("projects", matcher.match(GET, null, "/projects/").orElseThrow().value());
+    }
+
+    @Test
+    void optionalSegmentMatchesWithAndWithoutSegment() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/users[/{id}]", GET), "users");
+
+        assertEquals("users", matcher.match(GET, null, "/users").orElseThrow().value());
+        var match = matcher.match(GET, null, "/users/42").orElseThrow();
+        assertEquals("users", match.value());
+        assertEquals("42", match.pathParameters().get("id"));
+    }
+
+    @Test
+    void explicitRouteBeatsEquivalentOptionalRouteVariant() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/users[/{id}]", GET), "optional");
+        matcher.add(new WebPattern("/users", GET), "users");
+        matcher.add(new WebPattern("/users/{id}", GET), "user");
+
+        assertEquals("users", matcher.match(GET, null, "/users").orElseThrow().value());
+        assertEquals("user", matcher.match(GET, null, "/users/42").orElseThrow().value());
+    }
+
+    @Test
+    void optionalSegmentSupportsConstrainedParameters() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/orders[/{id:[0-9]+}]", GET), "orders");
+
+        assertEquals("orders", matcher.match(GET, null, "/orders").orElseThrow().value());
+        assertEquals("orders", matcher.match(GET, null, "/orders/123").orElseThrow().value());
+        assertTrue(matcher.match(GET, null, "/orders/abc").isEmpty());
+    }
+
+    @Test
+    void optionalSegmentMatchesPathUtility() {
+        assertTrue(WebRouteMatcher.matchesPath("/users[/{id}]", "/users"));
+        assertTrue(WebRouteMatcher.matchesPath("/users[/{id}]", "/users/42"));
+        assertFalse(WebRouteMatcher.matchesPath("/users[/{id}]", "/users/42/extra"));
+    }
+
+    @Test
+    void adjacentOptionalSegmentsBindFromLeftToRight() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("/users[/{first}][/{second}]", GET), "users");
+
+        var match = matcher.match(GET, null, "/users/42").orElseThrow();
+
+        assertEquals("users", match.value());
+        assertEquals("42", match.pathParameters().get("first"));
+        assertFalse(match.pathParameters().containsKey("second"));
     }
 
     @Test

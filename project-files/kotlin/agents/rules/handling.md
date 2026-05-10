@@ -476,6 +476,8 @@ wildcards.
 
 - A non-final `*` matches within one path segment, for example `/api/meters/*/readings`.
 - A final `*` matches the rest of the path and is mainly useful for static or SPA fallback routes.
+- Optional path fragments use square brackets, for example `/api/users[/{id}]` matches both `/api/users` and
+  `/api/users/42`.
 - Trailing slashes on non-root paths are ignored, so `/users` and `/users/` match the same route.
 - If multiple handlers match, Fluxzero selects the most specific route. Literal segments win over path parameters,
   constrained parameters win over plain parameters, and wildcard/catch-all routes are treated as fallbacks.
