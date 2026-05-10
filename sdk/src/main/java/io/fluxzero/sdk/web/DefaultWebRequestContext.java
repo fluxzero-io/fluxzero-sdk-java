@@ -28,10 +28,12 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -81,7 +83,9 @@ public class DefaultWebRequestContext implements WebRequestContext {
     private final Map<String, List<String>> queryParameters;
     private final Map<String, String> cookieMap;
     private Map<String, String> pathMap = new LinkedHashMap<>();
+    private Map<String, List<Object>> formParameterValues;
     private Map<String, List<String>> formParameters;
+    private Map<String, List<WebFormPart>> formParts;
     private boolean formParametersParsed;
     private JsonNode jsonBody;
     private boolean jsonBodyParsed;
@@ -142,6 +146,10 @@ public class DefaultWebRequestContext implements WebRequestContext {
         return formParameters();
     }
 
+    public Map<String, List<WebFormPart>> getFormParts() {
+        return formParts();
+    }
+
     public JsonNode getJsonBody() {
         return jsonBody();
     }
@@ -158,7 +166,7 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 case PATH -> new ParameterValue(pathMap.get(name));
                 case HEADER -> new ParameterValue(firstOrList(WebRequest.getHeaders(metadata).get(name)));
                 case COOKIE -> new ParameterValue(cookieMap.get(name));
-                case FORM -> new ParameterValue(firstOrList(formParameters().get(name)));
+                case FORM -> new ParameterValue(firstOrListObject(formParameterValues().get(name)));
                 case QUERY -> new ParameterValue(firstOrList(queryParameters.get(name)));
                 case BODY -> ReflectionUtils.readProperty(name, jsonBody())
                         .map(ParameterValue::new).orElseGet(() -> new ParameterValue(null));
@@ -179,11 +187,24 @@ public class DefaultWebRequestContext implements WebRequestContext {
     }
 
     private Map<String, List<String>> formParameters() {
+        formParameterValues();
+        return formParameters;
+    }
+
+    private Map<String, List<WebFormPart>> formParts() {
+        formParameterValues();
+        return formParts;
+    }
+
+    private Map<String, List<Object>> formParameterValues() {
         if (!formParametersParsed) {
-            formParameters = parseFormParameters(bodySupplier.get());
+            ParsedForm parsedForm = parseForm(bodySupplier.get());
+            formParameterValues = parsedForm.parameterValues();
+            formParameters = parsedForm.parameters();
+            formParts = parsedForm.parts();
             formParametersParsed = true;
         }
-        return formParameters;
+        return formParameterValues;
     }
 
     private JsonNode jsonBody() {
@@ -206,17 +227,33 @@ public class DefaultWebRequestContext implements WebRequestContext {
     }
 
     Map<String, List<String>> parseFormParameters(byte[] body) {
-        String contentType = WebRequest.getHeader(metadata, "Content-Type").map(String::toLowerCase).orElse("");
-        if (!contentType.startsWith("application/x-www-form-urlencoded")) {
-            return Map.of();
-        }
+        return parseForm(body).parameters();
+    }
+
+    ParsedForm parseForm(byte[] body) {
+        String contentType = WebRequest.getHeader(metadata, "Content-Type").orElse("");
         if (body == null || body.length == 0) {
-            return Map.of();
+            return ParsedForm.empty();
         }
-        return parseParameters(new String(body, StandardCharsets.UTF_8));
+        if ("application/x-www-form-urlencoded".equals(mediaType(contentType))) {
+            Map<String, List<String>> parameters = parseParameters(new String(body, StandardCharsets.UTF_8));
+            return ParsedForm.ofUrlEncoded(parameters);
+        }
+        if ("multipart/form-data".equals(mediaType(contentType))) {
+            return boundary(contentType).map(boundary -> ParsedForm.ofMultipart(parseMultipart(body, boundary)))
+                    .orElseGet(ParsedForm::empty);
+        }
+        return ParsedForm.empty();
     }
 
     private static Object firstOrList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return values.size() == 1 ? values.getFirst() : values;
+    }
+
+    private static Object firstOrListObject(List<Object> values) {
         if (values == null || values.isEmpty()) {
             return null;
         }
@@ -240,5 +277,236 @@ public class DefaultWebRequestContext implements WebRequestContext {
             values.computeIfAbsent(key, __ -> new ArrayList<>()).add(value);
         }
         return values;
+    }
+
+    private static Optional<String> boundary(String contentType) {
+        return Optional.ofNullable(headerParameters(contentType).get("boundary")).filter(s -> !s.isBlank());
+    }
+
+    static Map<String, String> headerParameters(String headerValue) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return Map.of();
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String part : splitHeaderParameters(headerValue)) {
+            int separator = part.indexOf('=');
+            if (separator <= 0) {
+                continue;
+            }
+            String key = part.substring(0, separator).trim().toLowerCase(Locale.ROOT);
+            String value = unquote(part.substring(separator + 1).trim());
+            if (!key.isBlank()) {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
+    private static String mediaType(String contentType) {
+        int parameterStart = Optional.ofNullable(contentType).orElse("").indexOf(';');
+        String result = parameterStart < 0 ? Optional.ofNullable(contentType).orElse("")
+                : contentType.substring(0, parameterStart);
+        return result.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static List<String> splitHeaderParameters(String headerValue) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        boolean escaped = false;
+        for (int i = 0; i < headerValue.length(); i++) {
+            char c = headerValue.charAt(i);
+            if (escaped) {
+                current.append(c);
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && quoted) {
+                current.append(c);
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                quoted = !quoted;
+                current.append(c);
+                continue;
+            }
+            if (c == ';' && !quoted) {
+                result.add(current.toString().trim());
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+        result.add(current.toString().trim());
+        return result;
+    }
+
+    private static String unquote(String value) {
+        if (value.length() < 2 || value.charAt(0) != '"' || value.charAt(value.length() - 1) != '"') {
+            return value;
+        }
+        StringBuilder result = new StringBuilder();
+        boolean escaped = false;
+        for (int i = 1; i < value.length() - 1; i++) {
+            char c = value.charAt(i);
+            if (escaped) {
+                result.append(c);
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else {
+                result.append(c);
+            }
+        }
+        if (escaped) {
+            result.append('\\');
+        }
+        return result.toString();
+    }
+
+    private static List<WebFormPart> parseMultipart(byte[] body, String boundary) {
+        String raw = new String(body, StandardCharsets.ISO_8859_1);
+        String delimiter = "--" + boundary;
+        int position = raw.indexOf(delimiter);
+        if (position < 0) {
+            return List.of();
+        }
+
+        List<WebFormPart> parts = new ArrayList<>();
+        while (position >= 0) {
+            position += delimiter.length();
+            if (raw.startsWith("--", position)) {
+                break;
+            }
+            position = skipLineBreak(raw, position);
+
+            Separator headerSeparator = findHeaderSeparator(raw, position);
+            if (headerSeparator == null) {
+                throw new IllegalArgumentException("Malformed multipart/form-data request: part headers are incomplete");
+            }
+            Map<String, List<String>> headers = parsePartHeaders(raw.substring(position, headerSeparator.index()));
+            int bodyStart = headerSeparator.index() + headerSeparator.length();
+            BoundaryPosition nextBoundary = findNextBoundary(raw, delimiter, bodyStart);
+            byte[] content = Arrays.copyOfRange(body, bodyStart, nextBoundary.dataEnd());
+
+            Optional<WebFormPart> part = createPart(headers, content);
+            part.ifPresent(parts::add);
+            position = nextBoundary.delimiterStart();
+        }
+        return parts;
+    }
+
+    private static int skipLineBreak(String raw, int position) {
+        if (raw.startsWith("\r\n", position)) {
+            return position + 2;
+        }
+        if (raw.startsWith("\n", position)) {
+            return position + 1;
+        }
+        return position;
+    }
+
+    private static Separator findHeaderSeparator(String raw, int start) {
+        int crlf = raw.indexOf("\r\n\r\n", start);
+        int lf = raw.indexOf("\n\n", start);
+        if (crlf < 0 && lf < 0) {
+            return null;
+        }
+        if (lf < 0 || (crlf >= 0 && crlf < lf)) {
+            return new Separator(crlf, 4);
+        }
+        return new Separator(lf, 2);
+    }
+
+    private static BoundaryPosition findNextBoundary(String raw, String delimiter, int start) {
+        int delimiterStart = raw.indexOf(delimiter, start);
+        while (delimiterStart >= 0) {
+            if (delimiterStart >= 2 && raw.charAt(delimiterStart - 2) == '\r'
+                && raw.charAt(delimiterStart - 1) == '\n') {
+                return new BoundaryPosition(delimiterStart - 2, delimiterStart);
+            }
+            if (delimiterStart >= 1 && raw.charAt(delimiterStart - 1) == '\n') {
+                return new BoundaryPosition(delimiterStart - 1, delimiterStart);
+            }
+            delimiterStart = raw.indexOf(delimiter, delimiterStart + delimiter.length());
+        }
+        throw new IllegalArgumentException("Malformed multipart/form-data request: closing boundary is missing");
+    }
+
+    private static Map<String, List<String>> parsePartHeaders(String headerBlock) {
+        Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
+        for (String line : headerBlock.split("\\r?\\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            int separator = line.indexOf(':');
+            if (separator <= 0) {
+                continue;
+            }
+            String name = line.substring(0, separator).trim();
+            String value = line.substring(separator + 1).trim();
+            headers.computeIfAbsent(name, __ -> new ArrayList<>()).add(value);
+        }
+        return headers;
+    }
+
+    private static Optional<WebFormPart> createPart(Map<String, List<String>> headers, byte[] content) {
+        String contentDisposition = headers.getOrDefault("Content-Disposition", List.of()).stream()
+                .findFirst().orElse("");
+        Map<String, String> dispositionParameters = headerParameters(contentDisposition);
+        String name = dispositionParameters.get("name");
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+        String fileName = dispositionParameters.get("filename");
+        String contentType = headers.getOrDefault("Content-Type", List.of()).stream().findFirst().orElse(null);
+        return Optional.of(new WebFormPart(name, fileName, contentType, headers, content));
+    }
+
+    private static <T> Map<String, List<T>> copyLists(Map<String, List<T>> values) {
+        Map<String, List<T>> result = new LinkedHashMap<>();
+        values.forEach((key, value) -> result.put(key, List.copyOf(value)));
+        return result;
+    }
+
+    private static Map<String, List<Object>> objectValues(Map<String, List<String>> values) {
+        Map<String, List<Object>> result = new LinkedHashMap<>();
+        values.forEach((key, value) -> result.put(key, List.copyOf(value)));
+        return result;
+    }
+
+    record ParsedForm(
+            Map<String, List<Object>> parameterValues,
+            Map<String, List<String>> parameters,
+            Map<String, List<WebFormPart>> parts
+    ) {
+        static ParsedForm empty() {
+            return new ParsedForm(Map.of(), Map.of(), Map.of());
+        }
+
+        static ParsedForm ofUrlEncoded(Map<String, List<String>> parameters) {
+            return new ParsedForm(objectValues(parameters), copyLists(parameters), Map.of());
+        }
+
+        static ParsedForm ofMultipart(List<WebFormPart> parts) {
+            Map<String, List<Object>> parameterValues = new LinkedHashMap<>();
+            Map<String, List<String>> parameters = new LinkedHashMap<>();
+            Map<String, List<WebFormPart>> partsByName = new LinkedHashMap<>();
+            for (WebFormPart part : parts) {
+                parameterValues.computeIfAbsent(part.getName(), __ -> new ArrayList<>()).add(part);
+                partsByName.computeIfAbsent(part.getName(), __ -> new ArrayList<>()).add(part);
+                if (!part.isFile()) {
+                    parameters.computeIfAbsent(part.getName(), __ -> new ArrayList<>()).add(part.asString());
+                }
+            }
+            return new ParsedForm(copyLists(parameterValues), copyLists(parameters), copyLists(partsByName));
+        }
+    }
+
+    record Separator(int index, int length) {
+    }
+
+    record BoundaryPosition(int dataEnd, int delimiterStart) {
     }
 }

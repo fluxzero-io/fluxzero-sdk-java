@@ -355,6 +355,7 @@ io.fluxzero.sdk.web.StaticFileHandler
 io.fluxzero.sdk.web.StaticFileHandler.ByteRange
 io.fluxzero.sdk.web.StaticFileHandler.Compression
 io.fluxzero.sdk.web.StaticFileHandler_params
+io.fluxzero.sdk.web.WebFormPart
 io.fluxzero.sdk.web.WebHandlerMatcher
 io.fluxzero.sdk.web.WebParam
 io.fluxzero.sdk.web.WebParamParameterResolver

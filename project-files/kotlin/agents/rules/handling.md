@@ -515,21 +515,21 @@ Use annotations to inject specific parts of the HTTP request:
 - **@PathParam**: Extracts values from the URL path template (e.g., `/api/users/{id}`).
 - **@QueryParam**: Extracts values from the query string (e.g., `?name=Charlie`).
 - **@HeaderParam**: Extracts values from HTTP headers.
-- **@FormParam**: Extracts values from `application/x-www-form-urlencoded` bodies.
+- **@FormParam**: Extracts values from `application/x-www-form-urlencoded` bodies or `multipart/form-data` parts.
 - **@BodyParam**: Extracts fields from a JSON request body.
 
-`multipart/form-data` requests can be handled as raw request payloads by declaring an unannotated `ByteArray` or
-`String` parameter on a web handler method. Multipart parts are not exposed through `@FormParam` yet.
+For multipart uploads, use `@FormParam String` for text fields, `@FormParam ByteArray` or `@FormParam InputStream` for
+file contents, or `@FormParam WebFormPart` when the handler needs the filename, content type, or part headers.
 
 These injected parameters can also use standard validation annotations directly, for example
 `@PathParam @Positive id: Long` or `@QueryParam @NotBlank search: String`.
 
 [//]: # (@formatter:off)
 ```kotlin
-@HandlePost("/{userId}/profile")
-fun updateProfile(
+@HandlePost("/{userId}/avatar")
+fun uploadAvatar(
     @PathParam userId: UserId,
-    @FormParam displayName: String,
+    @FormParam image: WebFormPart,
     @HeaderParam("Content-Type") contentType: String
 ) {
     // ...

@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.serialization.JsonUtils;
 import lombok.Value;
 
+import java.io.InputStream;
+
 /**
  * Wrapper around a resolved parameter value in a web request.
  * <p>
@@ -70,6 +72,17 @@ public class ParameterValue {
         }
         if (type.isInstance(rawValue)) {
             return type.cast(rawValue);
+        }
+        if (rawValue instanceof WebFormPart part) {
+            if (type == String.class) {
+                return type.cast(part.asString());
+            }
+            if (type == byte[].class) {
+                return type.cast(part.getContent());
+            }
+            if (type == InputStream.class) {
+                return type.cast(part.getInputStream());
+            }
         }
         if (rawValue instanceof JsonNode node) {
             return JsonUtils.convertValue(node, type);

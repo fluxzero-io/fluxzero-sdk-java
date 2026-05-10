@@ -2170,10 +2170,11 @@ In addition to `@PathParam`, you can extract other values from the request using
 - `@QueryParam` – extract query string values
 - `@HeaderParam` – extract HTTP headers
 - `@CookieParam` – extract cookie values
-- `@FormParam` – extract form-encoded values (for POST/PUT)
+- `@FormParam` – extract URL-encoded form values or multipart form parts
 
-`multipart/form-data` requests can be handled as raw request payloads by declaring an unannotated `byte[]` or `String`
-parameter on a web handler method. Multipart parts are not exposed through `@FormParam` yet.
+For `multipart/form-data`, use `@FormParam String` for text fields, `@FormParam byte[]` or
+`@FormParam InputStream` for file contents, or `@FormParam WebFormPart` when you also need the filename, content type,
+or part headers.
 
 Each of these annotations supports the same rules:
 

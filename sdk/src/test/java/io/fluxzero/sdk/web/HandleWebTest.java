@@ -140,6 +140,22 @@ public class HandleWebTest {
         }
 
         @Test
+        void testMultipartFormParameterSources() {
+            String boundary = "FluxzeroBoundaryX";
+            testFixture.whenWebRequest(WebRequest.post("/multipart")
+                            .contentType("multipart/form-data; boundary=\"" + boundary + "\"")
+                            .payload(multipartBody(boundary)).build())
+                    .expectResult(List.of(
+                            "meter readings",
+                            "alpha,beta",
+                            "readings.csv",
+                            "text/csv",
+                            "upload-1",
+                            "meterId,reading\n123,42\n",
+                            "meterId,reading\n123,42\n"));
+        }
+
+        @Test
         void testGet_disabled() {
             testFixture.whenGet("/disabled").expectExceptionalResult(TimeoutException.class);
         }
@@ -374,6 +390,20 @@ public class HandleWebTest {
                 return List.of(path, query, header, cookie, form);
             }
 
+            @SneakyThrows
+            @HandlePost("/multipart")
+            List<String> multipart(@FormParam("description") String description,
+                                   @FormParam("tag") List<WebFormPart> tags,
+                                   @FormParam("upload") byte[] upload,
+                                   @FormParam("upload") InputStream uploadStream,
+                                   @FormParam("upload") WebFormPart uploadPart) {
+                return List.of(description, tags.getFirst().asString() + "," + tags.get(1).asString(),
+                               uploadPart.getFileName(), uploadPart.getContentType(),
+                               uploadPart.getHeader("X-Part-Id").orElse(""),
+                               new String(uploadStream.readAllBytes(), StandardCharsets.UTF_8),
+                               new String(upload, StandardCharsets.UTF_8));
+            }
+
             @HandleWeb(value = "/disabled", method = GET, disabled = true)
             String disabledGet() {
                 return "get";
@@ -445,6 +475,33 @@ public class HandleWebTest {
             Object post(JsonNode body) {
                 return body;
             }
+        }
+
+        private byte[] multipartBody(String boundary) {
+            return ("""
+                    --%s\r
+                    Content-Disposition: form-data; name="description"\r
+                    \r
+                    meter readings\r
+                    --%s\r
+                    Content-Disposition: form-data; name="tag"\r
+                    \r
+                    alpha\r
+                    --%s\r
+                    Content-Disposition: form-data; name="tag"\r
+                    \r
+                    beta\r
+                    --%s\r
+                    Content-Disposition: form-data; name="upload"; filename="readings.csv"\r
+                    Content-Type: text/csv\r
+                    X-Part-Id: upload-1\r
+                    \r
+                    meterId,reading
+                    123,42
+                    \r
+                    --%s--\r
+                    """).formatted(boundary, boundary, boundary, boundary, boundary)
+                    .getBytes(StandardCharsets.UTF_8);
         }
     }
 
