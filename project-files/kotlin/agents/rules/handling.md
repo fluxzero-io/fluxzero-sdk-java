@@ -481,6 +481,18 @@ wildcards.
 - Example order for `/api/projects/active`: `/api/projects/active`, then `/api/projects/{id:[a-z]+}`, then
   `/api/projects/{id}`, then `/api/projects/*`.
 
+### Automatic `HEAD` and `OPTIONS`
+
+Fluxzero can derive HTTP helpers from route declarations:
+
+- `HEAD` may use the matching `GET` handler when no explicit `@HandleHead`, `@HandleWeb(method = "HEAD")`, or `ANY`
+  route matches. The response keeps status and headers, but has no body.
+- `OPTIONS` may return `204 No Content` with an `Allow` header when no explicit `@HandleOptions`,
+  `@HandleWeb(method = "OPTIONS")`, or `ANY` route matches.
+- Explicit handlers win, including wildcard handlers in another handler class in the same application.
+- In multi-service setups, disable generated helpers with `autoHead = false` and/or `autoOptions = false` on routes
+  that should leave `HEAD` or `OPTIONS` to another application.
+
 ---
 
 <a name="http-mapping"></a>

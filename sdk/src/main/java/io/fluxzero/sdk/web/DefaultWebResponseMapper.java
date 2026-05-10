@@ -14,9 +14,11 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
@@ -68,7 +70,7 @@ public class DefaultWebResponseMapper implements WebResponseMapper {
     @Override
     public WebResponse map(Object response, Metadata metadata) {
         if (response instanceof WebResponse r) {
-            return r;
+            return stripHeadPayload(r);
         }
         boolean explicitContentType = WebResponse.getHeaders(metadata).containsKey("Content-Type");
         WebResponse.Builder builder = WebResponse.builder();
@@ -89,6 +91,16 @@ public class DefaultWebResponseMapper implements WebResponseMapper {
             builder.status(response == null ? 204 : 200).payload(response);
         }
         WebResponse result = builder.build().addMetadata(metadata);
-        return explicitContentType ? result : WebResponseContentNegotiator.markNegotiable(result);
+        result = explicitContentType ? result : WebResponseContentNegotiator.markNegotiable(result);
+        return stripHeadPayload(result);
+    }
+
+    private WebResponse stripHeadPayload(WebResponse response) {
+        DeserializingMessage request = DeserializingMessage.getCurrent();
+        if (request == null || request.getMessageType() != MessageType.WEBREQUEST
+            || !HttpRequestMethod.HEAD.equals(WebRequest.getMethod(request.getMetadata()))) {
+            return response;
+        }
+        return response.withPayload(null);
     }
 }

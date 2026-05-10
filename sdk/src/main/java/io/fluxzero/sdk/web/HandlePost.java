@@ -52,4 +52,9 @@ public @interface HandlePost {
      * If {@code true}, the handler will not publish a response to the {@code WebResponse} log.
      */
     boolean passive() default false;
+
+    /**
+     * If {@code true}, this route may contribute to automatically generated {@code OPTIONS} responses.
+     */
+    boolean autoOptions() default true;
 }

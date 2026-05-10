@@ -64,7 +64,10 @@ import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
+import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
+import static io.fluxzero.sdk.web.HttpRequestMethod.OPTIONS;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
 import static io.fluxzero.sdk.web.HttpRequestMethod.TRACE;
@@ -106,6 +109,81 @@ public class HandleWebTest {
         @Test
         void testMostSpecificGetWinsOverWildcardSegment() {
             testFixture.whenGet("/a/b/c").expectResult("specific");
+        }
+
+        @Test
+        void testHeadFallsBackToGetWithoutBody() {
+            testFixture.whenWebRequest(WebRequest.builder().method(HEAD).url("/get").build())
+                    .expectWebResult(r -> r.getStatus() == 200
+                                          && "text/plain".equals(r.getContentType())
+                                          && r.getPayload() == null);
+        }
+
+        @Test
+        void testHeadFallbackCanBeDisabled() {
+            testFixture.whenWebRequest(WebRequest.builder().method(HEAD).url("/getWithoutAutoHead").build())
+                    .expectExceptionalResult(TimeoutException.class);
+        }
+
+        @Test
+        void testExplicitHeadInOtherHandlerWinsOverAutomaticGetHead() {
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitHeadHandler())
+                    .whenWebRequest(WebRequest.builder().method(HEAD).url("/sharedHead").build())
+                    .expectWebResult(r -> r.getStatus() == 209
+                                          && "explicitHead".equals(r.getHeader("X-Handler"))
+                                          && r.getPayload() == null);
+        }
+
+        @Test
+        void testExplicitWildcardHeadInOtherHandlerWinsOverAutomaticGetHead() {
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitWildcardHeadHandler())
+                    .whenWebRequest(WebRequest.builder().method(HEAD).url("/wildcardHead/value").build())
+                    .expectWebResult(r -> r.getStatus() == 210
+                                          && "explicitWildcardHead".equals(r.getHeader("X-Handler"))
+                                          && r.getPayload() == null);
+        }
+
+        @Test
+        void testAnyHandlerInOtherHandlerWinsOverAutomaticGetHead() {
+            TestFixture.create(new GetHeadFallbackHandler(), new ExplicitAnyHandler())
+                    .whenWebRequest(WebRequest.builder().method(HEAD).url("/anyHead").build())
+                    .expectWebResult(r -> r.getStatus() == 211
+                                          && "anyHead".equals(r.getHeader("X-Handler"))
+                                          && r.getPayload() == null);
+        }
+
+        @Test
+        void testAutomaticOptionsIncludesAllowedMethods() {
+            testFixture.whenWebRequest(WebRequest.builder().method(OPTIONS).url("/automaticOptions").build())
+                    .expectWebResult(r -> r.getStatus() == 204
+                                          && "GET, HEAD, POST, OPTIONS".equals(r.getHeader("Allow")));
+        }
+
+        @Test
+        void testAutomaticOptionsCanBeDisabled() {
+            testFixture.whenWebRequest(WebRequest.builder().method(OPTIONS).url("/withoutAutomaticOptions").build())
+                    .expectExceptionalResult(TimeoutException.class);
+        }
+
+        @Test
+        void testExplicitOptionsInOtherHandlerWinsOverAutomaticOptions() {
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitOptionsHandler())
+                    .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/sharedOptions").build())
+                    .expectResult("explicitOptions");
+        }
+
+        @Test
+        void testExplicitWildcardOptionsInOtherHandlerWinsOverAutomaticOptions() {
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitWildcardOptionsHandler())
+                    .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/wildcardOptions/value").build())
+                    .expectResult("explicitWildcardOptions");
+        }
+
+        @Test
+        void testAnyHandlerInOtherHandlerWinsOverAutomaticOptions() {
+            TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitAnyHandler())
+                    .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/anyOptions").build())
+                    .expectResult("anyOptions");
         }
 
         @Test
@@ -357,6 +435,26 @@ public class HandleWebTest {
                 return "get";
             }
 
+            @HandleGet(value = "/getWithoutAutoHead", autoHead = false)
+            String getWithoutAutoHead() {
+                return "getWithoutAutoHead";
+            }
+
+            @HandleGet("/automaticOptions")
+            String getAutomaticOptions() {
+                return "getAutomaticOptions";
+            }
+
+            @HandlePost("/automaticOptions")
+            String postAutomaticOptions() {
+                return "postAutomaticOptions";
+            }
+
+            @HandleGet(value = "/withoutAutomaticOptions", autoOptions = false)
+            String getWithoutAutomaticOptions() {
+                return "withoutAutomaticOptions";
+            }
+
             @HandleGet("/a/*/b")
             String getWithWildcardSegmentInMiddle() {
                 return "middleWildcard";
@@ -474,6 +572,83 @@ public class HandleWebTest {
             @HandleWeb(value = "/json", method = POST)
             Object post(JsonNode body) {
                 return body;
+            }
+        }
+
+        private static class GetHeadFallbackHandler {
+            @HandleGet("/sharedHead")
+            String sharedHead() {
+                return "getHead";
+            }
+
+            @HandleGet("/wildcardHead/value")
+            String wildcardHead() {
+                return "getWildcardHead";
+            }
+
+            @HandleGet("/anyHead")
+            String anyHead() {
+                return "getAnyHead";
+            }
+        }
+
+        private static class ExplicitHeadHandler {
+            @HandleHead("/sharedHead")
+            WebResponse sharedHead() {
+                return WebResponse.builder().status(209).header("X-Handler", "explicitHead")
+                        .payload("explicitHead").build();
+            }
+        }
+
+        private static class ExplicitWildcardHeadHandler {
+            @HandleHead("/wildcardHead/*")
+            WebResponse wildcardHead() {
+                return WebResponse.builder().status(210).header("X-Handler", "explicitWildcardHead")
+                        .payload("explicitWildcardHead").build();
+            }
+        }
+
+        private static class GetOptionsFallbackHandler {
+            @HandleGet("/sharedOptions")
+            String sharedOptions() {
+                return "getOptions";
+            }
+
+            @HandleGet("/wildcardOptions/value")
+            String wildcardOptions() {
+                return "getWildcardOptions";
+            }
+
+            @HandleGet("/anyOptions")
+            String anyOptions() {
+                return "getAnyOptions";
+            }
+        }
+
+        private static class ExplicitOptionsHandler {
+            @HandleOptions("/sharedOptions")
+            String sharedOptions() {
+                return "explicitOptions";
+            }
+        }
+
+        private static class ExplicitWildcardOptionsHandler {
+            @HandleOptions("/wildcardOptions/*")
+            String wildcardOptions() {
+                return "explicitWildcardOptions";
+            }
+        }
+
+        private static class ExplicitAnyHandler {
+            @HandleWeb(value = "/anyHead", method = ANY)
+            WebResponse anyHead() {
+                return WebResponse.builder().status(211).header("X-Handler", "anyHead")
+                        .payload("anyHead").build();
+            }
+
+            @HandleWeb(value = "/anyOptions", method = ANY)
+            String anyOptions() {
+                return "anyOptions";
             }
         }
 

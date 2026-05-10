@@ -34,6 +34,7 @@ import static io.fluxzero.sdk.web.WebUtils.concatenateUrlParts;
  *     <li>A list of URI patterns (e.g. {@code /users}, {@code /users/{id}}, {@code /users/*&#47;settings})</li>
  *     <li>A list of HTTP methods (e.g. {@code GET}, {@code POST})</li>
  *     <li>An optional {@code disabled} flag that disables this set of patterns</li>
+ *     <li>Flags for automatic {@code HEAD} and {@code OPTIONS} helper routing</li>
  * </ul>
  *
  * <p>The {@link #getWebPatterns()} method expands this configuration into a {@link Stream} of
@@ -61,6 +62,16 @@ public class WebParameters {
     boolean disabled;
 
     /**
+     * Whether matching GET routes may also handle HEAD requests.
+     */
+    boolean autoHead;
+
+    /**
+     * Whether matching routes may contribute to automatic OPTIONS responses.
+     */
+    boolean autoOptions;
+
+    /**
      * Expands this configuration into a stream of {@link WebPattern} instances.
      * <p>
      * If no URI patterns are provided, a wildcard pattern ({@code ""}) is assumed.
@@ -81,9 +92,11 @@ public class WebParameters {
     public Stream<WebPattern> getWebPatterns(String rootPath) {
         Stream<String> methodStream = Arrays.stream(method);
         return methodStream.flatMap(method -> switch (value.length) {
-            case 0 -> Stream.of(new WebPattern(concatenateUrlParts(rootPath, ""), method));
-            case 1 -> Stream.of(new WebPattern(concatenateUrlParts(rootPath, value[0]), method));
-            default -> Arrays.stream(value).map(v -> new WebPattern(concatenateUrlParts(rootPath, v), method));
+            case 0 -> Stream.of(new WebPattern(concatenateUrlParts(rootPath, ""), method, autoHead, autoOptions));
+            case 1 -> Stream.of(new WebPattern(concatenateUrlParts(rootPath, value[0]), method, autoHead,
+                                               autoOptions));
+            default -> Arrays.stream(value).map(v -> new WebPattern(concatenateUrlParts(rootPath, v), method,
+                                                                     autoHead, autoOptions));
         });
     }
 }

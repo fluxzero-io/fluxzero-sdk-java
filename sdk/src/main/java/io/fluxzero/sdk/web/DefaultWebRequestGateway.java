@@ -57,7 +57,9 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
-        return (CompletableFuture) delegate.sendForMessage(request.addMetadata("settings", settings));
+        WebRequest webRequest = request.addMetadata("settings", settings);
+        CompletableFuture<WebResponse> result = (CompletableFuture) delegate.sendForMessage(webRequest);
+        return result.thenApply(response -> stripHeadPayload(webRequest, response));
     }
 
     @Override
@@ -65,7 +67,8 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     public WebResponse sendAndWait(WebRequest request, WebRequestSettings settings) {
         try {
             request = request.addMetadata("settings", settings);
-            return (WebResponse) delegate.sendForMessage(request).get(settings.getTimeout().toMillis() + 5_000L, MILLISECONDS);
+            return stripHeadPayload(request, (WebResponse) delegate.sendForMessage(request)
+                    .get(settings.getTimeout().toMillis() + 5_000L, MILLISECONDS));
         } catch (java.util.concurrent.TimeoutException e) {
             throw new TimeoutException(format("Request %s (url %s) has timed out", request.getMessageId(),
                                               WebRequest.getUrl(request.getMetadata())));
@@ -87,5 +90,12 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     @Override
     public DefaultWebRequestGateway forNamespace(String namespace) {
         return withDelegate(delegate.forNamespace(namespace));
+    }
+
+    private WebResponse stripHeadPayload(WebRequest request, WebResponse response) {
+        if (response == null || !HttpRequestMethod.HEAD.equals(request.getMethod())) {
+            return response;
+        }
+        return response.withPayload(null);
     }
 }

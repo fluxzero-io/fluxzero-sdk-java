@@ -74,4 +74,16 @@ public @interface HandleWeb {
      * If {@code true}, the handler will not publish a response to the {@code WebResponse} log.
      */
     boolean passive() default false;
+
+    /**
+     * If {@code true}, {@code HEAD} requests may be routed to matching {@code GET} handlers when no explicit
+     * {@code HEAD} handler is present. Only applies to {@code GET} mappings.
+     */
+    boolean autoHead() default true;
+
+    /**
+     * If {@code true}, matching routes may contribute to automatically generated {@code OPTIONS} responses when no
+     * explicit {@code OPTIONS} handler is present.
+     */
+    boolean autoOptions() default true;
 }

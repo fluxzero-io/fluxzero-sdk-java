@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Small internal route matcher for Fluxzero web handlers.
@@ -33,7 +35,7 @@ import java.util.regex.Pattern;
  * parameters outrank unconstrained parameters, and wildcard or catch-all routes are treated as fallbacks.
  */
 class WebRouteMatcher<T> {
-    private static final Comparator<Match<?>> MOST_SPECIFIC = Comparator
+    static final Comparator<Match<?>> MOST_SPECIFIC = Comparator
             .<Match<?>>comparingInt(m -> m.route().path().literalChars())
             .thenComparingInt(m -> m.route().path().literalSegments())
             .thenComparingInt(m -> m.route().path().segmentCount())
@@ -50,12 +52,20 @@ class WebRouteMatcher<T> {
     }
 
     Optional<Match<T>> match(String method, String origin, String path) {
+        return match(method, origin, path, pattern -> true);
+    }
+
+    Optional<Match<T>> match(String method, String origin, String path, Predicate<WebPattern> predicate) {
+        return matches(origin, path, pattern -> Objects.equals(method, pattern.getMethod()) && predicate.test(pattern))
+                .max((a, b) -> MOST_SPECIFIC.compare(a, b));
+    }
+
+    Stream<Match<T>> matches(String origin, String path, Predicate<WebPattern> predicate) {
         String normalizedPath = normalizePath(path);
         return routes.stream()
-                .filter(route -> Objects.equals(method, route.pattern().getMethod()))
+                .filter(route -> predicate.test(route.pattern()))
                 .filter(route -> Objects.equals(origin, route.pattern().getOrigin()))
-                .flatMap(route -> route.match(normalizedPath).stream())
-                .max((a, b) -> MOST_SPECIFIC.compare(a, b));
+                .flatMap(route -> route.match(normalizedPath).stream());
     }
 
     static boolean matchesPath(String pattern, String path) {

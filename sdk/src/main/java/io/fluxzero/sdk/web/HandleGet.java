@@ -52,4 +52,15 @@ public @interface HandleGet {
      * If {@code true}, the handler will not publish a response to the {@code WebResponse} log.
      */
     boolean passive() default false;
+
+    /**
+     * If {@code true}, {@code HEAD} requests may be routed to this {@code GET} handler when no explicit
+     * {@code HEAD} handler is present.
+     */
+    boolean autoHead() default true;
+
+    /**
+     * If {@code true}, this route may contribute to automatically generated {@code OPTIONS} responses.
+     */
+    boolean autoOptions() default true;
 }

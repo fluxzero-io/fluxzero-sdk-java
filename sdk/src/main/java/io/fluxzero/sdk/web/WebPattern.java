@@ -85,6 +85,27 @@ public class WebPattern {
     String method;
 
     /**
+     * Whether this GET pattern may be used as an automatic HEAD fallback.
+     */
+    boolean autoHead;
+
+    /**
+     * Whether this pattern may contribute to automatic OPTIONS responses.
+     */
+    boolean autoOptions;
+
+    public WebPattern(String uri, String method) {
+        this(uri, method, true, true);
+    }
+
+    public WebPattern(String uri, String method, boolean autoHead, boolean autoOptions) {
+        this.uri = uri;
+        this.method = method;
+        this.autoHead = autoHead;
+        this.autoOptions = autoOptions;
+    }
+
+    /**
      * Lazily parsed path portion of the URI.
      * <p>
      * This value is guaranteed to start with {@code /}, unless the original URI was blank or missing a path.

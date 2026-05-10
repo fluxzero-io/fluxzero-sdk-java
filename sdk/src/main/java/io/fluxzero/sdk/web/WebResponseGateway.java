@@ -21,6 +21,7 @@ import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -38,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
+import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
 
 /**
  * Specialized implementation of the {@link ResultGateway} interface for sending web response messages.
@@ -103,6 +105,13 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
 
     protected CompletableFuture<Void> sendResponse(WebResponse response,
                                                    Function<SerializedMessage, CompletableFuture<Void>> dispatcher) {
+        if (isHeadRequest()) {
+            Data<byte[]> emptyBody = new Data<>(new byte[0], null, 0, response.getContentType());
+            SerializedMessage message = new SerializedMessage(emptyBody, response.getMetadata(),
+                                                              response.getMessageId(),
+                                                              response.getTimestamp().toEpochMilli());
+            return dispatcher.apply(message);
+        }
         if (response.getPayload() instanceof InputStream inputStream) {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             try (OutputStreamCapturer capturer = new OutputStreamCapturer(MAX_RESPONSE_SIZE, (chunk, last) -> {
@@ -122,5 +131,11 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
         } else {
             return dispatcher.apply(response.serialize(serializer));
         }
+    }
+
+    private boolean isHeadRequest() {
+        DeserializingMessage request = DeserializingMessage.getCurrent();
+        return request != null && request.getMessageType() == io.fluxzero.common.MessageType.WEBREQUEST
+               && HEAD.equals(WebRequest.getMethod(request.getMetadata()));
     }
 }

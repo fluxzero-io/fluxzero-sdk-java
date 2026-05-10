@@ -2163,6 +2163,26 @@ path parameters, constrained parameters win over plain parameters, and wildcard/
 fallbacks. For example, `/api/projects/active` wins over `/api/projects/{id:[a-z]+}`, which wins over
 `/api/projects/{id}`, which wins over `/api/projects/*`.
 
+#### Automatic HEAD and OPTIONS
+
+Fluxzero can derive common HTTP helper responses from your declared routes:
+
+- A `HEAD` request can be routed to the matching `GET` handler when no explicit `@HandleHead`, `@HandleWeb(method =
+  "HEAD")`, or `ANY` route matches. The response keeps the GET status and headers but has no body.
+- An `OPTIONS` request can return `204 No Content` with an `Allow` header when no explicit `@HandleOptions`,
+  `@HandleWeb(method = "OPTIONS")`, or `ANY` route matches.
+
+Explicit handlers always win, including wildcard handlers registered in another handler class in the same application.
+In multi-service setups, another application can still provide the explicit `HEAD` or `OPTIONS` handler. Disable the
+derived helpers on the route that should not claim them:
+
+```java
+@HandleGet(value = "/meters/{id}/readings", autoHead = false, autoOptions = false)
+public MeterReadings readings(@PathParam String id) {
+    return service.readings(id);
+}
+```
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:

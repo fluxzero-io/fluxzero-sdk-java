@@ -118,6 +118,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final RepositoryProvider repositoryProvider;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
+    private final Object webRouteRegistry = WebHandlerMatcher.createRouteRegistry();
 
     public DefaultHandlerFactory(MessageType messageType, HandlerDecorator defaultDecorator,
                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
@@ -259,7 +260,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     protected HandlerMatcher<Object, DeserializingMessage> createHandlerMatcher(
             Object target, HandlerConfiguration<DeserializingMessage> config) {
         return switch (messageType) {
-            case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config);
+            case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config, webRouteRegistry);
             default -> HandlerInspector.inspect(ReflectionUtils.asClass(target), parameterResolvers, config);
         };
     }

@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 
 import java.lang.reflect.Executable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,6 +34,10 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
+import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
+import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
+import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
+import static io.fluxzero.sdk.web.HttpRequestMethod.OPTIONS;
 import static io.fluxzero.sdk.web.DefaultWebRequestContext.getWebRequestContext;
 import static io.fluxzero.sdk.web.WebUtils.getWebPatterns;
 import static java.util.Arrays.stream;
@@ -71,6 +76,11 @@ import static java.util.stream.Stream.concat;
  * If no handler matches the exact request method, but any handlers exist that declare {@code HttpRequestMethod.ANY},
  * these are checked as a fallback.
  *
+ * <h2>Automatic HTTP Helpers</h2>
+ * {@code HEAD} can fall back to a matching {@code GET} route, and {@code OPTIONS} can be generated from matching
+ * routes. A factory-scoped route registry ensures explicit {@code HEAD}, {@code OPTIONS}, or {@code ANY} handlers
+ * registered in another handler class win over generated helpers.
+ *
  * @see HandlerMatcher
  * @see WebPattern
  * @see WebRequest
@@ -78,6 +88,7 @@ import static java.util.stream.Stream.concat;
  */
 public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMessage> {
     private final WebRouteMatcher<WebMethodMatcher> routes = new WebRouteMatcher<>();
+    private final WebRouteRegistry routeRegistry;
     private final boolean hasAnyHandlers;
 
     public static WebHandlerMatcher create(
@@ -86,27 +97,53 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         return create(handler, ReflectionUtils.asClass(handler), parameterResolvers, config);
     }
 
+    public static Object createRouteRegistry() {
+        return new WebRouteRegistry();
+    }
+
     protected static WebHandlerMatcher create(Object handler, Class<?> type,
                                               List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                               HandlerConfiguration<DeserializingMessage> config) {
+        return create(handler, type, parameterResolvers, config, new WebRouteRegistry());
+    }
+
+    public static WebHandlerMatcher create(
+            Object handler, List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            HandlerConfiguration<DeserializingMessage> config, Object routeRegistry) {
+        if (!(routeRegistry instanceof WebRouteRegistry webRouteRegistry)) {
+            throw new IllegalArgumentException(
+                    "Route registry must be created by WebHandlerMatcher.createRouteRegistry()");
+        }
+        return create(handler, ReflectionUtils.asClass(handler), parameterResolvers, config, webRouteRegistry);
+    }
+
+    protected static WebHandlerMatcher create(Object handler, Class<?> type,
+                                              List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                              HandlerConfiguration<DeserializingMessage> config,
+                                              WebRouteRegistry routeRegistry) {
         var matchers = concat(getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
                 .filter(m -> config.methodMatches(type, m))
                 .flatMap(m -> Stream.of(new MethodHandlerMatcher<>(m, type, parameterResolvers, config))).toList();
-        return new WebHandlerMatcher(handler, matchers);
+        return new WebHandlerMatcher(handler, matchers, routeRegistry);
     }
 
     protected WebHandlerMatcher(Object handler,
-                                List<MethodHandlerMatcher<DeserializingMessage>> methodHandlerMatchers) {
+                                List<MethodHandlerMatcher<DeserializingMessage>> methodHandlerMatchers,
+                                WebRouteRegistry routeRegistry) {
+        this.routeRegistry = routeRegistry;
         boolean hasAnyHandlers = false;
+        List<WebPattern> registeredPatterns = new ArrayList<>();
         for (MethodHandlerMatcher<DeserializingMessage> m : methodHandlerMatchers) {
             List<WebPattern> webPatterns = getWebPatterns(asClass(handler), handler, m.getExecutable());
+            registeredPatterns.addAll(webPatterns);
             for (WebPattern pattern : webPatterns) {
-                if (HttpRequestMethod.ANY.equals(pattern.getMethod())) {
+                if (ANY.equals(pattern.getMethod())) {
                     hasAnyHandlers = true;
                 }
                 routes.add(pattern, new WebMethodMatcher(m, pattern));
             }
         }
+        routeRegistry.register(this, registeredPatterns);
         this.hasAnyHandlers = hasAnyHandlers;
     }
 
@@ -125,25 +162,86 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         return methodMatcher(message).flatMap(m -> m.getInvoker(target, message));
     }
 
-    protected Optional<MethodHandlerMatcher<DeserializingMessage>> methodMatcher(DeserializingMessage message) {
+    protected Optional<WebRouteHandler> methodMatcher(DeserializingMessage message) {
         if (message.getMessageType() != MessageType.WEBREQUEST) {
             return Optional.empty();
         }
         DefaultWebRequestContext context = getWebRequestContext(message);
         Optional<WebRouteMatcher.Match<WebMethodMatcher>> match =
                 routes.match(context.getMethod(), context.getOrigin(), context.getRequestPath());
-        if (match.isEmpty() && hasAnyHandlers) {
-            match = routes.match(HttpRequestMethod.ANY, context.getOrigin(), context.getRequestPath());
+        if (match.isEmpty() && HEAD.equals(context.getMethod())) {
+            match = routeRegistry.automaticHeadOwner(context.getOrigin(), context.getRequestPath())
+                    .filter(entry -> entry.owner() == this)
+                    .flatMap(entry -> routes.match(GET, context.getOrigin(), context.getRequestPath(),
+                                                   WebPattern::isAutoHead));
         }
-        return match
+        if (match.isEmpty() && hasAnyHandlers) {
+            match = routes.match(ANY, context.getOrigin(), context.getRequestPath());
+        }
+        Optional<WebRouteHandler> handler = match
                 .filter(m -> Objects.equals(context.getOrigin(), m.pattern().getOrigin()))
                 .map(m -> {
                     context.setPathMap(m.pathParameters());
                     return m.value();
-                })
-                .map(WebMethodMatcher::matcher);
+                });
+        if (handler.isPresent()) {
+            return handler;
+        }
+        if (OPTIONS.equals(context.getMethod())) {
+            return automaticOptionsMatcher(context);
+        }
+        return Optional.empty();
     }
 
-    record WebMethodMatcher(MethodHandlerMatcher<DeserializingMessage> matcher, WebPattern pattern) { }
+    private Optional<WebRouteHandler> automaticOptionsMatcher(DefaultWebRequestContext context) {
+        return routeRegistry.automaticOptions(context.getOrigin(), context.getRequestPath())
+                .filter(options -> options.owner() == this)
+                .map(options -> new AutomaticOptionsMatcher(options.allowedMethods()));
+    }
+
+    private interface WebRouteHandler {
+        boolean canHandle(DeserializingMessage message);
+
+        Stream<Executable> matchingMethods(DeserializingMessage message);
+
+        Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message);
+    }
+
+    record WebMethodMatcher(MethodHandlerMatcher<DeserializingMessage> matcher, WebPattern pattern)
+            implements WebRouteHandler {
+        @Override
+        public boolean canHandle(DeserializingMessage message) {
+            return matcher.canHandle(message);
+        }
+
+        @Override
+        public Stream<Executable> matchingMethods(DeserializingMessage message) {
+            return matcher.matchingMethods(message);
+        }
+
+        @Override
+        public Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message) {
+            return matcher.getInvoker(target, message);
+        }
+    }
+
+    record AutomaticOptionsMatcher(List<String> allowedMethods) implements WebRouteHandler {
+        @Override
+        public boolean canHandle(DeserializingMessage message) {
+            return true;
+        }
+
+        @Override
+        public Stream<Executable> matchingMethods(DeserializingMessage message) {
+            return Stream.empty();
+        }
+
+        @Override
+        public Optional<HandlerInvoker> getInvoker(Object target, DeserializingMessage message) {
+            String allow = String.join(", ", allowedMethods);
+            return Optional.of(HandlerInvoker.call(
+                    () -> WebResponse.builder().status(204).header("Allow", allow).build()));
+        }
+    }
 
 }
