@@ -100,6 +100,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isHeadRequest",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebResponseGateway#isHeadRequest",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "respond",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponseGateway#respond",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

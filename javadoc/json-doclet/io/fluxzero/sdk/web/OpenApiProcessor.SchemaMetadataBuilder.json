@@ -1,0 +1,367 @@
+{
+  "name" : "SchemaMetadataBuilder",
+  "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "final", "private" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "allowableValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.allowableValues",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.defaultValue",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deprecated",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.deprecated",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.description",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "example",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.example",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.format",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "hidden",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.hidden",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "implementation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.implementation",
+    "type" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxSize",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.maxSize",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maximum",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.maximum",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "minSize",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.minSize",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "minimum",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.minimum",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.pattern",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "required",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.required",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.type",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SchemaMetadataBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#SchemaMetadataBuilder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#apply",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyValidation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#applyValidation",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#build",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#defaultValue",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deprecated",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#deprecated",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#description",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "example",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#example",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#format",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hidden",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#hidden",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maximum",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#maximum",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "minimum",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#minimum",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#pattern",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "required",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#required",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#type",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

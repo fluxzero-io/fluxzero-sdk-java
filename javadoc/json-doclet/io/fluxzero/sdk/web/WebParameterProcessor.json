@@ -102,6 +102,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "javaString",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebParameterProcessor#javaString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "process",
     "qualifiedName" : "io.fluxzero.sdk.web.WebParameterProcessor#process",
     "returnType" : "boolean",
@@ -135,6 +151,22 @@
     "parameters" : [ {
       "name" : "method",
       "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeName",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebParameterProcessor#typeName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

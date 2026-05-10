@@ -1,0 +1,2702 @@
+{
+  "name" : "OpenApiProcessor",
+  "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "javax.annotation.processing.SupportedAnnotationTypes",
+    "values" : {
+      "value" : "\"io.fluxzero.sdk.web.ApiDoc\",\"io.fluxzero.sdk.web.ApiDocInfo\",\"io.fluxzero.sdk.web.ApiDocResponse\",\"io.fluxzero.sdk.web.ApiDocResponses\",\"io.fluxzero.sdk.web.ApiDocExclude\",\"io.fluxzero.sdk.web.Path\",\"io.fluxzero.sdk.web.HandleWeb\",\"io.fluxzero.sdk.web.HandleGet\",\"io.fluxzero.sdk.web.HandlePost\",\"io.fluxzero.sdk.web.HandlePut\",\"io.fluxzero.sdk.web.HandlePatch\",\"io.fluxzero.sdk.web.HandleDelete\",\"io.fluxzero.sdk.web.HandleHead\",\"io.fluxzero.sdk.web.HandleOptions\",\"io.fluxzero.sdk.web.HandleTrace\",\"io.fluxzero.sdk.web.HandleSocketHandshake\",\"io.fluxzero.sdk.web.HandleSocketMessage\",\"io.fluxzero.sdk.web.HandleSocketOpen\",\"io.fluxzero.sdk.web.HandleSocketClose\",\"io.fluxzero.sdk.web.HandleSocketPong\",\"io.fluxzero.sdk.web.QueryParam\",\"io.fluxzero.sdk.web.PathParam\",\"io.fluxzero.sdk.web.HeaderParam\",\"io.fluxzero.sdk.web.CookieParam\",\"io.fluxzero.sdk.web.FormParam\",\"io.fluxzero.sdk.web.BodyParam\",\"io.swagger.v3.oas.annotations.media.Schema\",\"io.swagger.v3.oas.annotations.media.ArraySchema\",\"io.swagger.v3.oas.annotations.Hidden\""
+    }
+  }, {
+    "annotationType" : "javax.annotation.processing.SupportedOptions",
+    "values" : {
+      "value" : "\"fluxzero.openapi.enabled\",\"fluxzero.openapi.output\",\"fluxzero.openapi.specVersion\",\"fluxzero.openapi.title\",\"fluxzero.openapi.version\",\"fluxzero.openapi.description\",\"fluxzero.openapi.servers\",\"org.gradle.annotation.processing.aggregating\""
+    }
+  }, {
+    "annotationType" : "com.google.auto.service.AutoService",
+    "values" : {
+      "value" : "javax.annotation.processing.Processor.class"
+    }
+  } ],
+  "documentation" : " Generates an OpenAPI document from Fluxzero web handler annotations during Java compilation.\n <p>\n The processor is intentionally lightweight: it only inspects source elements in the current javac round, never scans\n the runtime classpath, and writes a single resource when at least one documented HTTP endpoint is found.\n </p>\n\n <h2>Compiler Options</h2>\n <ul>\n     <li>{@value #ENABLED_OPTION}: set to {@code false} to disable generation.</li>\n     <li>{@value #OUTPUT_OPTION}: generated resource path, defaults to {@value #DEFAULT_OUTPUT}.</li>\n     <li>{@value #OPENAPI_VERSION_OPTION}: OpenAPI document version, defaults to {@code 3.0.1}.</li>\n     <li>{@value #TITLE_OPTION}: OpenAPI {@code info.title}, defaults to {@code Fluxzero API}.</li>\n     <li>{@value #VERSION_OPTION}: OpenAPI {@code info.version}, defaults to {@code 0.0.0}.</li>\n     <li>{@value #DESCRIPTION_OPTION}: optional OpenAPI {@code info.description}.</li>\n     <li>{@value #SERVERS_OPTION}: comma-separated server URLs.</li>\n </ul>\n\n @see ApiDoc\n @see ApiDocInfo\n @see ApiDocComponent\n @see ApiDocResponse\n @see ApiDocExclude\n @see OpenApiRenderer\n",
+  "typeParameters" : [ ],
+  "superClass" : "javax.annotation.processing.AbstractProcessor",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "API_DOC",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.API_DOC",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.ApiDoc"
+  }, {
+    "name" : "API_DOC_EXCLUDE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.API_DOC_EXCLUDE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.ApiDocExclude"
+  }, {
+    "name" : "API_DOC_INFO",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.API_DOC_INFO",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.ApiDocInfo"
+  }, {
+    "name" : "API_DOC_RESPONSE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.API_DOC_RESPONSE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.ApiDocResponse"
+  }, {
+    "name" : "API_DOC_RESPONSES",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.API_DOC_RESPONSES",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.ApiDocResponses"
+  }, {
+    "name" : "BODY_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.BODY_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.BodyParam"
+  }, {
+    "name" : "COOKIE_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.COOKIE_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.CookieParam"
+  }, {
+    "name" : "DEFAULT_OUTPUT",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.DEFAULT_OUTPUT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "META-INF/fluxzero/openapi.json"
+  }, {
+    "name" : "DESCRIPTION_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.DESCRIPTION_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.description"
+  }, {
+    "name" : "ENABLED_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.ENABLED_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.enabled"
+  }, {
+    "name" : "FORM_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.FORM_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.FormParam"
+  }, {
+    "name" : "FRAMEWORK_PARAMETER_TYPES",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.FRAMEWORK_PARAMETER_TYPES",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "GRADLE_AGGREGATING_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.GRADLE_AGGREGATING_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "org.gradle.annotation.processing.aggregating"
+  }, {
+    "name" : "HANDLE_DELETE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_DELETE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleDelete"
+  }, {
+    "name" : "HANDLE_GET",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_GET",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleGet"
+  }, {
+    "name" : "HANDLE_HEAD",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_HEAD",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleHead"
+  }, {
+    "name" : "HANDLE_OPTIONS",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_OPTIONS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleOptions"
+  }, {
+    "name" : "HANDLE_PATCH",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_PATCH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandlePatch"
+  }, {
+    "name" : "HANDLE_POST",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_POST",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandlePost"
+  }, {
+    "name" : "HANDLE_PUT",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_PUT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandlePut"
+  }, {
+    "name" : "HANDLE_SOCKET_CLOSE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_SOCKET_CLOSE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleSocketClose"
+  }, {
+    "name" : "HANDLE_SOCKET_HANDSHAKE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_SOCKET_HANDSHAKE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleSocketHandshake"
+  }, {
+    "name" : "HANDLE_SOCKET_MESSAGE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_SOCKET_MESSAGE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleSocketMessage"
+  }, {
+    "name" : "HANDLE_SOCKET_OPEN",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_SOCKET_OPEN",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleSocketOpen"
+  }, {
+    "name" : "HANDLE_SOCKET_PONG",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_SOCKET_PONG",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleSocketPong"
+  }, {
+    "name" : "HANDLE_TRACE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_TRACE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleTrace"
+  }, {
+    "name" : "HANDLE_WEB",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HANDLE_WEB",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HandleWeb"
+  }, {
+    "name" : "HEADER_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.HEADER_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.HeaderParam"
+  }, {
+    "name" : "JACKSON_JSON_VALUE",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.JACKSON_JSON_VALUE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "com.fasterxml.jackson.annotation.JsonValue"
+  }, {
+    "name" : "JACKSON_SUB_TYPES",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.JACKSON_SUB_TYPES",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "com.fasterxml.jackson.annotation.JsonSubTypes"
+  }, {
+    "name" : "JACKSON_TYPE_INFO",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.JACKSON_TYPE_INFO",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "com.fasterxml.jackson.annotation.JsonTypeInfo"
+  }, {
+    "name" : "JSON",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.JSON",
+    "type" : "com.fasterxml.jackson.databind.node.JsonNodeFactory",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "OPENAPI_METHODS",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OPENAPI_METHODS",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "OPENAPI_VERSION_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OPENAPI_VERSION_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.specVersion"
+  }, {
+    "name" : "OUTPUT_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OUTPUT_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.output"
+  }, {
+    "name" : "PATH",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.PATH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.Path"
+  }, {
+    "name" : "PATH_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.PATH_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.PathParam"
+  }, {
+    "name" : "QUERY_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.QUERY_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.QueryParam"
+  }, {
+    "name" : "SERVERS_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.SERVERS_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.servers"
+  }, {
+    "name" : "SWAGGER_ARRAY_SCHEMA",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.SWAGGER_ARRAY_SCHEMA",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.swagger.v3.oas.annotations.media.ArraySchema"
+  }, {
+    "name" : "SWAGGER_HIDDEN",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.SWAGGER_HIDDEN",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.swagger.v3.oas.annotations.Hidden"
+  }, {
+    "name" : "SWAGGER_SCHEMA",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.SWAGGER_SCHEMA",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.swagger.v3.oas.annotations.media.Schema"
+  }, {
+    "name" : "TITLE_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.TITLE_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.title"
+  }, {
+    "name" : "VERSION_OPTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.VERSION_OPTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.openapi.version"
+  }, {
+    "name" : "WEB_PARAM",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.WEB_PARAM",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.web.WebParam"
+  }, {
+    "name" : "elements",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.elements",
+    "type" : "javax.lang.model.util.Elements",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "endpoints",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.endpoints",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Endpoint>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "filer",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.filer",
+    "type" : "javax.annotation.processing.Filer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messager",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.messager",
+    "type" : "javax.annotation.processing.Messager",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "types",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.types",
+    "type" : "javax.lang.model.util.Types",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "visitedTypes",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.visitedTypes",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "OpenApiProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#OpenApiProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addContent",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#addContent",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mediaType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addOrReplace",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#addOrReplace",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameters",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addPolymorphism",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#addPolymorphism",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseSchema",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addRequired",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#addRequired",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "required",
+      "type" : "com.fasterxml.jackson.databind.node.ArrayNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addResponses",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#addResponses",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.util.Map<java.lang.Integer,io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "annotationList",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#annotationList",
+    "returnType" : "java.util.List<javax.lang.model.element.AnnotationMirror>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "annotationMirror",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#annotationMirror",
+    "returnType" : "javax.lang.model.element.AnnotationMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "annotationName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#annotationName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "annotationValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#annotationValues",
+    "returnType" : "java.util.Map<java.lang.String,javax.lang.model.element.AnnotationValue>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyParameterMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#applyParameterMetadata",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applySchemaMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#applySchemaMetadata",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asTypeElement",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#asTypeElement",
+    "returnType" : "javax.lang.model.element.TypeElement",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.DeclaredType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asTypeElement",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#asTypeElement",
+    "returnType" : "javax.lang.model.element.TypeElement",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "beanPropertyName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#beanPropertyName",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "booleanValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#booleanValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "booleanValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#booleanValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallback",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decapitalize",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#decapitalize",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "declaredFields",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#declaredFields",
+    "returnType" : "java.util.List<javax.lang.model.element.VariableElement>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "declaredMethods",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#declaredMethods",
+    "returnType" : "java.util.List<javax.lang.model.element.ExecutableElement>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultDescription",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#defaultDescription",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "status",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#defaultResponse",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.web.OpenApiProcessor.RenderedResponse>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#documentInfo",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.DocumentInfo",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#documentation",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.Documentation",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fields",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#fields",
+    "returnType" : "java.util.List<javax.lang.model.element.VariableElement>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#findAnnotation",
+    "returnType" : "javax.lang.model.element.AnnotationMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.List<? extends javax.lang.model.element.AnnotationMirror>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "annotationName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#findAnnotation",
+    "returnType" : "javax.lang.model.element.AnnotationMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "annotationName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fullRequestBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#fullRequestBody",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestBodies",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSupportedSourceVersion",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#getSupportedSourceVersion",
+    "returnType" : "javax.lang.model.SourceVersion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlerPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#handlerPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasReferenceSiblingMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#hasReferenceSiblingMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "implementationType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#implementationType",
+    "returnType" : "java.util.Optional<javax.lang.model.type.TypeMirror>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inferMediaType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#inferMediaType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "info",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#info",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentInfo",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.DocumentInfo",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "init",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#init",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "processingEnv",
+      "type" : "javax.annotation.processing.ProcessingEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "intValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#intValue",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "integerValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#integerValue",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAssignable",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isAssignable",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetFqn",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isBinaryType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isBinaryType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isBooleanType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isBooleanType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isDocumented",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isDocumented",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isDocumentedAccessor",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isDocumentedAccessor",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isDynamicWebResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isDynamicWebResponse",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isExcluded",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isExcluded",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isFrameworkParameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isFrameworkParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isHidden",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isHidden",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isJsonValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isJsonValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isNoResponseType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isNoResponseType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRecord",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isRecord",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRecordComponent",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isRecordComponent",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRequired",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isRequired",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRequiredArrayProperty",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isRequiredArrayProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "property",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isSameErasure",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#isSameErasure",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetFqn",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "javadocDescription",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#javadocDescription",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "jsonValueSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#jsonValueSchema",
+    "returnType" : "java.util.Optional<com.fasterxml.jackson.databind.node.ObjectNode>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseSchema",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "knownSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#knownSchema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "qualifiedName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "location",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#location",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.web.WebParameterSource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "looksLikeJsonValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#looksLikeJsonValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metaAnnotationValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#metaAnnotationValues",
+    "returnType" : "java.util.Optional<java.util.Map<java.lang.String,javax.lang.model.element.AnnotationValue>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotationType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetAnnotation",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#metadata",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#metadata",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "methods",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#methods",
+    "returnType" : "java.util.List<javax.lang.model.element.ExecutableElement>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "normalizeInlineJavadoc",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#normalizeInlineJavadoc",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nullableSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#nullableSchema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "object",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#object",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "objectSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#objectSchema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseSchema",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "objectType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#objectType",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "openApi",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#openApi",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "openApiMethod",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#openApiMethod",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "operation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#operation",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "operationId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "option",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#option",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "optionList",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#optionList",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "outputPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#outputPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "packageHierarchy",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#packageHierarchy",
+    "returnType" : "java.util.List<javax.lang.model.element.PackageElement>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameterEnd",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#parameterEnd",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "start",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameterObjectRequestBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#parameterObjectRequestBody",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mediaType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#parameters",
+    "returnType" : "com.fasterxml.jackson.databind.node.ArrayNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#parameters",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pathParameterNames",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#pathParameterNames",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pathValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#pathValue",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "blankValue",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "primitiveSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#primitiveSchema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.PrimitiveType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "process",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#process",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.Set<? extends javax.lang.model.element.TypeElement>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundEnv",
+      "type" : "javax.annotation.processing.RoundEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putDecimal",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#putDecimal",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putSchemaValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#putSchemaValue",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "qualifiedName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#qualifiedName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reference",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#reference",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ref",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultPrefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeDeclarationApiDocMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#removeDeclarationApiDocMetadata",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBodies",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#requestBodies",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#requestBody",
+    "returnType" : "java.util.Optional<com.fasterxml.jackson.databind.node.ObjectNode>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#requestBody",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mediaType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#response",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descriptor",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Response",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "response",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#response",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.Response",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responseSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#responseSchema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#responses",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#responses",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scan",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#scan",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scanMethod",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#scanMethod",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scanType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#scanType",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#schema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#schema",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseSchema",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schemaType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#schemaType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "security",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#security",
+    "returnType" : "com.fasterxml.jackson.databind.node.ArrayNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requirements",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "securityRequirement",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#securityRequirement",
+    "returnType" : "com.fasterxml.jackson.databind.node.ObjectNode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requirement",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setComponent",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#setComponent",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "components",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldReference",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#shouldReference",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "typeElement",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "simplePackageName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#simplePackageName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "packageElement",
+      "type" : "javax.lang.model.element.PackageElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sourceValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#sourceValue",
+    "returnType" : "io.fluxzero.sdk.web.WebParameterSource",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stringList",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#stringList",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stringList",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#stringList",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallback",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stringValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#stringValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#typeValue",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "uniqueOperationId",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#uniqueOperationId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Endpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "operationIds",
+      "type" : "java.util.Map<java.lang.String,java.lang.Integer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "webMapping",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#webMapping",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.web.OpenApiProcessor.WebMapping>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "javax.lang.model.element.AnnotationMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "webMappings",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#webMappings",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.WebMapping>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "webParam",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#webParam",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.web.OpenApiProcessor.WebParamInfo>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "javax.lang.model.element.VariableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "wrapReference",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#wrapReference",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeDocument",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#writeDocument",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "BodyInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$BodyInfo",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DocumentInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentInfo",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DocumentInfoBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentInfoBuilder",
+    "kind" : "class",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Documentation",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DocumentationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentationBuilder",
+    "kind" : "class",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Endpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ParameterInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ParameterInfo",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RenderedResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$RenderedResponse",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Response",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Response",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SchemaContext",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext",
+    "kind" : "class",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SchemaMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SchemaMetadataBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder",
+    "kind" : "class",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ServerInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ServerInfo",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "WebMapping",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$WebMapping",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "WebParamInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$WebParamInfo",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,196 @@
+{
+  "name" : "ApiDoc",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,CONSTRUCTOR,TYPE,PACKAGE,FIELD,PARAMETER,RECORD_COMPONENT,TYPE_USE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Adds optional human-readable API documentation metadata to generated API docs.\n <p>\n Generated endpoint documentation is opt-in. Place {@code @ApiDoc} on a package, handler type, or handler method to\n include the matching web endpoints; an empty annotation is enough when route, parameter, request, and response\n information can be inferred from the existing web handler annotations. Use populated {@code @ApiDoc} values only for\n metadata that cannot be inferred reliably, such as descriptions, tags, or a stable operation id. The annotation can\n also be used on fields, parameters, record components, and type uses; for example\n {@code List<@ApiDoc(description = \"Connection item\") Connection>} documents array items without requiring\n OpenAPI-specific array annotations. Schema hints such as {@link #type()}, {@link #format()}, {@link #example()},\n {@link #defaultValue()}, and {@link #allowableValues()} provide an SDK-native alternative for the common\n documentation metadata that projects often express with OpenAPI-specific annotations.\n <p>\n When using the annotation processor, source Javadoc on schema types and properties in the same javac compilation is\n used as a final description fallback after explicit {@code @ApiDoc} metadata and OpenAPI {@code @Schema} metadata.\n Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema\n documentation must cross module boundaries.\n </p>\n\n @see ApiDocExtractor\n @see OpenApiProcessor\n @see ApiDocInfo\n @see ApiDocResponse\n @see ApiDocExclude\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "allowableValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#allowableValues",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional allowed string values for enum-like schemas.\n"
+  }, {
+    "name" : "defaultValue",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#defaultValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional schema default value. Values are coerced to the inferred schema type when possible.\n"
+  }, {
+    "name" : "deprecated",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#deprecated",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks generated operations as deprecated.\n"
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#description",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Longer description for the domain or endpoint.\n"
+  }, {
+    "name" : "example",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#example",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional schema example. JSON object/array examples are parsed when possible; scalar examples are coerced to the\n inferred schema type when possible.\n"
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#format",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional schema format override.\n"
+  }, {
+    "name" : "implementation",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#implementation",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional schema implementation override for abstract, interface, or otherwise ambiguous fields.\n"
+  }, {
+    "name" : "maximum",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#maximum",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional inclusive numeric maximum.\n"
+  }, {
+    "name" : "minimum",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#minimum",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional inclusive numeric minimum.\n"
+  }, {
+    "name" : "operationId",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#operationId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stable operation identifier for generated specs.\n"
+  }, {
+    "name" : "required",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#required",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks a schema property or parameter as required in generated docs.\n"
+  }, {
+    "name" : "security",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#security",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " OpenAPI security requirements for generated operations.\n <p>\n Values are rendered as security requirement objects. Use {@code bearerAuth} for a scheme without scopes, or\n {@code oauth2=read,write} for scoped schemes.\n"
+  }, {
+    "name" : "summary",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#summary",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Short endpoint summary.\n"
+  }, {
+    "name" : "tags",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#tags",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Tags to associate with generated operations.\n"
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#type",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional schema type override, such as {@code string}, {@code integer}, {@code number}, {@code boolean},\n {@code object}, or {@code array}. Values {@code date}, {@code date-time}, {@code uuid}, {@code uri},\n {@code email}, and {@code binary} are treated as string formats.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -5,6 +5,96 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "ApiDoc.json",
+    "name" : "ApiDoc",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocCatalog.json",
+    "name" : "ApiDocCatalog",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocCatalog",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocComponent.json",
+    "name" : "ApiDocComponent",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocComponent",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocDetails.json",
+    "name" : "ApiDocDetails",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocDetails",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocEndpoint.json",
+    "name" : "ApiDocEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocExclude.json",
+    "name" : "ApiDocExclude",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExclude",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocExtractor.json",
+    "name" : "ApiDocExtractor",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExtractor",
+    "kind" : "class"
+  }, {
+    "file" : "ApiDocExtractor.DocumentationBuilder.json",
+    "name" : "ApiDocExtractor.DocumentationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExtractor$DocumentationBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "ApiDocExtractor.WebParamInfo.json",
+    "name" : "ApiDocExtractor.WebParamInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExtractor$WebParamInfo",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocInfo.json",
+    "name" : "ApiDocInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocParameter.json",
+    "name" : "ApiDocParameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocRequestBody.json",
+    "name" : "ApiDocRequestBody",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocRequestBody",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocResponse.json",
+    "name" : "ApiDocResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocResponseDescriptor.json",
+    "name" : "ApiDocResponseDescriptor",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponseDescriptor",
+    "kind" : "record"
+  }, {
+    "file" : "ApiDocResponses.json",
+    "name" : "ApiDocResponses",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponses",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiDocServer.json",
+    "name" : "ApiDocServer",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocServer",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ApiReferenceEndpoint.json",
+    "name" : "ApiReferenceEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "ApiReferenceRenderer.json",
+    "name" : "ApiReferenceRenderer",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+    "kind" : "enum"
+  }, {
     "file" : "BodyParam.json",
     "name" : "BodyParam",
     "qualifiedName" : "io.fluxzero.sdk.web.BodyParam",
@@ -29,6 +119,21 @@
     "name" : "DefaultWebRequestContext",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
     "kind" : "class"
+  }, {
+    "file" : "DefaultWebRequestContext.BoundaryPosition.json",
+    "name" : "DefaultWebRequestContext.BoundaryPosition",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$BoundaryPosition",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultWebRequestContext.ParsedForm.json",
+    "name" : "DefaultWebRequestContext.ParsedForm",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultWebRequestContext.Separator.json",
+    "name" : "DefaultWebRequestContext.Separator",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$Separator",
+    "kind" : "record"
   }, {
     "file" : "DefaultWebRequestGateway.json",
     "name" : "DefaultWebRequestGateway",
@@ -145,6 +250,136 @@
     "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig",
     "kind" : "class"
   }, {
+    "file" : "OpenApiDocumentEndpoint.json",
+    "name" : "OpenApiDocumentEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiOptions.json",
+    "name" : "OpenApiOptions",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiOptions",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.json",
+    "name" : "OpenApiProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiProcessor.BodyInfo.json",
+    "name" : "OpenApiProcessor.BodyInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$BodyInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.DocumentInfo.json",
+    "name" : "OpenApiProcessor.DocumentInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.DocumentInfoBuilder.json",
+    "name" : "OpenApiProcessor.DocumentInfoBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentInfoBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiProcessor.Documentation.json",
+    "name" : "OpenApiProcessor.Documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Documentation",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.DocumentationBuilder.json",
+    "name" : "OpenApiProcessor.DocumentationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$DocumentationBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiProcessor.Endpoint.json",
+    "name" : "OpenApiProcessor.Endpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.ParameterInfo.json",
+    "name" : "OpenApiProcessor.ParameterInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ParameterInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.RenderedResponse.json",
+    "name" : "OpenApiProcessor.RenderedResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$RenderedResponse",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.Response.json",
+    "name" : "OpenApiProcessor.Response",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Response",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.SchemaContext.json",
+    "name" : "OpenApiProcessor.SchemaContext",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiProcessor.SchemaMetadata.json",
+    "name" : "OpenApiProcessor.SchemaMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.SchemaMetadataBuilder.json",
+    "name" : "OpenApiProcessor.SchemaMetadataBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiProcessor.ServerInfo.json",
+    "name" : "OpenApiProcessor.ServerInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ServerInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.WebMapping.json",
+    "name" : "OpenApiProcessor.WebMapping",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$WebMapping",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiProcessor.WebParamInfo.json",
+    "name" : "OpenApiProcessor.WebParamInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$WebParamInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiRenderer.json",
+    "name" : "OpenApiRenderer",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiRenderer.DocumentInfo.json",
+    "name" : "OpenApiRenderer.DocumentInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfo",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiRenderer.DocumentInfoBuilder.json",
+    "name" : "OpenApiRenderer.DocumentInfoBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiRenderer.RenderedResponse.json",
+    "name" : "OpenApiRenderer.RenderedResponse",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$RenderedResponse",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiRenderer.SchemaContext.json",
+    "name" : "OpenApiRenderer.SchemaContext",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiRenderer.SchemaMetadata.json",
+    "name" : "OpenApiRenderer.SchemaMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaMetadata",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiRenderer.SchemaMetadata.Builder.json",
+    "name" : "OpenApiRenderer.SchemaMetadata.Builder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaMetadata$Builder",
+    "kind" : "class"
+  }, {
+    "file" : "OpenApiRenderer.ServerInfo.json",
+    "name" : "OpenApiRenderer.ServerInfo",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$ServerInfo",
+    "kind" : "record"
+  }, {
     "file" : "OutputStreamCapturer.json",
     "name" : "OutputStreamCapturer",
     "qualifiedName" : "io.fluxzero.sdk.web.OutputStreamCapturer",
@@ -230,15 +465,30 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$Compression",
     "kind" : "enum"
   }, {
+    "file" : "WebFormPart.json",
+    "name" : "WebFormPart",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart",
+    "kind" : "class"
+  }, {
     "file" : "WebHandlerMatcher.json",
     "name" : "WebHandlerMatcher",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher",
     "kind" : "class"
   }, {
+    "file" : "WebHandlerMatcher.AutomaticOptionsMatcher.json",
+    "name" : "WebHandlerMatcher.AutomaticOptionsMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$AutomaticOptionsMatcher",
+    "kind" : "record"
+  }, {
     "file" : "WebHandlerMatcher.WebMethodMatcher.json",
     "name" : "WebHandlerMatcher.WebMethodMatcher",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebMethodMatcher",
     "kind" : "record"
+  }, {
+    "file" : "WebHandlerMatcher.WebRouteHandler.json",
+    "name" : "WebHandlerMatcher.WebRouteHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher$WebRouteHandler",
+    "kind" : "interface"
   }, {
     "file" : "WebParam.json",
     "name" : "WebParam",

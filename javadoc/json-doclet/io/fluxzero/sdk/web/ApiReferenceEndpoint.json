@@ -1,0 +1,326 @@
+{
+  "name" : "ApiReferenceEndpoint",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Automatic endpoint that serves an HTML API reference page for an {@link ApiDocInfo} scope.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "DEFAULT_REDOC_SCRIPT",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.DEFAULT_REDOC_SCRIPT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "https://cdn.redoc.ly/redoc/v2.5.1/bundles/redoc.standalone.js"
+  }, {
+    "name" : "DEFAULT_SCALAR_SCRIPT",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.DEFAULT_SCALAR_SCRIPT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1"
+  }, {
+    "name" : "DEFAULT_SWAGGER_UI_SCRIPT",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.DEFAULT_SWAGGER_UI_SCRIPT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"
+  }, {
+    "name" : "DEFAULT_SWAGGER_UI_STYLESHEET",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.DEFAULT_SWAGGER_UI_STYLESHEET",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"
+  }, {
+    "name" : "documentHtml",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.documentHtml",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "openApiPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.openApiPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.web.Path",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "renderer",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.renderer",
+    "type" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scriptUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.scriptUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stylesheetUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.stylesheetUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "title",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint.title",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ApiReferenceEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#ApiReferenceEndpoint",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "openApiPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "info",
+      "type" : "io.fluxzero.sdk.web.ApiDocInfo",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addIfEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#addIfEnabled",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoints",
+      "type" : "java.util.List<io.fluxzero.sdk.web.ApiReferenceEndpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "info",
+      "type" : "io.fluxzero.sdk.web.ApiDocInfo",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "basePath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "appendPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#appendPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "base",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parts",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultScriptUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#defaultScriptUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "renderer",
+      "type" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultStylesheetUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#defaultStylesheetUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "renderer",
+      "type" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentHtml",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#documentHtml",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "escapeHtml",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#escapeHtml",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "escapeJs",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#escapeJs",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#forHandler",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.ApiReferenceEndpoint>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "renderHtml",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#renderHtml",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolvePath",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#resolvePath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "basePath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuredPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#response",
+    "returnType" : "io.fluxzero.sdk.web.WebResponse",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired",
+      "values" : {}
+    }, {
+      "annotationType" : "io.fluxzero.sdk.web.HandleGet",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

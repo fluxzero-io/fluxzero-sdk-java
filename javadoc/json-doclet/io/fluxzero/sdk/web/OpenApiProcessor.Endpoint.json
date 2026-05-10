@@ -1,0 +1,356 @@
+{
+  "name" : "Endpoint",
+  "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.documentation",
+    "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Documentation",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.executable",
+    "type" : "javax.lang.model.element.ExecutableElement",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.handlerType",
+    "type" : "javax.lang.model.element.TypeElement",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "httpMethod",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.httpMethod",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "origin",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.origin",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.parameters",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestBodies",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.requestBodies",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.responseType",
+    "type" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint.responses",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Endpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#Endpoint",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "javax.lang.model.element.ExecutableElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "origin",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpMethod",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentation",
+      "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Documentation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestBodies",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responses",
+      "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#documentation",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.Documentation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#executable",
+    "returnType" : "javax.lang.model.element.ExecutableElement",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlerType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#handlerType",
+    "returnType" : "javax.lang.model.element.TypeElement",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "httpMethod",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#httpMethod",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "origin",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#origin",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#parameters",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBodies",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#requestBodies",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responseType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#responseType",
+    "returnType" : "javax.lang.model.type.TypeMirror",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#responses",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "documentation",
+    "type" : "io.fluxzero.sdk.web.OpenApiProcessor.Documentation",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "type" : "javax.lang.model.element.ExecutableElement",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "handlerType",
+    "type" : "javax.lang.model.element.TypeElement",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "httpMethod",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "origin",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.ParameterInfo>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "requestBodies",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.BodyInfo>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "responseType",
+    "type" : "javax.lang.model.type.TypeMirror",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "type" : "java.util.List<io.fluxzero.sdk.web.OpenApiProcessor.Response>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

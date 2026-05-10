@@ -1,0 +1,70 @@
+{
+  "name" : "ApiReferenceRenderer",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Browser renderer for automatically served API reference pages.\n\n @see ApiDocInfo#serveApiReference()\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.ApiReferenceRenderer>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ApiReferenceRenderer",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer#ApiReferenceRenderer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer#values",
+    "returnType" : "io.fluxzero.sdk.web.ApiReferenceRenderer[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "REDOC",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer.REDOC",
+    "annotations" : [ ],
+    "documentation" : " Redoc Community Edition.\n"
+  }, {
+    "name" : "SCALAR",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer.SCALAR",
+    "annotations" : [ ],
+    "documentation" : " Scalar API Reference.\n"
+  }, {
+    "name" : "SWAGGER_UI",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceRenderer.SWAGGER_UI",
+    "annotations" : [ ],
+    "documentation" : " Swagger UI.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

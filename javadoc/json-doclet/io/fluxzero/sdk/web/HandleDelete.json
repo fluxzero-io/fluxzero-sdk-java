@@ -31,6 +31,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "autoOptions",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleDelete#autoOptions",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, this route may contribute to automatically generated {@code OPTIONS} responses.\n"
+  }, {
     "name" : "disabled",
     "qualifiedName" : "io.fluxzero.sdk.web.HandleDelete#disabled",
     "returnType" : "boolean",
@@ -62,7 +73,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},\n {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.\n <p>\n Patterns support literal path parts, {@code {name}} parameters, {@code {name:regex}} constrained parameters,\n and {@code *} wildcards. A non-final {@code *} matches within a single path segment, while a final {@code *}\n matches the rest of the path.\n"
+    "documentation" : " One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},\n {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.\n <p>\n Patterns support literal path parts, {@code {name}} parameters, {@code {name:regex}} constrained parameters,\n and {@code *} wildcards. A non-final {@code *} matches within a single path segment, while a final {@code *}\n matches the rest of the path. Optional path fragments can be declared with square brackets, for example\n {@code /users[/{id}]}. Trailing slashes on non-root paths are ignored.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

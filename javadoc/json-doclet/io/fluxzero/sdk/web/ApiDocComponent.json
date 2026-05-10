@@ -1,0 +1,53 @@
+{
+  "name" : "ApiDocComponent",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocComponent",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : ""
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Adds a raw OpenAPI component to generated API documentation.\n <p>\n The path is relative to the OpenAPI {@code components} object, for example {@code responses.error} or\n {@code securitySchemes.basicAuth}. The value must be a JSON object or scalar that can be placed at that path.\n </p>\n\n @see ApiDocInfo\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "json",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocComponent#json",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " JSON value for the component.\n"
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocComponent#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Component path relative to {@code components}, separated by dots.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
