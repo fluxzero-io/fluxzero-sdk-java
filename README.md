@@ -2190,6 +2190,22 @@ When requests enter through `fluxzero-proxy`, configured and allowed CORS prefli
 before they reach the runtime. The automatic `OPTIONS` helper only applies to `OPTIONS` requests that are actually
 forwarded as `WebRequest`s.
 
+#### API Documentation and OpenAPI
+
+Fluxzero can extract a format-neutral API documentation catalog from web handlers and render it as OpenAPI 3.1 JSON.
+Most route, parameter, request body, and response type information is inferred from existing `@Handle...`, `@Path`,
+and parameter annotations:
+
+```java
+ApiDocCatalog catalog = ApiDocExtractor.extract(MeterEndpoint.class);
+String openApiJson = OpenApiRenderer.renderPrettyJson(
+        catalog, new OpenApiOptions("Meters API", "1.0.0", "", List.of("https://api.example.com")));
+```
+
+Use `@ApiDoc` only for human-authored metadata such as summaries, descriptions, operation ids, and tags. Use repeatable
+`@ApiDocResponse` annotations for additional error or status responses, and `@ApiDocExclude` to exclude a package,
+class, or method from generated documentation without disabling the runtime endpoint.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:

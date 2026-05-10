@@ -498,6 +498,18 @@ Fluxzero can derive HTTP helpers from route declarations:
 - If requests enter through `fluxzero-proxy`, configured and allowed CORS preflight requests are answered by the proxy
   before they reach the runtime; automatic `OPTIONS` only applies to forwarded `WebRequest`s.
 
+### API Documentation and OpenAPI
+
+Fluxzero can extract a format-neutral `ApiDocCatalog` from web handlers and render it as OpenAPI 3.1 JSON.
+
+- Prefer automatic inference from `@Handle...`, `@Path`, and web parameter annotations.
+- Use `@ApiDoc` only for summaries, descriptions, operation ids, tags, or deprecation metadata that cannot be inferred.
+- Use repeatable `@ApiDocResponse` annotations for additional status/error responses.
+- Use `@ApiDocExclude` to exclude package/class/method endpoints from generated docs only; it does not disable runtime
+  handling.
+- Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global
+  title/version/servers with `OpenApiOptions`.
+
 ---
 
 <a name="http-mapping"></a>
