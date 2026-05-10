@@ -20,7 +20,7 @@
       "type" : "FORM"
     }
   } ],
-  "documentation" : " Injects an individual form field or a complete form object into a handler method parameter.\n <p>\n The request must use {@code application/x-www-form-urlencoded} or {@code multipart/form-data}.\n Standard validation annotations may be declared directly on the injected parameter.\n </p>\n\n <h2>Examples:</h2>\n <pre>{@code\n @HandlePost(\"/newsletter\")\n void subscribe(@FormParam @NotBlank String email) { ... }\n\n @HandlePost(\"/user\")\n UserId createUser(@FormParam UserForm form) { ... }\n }</pre>\n",
+  "documentation" : " Injects an individual form field or a complete form object into a handler method parameter.\n <p>\n The request must use {@code application/x-www-form-urlencoded}.\n Standard validation annotations may be declared directly on the injected parameter.\n </p>\n <p>\n {@code multipart/form-data} requests can still be handled as raw request payloads, for example by declaring an\n unannotated {@code byte[]} or {@code String} parameter on a web handler method, but multipart parts are not exposed\n through {@code @FormParam}.\n </p>\n\n <h2>Examples:</h2>\n <pre>{@code\n @HandlePost(\"/newsletter\")\n void subscribe(@FormParam @NotBlank String email) { ... }\n\n @HandlePost(\"/user\")\n UserId createUser(@FormParam UserForm form) { ... }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

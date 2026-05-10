@@ -30,21 +30,6 @@
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
     "kind" : "class"
   }, {
-    "file" : "DefaultWebRequestContext.ConvertingRouter.json",
-    "name" : "DefaultWebRequestContext.ConvertingRouter",
-    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ConvertingRouter",
-    "kind" : "class"
-  }, {
-    "file" : "DefaultWebRequestContext.DefaultValueFactory.json",
-    "name" : "DefaultWebRequestContext.DefaultValueFactory",
-    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$DefaultValueFactory",
-    "kind" : "class"
-  }, {
-    "file" : "DefaultWebRequestContext.Wrapper.json",
-    "name" : "DefaultWebRequestContext.Wrapper",
-    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$Wrapper",
-    "kind" : "class"
-  }, {
     "file" : "DefaultWebRequestGateway.json",
     "name" : "DefaultWebRequestGateway",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
@@ -355,8 +340,5 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor",
     "kind" : "class"
   } ],
-  "subdirectories" : [ {
-    "name" : "internal",
-    "path" : "internal"
-  } ]
+  "subdirectories" : [ ]
 }
