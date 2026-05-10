@@ -17,8 +17,6 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.web.internal.WebUtilsInternal;
-import io.jooby.Context;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -27,28 +25,11 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class WebMatcherTest {
 
     @Test
-    void name() {
-        var router = WebUtilsInternal.router();
-        router.get("/abc/{userId}", ctx -> "regex");
-        router.get("/abc/henk", ctx -> "henk");
-
-        var context = mock(Context.class);
-        when(context.getMethod()).thenReturn("GET");
-        when(context.getRequestPath()).thenReturn("/abc/piet");
-
-        var match = router.match(context);
-
-        assertTrue(match.matches());
-        assertEquals("regex", match.execute(context));
-    }
-
-    @Test
-    void getHandler() {
+    void literalHandlerWinsOverPathParameter() {
         var handler = new GetHandler();
         var matcher = WebHandlerMatcher.create(handler.getClass(), Collections.emptyList(), HandlerConfiguration.
                 <DeserializingMessage>builder().methodAnnotation(HandleWeb.class).build());
@@ -60,6 +41,19 @@ class WebMatcherTest {
 
         assertTrue(matcher.canHandle(m));
         assertEquals("henk", matcher.getInvoker(handler, m).orElseThrow().invoke());
+    }
+
+    @Test
+    void literalHandlerWinsOverWildcard() {
+        var handler = new WildcardHandler();
+        var matcher = WebHandlerMatcher.create(handler.getClass(), Collections.emptyList(), HandlerConfiguration.
+                <DeserializingMessage>builder().methodAnnotation(HandleWeb.class).build());
+
+        WebRequest webRequest = WebRequest.builder().method(HttpRequestMethod.GET).url("/a/b/c").build();
+        var m = new DeserializingMessage(webRequest, WEBREQUEST, mock(Serializer.class));
+
+        assertTrue(matcher.canHandle(m));
+        assertEquals("specific", matcher.getInvoker(handler, m).orElseThrow().invoke());
     }
 
     static class GetHandler {
@@ -76,6 +70,18 @@ class WebMatcherTest {
         @HandleSocketOpen("/abc/henk")
         String handleWsHenk() {
             return "henk";
+        }
+    }
+
+    static class WildcardHandler {
+        @HandleGet("/a/*/c")
+        String handleWildcard() {
+            return "wildcard";
+        }
+
+        @HandleGet("/a/b/c")
+        String handleSpecific() {
+            return "specific";
         }
     }
 }

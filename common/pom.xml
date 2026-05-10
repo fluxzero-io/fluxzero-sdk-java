@@ -59,6 +59,12 @@
             <version>1.11.0</version>
         </dependency>
 
+        <!--logging API used by Lombok @Slf4j and common logging hooks-->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
         <!--for their reflection utils-->
         <dependency>
             <groupId>org.apache.commons</groupId>

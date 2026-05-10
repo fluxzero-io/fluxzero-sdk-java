@@ -34,8 +34,12 @@ import java.lang.annotation.Target;
 @HandleWeb(value = "", method = HttpRequestMethod.DELETE)
 public @interface HandleDelete {
     /**
-     * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/*}). If empty, the
-     * path is based on the {@link Path} annotation.
+     * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
+     * {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.
+     * <p>
+     * Patterns support literal path parts, {@code {name}} parameters, {@code {name:regex}} constrained parameters,
+     * and {@code *} wildcards. A non-final {@code *} matches within a single path segment, while a final {@code *}
+     * matches the rest of the path.
      */
     String[] value() default {};
 

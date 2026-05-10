@@ -24,13 +24,9 @@ import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
-import io.fluxzero.sdk.web.internal.WebUtilsInternal;
-import io.jooby.Router;
 
 import java.lang.reflect.Executable;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -50,7 +46,7 @@ import static java.util.stream.Stream.concat;
  * methods annotated for web request handling (e.g., {@code @HandleWeb}).
  *
  * <h2>Routing Logic</h2>
- * The matcher builds a {@link Router} that maps:
+ * The matcher builds an internal route table that maps:
  * <ul>
  *   <li>HTTP method (e.g., GET, POST)</li>
  *   <li>Normalized path (optionally prefixed by {@code @Path} at class or package level)</li>
@@ -62,6 +58,10 @@ import static java.util.stream.Stream.concat;
  * <h2>WebPattern Matching</h2>
  * Each handler method may be associated with one or more {@link WebPattern}s, derived from {@link WebParameters}
  * annotations. These patterns define the matchable paths and methods.
+ * <p>
+ * If multiple routes match the same request, the most specific route is selected. Literal path parts outrank path
+ * parameters, constrained path parameters outrank unconstrained parameters, and wildcard or catch-all routes are treated
+ * as fallbacks. For example, {@code /a/b/c} wins over {@code /a/{value}/c}, which wins over {@code /a/*&#47;c}.
  *
  * <h2>Support for @Path Annotations</h2>
  * This matcher also respects {@code @Path} annotations on the method, declaring class, or package level,
@@ -77,7 +77,7 @@ import static java.util.stream.Stream.concat;
  * @see WebUtils#getWebPatterns
  */
 public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMessage> {
-    private final Router router = WebUtilsInternal.router();
+    private final WebRouteMatcher<WebMethodMatcher> routes = new WebRouteMatcher<>();
     private final boolean hasAnyHandlers;
 
     public static WebHandlerMatcher create(
@@ -97,26 +97,16 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
 
     protected WebHandlerMatcher(Object handler,
                                 List<MethodHandlerMatcher<DeserializingMessage>> methodHandlerMatchers) {
-        Map<String, Router> subRouters = new HashMap<>();
         boolean hasAnyHandlers = false;
         for (MethodHandlerMatcher<DeserializingMessage> m : methodHandlerMatchers) {
             List<WebPattern> webPatterns = getWebPatterns(asClass(handler), handler, m.getExecutable());
             for (WebPattern pattern : webPatterns) {
-                String origin = pattern.getOrigin();
-                var router = origin == null ? this.router :
-                        subRouters.computeIfAbsent(origin, __ -> WebUtilsInternal.router());
                 if (HttpRequestMethod.ANY.equals(pattern.getMethod())) {
                     hasAnyHandlers = true;
                 }
-                router.route(pattern.getMethod(), pattern.getPath(), ctx -> new WebMethodMatcher(m, pattern));
+                routes.add(pattern, new WebMethodMatcher(m, pattern));
             }
         }
-        subRouters.forEach((origin, subRouter) -> this.router.mount(ctx -> {
-            if (ctx instanceof DefaultWebRequestContext context) {
-                return Objects.equals(origin, context.getOrigin());
-            }
-            throw new UnsupportedOperationException("Unknown context class: " + ctx.getClass());
-        }, subRouter));
         this.hasAnyHandlers = hasAnyHandlers;
     }
 
@@ -140,12 +130,17 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             return Optional.empty();
         }
         DefaultWebRequestContext context = getWebRequestContext(message);
-        Optional<Router.Match> match = Optional.of(router.match(context)).filter(Router.Match::matches);
+        Optional<WebRouteMatcher.Match<WebMethodMatcher>> match =
+                routes.match(context.getMethod(), context.getOrigin(), context.getRequestPath());
         if (match.isEmpty() && hasAnyHandlers) {
-            match = Optional.of(router.match(context.withMethod(HttpRequestMethod.ANY))).filter(Router.Match::matches);
+            match = routes.match(HttpRequestMethod.ANY, context.getOrigin(), context.getRequestPath());
         }
-        return match.map(m -> (WebMethodMatcher) m.execute(context))
-                .filter(hm -> Objects.equals(context.getOrigin(), hm.pattern().getOrigin()))
+        return match
+                .filter(m -> Objects.equals(context.getOrigin(), m.pattern().getOrigin()))
+                .map(m -> {
+                    context.setPathMap(m.pathParameters());
+                    return m.value();
+                })
                 .map(WebMethodMatcher::matcher);
     }
 

@@ -469,6 +469,18 @@ class ProjectsEndpoint {
 ```
 [//]: # (@formatter:on)
 
+### Route Matching Rules
+
+`@Handle...` paths support literal segments, `{name}` path parameters, `{name:regex}` constrained parameters, and `*`
+wildcards.
+
+- A non-final `*` matches within one path segment, for example `/api/meters/*/readings`.
+- A final `*` matches the rest of the path and is mainly useful for static or SPA fallback routes.
+- If multiple handlers match, Fluxzero selects the most specific route. Literal segments win over path parameters,
+  constrained parameters win over plain parameters, and wildcard/catch-all routes are treated as fallbacks.
+- Example order for `/api/projects/active`: `/api/projects/active`, then `/api/projects/{id:[a-z]+}`, then
+  `/api/projects/{id}`, then `/api/projects/*`.
+
 ---
 
 <a name="http-mapping"></a>
@@ -503,18 +515,21 @@ Use annotations to inject specific parts of the HTTP request:
 - **@PathParam**: Extracts values from the URL path template (e.g., `/api/users/{id}`).
 - **@QueryParam**: Extracts values from the query string (e.g., `?name=Charlie`).
 - **@HeaderParam**: Extracts values from HTTP headers.
-- **@FormParam**: Extracts values from `application/x-www-form-urlencoded` or `multipart/form-data` bodies.
+- **@FormParam**: Extracts values from `application/x-www-form-urlencoded` bodies.
 - **@BodyParam**: Extracts fields from a JSON request body.
+
+`multipart/form-data` requests can be handled as raw request payloads by declaring an unannotated `ByteArray` or
+`String` parameter on a web handler method. Multipart parts are not exposed through `@FormParam` yet.
 
 These injected parameters can also use standard validation annotations directly, for example
 `@PathParam @Positive id: Long` or `@QueryParam @NotBlank search: String`.
 
 [//]: # (@formatter:off)
 ```kotlin
-@HandlePost("/{userId}/avatar")
-fun uploadAvatar(
+@HandlePost("/{userId}/profile")
+fun updateProfile(
     @PathParam userId: UserId,
-    @FormParam imageData: ByteArray,
+    @FormParam displayName: String,
     @HeaderParam("Content-Type") contentType: String
 ) {
     // ...

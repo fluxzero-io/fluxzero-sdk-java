@@ -22,8 +22,13 @@ import java.lang.annotation.Target;
 /**
  * Injects an individual form field or a complete form object into a handler method parameter.
  * <p>
- * The request must use {@code application/x-www-form-urlencoded} or {@code multipart/form-data}.
+ * The request must use {@code application/x-www-form-urlencoded}.
  * Standard validation annotations may be declared directly on the injected parameter.
+ * </p>
+ * <p>
+ * {@code multipart/form-data} requests can still be handled as raw request payloads, for example by declaring an
+ * unannotated {@code byte[]} or {@code String} parameter on a web handler method, but multipart parts are not exposed
+ * through {@code @FormParam}.
  * </p>
  *
  * <h2>Examples:</h2>

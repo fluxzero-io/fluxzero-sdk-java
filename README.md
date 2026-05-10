@@ -2152,6 +2152,17 @@ public UserAccount getUser(@PathParam String id) {
 
 If the `value` is left empty, the framework will use the parameter name (`id` in this case).
 
+#### Route Matching Specificity
+
+Route patterns support literal segments, `{name}` path parameters, `{name:regex}` constrained parameters, and `*`
+wildcards. A non-final `*` matches within a single path segment, so routes like `/meters/*/readings` are valid. A final
+`*` matches the rest of the path and is mainly useful for static or SPA fallback routes.
+
+When multiple web handlers match the same request, Fluxzero selects the most specific route: literal segments win over
+path parameters, constrained parameters win over plain parameters, and wildcard/catch-all routes are treated as
+fallbacks. For example, `/api/projects/active` wins over `/api/projects/{id:[a-z]+}`, which wins over
+`/api/projects/{id}`, which wins over `/api/projects/*`.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:
@@ -2160,6 +2171,9 @@ In addition to `@PathParam`, you can extract other values from the request using
 - `@HeaderParam` – extract HTTP headers
 - `@CookieParam` – extract cookie values
 - `@FormParam` – extract form-encoded values (for POST/PUT)
+
+`multipart/form-data` requests can be handled as raw request payloads by declaring an unannotated `byte[]` or `String`
+parameter on a web handler method. Multipart parts are not exposed through `@FormParam` yet.
 
 Each of these annotations supports the same rules:
 
@@ -5226,18 +5240,13 @@ compatible with recent versions.
 | `org.glassfish.expressly:expressly`           | runtime |
 | `org.jboss.logging:jboss-logging`             | runtime |
 
-#### 🌐 Web and Transport
-
-| Dependency       | Scope   |
-|------------------|---------|
-| `io.jooby:jooby` | runtime |
-
 #### ⚙️ Utilities
 
 | Dependency                                    | Scope   |
 |-----------------------------------------------|---------|
 | `jakarta.annotation:jakarta.annotation-api`   | runtime |
 | `org.apache.commons:commons-lang3`            | runtime |
+| `org.slf4j:slf4j-api`                         | runtime |
 
 ---
 

@@ -35,6 +35,8 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignor
  * <p>
  * This resolver is only applied to methods annotated with {@link HandleWeb} or any of its meta-annotations (e.g.
  * {@link HandlePost}). It converts the deserialized payload to the method parameter's declared type.
+ * For raw request bodies such as {@code multipart/form-data}, this resolver can provide the full body as
+ * {@code byte[]} or {@code String}; it does not parse multipart parts.
  * <p>
  * Optionally, the resolver can enforce validation and authorization:
  * <ul>

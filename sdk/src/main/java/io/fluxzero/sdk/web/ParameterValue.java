@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.serialization.JsonUtils;
 import lombok.Value;
 
@@ -23,9 +24,6 @@ import lombok.Value;
  * This class is used internally by Fluxzero to abstract over raw parameter values retrieved
  * from different parts of a {@link WebRequestContext} (such as query strings, form data, path variables,
  * headers, or cookies).
- *
- * <p>The value may be backed by Jooby’s {@link io.jooby.value.Value} type or by a JSON value extracted from the
- * request body.
  *
  * <h2>Usage</h2>
  * {@code ParameterValue} instances are returned by methods such as:
@@ -37,7 +35,6 @@ import lombok.Value;
  * These are used during web handler method resolution to supply method argument values.
  *
  * @see WebRequestContext
- * @see io.jooby.value.Value
  */
 @Value
 public class ParameterValue {
@@ -48,11 +45,7 @@ public class ParameterValue {
     Object value;
 
     public boolean hasValue() {
-        return switch (value) {
-            case null -> false;
-            case io.jooby.value.Value joobyValue -> joobyValue.valueOrNull() != null;
-            default -> true;
-        };
+        return value != null;
     }
 
     /**
@@ -69,21 +62,17 @@ public class ParameterValue {
         if (rawValue == null) {
             return null;
         }
-        if (type.isInstance(rawValue)) {
-            return type.cast(rawValue);
-        }
-        if (rawValue instanceof io.jooby.value.Value joobyValue) {
-            V converted = joobyValue.toNullable(type);
-            if (converted != null) {
-                return converted;
-            }
-            rawValue = joobyValue.valueOrNull();
+        if (rawValue instanceof java.util.List<?> values && !type.isInstance(rawValue)) {
+            rawValue = values.isEmpty() ? null : values.getFirst();
             if (rawValue == null) {
                 return null;
             }
-            if (type.isInstance(rawValue)) {
-                return type.cast(rawValue);
-            }
+        }
+        if (type.isInstance(rawValue)) {
+            return type.cast(rawValue);
+        }
+        if (rawValue instanceof JsonNode node) {
+            return JsonUtils.convertValue(node, type);
         }
         return JsonUtils.convertValue(JsonUtils.valueToTree(rawValue), type);
     }

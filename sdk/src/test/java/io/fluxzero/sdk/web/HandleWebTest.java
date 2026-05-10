@@ -99,6 +99,16 @@ public class HandleWebTest {
         }
 
         @Test
+        void testGetWithWildcardSegmentInMiddle() {
+            testFixture.whenGet("/a/anything/b").expectResult("middleWildcard");
+        }
+
+        @Test
+        void testMostSpecificGetWinsOverWildcardSegment() {
+            testFixture.whenGet("/a/b/c").expectResult("specific");
+        }
+
+        @Test
         void testGet_withSpecificInstantParameters() {
             testFixture.atFixedTime(Instant.parse("2025-07-09T00:00:00Z"))
                     .whenWebRequest(WebRequest.post("/instantBinding/2025-07-05T00:00:00Z"
@@ -117,6 +127,16 @@ public class HandleWebTest {
                             "2025-07-08T00:00:00Z",
                             "2025-07-09T00:00:00Z")
                             .map(Instant::parse).toList());
+        }
+
+        @Test
+        void testWebParameterSources() {
+            testFixture.whenWebRequest(WebRequest.post("/parameterBinding/pathValue?query=queryValue")
+                            .header("header", "headerValue")
+                            .header("Cookie", "cookie=cookieValue")
+                            .contentType("application/x-www-form-urlencoded")
+                            .payload("form=formValue").build())
+                    .expectResult(List.of("pathValue", "queryValue", "headerValue", "cookieValue", "formValue"));
         }
 
         @Test
@@ -321,6 +341,21 @@ public class HandleWebTest {
                 return "get";
             }
 
+            @HandleGet("/a/*/b")
+            String getWithWildcardSegmentInMiddle() {
+                return "middleWildcard";
+            }
+
+            @HandleGet("/a/*/c")
+            String getWithWildcardSegment() {
+                return "wildcard";
+            }
+
+            @HandleGet("/a/b/c")
+            String getSpecific() {
+                return "specific";
+            }
+
             @HandlePost("/instantBinding/{path}")
             List<Instant> instantBinding(@PathParam("path") Instant path,
                                          @QueryParam("query") Instant query,
@@ -328,6 +363,15 @@ public class HandleWebTest {
                                          @BodyParam("body") Instant body,
                                          Instant timestamp) {
                 return List.of(path, query, header, body, timestamp);
+            }
+
+            @HandlePost("/parameterBinding/{path}")
+            List<String> parameterBinding(@PathParam("path") String path,
+                                          @QueryParam("query") String query,
+                                          @HeaderParam("header") String header,
+                                          @CookieParam("cookie") String cookie,
+                                          @FormParam("form") String form) {
+                return List.of(path, query, header, cookie, form);
             }
 
             @HandleWeb(value = "/disabled", method = GET, disabled = true)

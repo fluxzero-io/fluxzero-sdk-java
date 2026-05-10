@@ -45,19 +45,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- web routing -->
-        <dependency>
-            <groupId>io.jooby</groupId>
-            <artifactId>jooby</artifactId>
-            <version>4.5.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.github.spotbugs</groupId>
-                    <artifactId>spotbugs-annotations</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
         <!--nullable annotations used by public SDK APIs-->
         <dependency>
             <groupId>jakarta.annotation</groupId>

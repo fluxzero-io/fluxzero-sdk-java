@@ -31,7 +31,7 @@ import static io.fluxzero.sdk.web.WebUtils.concatenateUrlParts;
  *
  * <p>Each {@code WebParameters} instance includes:
  * <ul>
- *     <li>A list of URI patterns (e.g. {@code /users}, {@code /users/{id}})</li>
+ *     <li>A list of URI patterns (e.g. {@code /users}, {@code /users/{id}}, {@code /users/*&#47;settings})</li>
  *     <li>A list of HTTP methods (e.g. {@code GET}, {@code POST})</li>
  *     <li>An optional {@code disabled} flag that disables this set of patterns</li>
  * </ul>
