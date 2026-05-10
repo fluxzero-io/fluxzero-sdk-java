@@ -492,6 +492,8 @@ Fluxzero can derive HTTP helpers from route declarations:
 - Explicit handlers win, including wildcard handlers in another handler class in the same application.
 - In multi-service setups, disable generated helpers with `autoHead = false` and/or `autoOptions = false` on routes
   that should leave `HEAD` or `OPTIONS` to another application.
+- If requests enter through `fluxzero-proxy`, configured and allowed CORS preflight requests are answered by the proxy
+  before they reach the runtime; automatic `OPTIONS` only applies to forwarded `WebRequest`s.
 
 ---
 

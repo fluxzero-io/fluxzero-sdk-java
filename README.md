@@ -2183,6 +2183,10 @@ public MeterReadings readings(@PathParam String id) {
 }
 ```
 
+When requests enter through `fluxzero-proxy`, configured and allowed CORS preflight requests are answered by the proxy
+before they reach the runtime. The automatic `OPTIONS` helper only applies to `OPTIONS` requests that are actually
+forwarded as `WebRequest`s.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:

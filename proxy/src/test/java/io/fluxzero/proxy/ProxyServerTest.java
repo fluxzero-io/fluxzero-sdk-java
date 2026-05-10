@@ -25,6 +25,7 @@ import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandleOptions;
 import io.fluxzero.sdk.web.HandlePost;
 import io.fluxzero.sdk.web.HandleSocketClose;
 import io.fluxzero.sdk.web.HandleSocketMessage;
@@ -54,6 +55,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
@@ -373,6 +375,7 @@ class ProxyServerTest {
 
     @Nested
     class CorsTests {
+        private final AtomicInteger optionsInvocations = new AtomicInteger();
 
         @BeforeEach
         void setUpCors() {
@@ -380,6 +383,12 @@ class ProxyServerTest {
                 @HandleGet("/users")
                 String users() {
                     return "ok";
+                }
+
+                @HandleOptions("/explicit-options")
+                String options() {
+                    optionsInvocations.incrementAndGet();
+                    return "runtime-options";
                 }
             });
             System.setProperty("FLUXZERO_CORS_DOMAINS", "https://app.example.com");
@@ -417,6 +426,40 @@ class ProxyServerTest {
         }
 
         @Test
+        void preflightBypassesRuntimeOptionsHandler() {
+            var preflightRequest = newRequest("/explicit-options")
+                    .method("OPTIONS", BodyPublishers.noBody())
+                    .header("Origin", "https://app.example.com")
+                    .header("Access-Control-Request-Method", "POST")
+                    .build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(preflightRequest, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(204, resp.statusCode());
+                        assertEquals("POST", resp.headers().firstValue("Access-Control-Allow-Methods").orElse(null));
+                        assertEquals("", resp.body());
+                        assertEquals(0, optionsInvocations.get());
+                    });
+        }
+
+        @Test
+        void nonPreflightOptionsReachesRuntimeHandlers() {
+            var optionsRequest = newRequest()
+                    .method("OPTIONS", BodyPublishers.noBody())
+                    .header("Origin", "https://app.example.com")
+                    .build();
+            testFixture
+                    .whenApplying(fc -> httpClient.send(optionsRequest, BodyHandlers.ofString()))
+                    .verifyResult(resp -> {
+                        assertEquals(204, resp.statusCode());
+                        assertEquals("GET, HEAD, OPTIONS", resp.headers().firstValue("Allow").orElse(null));
+                        assertNull(resp.headers().firstValue("Access-Control-Allow-Methods").orElse(null));
+                        assertEquals("https://app.example.com",
+                                     resp.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+                    });
+        }
+
+        @Test
         void corsHeadersAreAddedToRuntimeResponses() {
             var request = newRequest().GET().header("Origin", "https://app.example.com").build();
             testFixture
@@ -444,7 +487,11 @@ class ProxyServerTest {
         }
 
         private HttpRequest.Builder newRequest() {
-            return newBuilder(URI.create(String.format("http://0.0.0.0:%s/users", proxyPort)));
+            return newRequest("/users");
+        }
+
+        private HttpRequest.Builder newRequest(String path) {
+            return newBuilder(URI.create(String.format("http://0.0.0.0:%s%s", proxyPort, path)));
         }
 
     }
