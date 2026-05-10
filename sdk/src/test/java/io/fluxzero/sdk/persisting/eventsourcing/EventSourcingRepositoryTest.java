@@ -675,7 +675,7 @@ class EventSourcingRepositoryTest {
         }
 
         @Test
-        void testPreviousUsesOlderSnapshotWhenCachingDepthIsExceeded() {
+        void testPreviousRestoresOlderSnapshotStateWhenCachingDepthIsExceeded() {
             DepthSnapshotCounterId counterId = new DepthSnapshotCounterId("depth");
             testFixture.givenCommands(new CreateDepthSnapshotCounter(counterId),
                                       new IncrementDepthSnapshotCounter(counterId),
@@ -684,14 +684,25 @@ class EventSourcingRepositoryTest {
                                       new IncrementDepthSnapshotCounter(counterId),
                                       new IncrementDepthSnapshotCounter(counterId),
                                       new IncrementDepthSnapshotCounter(counterId))
-                    .given(fc -> fc.cache().clear())
+                    .given(fc -> {
+                        assertEquals(List.of(5L, 2L), snapshotSequences(fc, counterId));
+                        fc.cache().clear();
+                    })
                     .whenApplying(fc -> {
                         Entity<DepthSnapshotCounterAggregate> aggregate =
                                 loadAggregate(counterId, DepthSnapshotCounterAggregate.class);
                         return aggregate.previous().previous().get().value;
                     })
-                    .expectResult(4)
-                    .expectThat(fc -> verify(fc.client().getEventStoreClient()).getEvents(counterId.toString(), 2L, 2));
+                    .expectResult(4);
+        }
+
+        private List<Long> snapshotSequences(Fluxzero fc, Object aggregateId) {
+            return fc.documentStore().search(DefaultSnapshotStore.SNAPSHOT_COLLECTION)
+                    .match(aggregateId.toString(), true, "aggregateId")
+                    .sortBy("sequenceNumber", true)
+                    .fetchAll(DefaultSnapshotStore.SnapshotDocument.class).stream()
+                    .map(DefaultSnapshotStore.SnapshotDocument::sequenceNumber)
+                    .toList();
         }
 
         private class Handler {
