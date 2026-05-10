@@ -24,9 +24,11 @@ public record ApiDocDetails(
         String description,
         String operationId,
         List<String> tags,
-        boolean deprecated
+        boolean deprecated,
+        List<String> security
 ) {
     public ApiDocDetails {
         tags = List.copyOf(tags);
+        security = List.copyOf(security);
     }
 }

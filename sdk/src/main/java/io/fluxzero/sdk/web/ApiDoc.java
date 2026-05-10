@@ -125,4 +125,12 @@ public @interface ApiDoc {
      * Marks generated operations as deprecated.
      */
     boolean deprecated() default false;
+
+    /**
+     * OpenAPI security requirements for generated operations.
+     * <p>
+     * Values are rendered as security requirement objects. Use {@code bearerAuth} for a scheme without scopes, or
+     * {@code oauth2=read,write} for scoped schemes.
+     */
+    String[] security() default {};
 }

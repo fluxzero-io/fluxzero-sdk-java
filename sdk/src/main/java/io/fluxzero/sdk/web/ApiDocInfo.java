@@ -97,10 +97,19 @@ public @interface ApiDocInfo {
     ApiDocServer[] servers() default {};
 
     /**
+     * Top-level OpenAPI security requirements.
+     * <p>
+     * Values are rendered as security requirement objects. Use {@code bearerAuth} for a scheme without scopes, or
+     * {@code oauth2=read,write} for scoped schemes. Define the actual schemes through {@link #components()} with paths
+     * such as {@code securitySchemes.bearerAuth}.
+     */
+    String[] security() default {};
+
+    /**
      * If {@code true}, the generated OpenAPI document is served as an automatic web endpoint.
      * <p>
-     * The endpoint is only registered for handlers in the annotated package or type, and explicit user-defined routes
-     * for the same path take precedence.
+     * The endpoint is only registered for handlers in the annotated package or type. Use {@link #openApiPath()} to
+     * avoid route conflicts with application endpoints.
      */
     boolean serveOpenApi() default false;
 

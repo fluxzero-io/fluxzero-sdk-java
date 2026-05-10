@@ -50,6 +50,9 @@ class OpenApiProcessorTest {
         assertTrue(document.path("x-code-samples-enabled").asBoolean());
         assertEquals("Invalid processor request", document.path("components").path("responses").path("error")
                 .path("description").asText());
+        assertEquals("bearerAuth", document.path("security").get(0).fieldNames().next());
+        assertEquals("http", document.path("components").path("securitySchemes").path("bearerAuth")
+                .path("type").asText());
 
         JsonNode paths = document.path("paths");
         assertTrue(paths.has("/processor/meters/{meterId}/{readingId}"));
@@ -63,6 +66,7 @@ class OpenApiProcessorTest {
         assertEquals("Fetch meter operation", get.path("description").asText());
         assertEquals("processor", get.path("tags").get(0).asText());
         assertEquals("getProcessorMeter", get.path("operationId").asText());
+        assertEquals("bearerAuth", get.path("security").get(0).fieldNames().next());
         assertEquals("Found", get.path("responses").path("200").path("description").asText());
         JsonNode responseSchema = get.path("responses").path("200").path("content")
                 .path("application/json").path("schema");
@@ -76,6 +80,7 @@ class OpenApiProcessorTest {
         assertEquals("Meter value", document.path("components").path("schemas").path("MeterDto")
                 .path("properties").path("value").path("description").asText());
         assertEquals("Missing", get.path("responses").path("404").path("description").asText());
+        assertEquals("#/components/responses/error", get.path("responses").path("400").path("$ref").asText());
         assertEquals("meterId", get.path("parameters").get(0).path("name").asText());
         assertEquals("path", get.path("parameters").get(0).path("in").asText());
         assertEquals("query", get.path("parameters").get(2).path("in").asText());
@@ -128,16 +133,23 @@ class OpenApiProcessorTest {
             logoUrl = "https://example.com/logo.png",
             logoAltText = "Processor logo",
             servers = @ApiDocServer(url = "https://processor.example.com", description = "Processor prod"),
-            components = @ApiDocComponent(path = "responses.error", json = """
-                    {"description":"Invalid processor request"}
-                    """),
+            security = "bearerAuth",
+            components = {
+                    @ApiDocComponent(path = "responses.error", json = """
+                            {"description":"Invalid processor request"}
+                            """),
+                    @ApiDocComponent(path = "securitySchemes.bearerAuth", json = """
+                            {"type":"http","scheme":"bearer"}
+                            """)
+            },
             extensions = "x-code-samples-enabled=true")
     @Path("/processor")
-    @ApiDoc(tags = "processor")
+    @ApiDoc(tags = "processor", security = "bearerAuth")
     static class ProcessorApi {
         @HandleGet("/meters/{meterId}[/{readingId}]")
         @ApiDoc(summary = "Fetch meter", description = "Fetch meter operation", operationId = "getProcessorMeter")
         @ApiDocResponse(status = 200, description = "Found")
+        @ApiDocResponse(status = 400, ref = "error")
         @ApiDocResponse(status = 404, description = "Missing")
         List<@ApiDoc(description = "Meter item") MeterDto> get(
                 @PathParam String meterId, @PathParam String readingId,

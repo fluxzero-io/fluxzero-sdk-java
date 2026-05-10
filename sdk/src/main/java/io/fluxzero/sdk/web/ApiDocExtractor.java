@@ -179,8 +179,8 @@ public final class ApiDocExtractor {
     private static void addResponses(Map<Integer, ApiDocResponseDescriptor> target, ApiDocResponse[] responses) {
         for (ApiDocResponse response : responses) {
             target.put(response.status(),
-                       new ApiDocResponseDescriptor(response.status(), response.description(), response.type(),
-                                                    response.contentType()));
+                       new ApiDocResponseDescriptor(response.status(), response.description(), response.ref(),
+                                                    response.type(), response.contentType()));
         }
     }
 
@@ -299,6 +299,7 @@ public final class ApiDocExtractor {
         private String operationId = "";
         private final List<String> tags = new ArrayList<>();
         private boolean deprecated;
+        private final List<String> security = new ArrayList<>();
 
         void apply(ApiDoc apiDoc) {
             if (apiDoc == null) {
@@ -319,10 +320,15 @@ public final class ApiDocExtractor {
                 }
             }
             deprecated = deprecated || apiDoc.deprecated();
+            for (String requirement : apiDoc.security()) {
+                if (!isBlank(requirement) && !security.contains(requirement)) {
+                    security.add(requirement);
+                }
+            }
         }
 
         ApiDocDetails build() {
-            return new ApiDocDetails(summary, description, operationId, tags, deprecated);
+            return new ApiDocDetails(summary, description, operationId, tags, deprecated, security);
         }
     }
 }

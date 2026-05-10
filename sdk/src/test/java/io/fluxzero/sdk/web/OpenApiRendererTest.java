@@ -111,6 +111,12 @@ class OpenApiRendererTest {
         assertTrue(document.path("x-code-samples-enabled").asBoolean());
         assertEquals("Invalid request", document.path("components").path("responses").path("error")
                 .path("description").asText());
+        assertEquals("bearerAuth", document.path("security").get(0).fieldNames().next());
+        assertEquals("http", document.path("components").path("securitySchemes").path("bearerAuth")
+                .path("type").asText());
+        JsonNode operation = document.path("paths").path("/info").path("get");
+        assertEquals("bearerAuth", operation.path("security").get(0).fieldNames().next());
+        assertEquals("#/components/responses/error", operation.path("responses").path("400").path("$ref").asText());
     }
 
     @Test
@@ -264,13 +270,20 @@ class OpenApiRendererTest {
             logoUrl = "https://example.com/logo.png",
             logoAltText = "Example logo",
             servers = @ApiDocServer(url = "https://api.example.com", description = "Production"),
-            components = @ApiDocComponent(path = "responses.error", json = """
-                    {"description":"Invalid request"}
-                    """),
+            security = "bearerAuth",
+            components = {
+                    @ApiDocComponent(path = "responses.error", json = """
+                            {"description":"Invalid request"}
+                            """),
+                    @ApiDocComponent(path = "securitySchemes.bearerAuth", json = """
+                            {"type":"http","scheme":"bearer"}
+                            """)
+            },
             extensions = "x-code-samples-enabled=true")
-    @ApiDoc
+    @ApiDoc(security = "bearerAuth")
     static class InfoHandler {
         @HandleGet("/info")
+        @ApiDocResponse(status = 400, ref = "error")
         String info() {
             return null;
         }

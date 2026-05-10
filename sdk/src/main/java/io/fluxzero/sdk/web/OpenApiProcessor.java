@@ -464,6 +464,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         return new Response(
                 intValue(values.get("status")),
                 stringValue(values.get("description")),
+                stringValue(values.get("ref")),
                 typeValue(values.get("type")),
                 stringValue(values.get("contentType")));
     }
@@ -521,6 +522,9 @@ public class OpenApiProcessor extends AbstractProcessor {
                 }
                 serverNodes.add(node);
             });
+        }
+        if (!documentInfo.security().isEmpty()) {
+            document.set("security", security(documentInfo.security()));
         }
         ObjectNode paths = document.putObject("paths");
         Map<String, Integer> operationIds = new LinkedHashMap<>();
@@ -646,6 +650,9 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (doc.deprecated()) {
             operation.put("deprecated", true);
         }
+        if (!doc.security().isEmpty()) {
+            operation.set("security", security(doc.security()));
+        }
         if (!isBlank(endpoint.origin())) {
             operation.putArray("servers").add(object().put("url", endpoint.origin()));
         }
@@ -758,6 +765,10 @@ public class OpenApiProcessor extends AbstractProcessor {
         defaultResponse.ifPresent(response -> responses.set(response.status(), response.node()));
         for (Response descriptor : endpoint.responses()) {
             String status = String.valueOf(descriptor.status());
+            if (!isBlank(descriptor.ref())) {
+                responses.set(status, reference(descriptor.ref(), "#/components/responses/"));
+                continue;
+            }
             ObjectNode base = defaultResponse
                     .filter(response -> response.status().equals(status))
                     .map(response -> response.node().deepCopy())
@@ -797,6 +808,42 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private void addContent(ObjectNode target, String mediaType, ObjectNode schema) {
         target.putObject("content").putObject(mediaType).set("schema", schema);
+    }
+
+    private ArrayNode security(List<String> requirements) {
+        ArrayNode result = JSON.arrayNode();
+        for (String requirement : requirements) {
+            if (!isBlank(requirement)) {
+                ObjectNode node = securityRequirement(requirement);
+                if (!node.isEmpty()) {
+                    result.add(node);
+                }
+            }
+        }
+        return result;
+    }
+
+    private ObjectNode securityRequirement(String requirement) {
+        ObjectNode result = object();
+        int separator = requirement.indexOf('=');
+        String name = separator < 0 ? requirement.trim() : requirement.substring(0, separator).trim();
+        if (name.isBlank()) {
+            return result;
+        }
+        ArrayNode scopes = result.putArray(name);
+        if (separator >= 0) {
+            for (String scope : requirement.substring(separator + 1).split(",")) {
+                if (!scope.isBlank()) {
+                    scopes.add(scope.trim());
+                }
+            }
+        }
+        return result;
+    }
+
+    private ObjectNode reference(String ref, String defaultPrefix) {
+        String value = ref.trim();
+        return object().put("$ref", value.startsWith("#/") ? value : defaultPrefix + value);
     }
 
     private ObjectNode schema(TypeMirror type, SchemaContext schemaContext) {
@@ -1761,7 +1808,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     private record BodyInfo(String name, TypeMirror type, VariableElement element) {
     }
 
-    private record Response(int status, String description, TypeMirror type, String contentType) {
+    private record Response(int status, String description, String ref, TypeMirror type, String contentType) {
     }
 
     private record Documentation(
@@ -1769,7 +1816,8 @@ public class OpenApiProcessor extends AbstractProcessor {
             String description,
             String operationId,
             List<String> tags,
-            boolean deprecated
+            boolean deprecated,
+            List<String> security
     ) {
     }
 
@@ -1790,6 +1838,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             String logoUrl,
             String logoAltText,
             List<ServerInfo> servers,
+            List<String> security,
             Map<String, JsonNode> components,
             Map<String, JsonNode> extensions
     ) {
@@ -1812,6 +1861,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         private String logoUrl = "";
         private String logoAltText = "";
         private final Map<String, ServerInfo> servers = new LinkedHashMap<>();
+        private final List<String> security = new ArrayList<>();
         private final Map<String, JsonNode> components = new LinkedHashMap<>();
         private final Map<String, JsonNode> extensions = new LinkedHashMap<>();
 
@@ -1840,6 +1890,11 @@ public class OpenApiProcessor extends AbstractProcessor {
                 Map<String, AnnotationValue> componentValues = annotationValues(component);
                 component(stringValue(componentValues.get("path")), stringValue(componentValues.get("json")));
             }
+            for (String requirement : stringList(values.get("security"))) {
+                if (!isBlank(requirement) && !security.contains(requirement)) {
+                    security.add(requirement);
+                }
+            }
             stringList(values.get("extensions")).forEach(this::extension);
         }
 
@@ -1863,6 +1918,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                     logoUrl,
                     logoAltText,
                     List.copyOf(servers.values()),
+                    List.copyOf(security),
                     new LinkedHashMap<>(components),
                     new LinkedHashMap<>(extensions));
         }
@@ -2216,6 +2272,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         private String description = "";
         private String operationId = "";
         private final List<String> tags = new ArrayList<>();
+        private final List<String> security = new ArrayList<>();
         private boolean deprecated;
 
         void apply(AnnotationMirror annotation) {
@@ -2240,11 +2297,17 @@ public class OpenApiProcessor extends AbstractProcessor {
                     tags.add(tag);
                 }
             }
+            for (String requirement : stringList(values.get("security"))) {
+                if (!isBlank(requirement) && !security.contains(requirement)) {
+                    security.add(requirement);
+                }
+            }
             deprecated = deprecated || booleanValue(values.get("deprecated"));
         }
 
         Documentation build() {
-            return new Documentation(summary, description, operationId, List.copyOf(tags), deprecated);
+            return new Documentation(summary, description, operationId, List.copyOf(tags), deprecated,
+                                     List.copyOf(security));
         }
     }
 }

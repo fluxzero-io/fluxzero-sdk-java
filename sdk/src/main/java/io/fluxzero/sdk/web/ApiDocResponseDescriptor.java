@@ -22,6 +22,7 @@ import java.lang.reflect.Type;
 public record ApiDocResponseDescriptor(
         int status,
         String description,
+        String ref,
         Type type,
         String contentType
 ) {

@@ -499,19 +499,19 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 - Prefer automatic inference from `@Handle...`, `@Path`, and web parameter annotations.
 - Generated API docs are opt-in: only endpoints with `@ApiDoc` on a super-package/package, handler class, or handler
   method are included. Empty `@ApiDoc` is enough when all endpoint metadata can be inferred.
-- Use `@ApiDoc` only for summaries, descriptions, operation ids, tags, deprecation metadata, or schema hints that cannot
-  be inferred.
+- Use `@ApiDoc` only for summaries, descriptions, operation ids, tags, operation security requirements, deprecation
+  metadata, or schema hints that cannot be inferred.
   It may also document fields, parameters, record components, and type arguments such as
   `List<@ApiDoc(description = "Connection item") Connection>`; prefer this over OpenAPI-specific array annotations.
   For dependency-free schema metadata, use its optional `type`, `format`, `example`, `defaultValue`, `minimum`,
   `maximum`, `allowableValues`, `required`, and `implementation` attributes instead of Swagger `@Schema`.
 - Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
-  response without repeating its body type.
+  response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
 - Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
   generated docs only; it does not disable runtime handling.
 - Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,
-  contact, logo, servers, shared components via `@ApiDocComponent`, and top-level vendor extensions. Prefer this over
-  external Swagger configuration files.
+  contact, logo, servers, top-level security requirements, shared components via `@ApiDocComponent`, and top-level
+  vendor extensions. Prefer this over external Swagger configuration files.
 - Set `@ApiDocInfo(serveOpenApi = true)` to expose the generated spec through an internal `@NoUserRequired` web
   endpoint. The default `openApiPath` is `openapi.json`, resolved relative to the `@Path` value on the same package or
   handler type; use an absolute path to serve from the application root.

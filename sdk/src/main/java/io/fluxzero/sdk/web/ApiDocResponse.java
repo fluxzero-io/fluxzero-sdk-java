@@ -48,6 +48,15 @@ public @interface ApiDocResponse {
     String description() default "";
 
     /**
+     * Optional reusable response reference.
+     * <p>
+     * A bare value such as {@code error} is resolved to {@code #/components/responses/error}. A value starting with
+     * {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, and {@link #contentType()} are
+     * ignored because OpenAPI Reference Objects cannot have response-object siblings in OpenAPI 3.0.
+     */
+    String ref() default "";
+
+    /**
      * Optional response body type. {@code Void.class} means no explicit type was provided.
      */
     Class<?> type() default Void.class;

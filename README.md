@@ -2222,9 +2222,15 @@ For dependency-free document metadata in source, place `@ApiDocInfo` on a packag
         logoUrl = "https://example.com/logo.png",
         logoAltText = "Example logo",
         servers = @ApiDocServer(url = "https://api.example.com", description = "Production"),
-        components = @ApiDocComponent(path = "responses.error", json = """
-                {"description":"Invalid request"}
-                """))
+        security = "bearerAuth",
+        components = {
+                @ApiDocComponent(path = "responses.error", json = """
+                        {"description":"Invalid request"}
+                        """),
+                @ApiDocComponent(path = "securitySchemes.bearerAuth", json = """
+                        {"type":"http","scheme":"bearer"}
+                        """)
+        })
 package com.example.meters;
 ```
 
@@ -2236,18 +2242,21 @@ application root. The generated endpoint is registered internally, uses `@NoUser
 
 Only web handlers opted in with `@ApiDoc` are included in generated API documentation. Place `@ApiDoc` on a package,
 handler class, or handler method; empty `@ApiDoc` is enough when all metadata should be inferred. Use it for
-human-authored metadata such as summaries, descriptions, operation ids, tags, and schema hints that cannot be inferred.
-It can also be placed on fields, parameters, record components, and type arguments, for example
+human-authored metadata such as summaries, descriptions, operation ids, tags, operation security requirements, and
+schema hints that cannot be inferred. It can also be placed on fields, parameters, record components, and type
+arguments, for example
 `List<@ApiDoc(description = "Connection item") Connection>` to document array items without OpenAPI-specific
 annotations. Optional schema hints include `type`, `format`, `example`, `defaultValue`, `minimum`, `maximum`,
 `allowableValues`, `required`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
 `@Size`, `@Pattern`, and `@Email` are reflected in endpoint parameter and model schemas when present. Use repeatable
 `@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
-repeating its body type. Array properties in response models are documented as required by default; input models only
-use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` to
+repeating its body type; `@ApiDocResponse(status = 400, ref = "error")` references
+`#/components/responses/error`. Array properties in response models are documented as required by default; input models
+only use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` to
 exclude a package, class, method, parameter, field, record component, or type use from generated documentation without
-disabling the runtime endpoint or model. Use `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI
-components such as reusable responses or security schemes when automatic inference is not enough.
+disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-level security requirements and
+`@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
+security schemes when automatic inference is not enough.
 
 #### Other Parameter Annotations
 

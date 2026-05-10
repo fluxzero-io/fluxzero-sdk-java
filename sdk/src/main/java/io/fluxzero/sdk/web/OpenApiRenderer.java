@@ -50,6 +50,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -109,6 +110,9 @@ public final class OpenApiRenderer {
                 }
                 servers.add(node);
             });
+        }
+        if (!documentInfo.security().isEmpty()) {
+            document.set("security", security(documentInfo.security()));
         }
         ObjectNode paths = document.putObject("paths");
         Map<String, Integer> operationIds = new LinkedHashMap<>();
@@ -242,6 +246,9 @@ public final class OpenApiRenderer {
         if (doc.deprecated()) {
             operation.put("deprecated", true);
         }
+        if (!doc.security().isEmpty()) {
+            operation.set("security", security(doc.security()));
+        }
         if (!isBlank(endpoint.origin())) {
             operation.putArray("servers").add(object().put("url", endpoint.origin()));
         }
@@ -351,6 +358,10 @@ public final class OpenApiRenderer {
         defaultResponse.ifPresent(response -> responses.set(response.status(), response.node()));
         for (ApiDocResponseDescriptor descriptor : endpoint.responses()) {
             String status = String.valueOf(descriptor.status());
+            if (!isBlank(descriptor.ref())) {
+                responses.set(status, reference(descriptor.ref(), "#/components/responses/"));
+                continue;
+            }
             ObjectNode base = defaultResponse
                     .filter(response -> response.status().equals(status))
                     .map(response -> response.node().deepCopy())
@@ -390,6 +401,38 @@ public final class OpenApiRenderer {
                        responseSchema(descriptor.type(), schemaContext));
         }
         return response;
+    }
+
+    private static ArrayNode security(List<String> requirements) {
+        ArrayNode result = JSON.arrayNode();
+        requirements.stream().filter(requirement -> !isBlank(requirement))
+                .map(OpenApiRenderer::securityRequirement)
+                .filter(node -> !node.isEmpty())
+                .forEach(result::add);
+        return result;
+    }
+
+    private static ObjectNode securityRequirement(String requirement) {
+        String value = requirement.trim();
+        int separator = value.indexOf('=');
+        String name = separator < 0 ? value : value.substring(0, separator).trim();
+        ObjectNode result = object();
+        if (name.isBlank()) {
+            return result;
+        }
+        ArrayNode scopes = result.putArray(name);
+        if (separator >= 0) {
+            Arrays.stream(value.substring(separator + 1).split(","))
+                    .map(String::trim)
+                    .filter(scope -> !scope.isBlank())
+                    .forEach(scopes::add);
+        }
+        return result;
+    }
+
+    private static ObjectNode reference(String ref, String defaultPrefix) {
+        String value = ref.trim();
+        return object().put("$ref", value.startsWith("#/") ? value : defaultPrefix + value);
     }
 
     private static void addContent(ObjectNode target, String mediaType, ObjectNode schema) {
@@ -1202,6 +1245,7 @@ public final class OpenApiRenderer {
             String logoUrl,
             String logoAltText,
             List<ServerInfo> servers,
+            List<String> security,
             Map<String, JsonNode> components,
             Map<String, JsonNode> extensions
     ) {
@@ -1224,6 +1268,7 @@ public final class OpenApiRenderer {
         private String logoUrl = "";
         private String logoAltText = "";
         private final Map<String, ServerInfo> servers = new LinkedHashMap<>();
+        private final List<String> security = new ArrayList<>();
         private final Map<String, JsonNode> components = new LinkedHashMap<>();
         private final Map<String, JsonNode> extensions = new LinkedHashMap<>();
 
@@ -1246,6 +1291,9 @@ public final class OpenApiRenderer {
             for (ApiDocServer server : info.servers()) {
                 server(server.url(), server.description());
             }
+            Arrays.stream(info.security())
+                    .filter(s -> !isBlank(s) && !security.contains(s))
+                    .forEach(security::add);
             for (ApiDocComponent component : info.components()) {
                 component(component.path(), component.json());
             }
@@ -1280,6 +1328,7 @@ public final class OpenApiRenderer {
                     logoUrl,
                     logoAltText,
                     List.copyOf(servers.values()),
+                    List.copyOf(security),
                     new LinkedHashMap<>(components),
                     new LinkedHashMap<>(extensions));
         }
