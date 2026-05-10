@@ -39,6 +39,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -374,6 +375,7 @@ class ProxyServerTest {
     }
 
     @Nested
+    @ResourceLock("FLUXZERO_CORS_DOMAINS")
     class CorsTests {
         private final AtomicInteger optionsInvocations = new AtomicInteger();
 
