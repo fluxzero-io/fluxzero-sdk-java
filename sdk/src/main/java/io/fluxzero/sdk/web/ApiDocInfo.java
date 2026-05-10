@@ -116,10 +116,49 @@ public @interface ApiDocInfo {
     /**
      * Path where the generated OpenAPI document is served when {@link #serveOpenApi()} is enabled.
      * <p>
+     * This endpoint is also served when {@link #serveApiReference()} is enabled, because the generated HTML reference
+     * page needs an OpenAPI document to render.
+     * <p>
      * Relative paths are resolved against the {@link Path} value at the same package or handler type where this
      * annotation is placed. Absolute paths start at the application root.
      */
     String openApiPath() default "openapi.json";
+
+    /**
+     * If {@code true}, a small HTML API reference endpoint is served for the generated OpenAPI document.
+     * <p>
+     * The endpoint uses {@link #apiReferenceRenderer()} and references externally hosted or self-hosted renderer assets.
+     * The SDK does not bundle Redoc, Scalar, Swagger UI, or other frontend assets.
+     */
+    boolean serveApiReference() default false;
+
+    /**
+     * Path where the generated API reference HTML page is served when {@link #serveApiReference()} is enabled.
+     * <p>
+     * Relative paths are resolved against the {@link Path} value at the same package or handler type where this
+     * annotation is placed. Absolute paths start at the application root.
+     */
+    String apiReferencePath() default "docs";
+
+    /**
+     * Renderer used for the generated API reference HTML page.
+     */
+    ApiReferenceRenderer apiReferenceRenderer() default ApiReferenceRenderer.REDOC;
+
+    /**
+     * Optional renderer script URL. Leave empty to use the SDK default for {@link #apiReferenceRenderer()}.
+     * <p>
+     * Set this to a self-hosted URL when CDN access is not desired.
+     */
+    String apiReferenceScriptUrl() default "";
+
+    /**
+     * Optional renderer stylesheet URL. Leave empty to use the SDK default for {@link #apiReferenceRenderer()} when it
+     * has one.
+     * <p>
+     * This is mainly useful for Swagger UI.
+     */
+    String apiReferenceStylesheetUrl() default "";
 
     /**
      * Extra OpenAPI components such as shared responses or security schemes. Component paths are relative to the

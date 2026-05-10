@@ -24,6 +24,8 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.web.ApiDoc;
+import io.fluxzero.sdk.web.ApiDocInfo;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.HandleOptions;
 import io.fluxzero.sdk.web.HandlePost;
@@ -31,6 +33,7 @@ import io.fluxzero.sdk.web.HandleSocketClose;
 import io.fluxzero.sdk.web.HandleSocketMessage;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleSocketPong;
+import io.fluxzero.sdk.web.Path;
 import io.fluxzero.sdk.web.SocketSession;
 import io.fluxzero.sdk.web.WebRequest;
 import lombok.SneakyThrows;
@@ -106,6 +109,23 @@ class ProxyServerTest {
         }
 
         @Test
+        void openApiDocumentIsServedAsJsonDocument() {
+            testFixture.registerHandlers(new OpenApiDemoHandler())
+                    .whenApplying(fc -> httpClient.send(newBuilder(
+                                                                    URI.create(format(
+                                                                            "http://0.0.0.0:%s/openapi-demo/openapi.json",
+                                                                            proxyPort)))
+                                                            .GET().build(),
+                                                        BodyHandlers.ofString()))
+                    .expectResult(response -> response.statusCode() == 200
+                                              && response.headers().firstValue("Content-Type")
+                                                      .orElse("").equals("application/json")
+                                              && response.body().stripLeading().startsWith("{")
+                                              && response.body().contains("\"openapi\"")
+                                              && !response.body().stripLeading().startsWith("\"{"));
+        }
+
+        @Test
         void post() {
             testFixture.registerHandlers(new Object() {
                         @HandlePost("/")
@@ -124,6 +144,17 @@ class ProxyServerTest {
 
         private URI baseUri() {
             return URI.create(format("http://0.0.0.0:%s/", proxyPort));
+        }
+    }
+
+    @Path("/openapi-demo")
+    @ApiDocInfo(title = "Proxy OpenAPI Demo", version = "1.0.0", serveOpenApi = true)
+    @ApiDoc(tags = "OpenAPI")
+    static class OpenApiDemoHandler {
+        @HandleGet("/items")
+        @ApiDoc(summary = "List items")
+        java.util.List<String> items() {
+            return java.util.List.of("one", "two");
         }
     }
 

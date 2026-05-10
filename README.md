@@ -2237,8 +2237,16 @@ package com.example.meters;
 Set `serveOpenApi = true` on `@ApiDocInfo` to expose the generated document through Fluxzero web handling. The default
 endpoint is `openapi.json` relative to the `@Path` value on the same package or handler type, so a package annotated
 with `@Path("/v1")` serves `/v1/openapi.json`. Override this with `openApiPath`; absolute paths start at the
-application root. The generated endpoint is registered internally, uses `@NoUserRequired`, and serves the compiled
-`META-INF/fluxzero/openapi.json` resource when available, falling back to runtime extraction otherwise.
+application root. The generated endpoint is registered internally and uses `@NoUserRequired`. For class-based handler
+registration it can serve the compiled `META-INF/fluxzero/openapi.json` resource when available; for handler instances
+it renders the document from the runtime handler scope.
+
+Set `serveApiReference = true` to expose a small HTML API reference page for the same document. The default endpoint is
+`docs` relative to the same `@Path`, so `@Path("/v1")` serves `/v1/docs` and automatically also serves
+`/v1/openapi.json`. Redoc is the default renderer; use `apiReferenceRenderer = ApiReferenceRenderer.SCALAR` or
+`SWAGGER_UI` to use Scalar or Swagger UI instead. The SDK does not bundle renderer frontend assets. It references
+default CDN URLs, which can be replaced with `apiReferenceScriptUrl` and `apiReferenceStylesheetUrl` for self-hosted
+assets.
 
 Only web handlers opted in with `@ApiDoc` are included in generated API documentation. Place `@ApiDoc` on a package,
 handler class, or handler method; empty `@ApiDoc` is enough when all metadata should be inferred. Use it for

@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import lombok.SneakyThrows;
 
@@ -60,7 +62,7 @@ public final class OpenApiDocumentEndpoint {
 
     private static void addIfEnabled(List<OpenApiDocumentEndpoint> endpoints, ApiDocInfo info, String basePath,
                                      Class<?> handlerType, Object handler) {
-        if (info == null || !info.serveOpenApi()) {
+        if (info == null || !(info.serveOpenApi() || info.serveApiReference())) {
             return;
         }
         endpoints.add(new OpenApiDocumentEndpoint(resolvePath(basePath, info.openApiPath()), handlerType, handler));
@@ -85,7 +87,7 @@ public final class OpenApiDocumentEndpoint {
         return WebResponse.builder()
                 .status(200)
                 .contentType(JSON_FORMAT)
-                .payload(documentJson())
+                .payload(JsonUtils.fromJson(documentJson(), JsonNode.class))
                 .build();
     }
 
@@ -95,7 +97,9 @@ public final class OpenApiDocumentEndpoint {
             synchronized (this) {
                 result = documentJson;
                 if (result == null) {
-                    result = readGeneratedDocument(handlerType).orElseGet(this::renderRuntimeDocument);
+                    result = handler == null
+                            ? readGeneratedDocument(handlerType).orElseGet(this::renderRuntimeDocument)
+                            : renderRuntimeDocument();
                     documentJson = result;
                 }
             }

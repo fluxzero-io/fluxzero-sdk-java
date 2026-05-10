@@ -202,6 +202,19 @@ public class HandleWebTest {
         }
 
         @Test
+        void testApiDocInfoServesRedocReferenceBelowClassPath() {
+            TestFixture.create(new OpenApiEndpointHandler())
+                    .whenGet("/classDocs/docs")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        return response.getStatus() == 200
+                               && "text/html; charset=utf-8".equals(response.getContentType())
+                               && payload.contains("<redoc spec-url=\"/classDocs/openapi.json\"")
+                               && payload.contains("cdn.redoc.ly/redoc");
+                    });
+        }
+
+        @Test
         void testApiDocInfoServesOpenApiAtConfiguredAbsolutePath() {
             TestFixture.create(new AbsoluteOpenApiEndpointHandler())
                     .whenGet("/docs/openapi.json")
@@ -211,6 +224,57 @@ public class HandleWebTest {
                         return response.getStatus() == 200
                                && "Absolute Docs".equals(document.path("info").path("title").asText())
                                && document.path("paths").has("/absoluteDocs/items");
+                    });
+        }
+
+        @Test
+        void testApiReferenceAlsoServesOpenApiDocument() {
+            TestFixture.create(new ScalarReferenceEndpointHandler())
+                    .whenGet("/scalarDocs/openapi.json")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        JsonNode document = JsonUtils.fromJson(payload, JsonNode.class);
+                        return response.getStatus() == 200
+                               && "Scalar Docs".equals(document.path("info").path("title").asText())
+                               && document.path("paths").has("/scalarDocs/items");
+                    });
+        }
+
+        @Test
+        void testApiDocInfoServesScalarReference() {
+            TestFixture.create(new ScalarReferenceEndpointHandler())
+                    .whenGet("/scalarDocs/reference")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        return response.getStatus() == 200
+                               && payload.contains("Scalar.createApiReference('#app', { url: '/scalarDocs/openapi.json' })")
+                               && payload.contains("@scalar/api-reference");
+                    });
+        }
+
+        @Test
+        void testApiDocInfoServesSwaggerUiReferenceAtConfiguredAbsolutePath() {
+            TestFixture.create(new SwaggerUiReferenceEndpointHandler())
+                    .whenGet("/swagger-ui")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        return response.getStatus() == 200
+                               && payload.contains("SwaggerUIBundle({ url: '/swaggerDocs/openapi.json'")
+                               && payload.contains("swagger-ui-dist@5/swagger-ui.css")
+                               && payload.contains("swagger-ui-dist@5/swagger-ui-bundle.js");
+                    });
+        }
+
+        @Test
+        void testApiReferenceUsesConfiguredAssetUrls() {
+            TestFixture.create(new CustomReferenceAssetEndpointHandler())
+                    .whenGet("/customDocs/docs")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        return response.getStatus() == 200
+                               && payload.contains("<link rel=\"stylesheet\" href=\"/assets/swagger-ui.css\">")
+                               && payload.contains("<script src=\"/assets/swagger-ui.js\"></script>")
+                               && !payload.contains("swagger-ui-dist@5");
                     });
         }
 
@@ -231,6 +295,14 @@ public class HandleWebTest {
         void testAutomaticOptionsIncludesAutomaticOpenApiEndpoint() {
             TestFixture.create(new OpenApiEndpointHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/openapi.json").build())
+                    .expectWebResult(response -> response.getStatus() == 204
+                                                 && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
+        }
+
+        @Test
+        void testAutomaticOptionsIncludesAutomaticApiReferenceEndpoint() {
+            TestFixture.create(new OpenApiEndpointHandler())
+                    .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/docs").build())
                     .expectWebResult(response -> response.getStatus() == 204
                                                  && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
         }
@@ -734,7 +806,7 @@ public class HandleWebTest {
         }
 
         @Path("/classDocs")
-        @ApiDocInfo(title = "Class Docs", version = "1.0.0", serveOpenApi = true)
+        @ApiDocInfo(title = "Class Docs", version = "1.0.0", serveOpenApi = true, serveApiReference = true)
         @ApiDoc(tags = "class-docs")
         @RequiresUser
         private static class OpenApiEndpointHandler {
@@ -749,6 +821,41 @@ public class HandleWebTest {
                 openApiPath = "/docs/openapi.json")
         @ApiDoc(tags = "absolute-docs")
         private static class AbsoluteOpenApiEndpointHandler {
+            @HandleGet("/items")
+            String items() {
+                return "items";
+            }
+        }
+
+        @Path("/scalarDocs")
+        @ApiDocInfo(title = "Scalar Docs", version = "1.0.0", serveApiReference = true,
+                apiReferenceRenderer = ApiReferenceRenderer.SCALAR, apiReferencePath = "reference")
+        @ApiDoc(tags = "scalar-docs")
+        private static class ScalarReferenceEndpointHandler {
+            @HandleGet("/items")
+            String items() {
+                return "items";
+            }
+        }
+
+        @Path("/swaggerDocs")
+        @ApiDocInfo(title = "Swagger UI Docs", version = "1.0.0", serveApiReference = true,
+                apiReferenceRenderer = ApiReferenceRenderer.SWAGGER_UI, apiReferencePath = "/swagger-ui")
+        @ApiDoc(tags = "swagger-docs")
+        private static class SwaggerUiReferenceEndpointHandler {
+            @HandleGet("/items")
+            String items() {
+                return "items";
+            }
+        }
+
+        @Path("/customDocs")
+        @ApiDocInfo(title = "Custom Docs", version = "1.0.0", serveApiReference = true,
+                apiReferenceRenderer = ApiReferenceRenderer.SWAGGER_UI,
+                apiReferenceScriptUrl = "/assets/swagger-ui.js",
+                apiReferenceStylesheetUrl = "/assets/swagger-ui.css")
+        @ApiDoc(tags = "custom-docs")
+        private static class CustomReferenceAssetEndpointHandler {
             @HandleGet("/items")
             String items() {
                 return "items";

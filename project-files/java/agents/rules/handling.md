@@ -515,6 +515,11 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 - Set `@ApiDocInfo(serveOpenApi = true)` to expose the generated spec through an internal `@NoUserRequired` web
   endpoint. The default `openApiPath` is `openapi.json`, resolved relative to the `@Path` value on the same package or
   handler type; use an absolute path to serve from the application root.
+- Set `@ApiDocInfo(serveApiReference = true)` to expose a small HTML API reference page for the same document. The
+  default `apiReferencePath` is `docs`, resolved relative to the same `@Path`; enabling this also serves the OpenAPI
+  JSON document. The default renderer is Redoc; `ApiReferenceRenderer.SCALAR` and `SWAGGER_UI` are also available.
+  Renderer assets are referenced by URL and are not bundled by the SDK; use `apiReferenceScriptUrl` and
+  `apiReferenceStylesheetUrl` for self-hosted assets.
 - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
   where possible, including required flags, numeric bounds, sizes, patterns, and email format.
 - Array properties in response models are required by default; array properties in input models must be made required
