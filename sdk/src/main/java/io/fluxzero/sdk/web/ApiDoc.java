@@ -32,6 +32,11 @@ import java.lang.annotation.Target;
  * OpenAPI-specific array annotations. Schema hints such as {@link #type()}, {@link #format()}, {@link #example()},
  * {@link #defaultValue()}, and {@link #allowableValues()} provide an SDK-native alternative for the common
  * documentation metadata that projects often express with OpenAPI-specific annotations.
+ * <p>
+ * When using the annotation processor, source Javadoc on schema types and properties in the same javac compilation is
+ * used as a final description fallback after explicit {@code @ApiDoc} metadata and OpenAPI {@code @Schema} metadata.
+ * Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema
+ * documentation must cross module boundaries.
  * </p>
  *
  * @see ApiDocExtractor

@@ -88,7 +88,12 @@ class OpenApiProcessorTest {
         assertEquals(1, get.path("parameters").get(2).path("schema").path("minimum").asInt());
 
         JsonNode accessor = document.path("components").path("schemas").path("AccessorDto").path("properties");
+        assertEquals("DTO with accessor-style fields used by processor tests.",
+                     document.path("components").path("schemas").path("AccessorDto").path("description").asText());
         assertEquals("string", accessor.path("id").path("type").asText());
+        assertEquals("Identifier described by field Javadoc.", accessor.path("id").path("description").asText());
+        assertEquals("Schema description wins", accessor.path("schemaDescription").path("description").asText());
+        assertEquals("ApiDoc description wins", accessor.path("apiDocDescription").path("description").asText());
         assertEquals("boolean", accessor.path("active").path("type").asText());
         assertEquals("Whether this processor item is active", accessor.path("active").path("description").asText());
         assertTrue(accessor.path("active").path("default").asBoolean());
@@ -106,6 +111,8 @@ class OpenApiProcessorTest {
         assertEquals("primary", accessor.path("status").path("enum").get(0).asText());
         assertEquals("secondary", accessor.path("status").path("enum").get(1).asText());
         assertEquals("secondary", accessor.path("status").path("example").asText());
+        assertEquals("First paragraph.\n\nSecond paragraph with String link.",
+                     accessor.path("javadocParagraphs").path("description").asText());
         assertFalse(accessor.has("secret"));
         assertFalse(contains(document.path("components").path("schemas").path("InputDto").path("required"),
                              "tags"));
@@ -113,6 +120,11 @@ class OpenApiProcessorTest {
         assertTrue(contains(required, "status"));
         assertTrue(contains(required, "aliases"));
         assertFalse(document.path("components").path("schemas").has("JsonValueId"));
+        JsonNode lombokProperties = document.path("components").path("schemas").path("LombokDto").path("properties");
+        assertEquals("Lombok-generated getter should keep field Javadoc.",
+                     lombokProperties.path("lombokField").path("description").asText());
+        assertEquals("Field ApiDoc survives Lombok-generated getter.",
+                     lombokProperties.path("documentedField").path("description").asText());
         List<String> schemaNames = new ArrayList<>();
         document.path("components").path("schemas").fieldNames().forEachRemaining(schemaNames::add);
         assertEquals(schemaNames.stream().sorted().toList(), schemaNames);
@@ -172,6 +184,11 @@ class OpenApiProcessorTest {
             return null;
         }
 
+        @HandleGet("/lombok")
+        LombokDto lombok() {
+            return null;
+        }
+
         @ApiDocExclude
         @HandleGet("/internal")
         String internal() {
@@ -198,8 +215,25 @@ class OpenApiProcessorTest {
     record InputDto(List<String> tags) {
     }
 
+    /**
+     * DTO with accessor-style fields used by processor tests.
+     */
     static class AccessorDto {
+        /**
+         * Identifier described by field Javadoc.
+         */
         String id;
+        /**
+         * Javadoc description loses.
+         */
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Schema description wins")
+        String schemaDescription;
+        /**
+         * Javadoc description loses.
+         */
+        @io.swagger.v3.oas.annotations.media.Schema(description = "Schema description loses")
+        @ApiDoc(description = "ApiDoc description wins")
+        String apiDocDescription;
         @ApiDoc(description = "Json value id")
         JsonValueId jsonValueId;
         java.time.LocalTime opensAt;
@@ -213,6 +247,14 @@ class OpenApiProcessorTest {
         @ApiDocExclude
         String secret;
         List<String> aliases;
+        /**
+         * First paragraph.
+         *
+         * Second paragraph with {@link String} link.
+         *
+         * @return ignored block tag
+         */
+        String javadocParagraphs;
 
         @ApiDoc(description = "Whether this processor item is active", defaultValue = "true")
         public boolean isActive() {
@@ -223,6 +265,16 @@ class OpenApiProcessorTest {
     static class JsonValueId {
         @com.fasterxml.jackson.annotation.JsonValue
         String value;
+    }
+
+    @lombok.Value
+    static class LombokDto {
+        /**
+         * Lombok-generated getter should keep field Javadoc.
+         */
+        String lombokField;
+        @ApiDoc(description = "Field ApiDoc survives Lombok-generated getter.")
+        String documentedField;
     }
 
     private static boolean contains(JsonNode array, String value) {

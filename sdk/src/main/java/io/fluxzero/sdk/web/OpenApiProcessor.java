@@ -1414,7 +1414,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (element == null) {
             return builder.build();
         }
-        builder.description(elements.getDocComment(element));
+        builder.description(javadocDescription(element));
         AnnotationMirror arraySchema = findAnnotation(element, SWAGGER_ARRAY_SCHEMA);
         if (arraySchema != null) {
             builder.apply(annotationMirror(annotationValues(arraySchema).get("arraySchema")));
@@ -1427,6 +1427,38 @@ public class OpenApiProcessor extends AbstractProcessor {
             builder.applyValidation(annotation);
         }
         return builder.build();
+    }
+
+    private String javadocDescription(Element element) {
+        if (element == null) {
+            return "";
+        }
+        String docComment = elements.getDocComment(element);
+        if (isBlank(docComment)) {
+            return "";
+        }
+        StringBuilder description = new StringBuilder();
+        boolean paragraphBreak = false;
+        for (String line : docComment.replace("\r\n", "\n").replace('\r', '\n').split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("@")) {
+                break;
+            }
+            if (trimmed.isBlank()) {
+                paragraphBreak = description.length() > 0;
+                continue;
+            }
+            if (!description.isEmpty()) {
+                description.append(paragraphBreak ? "\n\n" : " ");
+            }
+            description.append(trimmed);
+            paragraphBreak = false;
+        }
+        return normalizeInlineJavadoc(description.toString());
+    }
+
+    private String normalizeInlineJavadoc(String value) {
+        return value.replaceAll("\\{@(?:link|linkplain|code|literal)\\s+([^}]+)}", "$1").trim();
     }
 
     private SchemaMetadata metadata(TypeMirror type) {

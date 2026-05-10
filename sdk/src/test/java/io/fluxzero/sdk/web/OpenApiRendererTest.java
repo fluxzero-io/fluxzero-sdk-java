@@ -184,6 +184,8 @@ class OpenApiRendererTest {
         JsonNode properties = document.path("components").path("schemas").path("AccessorDto").path("properties");
 
         assertEquals("string", properties.path("id").path("type").asText());
+        assertEquals("Lombok-generated getter should keep field ApiDoc.",
+                     properties.path("lombokField").path("description").asText());
         assertEquals("boolean", properties.path("active").path("type").asText());
         assertEquals("Whether this item is active", properties.path("active").path("description").asText());
         assertTrue(properties.path("active").path("default").asBoolean());
@@ -306,6 +308,9 @@ class OpenApiRendererTest {
 
     static class AccessorDto {
         String id;
+        @ApiDoc(description = "Lombok-generated getter should keep field ApiDoc.")
+        @lombok.Getter
+        String lombokField;
         @ApiDoc(description = "Json value id")
         JsonValueId jsonValueId;
         java.time.LocalTime opensAt;
