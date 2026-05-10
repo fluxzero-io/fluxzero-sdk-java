@@ -29,7 +29,9 @@ import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
 /**
@@ -40,7 +42,12 @@ import static java.net.http.HttpClient.Version.HTTP_1_1;
  * handler configured on the supplied {@link HttpClient}.</p>
  */
 public class JdkWebsocketConnector implements WebsocketConnector {
+    static final String DEFAULT_EXECUTOR_THREAD_PREFIX = "fluxzero-websocket-jdk-";
+
+    private static final Executor DEFAULT_EXECUTOR = newWorkerPool(DEFAULT_EXECUTOR_THREAD_PREFIX, 8);
+
     private final HttpClient httpClient;
+    private final Executor executor;
     private final Set<WebsocketSession> openSessions = ConcurrentHashMap.newKeySet();
 
     /**
@@ -59,7 +66,21 @@ public class JdkWebsocketConnector implements WebsocketConnector {
      * @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused
      */
     public JdkWebsocketConnector(HttpClient httpClient) {
+        this(httpClient, resolveExecutor(httpClient));
+    }
+
+    /**
+     * Creates a connector backed by the supplied HTTP client and executor.
+     *
+     * <p>The executor is used for per-connection HTTP clients derived from the supplied client and for dispatching
+     * native JDK websocket listener callbacks.</p>
+     *
+     * @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused
+     * @param executor   executor for JDK websocket and listener callback work
+     */
+    public JdkWebsocketConnector(HttpClient httpClient, Executor executor) {
         this.httpClient = Objects.requireNonNull(httpClient);
+        this.executor = Objects.requireNonNull(executor);
     }
 
     /**
@@ -83,7 +104,7 @@ public class JdkWebsocketConnector implements WebsocketConnector {
         applySubprotocols(builder, connectionOptions.subprotocols());
 
         JdkWebSocketSession session = new JdkWebSocketSession(this, endpoint, connectionOptions, uri,
-                                                             handshakeResponse);
+                                                             handshakeResponse, executor);
         try {
             builder.buildAsync(uri, session.createListener()).get();
             session.awaitOpen();
@@ -115,11 +136,11 @@ public class JdkWebsocketConnector implements WebsocketConnector {
                 .followRedirects(httpClient.followRedirects())
                 .sslContext(httpClient.sslContext())
                 .sslParameters(httpClient.sslParameters())
+                .executor(executor)
                 // The JDK websocket API does not expose successful 101 responses directly; CookieHandler.put does.
                 .cookieHandler(new CapturingCookieHandler(httpClient.cookieHandler().orElse(null),
                                                           handshakeResponse));
         httpClient.authenticator().ifPresent(builder::authenticator);
-        httpClient.executor().ifPresent(builder::executor);
         httpClient.proxy().ifPresent(builder::proxy);
         if (options.connectTimeout() != null) {
             builder.connectTimeout(options.connectTimeout());
@@ -127,6 +148,10 @@ public class JdkWebsocketConnector implements WebsocketConnector {
             httpClient.connectTimeout().ifPresent(builder::connectTimeout);
         }
         return builder.build();
+    }
+
+    private static Executor resolveExecutor(HttpClient httpClient) {
+        return Objects.requireNonNull(httpClient).executor().orElse(DEFAULT_EXECUTOR);
     }
 
     private static void applyHeaders(java.net.http.WebSocket.Builder builder, Map<String, List<String>> headers) {

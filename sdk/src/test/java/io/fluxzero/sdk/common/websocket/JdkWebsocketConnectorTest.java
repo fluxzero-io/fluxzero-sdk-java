@@ -39,6 +39,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -121,6 +123,39 @@ class JdkWebsocketConnectorTest {
             assertEquals("runtime123",
                          WebSocketCapabilities.getRuntimeSessionId(
                                  session.getHandshakeResponseHeaders()).orElseThrow());
+        }
+    }
+
+    @Test
+    void defaultConnectorDispatchesOpenCallbackOnDedicatedExecutor() throws Exception {
+        try (TestWebSocketServer server = TestWebSocketServer.start()) {
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            RecordingEndpoint endpoint = new RecordingEndpoint();
+
+            connector.connect(endpoint, null, server.uri());
+
+            String threadName = endpoint.openThreadName.get();
+            assertTrue(threadName.startsWith(JdkWebsocketConnector.DEFAULT_EXECUTOR_THREAD_PREFIX),
+                       "Expected open callback on Fluxzero websocket executor but was " + threadName);
+            assertFalse(threadName.startsWith("ForkJoinPool.commonPool"),
+                        "Open callback should not run on the JVM common pool");
+        }
+    }
+
+    @Test
+    void connectorUsesSuppliedHttpClientExecutorForOpenCallback() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor(task ->
+                Thread.ofPlatform().daemon(true).name("custom-websocket-executor").unstarted(task));
+        try (TestWebSocketServer server = TestWebSocketServer.start()) {
+            HttpClient httpClient = HttpClient.newBuilder().executor(executor).build();
+            JdkWebsocketConnector connector = new JdkWebsocketConnector(httpClient);
+            RecordingEndpoint endpoint = new RecordingEndpoint();
+
+            connector.connect(endpoint, null, server.uri());
+
+            assertEquals("custom-websocket-executor", endpoint.openThreadName.get());
+        } finally {
+            executor.shutdownNow();
         }
     }
 
@@ -305,6 +340,7 @@ class JdkWebsocketConnectorTest {
 
     private static class RecordingEndpoint implements WebsocketEndpoint {
         private final AtomicReference<WebsocketSession> session = new AtomicReference<>();
+        private final AtomicReference<String> openThreadName = new AtomicReference<>();
         private final AtomicReference<byte[]> binaryMessage = new AtomicReference<>();
         private final AtomicReference<byte[]> pongMessage = new AtomicReference<>();
         private final AtomicReference<WebsocketCloseReason> closeReason = new AtomicReference<>();
@@ -316,6 +352,7 @@ class JdkWebsocketConnectorTest {
         @Override
         public void onOpen(WebsocketSession session) {
             this.session.set(session);
+            this.openThreadName.set(Thread.currentThread().getName());
         }
 
         @Override

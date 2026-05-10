@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +38,7 @@ class JdkWebSocketSession implements WebsocketSession {
     private final JdkWebsocketConnector connector;
     private final WebsocketEndpoint endpoint;
     private final JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse;
+    private final Executor callbackExecutor;
     private final URI requestUri;
     private final Map<String, Object> userProperties = new ConcurrentHashMap<>();
     private final CompletableFuture<Void> openFuture = new CompletableFuture<>();
@@ -52,10 +55,12 @@ class JdkWebSocketSession implements WebsocketSession {
 
     JdkWebSocketSession(JdkWebsocketConnector connector, WebsocketEndpoint endpoint,
                         WebsocketConnectionOptions options, URI requestUri,
-                        JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse) {
+                        JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse,
+                        Executor callbackExecutor) {
         this.connector = connector;
         this.endpoint = endpoint;
         this.handshakeResponse = handshakeResponse;
+        this.callbackExecutor = callbackExecutor;
         this.requestUri = requestUri;
         this.userProperties.putAll(options.userProperties());
     }
@@ -278,58 +283,92 @@ class JdkWebSocketSession implements WebsocketSession {
         }
     }
 
+    private CompletableFuture<Void> dispatchCallback(Runnable task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            callbackExecutor.execute(() -> {
+                try {
+                    task.run();
+                    result.complete(null);
+                } catch (Throwable e) {
+                    result.completeExceptionally(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            result.completeExceptionally(e);
+        }
+        return result;
+    }
+
+    private void handleOpenDispatchFailure(WebSocket webSocket, Throwable error) {
+        open.set(false);
+        openFuture.completeExceptionally(error);
+        connector.removeOpenSession(this);
+        try {
+            endpoint.onError(this, error);
+        } catch (Throwable ignored) {
+        }
+        webSocket.abort();
+    }
+
     private class Listener implements WebSocket.Listener {
         @Override
         public void onOpen(WebSocket webSocket) {
-            notifyOpen(webSocket);
+            dispatchCallback(() -> notifyOpen(webSocket))
+                    .exceptionally(e -> {
+                        handleOpenDispatchFailure(webSocket, e);
+                        return null;
+                    });
         }
 
         @Override
         public CompletableFuture<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-            try {
-                handleBinary(data, last);
-            } catch (Throwable e) {
-                notifyError(e);
-            } finally {
-                requestNext(webSocket);
-            }
-            return CompletableFuture.completedFuture(null);
+            return dispatchCallback(() -> {
+                try {
+                    handleBinary(data, last);
+                } catch (Throwable e) {
+                    notifyError(e);
+                } finally {
+                    requestNext(webSocket);
+                }
+            });
         }
 
         @Override
         public CompletableFuture<?> onPing(WebSocket webSocket, ByteBuffer message) {
-            try {
-                sendPong(copyBuffer(message)).exceptionally(e -> {
-                    notifyError(e);
-                    return null;
-                });
-            } finally {
-                requestNext(webSocket);
-            }
-            return CompletableFuture.completedFuture(null);
+            return dispatchCallback(() -> {
+                try {
+                    sendPong(copyBuffer(message)).exceptionally(e -> {
+                        notifyError(e);
+                        return null;
+                    });
+                } finally {
+                    requestNext(webSocket);
+                }
+            });
         }
 
         @Override
         public CompletableFuture<?> onPong(WebSocket webSocket, ByteBuffer message) {
-            try {
-                handlePong(message);
-            } catch (Throwable e) {
-                notifyError(e);
-            } finally {
-                requestNext(webSocket);
-            }
-            return CompletableFuture.completedFuture(null);
+            return dispatchCallback(() -> {
+                try {
+                    handlePong(message);
+                } catch (Throwable e) {
+                    notifyError(e);
+                } finally {
+                    requestNext(webSocket);
+                }
+            });
         }
 
         @Override
         public CompletableFuture<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            notifyClose(new WebsocketCloseReason(statusCode, reason));
-            return CompletableFuture.completedFuture(null);
+            return dispatchCallback(() -> notifyClose(new WebsocketCloseReason(statusCode, reason)));
         }
 
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
-            notifyError(error);
+            dispatchCallback(() -> notifyError(error));
         }
     }
 }
