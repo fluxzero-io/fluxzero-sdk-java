@@ -46,6 +46,10 @@ import java.util.concurrent.TimeoutException;
  *   <li>Otherwise, the response is treated as a normal payload with status 200 OK</li>
  * </ul>
  *
+ * <p>Automatically mapped responses are eligible for best-effort content negotiation against the request
+ * {@code Accept} header before they are serialized. Explicit {@link WebResponse} instances and explicit
+ * {@code Content-Type} response metadata are left unchanged.
+ *
  * <p>In all cases, the provided {@link Metadata} is added to the resulting response.
  *
  * @see WebResponseMapper
@@ -66,6 +70,7 @@ public class DefaultWebResponseMapper implements WebResponseMapper {
         if (response instanceof WebResponse r) {
             return r;
         }
+        boolean explicitContentType = WebResponse.getHeaders(metadata).containsKey("Content-Type");
         WebResponse.Builder builder = WebResponse.builder();
         if (response instanceof Throwable) {
             if (response instanceof ValidationException || response instanceof DeserializationException) {
@@ -83,6 +88,7 @@ public class DefaultWebResponseMapper implements WebResponseMapper {
         } else {
             builder.status(response == null ? 204 : 200).payload(response);
         }
-        return builder.build().addMetadata(metadata);
+        WebResponse result = builder.build().addMetadata(metadata);
+        return explicitContentType ? result : WebResponseContentNegotiator.markNegotiable(result);
     }
 }

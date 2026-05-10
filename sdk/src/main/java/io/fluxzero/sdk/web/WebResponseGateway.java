@@ -78,6 +78,7 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
     private CompletableFuture<Void> respond(WebResponse rawResponse, String target, Integer requestId,
                                             Guarantee guarantee) {
 
+        rawResponse = WebResponseContentNegotiator.negotiate(rawResponse);
         WebResponse response = (WebResponse) dispatchInterceptor.interceptDispatch(rawResponse, WEBRESPONSE, null);
         if (response == null) {
             return CompletableFuture.completedFuture(null);
@@ -94,7 +95,7 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                 }
                 return CompletableFuture.completedFuture(null);
             } catch (Exception e) {
-                throw new GatewayException("Failed to send response " + rawResponse.getPayloadClass(), e);
+                throw new GatewayException("Failed to send response " + response.getPayloadClass(), e);
             }
         };
         return sendResponse(response, dispatcher);

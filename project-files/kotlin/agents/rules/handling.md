@@ -502,6 +502,11 @@ Fluxzero's `DefaultWebResponseMapper` automatically maps handler results and exc
 
 > You can always return a full `WebResponse` object if you need to override these defaults or set custom headers.
 
+Automatically mapped web responses also perform best-effort content negotiation from the request `Accept` header:
+regular objects support `application/json`, strings support `text/plain` and JSON strings, and `ByteArray`/`InputStream`
+support `application/octet-stream`. Explicit `WebResponse` `Content-Type` headers always win. If no supported
+representation matches, keep the normal default instead of expecting `406 Not Acceptable`.
+
 ---
 
 <a name="advanced-endpoints"></a>

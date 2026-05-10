@@ -2181,6 +2181,14 @@ Each of these annotations supports the same rules:
 - If no name is given, the method parameter name is used
 - Values are automatically converted to the target parameter type
 
+#### Response Content Negotiation
+
+When a web handler returns a regular value, Fluxzero uses the request's `Accept` header to choose a response
+`Content-Type` where possible. Object payloads can be returned as `application/json`, `String` payloads can be returned
+as `text/plain` or JSON strings, and `byte[]`/`InputStream` payloads can be returned as `application/octet-stream`.
+Explicit `WebResponse` content types always win. If no supported representation matches the `Accept` header, Fluxzero
+keeps the existing default instead of returning `406 Not Acceptable`.
+
 #### URI Prefixing and Composition with `@Path`
 
 The `@Path` annotation can be used at the **package**, **class**, **method**, or **property** level to construct URI
