@@ -44,6 +44,7 @@ import io.fluxzero.sdk.web.path.subpath.ExternalUrlPathHandler;
 import io.fluxzero.sdk.web.path.subpath.PrefixedExternalUrlHandler;
 import io.fluxzero.sdk.web.path.subpath.ResetPathHandler;
 import io.fluxzero.sdk.web.path.subpath.SubPathHandler;
+import io.fluxzero.sdk.web.openapi.PackageDocHandler;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
@@ -184,6 +185,54 @@ public class HandleWebTest {
             TestFixture.create(new GetOptionsFallbackHandler(), new ExplicitAnyHandler())
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/anyOptions").build())
                     .expectResult("anyOptions");
+        }
+
+        @Test
+        void testApiDocInfoServesOpenApiBelowClassPath() {
+            TestFixture.create(new OpenApiEndpointHandler())
+                    .whenGet("/classDocs/openapi.json")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        JsonNode document = JsonUtils.fromJson(payload, JsonNode.class);
+                        return response.getStatus() == 200
+                               && "application/json".equals(response.getContentType())
+                               && "Class Docs".equals(document.path("info").path("title").asText())
+                               && document.path("paths").has("/classDocs/meters");
+                    });
+        }
+
+        @Test
+        void testApiDocInfoServesOpenApiAtConfiguredAbsolutePath() {
+            TestFixture.create(new AbsoluteOpenApiEndpointHandler())
+                    .whenGet("/docs/openapi.json")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        JsonNode document = JsonUtils.fromJson(payload, JsonNode.class);
+                        return response.getStatus() == 200
+                               && "Absolute Docs".equals(document.path("info").path("title").asText())
+                               && document.path("paths").has("/absoluteDocs/items");
+                    });
+        }
+
+        @Test
+        void testPackageApiDocInfoServesOpenApiBelowPackagePath() {
+            TestFixture.create(new PackageDocHandler())
+                    .whenGet("/packageDocs/openapi.json")
+                    .expectWebResult(response -> {
+                        String payload = response.getPayloadAs(String.class);
+                        JsonNode document = JsonUtils.fromJson(payload, JsonNode.class);
+                        return response.getStatus() == 200
+                               && "Package Docs".equals(document.path("info").path("title").asText())
+                               && document.path("paths").has("/packageDocs/items");
+                    });
+        }
+
+        @Test
+        void testAutomaticOptionsIncludesAutomaticOpenApiEndpoint() {
+            TestFixture.create(new OpenApiEndpointHandler())
+                    .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/openapi.json").build())
+                    .expectWebResult(response -> response.getStatus() == 204
+                                                 && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
         }
 
         @Test
@@ -681,6 +730,28 @@ public class HandleWebTest {
             @HandleWeb(value = "/anyOptions", method = ANY)
             String anyOptions() {
                 return "anyOptions";
+            }
+        }
+
+        @Path("/classDocs")
+        @ApiDocInfo(title = "Class Docs", version = "1.0.0", serveOpenApi = true)
+        @ApiDoc(tags = "class-docs")
+        @RequiresUser
+        private static class OpenApiEndpointHandler {
+            @HandleGet("/meters")
+            String meters() {
+                return "meters";
+            }
+        }
+
+        @Path("/absoluteDocs")
+        @ApiDocInfo(title = "Absolute Docs", version = "1.0.0", serveOpenApi = true,
+                openApiPath = "/docs/openapi.json")
+        @ApiDoc(tags = "absolute-docs")
+        private static class AbsoluteOpenApiEndpointHandler {
+            @HandleGet("/items")
+            String items() {
+                return "items";
             }
         }
 

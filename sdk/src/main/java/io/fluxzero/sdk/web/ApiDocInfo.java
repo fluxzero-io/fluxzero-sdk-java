@@ -97,6 +97,22 @@ public @interface ApiDocInfo {
     ApiDocServer[] servers() default {};
 
     /**
+     * If {@code true}, the generated OpenAPI document is served as an automatic web endpoint.
+     * <p>
+     * The endpoint is only registered for handlers in the annotated package or type, and explicit user-defined routes
+     * for the same path take precedence.
+     */
+    boolean serveOpenApi() default false;
+
+    /**
+     * Path where the generated OpenAPI document is served when {@link #serveOpenApi()} is enabled.
+     * <p>
+     * Relative paths are resolved against the {@link Path} value at the same package or handler type where this
+     * annotation is placed. Absolute paths start at the application root.
+     */
+    String openApiPath() default "openapi.json";
+
+    /**
      * Extra OpenAPI components such as shared responses or security schemes. Component paths are relative to the
      * OpenAPI {@code components} object, for example {@code responses.error}.
      */

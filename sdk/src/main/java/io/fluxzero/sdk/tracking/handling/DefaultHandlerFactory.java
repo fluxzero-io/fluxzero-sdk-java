@@ -34,6 +34,7 @@ import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.DefaultWebRequestContext;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HandleWebResponse;
+import io.fluxzero.sdk.web.OpenApiDocumentEndpoint;
 import io.fluxzero.sdk.web.SocketEndpoint;
 import io.fluxzero.sdk.web.SocketEndpointHandler;
 import io.fluxzero.sdk.web.StaticFileHandler;
@@ -222,6 +223,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
         Handler<DeserializingMessage> handler
                 = new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
+            for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
+                handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+            }
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
                     var messageFilter = config.messageFilter().and((m, e, a, t)-> {
