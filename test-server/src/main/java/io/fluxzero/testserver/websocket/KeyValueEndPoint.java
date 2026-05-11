@@ -31,6 +31,11 @@ public class KeyValueEndPoint extends WebsocketEndpoint {
 
     private final KeyValueClient keyValueStore;
 
+    public KeyValueEndPoint(KeyValueClient keyValueStore, CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.keyValueStore = keyValueStore;
+    }
+
     @Handle
     public void handle(StoreValues storeValues) {
         for (KeyValuePair value : storeValues.getValues()) {

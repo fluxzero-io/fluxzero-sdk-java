@@ -46,6 +46,11 @@ public class SearchEndpoint extends WebsocketEndpoint {
 
     private final SearchClient store;
 
+    public SearchEndpoint(SearchClient store, CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.store = store;
+    }
+
     @Handle
     CompletableFuture<Void> handle(IndexDocuments request) {
         return store.index(request.getDocuments(), request.getGuarantee(), request.isIfNotExists());

@@ -27,6 +27,7 @@ import io.fluxzero.testserver.metrics.DefaultMetricsLog;
 import io.fluxzero.testserver.metrics.MetricsLog;
 import io.fluxzero.testserver.metrics.NoOpMetricsLog;
 import io.fluxzero.testserver.scheduling.TestServerScheduleStore;
+import io.fluxzero.testserver.websocket.CommandIdempotencyStore;
 import io.fluxzero.testserver.websocket.ConsumerEndpoint;
 import io.fluxzero.testserver.websocket.EventSourcingEndpoint;
 import io.fluxzero.testserver.websocket.JettyWebsocketRouter;
@@ -86,15 +87,19 @@ public class TestServer {
 
     public static void start(int port) {
         JettyWebsocketRouter router = new JettyWebsocketRouter();
+        CommandIdempotencyStore commandIdempotencyStore = new CommandIdempotencyStore();
         for (MessageType messageType : Arrays.asList(METRICS, EVENT, COMMAND, QUERY, RESULT, ERROR, WEBREQUEST, WEBRESPONSE)) {
-            router = deploy(namespace -> new ProducerEndpoint(getMessageStore(namespace, messageType))
+            router = deploy(namespace -> new ProducerEndpoint(getMessageStore(namespace, messageType), messageType,
+                                                              null, commandIdempotencyStore)
                                     .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
                             format("/%s/", gatewayPath(messageType)), router);
-            router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, messageType), messageType)
+            router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, messageType), messageType,
+                                                              commandIdempotencyStore)
                                     .metricsLog(messageType == METRICS ? new NoOpMetricsLog() : metricsLogSupplier.apply(namespace)),
                             format("/%s/", trackingPath(messageType)), router);
         }
-        router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, NOTIFICATION), NOTIFICATION)
+        router = deploy(namespace -> new ConsumerEndpoint(getMessageStore(namespace, NOTIFICATION), NOTIFICATION,
+                                                          commandIdempotencyStore)
                                 .metricsLog(metricsLogSupplier.apply(namespace)),
                         format("/%s/", trackingPath(NOTIFICATION)), router);
 
@@ -103,7 +108,8 @@ public class TestServer {
                 case CUSTOM: {
                     router = deployFromSession(
                             ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ProducerEndpoint(
-                                            getMessageStore(namespace, messageType, topic))
+                                            getMessageStore(namespace, messageType, topic), messageType, topic,
+                                            commandIdempotencyStore)
                                             .metricsLog(metricsLogSupplier.apply(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
                             format("/%s/", gatewayPath(messageType)), router);
@@ -111,7 +117,8 @@ public class TestServer {
                 case DOCUMENT: {
                     router = deployFromSession(
                             ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ConsumerEndpoint(
-                                            getMessageStore(namespace, messageType, topic), messageType)
+                                            getMessageStore(namespace, messageType, topic), messageType,
+                                            commandIdempotencyStore)
                                             .metricsLog(metricsLogSupplier.apply(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
                             format("/%s/", trackingPath(messageType)), router);
@@ -120,15 +127,20 @@ public class TestServer {
             }
         }
 
-        router = deploy(namespace -> new EventSourcingEndpoint(clients.apply(namespace).getEventStoreClient())
+        router = deploy(namespace -> new EventSourcingEndpoint(clients.apply(namespace).getEventStoreClient(),
+                                                               commandIdempotencyStore)
                 .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", eventSourcingPath()), router);
-        router = deploy(namespace -> new KeyValueEndPoint(clients.apply(namespace).getKeyValueClient())
+        router = deploy(namespace -> new KeyValueEndPoint(clients.apply(namespace).getKeyValueClient(),
+                                                          commandIdempotencyStore)
                 .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", keyValuePath()), router);
-        router = deploy(namespace -> new SearchEndpoint(clients.apply(namespace).getSearchClient())
+        router = deploy(namespace -> new SearchEndpoint(clients.apply(namespace).getSearchClient(),
+                                                        commandIdempotencyStore)
                 .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", searchPath()), router);
-        router = deploy(namespace -> new SchedulingEndpoint(clients.apply(namespace).getSchedulingClient())
+        router = deploy(namespace -> new SchedulingEndpoint(clients.apply(namespace).getSchedulingClient(),
+                                                            commandIdempotencyStore)
                 .metricsLog(metricsLogSupplier.apply(namespace)), format("/%s/", schedulingPath()), router);
-        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) clients.apply(namespace).getSchedulingClient(), SCHEDULE)
+        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) clients.apply(namespace).getSchedulingClient(), SCHEDULE,
+                                                          commandIdempotencyStore)
                                 .metricsLog(metricsLogSupplier.apply(namespace)),
                         format("/%s/", trackingPath(SCHEDULE)), router);
 
@@ -148,6 +160,8 @@ public class TestServer {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
                 log.warn("Failed to stop test server", e);
+            } finally {
+                commandIdempotencyStore.close();
             }
         }));
 

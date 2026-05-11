@@ -41,6 +41,11 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
 
     private final EventStoreClient eventStore;
 
+    public EventSourcingEndpoint(EventStoreClient eventStore, CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.eventStore = eventStore;
+    }
+
     @Handle
     CompletableFuture<Void> handle(AppendEvents appendEvents) {
         return CompletableFuture.allOf(appendEvents.getEventBatches().stream().map(b -> eventStore

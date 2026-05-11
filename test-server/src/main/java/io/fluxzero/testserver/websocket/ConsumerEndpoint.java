@@ -17,6 +17,7 @@ package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
@@ -35,14 +36,14 @@ import io.fluxzero.common.tracking.PositionStore;
 import io.fluxzero.common.tracking.TrackingStrategy;
 import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+import static io.fluxzero.common.MessageType.METRICS;
+
 @Slf4j
-@AllArgsConstructor
 public class ConsumerEndpoint extends WebsocketEndpoint {
 
     private final TrackingStrategy trackingStrategy;
@@ -52,6 +53,30 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
         this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType);
+    }
+
+    public ConsumerEndpoint(MessageStore messageStore, MessageType messageType,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType,
+             commandIdempotencyStore);
+    }
+
+    public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
+                            PositionStore positionStore, MessageType messageType) {
+        this.trackingStrategy = trackingStrategy;
+        this.messageStore = messageStore;
+        this.positionStore = positionStore;
+        this.messageType = messageType;
+    }
+
+    public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
+                            PositionStore positionStore, MessageType messageType,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.trackingStrategy = trackingStrategy;
+        this.messageStore = messageStore;
+        this.positionStore = positionStore;
+        this.messageType = messageType;
     }
 
     @Handle
@@ -101,6 +126,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
 
     @Override
     public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
+        super.onClose(session, closeReason);
         var trackers = trackingStrategy.disconnectTrackers(t -> t instanceof WebSocketTracker
                                                                 && ((WebSocketTracker) t).getSessionId()
                                                                         .equals(getNegotiatedSessionId(session)),
@@ -108,7 +134,6 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
         trackers.forEach(t -> metricsLog.registerMetrics(
                 new DisconnectTracker(messageType, t.getConsumerName(), t.getTrackerId(),
                                       false, Guarantee.STORED)));
-        super.onClose(session, closeReason);
     }
 
     @Override
@@ -116,6 +141,11 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
         trackingStrategy.disconnectTrackers(t -> true, false);
         trackingStrategy.close();
         super.shutDown();
+    }
+
+    @Override
+    protected boolean shouldHandleIdempotently(Command command) {
+        return messageType != METRICS && super.shouldHandleIdempotently(command);
     }
 
     @Override

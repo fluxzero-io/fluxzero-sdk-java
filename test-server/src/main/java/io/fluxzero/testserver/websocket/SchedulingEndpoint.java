@@ -29,6 +29,11 @@ public class SchedulingEndpoint extends WebsocketEndpoint {
 
     private final SchedulingClient store;
 
+    public SchedulingEndpoint(SchedulingClient store, CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.store = store;
+    }
+
     @Handle
     CompletableFuture<Void> handle(Schedule schedule) {
         return store.schedule(schedule.getGuarantee(), schedule.getMessages().toArray(SerializedSchedule[]::new));

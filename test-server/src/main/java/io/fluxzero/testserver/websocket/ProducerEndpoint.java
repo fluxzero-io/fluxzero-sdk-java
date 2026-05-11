@@ -14,22 +14,44 @@
 
 package io.fluxzero.testserver.websocket;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
 import io.fluxzero.common.tracking.MessageStore;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
+import static io.fluxzero.common.MessageType.METRICS;
+
 @Slf4j
-@AllArgsConstructor
 public class ProducerEndpoint extends WebsocketEndpoint {
 
     private final MessageStore store;
+    private final MessageType messageType;
+    private final String topic;
+
+    public ProducerEndpoint(MessageStore store) {
+        this(store, null, null);
+    }
+
+    public ProducerEndpoint(MessageStore store, MessageType messageType, String topic) {
+        this.store = store;
+        this.messageType = messageType;
+        this.topic = topic;
+    }
+
+    public ProducerEndpoint(MessageStore store, MessageType messageType, String topic,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        super(commandIdempotencyStore);
+        this.store = store;
+        this.messageType = messageType;
+        this.topic = topic;
+    }
 
     @Handle
     CompletableFuture<Void> handle(Append request) {
@@ -40,5 +62,17 @@ public class ProducerEndpoint extends WebsocketEndpoint {
     void handle(SetRetentionTime request) {
         store.setRetentionTime(Optional.ofNullable(
                 request.getRetentionTimeInSeconds()).map(Duration::ofSeconds).orElse(null));
+    }
+
+    @Override
+    protected boolean shouldHandleIdempotently(Command command) {
+        return messageType != METRICS && super.shouldHandleIdempotently(command);
+    }
+
+    @Override
+    public String toString() {
+        return topic == null
+                ? "ProducerEndpoint{logType='" + messageType + "'}"
+                : "ProducerEndpoint{messageType=" + messageType + ", topic='" + topic + "'}";
     }
 }

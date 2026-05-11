@@ -64,6 +64,15 @@ public class JettyWebsocketAdapter extends Session.Listener.AbstractAutoDemandin
     }
 
     @Override
+    public void onWebSocketPong(ByteBuffer message) {
+        WebsocketEndpoint endpoint = this.endpoint;
+        JettyWebsocketSession session = this.session;
+        if (endpoint != null && session != null) {
+            endpoint.onPong(ByteBuffer.wrap(copyBytes(message)), session);
+        }
+    }
+
+    @Override
     public void onWebSocketError(Throwable cause) {
         WebsocketEndpoint endpoint = this.endpoint;
         JettyWebsocketSession session = this.session;
