@@ -1520,6 +1520,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "metaAnnotationValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#metaAnnotationValues",
+    "returnType" : "java.util.Optional<java.util.Map<java.lang.String,javax.lang.model.element.AnnotationValue>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotationType",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetAnnotation",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visitedAnnotationTypes",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "metadata",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#metadata",
     "returnType" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaMetadata",

@@ -58,6 +58,7 @@ io.fluxzero.sdk.tracking.metrics.host
 io.fluxzero.sdk.tracking.metrics.host.collectors
 io.fluxzero.sdk.tracking.metrics.host.events
 io.fluxzero.sdk.web
+io.fluxzero.sdk.web.fixture.kotlin
 io.fluxzero.testserver
 io.fluxzero.testserver.metrics
 io.fluxzero.testserver.scheduling

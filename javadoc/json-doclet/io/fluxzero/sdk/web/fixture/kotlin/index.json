@@ -1,0 +1,14 @@
+{
+  "package" : {
+    "name" : "kotlin",
+    "qualifiedName" : "io.fluxzero.sdk.web.fixture.kotlin",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "KotlinOpenApiEndpoint_params.json",
+    "name" : "KotlinOpenApiEndpoint_params",
+    "qualifiedName" : "io.fluxzero.sdk.web.fixture.kotlin.KotlinOpenApiEndpoint_params",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}
