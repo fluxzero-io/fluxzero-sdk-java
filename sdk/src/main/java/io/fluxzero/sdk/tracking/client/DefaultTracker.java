@@ -26,14 +26,7 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.MetricsGateway;
-import io.fluxzero.sdk.tracking.BatchInterceptor;
-import io.fluxzero.sdk.tracking.BatchProcessingException;
-import io.fluxzero.sdk.tracking.ConsumerConfiguration;
-import io.fluxzero.sdk.tracking.FlowRegulator;
-import io.fluxzero.sdk.tracking.FluxzeroInterceptor;
-import io.fluxzero.sdk.tracking.IndexUtils;
-import io.fluxzero.sdk.tracking.Tracker;
-import io.fluxzero.sdk.tracking.TrackingException;
+import io.fluxzero.sdk.tracking.*;
 import io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent;
 import jakarta.annotation.Nullable;
 import lombok.SneakyThrows;
@@ -93,6 +86,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final TrackingClient trackingClient;
 
     private final AtomicBoolean running = new AtomicBoolean();
+    private final AtomicBoolean disconnected = new AtomicBoolean();
     private final AtomicReference<Thread> thread = new AtomicReference<>();
     private final Duration retryDelay;
     private final Long minIndex;
@@ -166,8 +160,8 @@ public class DefaultTracker implements Runnable, Registration {
                        format("%s%s-%d", config.getName(),
                               config.getName().contains(messageType.name()) ? "" : "-" + messageType, i)).start();
         }
-        client.beforeShutdown(() -> trackers.forEach(DefaultTracker::cancel));
-        return () -> trackers.forEach(DefaultTracker::cancel);
+        client.beforeShutdown(() -> trackers.forEach(DefaultTracker::cancelAndDisconnect));
+        return () -> trackers.forEach(DefaultTracker::cancelAndDisconnect);
     }
 
     /**
@@ -187,7 +181,7 @@ public class DefaultTracker implements Runnable, Registration {
                               config.getName().contains(trackingClient.getMessageType().name()) ? "" :
                                       "-" + trackingClient.getMessageType(), i)).start();
         }
-        return () -> trackers.forEach(DefaultTracker::cancel);
+        return () -> trackers.forEach(DefaultTracker::cancelAndDisconnect);
     }
 
     private DefaultTracker(Consumer<List<SerializedMessage>> consumer, ConsumerConfiguration config, Tracker tracker,
@@ -469,7 +463,9 @@ public class DefaultTracker implements Runnable, Registration {
             processing = false;
             cancel();
         } finally {
-            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            if (disconnected.compareAndSet(false, true)) {
+                trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            }
         }
     }
 

@@ -40,24 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Thread.currentThread;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.after;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class DefaultTrackerTest {
 
@@ -243,6 +228,30 @@ class DefaultTrackerTest {
         } finally {
             registration.cancel();
         }
+    }
+
+    @Test
+    void cancellingStartedTrackerDisconnectsItFromRuntime() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(1).build();
+        CountDownLatch fetching = new CountDownLatch(1);
+
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            fetching.countDown();
+            Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+            return null;
+        });
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
+                CompletableFuture.completedFuture(null));
+
+        Registration registration = DefaultTracker.start(messages -> {
+        }, config, trackingClient);
+        assertTrue(fetching.await(1, TimeUnit.SECONDS));
+
+        registration.cancel();
+
+        verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
     }
 
     @Test
