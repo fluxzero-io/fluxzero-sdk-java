@@ -15,20 +15,18 @@
 
 package io.fluxzero.testserver;
 
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchDocumentsResult;
 import io.fluxzero.common.search.Facet;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.test.spring.FluxzeroTestConfig;
 import io.fluxzero.sdk.tracking.Consumer;
-import io.fluxzero.sdk.tracking.handling.HandleCommand;
-import io.fluxzero.sdk.tracking.handling.HandleCustom;
-import io.fluxzero.sdk.tracking.handling.HandleDocument;
-import io.fluxzero.sdk.tracking.handling.HandleEvent;
-import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.tracking.handling.*;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import lombok.Value;
@@ -42,6 +40,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static io.fluxzero.common.MessageType.EVENT;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -58,6 +63,52 @@ class TestServerTest {
 
     @Autowired
     private TestFixture testFixture;
+
+    @Test
+    void restartedConsumerReceivesEventsPublishedWhilePreviousRuntimeWasClosed() throws Exception {
+        String namespace = "runtime-restart-" + UUID.randomUUID().toString().replace("-", "");
+        Fluxzero publisher = connectedFluxzero(namespace, "publisher");
+        Fluxzero firstRuntime = connectedFluxzero(namespace, "consumer-before-close");
+        Fluxzero secondRuntime = null;
+        Registration firstRegistration = Registration.noOp();
+        Registration secondRegistration = Registration.noOp();
+        try {
+            CountDownLatch beforeCloseReceived = new CountDownLatch(1);
+            firstRegistration = firstRuntime.registerHandlers(new RuntimeRestartHandler("before-close", beforeCloseReceived));
+
+            publisher.apply(fc -> {
+                Fluxzero.publishEvent(new RuntimeRestartEvent("before-close"));
+                return null;
+            });
+            assertTrue(beforeCloseReceived.await(5, TimeUnit.SECONDS), "Initial runtime should receive the first event");
+            long beforeClosePosition = awaitStoredPositionAfter(publisher, -1L);
+
+            firstRegistration.cancel();
+            firstRuntime.close(true);
+
+            publisher.apply(fc -> {
+                Fluxzero.publishEvent(new RuntimeRestartEvent("while-stopped"));
+                return null;
+            });
+
+            CountDownLatch whileStoppedReceived = new CountDownLatch(1);
+            secondRuntime = connectedFluxzero(namespace, "consumer-after-close");
+            secondRegistration = secondRuntime.registerHandlers(
+                    new RuntimeRestartHandler("while-stopped", whileStoppedReceived));
+
+            assertTrue(whileStoppedReceived.await(5, TimeUnit.SECONDS),
+                       "Restarted runtime should receive backlog published while the previous runtime was closed");
+            awaitStoredPositionAfter(publisher, beforeClosePosition);
+        } finally {
+            secondRegistration.cancel();
+            if (secondRuntime != null) {
+                secondRuntime.close(true);
+            }
+            firstRegistration.cancel();
+            firstRuntime.close(true);
+            publisher.close(true);
+        }
+    }
 
     @Test
     void testFirstOrderEffect() {
@@ -214,6 +265,21 @@ class TestServerTest {
         }
     }
 
+    @Consumer(name = "runtime-restart-consumer")
+    private record RuntimeRestartHandler(String expected, CountDownLatch latch) {
+        @HandleEvent
+        void handle(RuntimeRestartEvent event) {
+            if (expected.equals(event.getValue())) {
+                latch.countDown();
+            }
+        }
+    }
+
+    @Value
+    private static class RuntimeRestartEvent {
+        String value;
+    }
+
     @Configuration
     static class BarConfig {
         @Bean
@@ -243,5 +309,33 @@ class TestServerTest {
         String something;
     }
 
-}
+    private static Fluxzero connectedFluxzero(String namespace, String name) {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost:" + port)
+                .namespace(namespace)
+                .id("test-server-" + name + "-" + UUID.randomUUID())
+                .name("Test server " + name)
+                .disableMetrics(true)
+                .eventSourcingSessions(1)
+                .keyValueSessions(1)
+                .searchSessions(1)
+                .build();
+        return DefaultFluxzero.builder()
+                .disableShutdownHook()
+                .build(WebSocketClient.newInstance(clientConfig));
+    }
 
+    private static long awaitStoredPositionAfter(Fluxzero fluxzero, long previousPosition) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(5);
+        while (System.currentTimeMillis() < deadline) {
+            var currentPosition = fluxzero.client().getTrackingClient(EVENT).getPosition("runtime-restart-consumer")
+                    .lowestIndexForSegment(new int[]{0, 128});
+            if (currentPosition.isPresent() && currentPosition.get() > previousPosition) {
+                return currentPosition.get();
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Consumer position was not stored after " + previousPosition);
+    }
+
+}
