@@ -26,19 +26,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -46,17 +35,9 @@ import java.util.function.Predicate;
 import static io.fluxzero.common.TestUtils.assertEqualMessages;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class DefaultTrackingStrategyTest {
 
@@ -228,6 +209,41 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void purgeCeasedTrackersLeavesActiveJavaSdkTrackerWithoutPurgeDelayInCluster() {
+        TestScheduler scheduler = new TestScheduler();
+        TestStrategy subject = new TestStrategy(mockSource(), scheduler);
+        try (subject) {
+            TestTracker active = tracker("consumer", "active", batch -> {
+            });
+            subject.claimSegment(active);
+
+            subject.schedulePurge(Duration.ZERO);
+            scheduler.runNextScheduledTask();
+
+            assertEquals(Set.of(active), subject.disconnectTrackers(active::equals, false));
+        }
+    }
+
+    @Test
+    void purgeCeasedTrackersRemovesActiveExternalTrackerAfterItsConfiguredPurgeDelay() {
+        TestScheduler scheduler = new TestScheduler();
+        TestStrategy subject = new TestStrategy(mockSource(), scheduler);
+        try (subject) {
+            TestTracker stale = tracker("consumer", "stale", batch -> {
+            }).withPurgeDelay(-1L);
+            subject.claimSegment(stale);
+
+            subject.schedulePurge(Duration.ZERO);
+            scheduler.runNextScheduledTask();
+
+            assertEquals(Set.of(), subject.disconnectTrackers(stale::equals, false));
+            int[] replacementSegment = subject.claimSegment(tracker("consumer", "replacement", batch -> {
+            }));
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, replacementSegment);
+        }
+    }
+
+    @Test
     void disconnectedInFlightTrackerCannotBecomeActiveAgainAndLeaveReplacementWithNoSegment() throws Exception {
         TestScheduler scheduler = new TestScheduler();
         CountDownLatch batchStarted = new CountDownLatch(1);
@@ -329,6 +345,10 @@ class DefaultTrackingStrategyTest {
             signalledCall = call;
             signalledCallStarted = started;
             return this;
+        }
+
+        void schedulePurge(Duration delay) {
+            super.purgeCeasedTrackers(delay);
         }
 
         @Override
@@ -434,10 +454,18 @@ class DefaultTrackingStrategyTest {
         private final long deadline;
         private final long maxTimeout;
         private final Long lastTrackerIndex;
+        private final Long purgeDelay;
 
         TestTracker(String consumerName, String trackerId, Consumer<MessageBatch> consumerHandler,
                     Predicate<String> typeFilter, int maxSize, long deadline, long maxTimeout,
                     Long lastTrackerIndex) {
+            this(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline, maxTimeout,
+                 lastTrackerIndex, null);
+        }
+
+        TestTracker(String consumerName, String trackerId, Consumer<MessageBatch> consumerHandler,
+                    Predicate<String> typeFilter, int maxSize, long deadline, long maxTimeout,
+                    Long lastTrackerIndex, Long purgeDelay) {
             this.consumerName = consumerName;
             this.trackerId = trackerId;
             this.consumerHandler = consumerHandler;
@@ -446,16 +474,22 @@ class DefaultTrackingStrategyTest {
             this.deadline = deadline;
             this.maxTimeout = maxTimeout;
             this.lastTrackerIndex = lastTrackerIndex;
+            this.purgeDelay = purgeDelay;
         }
 
         TestTracker withTypeFilter(Predicate<String> typeFilter) {
             return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
-                                   maxTimeout, lastTrackerIndex);
+                                   maxTimeout, lastTrackerIndex, purgeDelay);
         }
 
         TestTracker withDeadline(long deadline) {
             return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
-                                   maxTimeout, lastTrackerIndex);
+                                   maxTimeout, lastTrackerIndex, purgeDelay);
+        }
+
+        TestTracker withPurgeDelay(Long purgeDelay) {
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+                                   maxTimeout, lastTrackerIndex, purgeDelay);
         }
 
         @Override
@@ -495,7 +529,7 @@ class DefaultTrackingStrategyTest {
 
         @Override
         public Long getPurgeDelay() {
-            return null;
+            return purgeDelay;
         }
 
         @Override
@@ -521,7 +555,7 @@ class DefaultTrackingStrategyTest {
         @Override
         public Tracker withLastTrackerIndex(Long lastTrackerIndex) {
             return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
-                                   maxTimeout, lastTrackerIndex);
+                                   maxTimeout, lastTrackerIndex, purgeDelay);
         }
 
         @Override
