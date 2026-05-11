@@ -65,6 +65,11 @@
                                     <artifactId>common</artifactId>
                                     <version>${project.version}</version>
                                 </annotationProcessorPath>
+                                <annotationProcessorPath>
+                                    <groupId>io.fluxzero</groupId>
+                                    <artifactId>sdk</artifactId>
+                                    <version>${project.version}</version>
+                                </annotationProcessorPath>
                             </annotationProcessorPaths>
                         </configuration>
                     </execution>

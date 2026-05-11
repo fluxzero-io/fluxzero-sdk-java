@@ -1541,6 +1541,16 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private Optional<Map<String, AnnotationValue>> metaAnnotationValues(TypeElement annotationType,
                                                                         String targetAnnotation) {
+        return metaAnnotationValues(annotationType, targetAnnotation, new LinkedHashSet<>());
+    }
+
+    private Optional<Map<String, AnnotationValue>> metaAnnotationValues(TypeElement annotationType,
+                                                                        String targetAnnotation,
+                                                                        Set<String> visitedAnnotationTypes) {
+        String qualifiedName = qualifiedName(annotationType);
+        if (!qualifiedName.isBlank() && !visitedAnnotationTypes.add(qualifiedName)) {
+            return Optional.empty();
+        }
         for (AnnotationMirror annotation : annotationType.getAnnotationMirrors()) {
             String annotationName = annotationName(annotation);
             if (targetAnnotation.equals(annotationName)) {
@@ -1553,7 +1563,8 @@ public class OpenApiProcessor extends AbstractProcessor {
             if (nestedType == null) {
                 continue;
             }
-            Optional<Map<String, AnnotationValue>> nested = metaAnnotationValues(nestedType, targetAnnotation);
+            Optional<Map<String, AnnotationValue>> nested =
+                    metaAnnotationValues(nestedType, targetAnnotation, visitedAnnotationTypes);
             if (nested.isPresent()) {
                 Map<String, AnnotationValue> result = new LinkedHashMap<>(nested.orElseThrow());
                 result.putAll(annotationValues(annotation));
