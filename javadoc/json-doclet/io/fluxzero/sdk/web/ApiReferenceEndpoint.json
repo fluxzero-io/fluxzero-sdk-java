@@ -218,6 +218,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "escapeHtml",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#escapeHtml",
     "returnType" : "java.lang.String",
@@ -262,6 +281,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerFactory" ],
   "fields" : [ {
+    "name" : "apiReferenceEndpoints",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.apiReferenceEndpoints",
+    "type" : "java.util.Set<io.fluxzero.sdk.web.ApiReferenceEndpoint>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultDecorator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.defaultDecorator",
     "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
@@ -56,6 +64,14 @@
     "name" : "methodInvocationValidator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.methodInvocationValidator",
     "type" : "io.fluxzero.common.handling.MethodInvocationValidator<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "openApiDocumentEndpoints",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.openApiDocumentEndpoints",
+    "type" : "java.util.Set<io.fluxzero.sdk.web.OpenApiDocumentEndpoint>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,

@@ -281,6 +281,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "OPENAPI_JSON",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OPENAPI_JSON",
+    "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "OPENAPI_JSON_WRITER",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OPENAPI_JSON_WRITER",
+    "type" : "com.fasterxml.jackson.databind.ObjectWriter",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "OPENAPI_METHODS",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor.OPENAPI_METHODS",
     "type" : "java.util.Set<java.lang.String>",
@@ -674,6 +690,22 @@
     }, {
       "name" : "schemaContext",
       "type" : "io.fluxzero.sdk.web.OpenApiProcessor.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asOpenApiJson",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#asOpenApiJson",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1877,6 +1909,22 @@
       "annotations" : [ ]
     }, {
       "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseOpenApiJson",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor#parseOpenApiJson",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "json",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
