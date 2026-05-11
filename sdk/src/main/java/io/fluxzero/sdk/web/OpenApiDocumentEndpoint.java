@@ -24,6 +24,7 @@ import java.lang.reflect.AnnotatedElement;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -121,5 +122,15 @@ public final class OpenApiDocumentEndpoint {
 
     private String renderRuntimeDocument() {
         return OpenApiRenderer.renderPrettyJson(ApiDocExtractor.extract(handlerType, handler), null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || o instanceof OpenApiDocumentEndpoint other && Objects.equals(path, other.path);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(path);
     }
 }

@@ -13,7 +13,7 @@
  */
 
 @Path("/packageAuto")
-@ApiDocInfo(serveOpenApi = true)
+@ApiDocInfo(serveOpenApi = true, serveApiReference = true)
 @ApiDoc(tags = "package-auto")
 package io.fluxzero.sdk.web.openapiauto;
 

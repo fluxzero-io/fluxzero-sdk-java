@@ -22,6 +22,10 @@ import io.fluxzero.sdk.web.openapiauto.ExcludedPackageAutoHandler;
 import io.fluxzero.sdk.web.openapiauto.SecondDocumentedPackageAutoHandler;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.util.LinkedHashSet;
+import java.util.function.Predicate;
+
 class OpenApiDocumentEndpointTest {
     @Test
     void servesGeneratedDocumentForPackageScopedInstanceHandlers() {
@@ -38,6 +42,34 @@ class OpenApiDocumentEndpointTest {
                            && document.path("paths").has("/packageAuto/items")
                            && document.path("paths").has("/packageAuto/second")
                            && !document.path("paths").has("/packageAuto/hidden");
+                });
+    }
+
+    @Test
+    void packageScopedGeneratedDocumentEndpointsAreDeduplicatedByPath() {
+        var endpoints = new LinkedHashSet<OpenApiDocumentEndpoint>();
+        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(
+                DocumentedPackageAutoHandler.class, new DocumentedPackageAutoHandler()));
+        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(
+                SecondDocumentedPackageAutoHandler.class, new SecondDocumentedPackageAutoHandler()));
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, endpoints.size());
+    }
+
+    @Test
+    void registersPackageScopedApiReferenceEndpointOnlyOnce() {
+        TestFixture.createAsync(
+                        new ExcludedPackageAutoHandler(),
+                        new SecondDocumentedPackageAutoHandler(),
+                        new DocumentedPackageAutoHandler())
+                .resultTimeout(Duration.ofSeconds(1))
+                .consumerTimeout(Duration.ofSeconds(1))
+                .whenGet("/packageAuto/docs")
+                .expectOnlyWebResponses((Predicate<WebResponse>) response -> {
+                    String payload = response.getPayloadAs(String.class);
+                    return response.getStatus() == 200
+                           && "text/html; charset=utf-8".equals(response.getContentType())
+                           && payload.contains("/packageAuto/openapi.json");
                 });
     }
 }

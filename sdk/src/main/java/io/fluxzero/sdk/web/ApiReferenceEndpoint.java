@@ -19,6 +19,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 import java.lang.reflect.AnnotatedElement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
@@ -201,5 +202,15 @@ public final class ApiReferenceEndpoint {
                 .replace("&", "\\u0026")
                 .replace("<", "\\u003c")
                 .replace(">", "\\u003e");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || o instanceof ApiReferenceEndpoint other && Objects.equals(path, other.path);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(path);
     }
 }

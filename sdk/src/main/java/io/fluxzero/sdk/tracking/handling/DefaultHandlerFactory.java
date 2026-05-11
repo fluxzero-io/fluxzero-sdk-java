@@ -120,6 +120,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final RepositoryProvider repositoryProvider;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
+    private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
+    private final Set<ApiReferenceEndpoint> apiReferenceEndpoints = ConcurrentHashMap.newKeySet();
     private final Object webRouteRegistry = WebHandlerMatcher.createRouteRegistry();
 
     public DefaultHandlerFactory(MessageType messageType, HandlerDecorator defaultDecorator,
@@ -225,10 +227,14 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 = new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
-                handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                if (openApiDocumentEndpoints.add(endpoint)) {
+                    handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                }
             }
             for (ApiReferenceEndpoint endpoint : ApiReferenceEndpoint.forHandler(targetClass)) {
-                handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                if (apiReferenceEndpoints.add(endpoint)) {
+                    handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                }
             }
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
