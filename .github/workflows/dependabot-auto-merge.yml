@@ -1,0 +1,48 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Enable Dependabot auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'fluxzero-io/fluxzero-sdk-java'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Enable auto-merge for safe updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          set -euo pipefail
+
+          case "$PACKAGE_ECOSYSTEM" in
+            docker|github-actions|github_actions)
+              gh pr merge "$PR_URL" --auto --rebase
+              ;;
+            *)
+              case "$UPDATE_TYPE" in
+                version-update:semver-patch|version-update:semver-minor)
+                  gh pr merge "$PR_URL" --auto --rebase
+                  ;;
+                *)
+                  echo "Dependabot update type '$UPDATE_TYPE' for '$PACKAGE_ECOSYSTEM' is not auto-merged."
+                  ;;
+              esac
+              ;;
+          esac

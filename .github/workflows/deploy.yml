@@ -12,6 +12,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
 env:
   BUILD_ENVIRONMENT: github
 
