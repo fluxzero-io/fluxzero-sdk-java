@@ -97,9 +97,7 @@ public final class OpenApiDocumentEndpoint {
             synchronized (this) {
                 result = documentJson;
                 if (result == null) {
-                    result = handler == null
-                            ? readGeneratedDocument(handlerType).orElseGet(this::renderRuntimeDocument)
-                            : renderRuntimeDocument();
+                    result = readGeneratedDocument(handlerType).orElseGet(this::renderRuntimeDocument);
                     documentJson = result;
                 }
             }
