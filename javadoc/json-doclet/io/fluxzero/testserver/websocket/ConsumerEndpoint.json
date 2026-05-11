@@ -7,9 +7,6 @@
   "annotations" : [ {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
-  }, {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
@@ -62,6 +59,96 @@
     }, {
       "name" : "messageType",
       "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackingStrategy",
+      "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackingStrategy",
+      "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -230,6 +317,25 @@
     }, {
       "name" : "closeReason",
       "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldHandleIdempotently",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#shouldHandleIdempotently",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "command",
+      "type" : "io.fluxzero.common.api.Command",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

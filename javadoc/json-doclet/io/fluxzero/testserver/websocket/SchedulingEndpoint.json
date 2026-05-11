@@ -27,7 +27,17 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "store",
+      "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

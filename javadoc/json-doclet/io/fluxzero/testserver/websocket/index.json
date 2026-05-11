@@ -5,6 +5,26 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "CommandIdempotencyStore.json",
+    "name" : "CommandIdempotencyStore",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+    "kind" : "class"
+  }, {
+    "file" : "CommandIdempotencyStore.ClientCommandResults.json",
+    "name" : "CommandIdempotencyStore.ClientCommandResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults",
+    "kind" : "class"
+  }, {
+    "file" : "CommandIdempotencyStore.CommandRegistration.json",
+    "name" : "CommandIdempotencyStore.CommandRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration",
+    "kind" : "record"
+  }, {
+    "file" : "CommandIdempotencyStore.CommandResult.json",
+    "name" : "CommandIdempotencyStore.CommandResult",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandResult",
+    "kind" : "class"
+  }, {
     "file" : "ConsumerEndpoint.json",
     "name" : "ConsumerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint",
@@ -78,6 +98,11 @@
     "file" : "WebsocketEndpoint.ClientMessage.json",
     "name" : "WebsocketEndpoint.ClientMessage",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$ClientMessage",
+    "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.PingRegistration.json",
+    "name" : "WebsocketEndpoint.PingRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$PingRegistration",
     "kind" : "class"
   }, {
     "file" : "WebsocketEndpoint.SessionBacklog.json",
