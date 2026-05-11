@@ -15,11 +15,12 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.auto.service.AutoService;
-import io.fluxzero.common.serialization.JsonUtils;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -65,6 +66,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_COMMENTS;
+import static com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS;
+import static com.fasterxml.jackson.databind.cfg.JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES;
 import static io.fluxzero.sdk.web.HttpRequestMethod.DELETE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
@@ -155,6 +159,12 @@ public class OpenApiProcessor extends AbstractProcessor {
     static final String GRADLE_AGGREGATING_OPTION = "org.gradle.annotation.processing.aggregating";
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+    private static final JsonMapper OPENAPI_JSON = JsonMapper.builder()
+            .enable(ALLOW_COMMENTS)
+            .enable(USE_BIG_DECIMAL_FOR_FLOATS)
+            .disable(STRIP_TRAILING_BIGDECIMAL_ZEROES)
+            .build();
+    private static final ObjectWriter OPENAPI_JSON_WRITER = OPENAPI_JSON.writerWithDefaultPrettyPrinter();
     private static final Set<String> OPENAPI_METHODS =
             Set.of(GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, TRACE);
 
@@ -497,12 +507,28 @@ public class OpenApiProcessor extends AbstractProcessor {
                                                        endpoints.stream().map(Endpoint::executable)
                                                                .toArray(Element[]::new));
             try (Writer writer = resource.openWriter()) {
-                writer.write(JsonUtils.asPrettyJson(openApi()));
+                writer.write(asOpenApiJson(openApi()));
                 writer.write("\n");
             }
         } catch (IOException e) {
             messager.printMessage(Diagnostic.Kind.ERROR,
                                   "Failed to generate Fluxzero OpenAPI document: " + e.getMessage());
+        }
+    }
+
+    static String asOpenApiJson(JsonNode node) {
+        try {
+            return OPENAPI_JSON_WRITER.writeValueAsString(node);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize Fluxzero OpenAPI document", e);
+        }
+    }
+
+    static JsonNode parseOpenApiJson(String json) {
+        try {
+            return OPENAPI_JSON.readTree(json);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid JSON value", e);
         }
     }
 
@@ -1376,7 +1402,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         }
         if (looksLikeJsonValue(trimmed)) {
             try {
-                schema.set(name, JsonUtils.fromJson(trimmed, JsonNode.class));
+                schema.set(name, parseOpenApiJson(trimmed));
                 return;
             } catch (RuntimeException ignored) {
                 // Fall through to a string value.
@@ -2049,7 +2075,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 return;
             }
             try {
-                components.put(path.trim(), JsonUtils.fromJson(json, JsonNode.class));
+                components.put(path.trim(), parseOpenApiJson(json));
             } catch (RuntimeException ignored) {
                 components.put(path.trim(), JSON.textNode(json));
             }
@@ -2069,7 +2095,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 return;
             }
             try {
-                extensions.put(name, JsonUtils.fromJson(value, JsonNode.class));
+                extensions.put(name, parseOpenApiJson(value));
             } catch (RuntimeException ignored) {
                 extensions.put(name, JSON.textNode(value));
             }
