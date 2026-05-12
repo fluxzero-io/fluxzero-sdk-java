@@ -50,6 +50,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "eventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.eventRouting",
+    "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "eventSourced",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.eventSourced",
     "type" : "boolean",

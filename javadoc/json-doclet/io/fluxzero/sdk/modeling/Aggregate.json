@@ -108,6 +108,17 @@
     "varArgs" : false,
     "documentation" : " Controls whether updates that don’t change the aggregate result in events.\n <p>\n Use {@link EventPublication#IF_MODIFIED} to automatically skip events if nothing changes.\n <p>\n This setting is evaluated before {@link #publicationStrategy()}.\n"
   }, {
+    "name" : "eventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#eventRouting",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Controls how events published from this aggregate are assigned to a message segment.\n <p>\n The default preserves the regular {@link io.fluxzero.sdk.publishing.routing.RoutingKey @RoutingKey}-based\n message routing behavior. Use {@link AggregateEventRouting#AGGREGATE_ID} to keep all published events for the\n same aggregate on the segment derived from the aggregate id.\n"
+  }, {
     "name" : "eventSourced",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#eventSourced",
     "returnType" : "boolean",

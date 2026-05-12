@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "aggregateEventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.aggregateEventRouting",
+    "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "aggregatePublicationStrategy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.aggregatePublicationStrategy",
     "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
@@ -197,6 +205,11 @@
     }, {
       "name" : "publicationStrategy",
       "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -445,6 +458,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "eventSourced",
       "type" : "boolean",
       "varArgs" : false,
@@ -484,6 +502,27 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializeAggregateEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#serializeAggregateEvent",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

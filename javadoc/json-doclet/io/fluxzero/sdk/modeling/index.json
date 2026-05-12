@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate",
     "kind" : "annotation_type"
   }, {
+    "file" : "AggregateEventRouting.json",
+    "name" : "AggregateEventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "kind" : "enum"
+  }, {
     "file" : "AggregateRoot.json",
     "name" : "AggregateRoot",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateRoot",
