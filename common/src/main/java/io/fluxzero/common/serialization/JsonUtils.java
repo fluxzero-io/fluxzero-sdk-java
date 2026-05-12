@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -193,7 +192,7 @@ public class JsonUtils {
      * configuration and ensures compatibility.
      */
     public static JsonMapper reader = writer.rebuild()
-            .setDefaultTyping(new DefaultTypeResolverBuilder(JAVA_LANG_OBJECT, LaissezFaireSubTypeValidator.instance)
+            .setDefaultTyping(new DefaultTypeResolverBuilder(JAVA_LANG_OBJECT, AllowlistTypeValidator.instance)
                                       .init(Id.CLASS, new GlobalTypeIdResolver()).inclusion(JsonTypeInfo.As.PROPERTY))
             .build();
 
