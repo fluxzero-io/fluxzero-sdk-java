@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Consumer;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -33,5 +34,44 @@ class HandleNotificationTests {
     @Test
     void handlerReceivesNotification() {
         testFixture.whenEvent(1).expectEvents("1");
+    }
+
+    @Test
+    void handlerReceivesEventAndNotification() {
+        TestFixture.createAsync(new CombinedHandler())
+                .whenEvent(new CombinedInput(1))
+                .expectOnlyEvents(new EventHandled(1), new NotificationHandled(1));
+    }
+
+    @Test
+    void consumerAnnotatedHandlerReceivesEventAndNotification() {
+        TestFixture.createAsync(new ConsumerAnnotatedCombinedHandler())
+                .whenEvent(new CombinedInput(2))
+                .expectOnlyEvents(new EventHandled(2), new NotificationHandled(2));
+    }
+
+    record CombinedInput(int value) {
+    }
+
+    record EventHandled(int value) {
+    }
+
+    record NotificationHandled(int value) {
+    }
+
+    static class CombinedHandler {
+        @HandleEvent
+        void handleEvent(CombinedInput event) {
+            Fluxzero.publishEvent(new EventHandled(event.value()));
+        }
+
+        @HandleNotification
+        void handleNotification(CombinedInput event) {
+            Fluxzero.publishEvent(new NotificationHandled(event.value()));
+        }
+    }
+
+    @Consumer(name = "combined")
+    static class ConsumerAnnotatedCombinedHandler extends CombinedHandler {
     }
 }

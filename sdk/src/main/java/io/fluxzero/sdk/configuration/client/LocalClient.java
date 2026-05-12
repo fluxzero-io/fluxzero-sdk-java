@@ -132,6 +132,9 @@ public class LocalClient extends AbstractClient {
 
     @Override
     protected TrackingClient createTrackingClient(MessageType messageType, String topic) {
+        if (messageType == MessageType.NOTIFICATION) {
+            return new LocalTrackingClient(eventStore.getMessageStore(), MessageType.NOTIFICATION);
+        }
         return (TrackingClient) getGatewayClient(messageType, topic);
     }
 
