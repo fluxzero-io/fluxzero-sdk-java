@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.AnnotatedEntityHolder;
 import io.fluxzero.sdk.modeling.AppliedEvent;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
@@ -233,6 +234,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
         private final boolean commitInBatch;
         private final EventPublication eventPublication;
         private final EventPublicationStrategy publicationStrategy;
+        private final AggregateEventRouting eventRouting;
         private final SnapshotTrigger snapshotTrigger;
         private final SnapshotStore snapshotStore;
         private final boolean searchable;
@@ -254,6 +256,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.commitInBatch = annotation.commitInBatch();
             this.eventPublication = annotation.eventPublication();
             this.publicationStrategy = annotation.publicationStrategy();
+            this.eventRouting = annotation.eventRouting();
             int snapshotPeriod = annotation.eventSourced() || annotation.searchable() ? annotation.snapshotPeriod() : 1;
             this.snapshotTrigger = snapshotPeriod > 0 ? new PeriodicSnapshotTrigger(snapshotPeriod) :
                     NoSnapshotTrigger.INSTANCE;
@@ -327,7 +330,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             }
                         }
                         return eventSourceModel(loadSnapshot(id));
-                    }), commitInBatch, eventPublication, publicationStrategy, eventSourced,
+                    }), commitInBatch, eventPublication, publicationStrategy, eventRouting, eventSourced,
                     entityHelper, serializer, dispatchInterceptor, this::commit);
         }
 

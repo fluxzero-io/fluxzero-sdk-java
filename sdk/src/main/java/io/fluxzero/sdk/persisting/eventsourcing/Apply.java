@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
@@ -128,6 +129,7 @@ import java.lang.annotation.Target;
  * Updates targeting `Product` will automatically be routed based on `@EntityId` inside `Product`.
  *
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see AggregateEventRouting
  * @see EntityId
  * @see io.fluxzero.sdk.modeling.Member
  * @see EventPublication
@@ -156,6 +158,15 @@ public @interface Apply {
      * @return strategy for persisting and/or publishing the applied update
      */
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
+
+    /**
+     * Controls how an update event published by this apply method is assigned to a message segment.
+     * <p>
+     * The default inherits the setting from the enclosing aggregate.
+     *
+     * @return routing behavior for the applied update event
+     */
+    AggregateEventRouting eventRouting() default AggregateEventRouting.DEFAULT;
 
     /**
      * Disables apply-compatibility checking for this method.

@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -24,12 +25,15 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -50,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static io.fluxzero.sdk.modeling.EventPublication.ALWAYS;
@@ -331,6 +336,72 @@ class EventSourcingRepositoryTest {
             void handle(ProtectedDataEvent command) {
                 loadAggregate("protected-data", ProtectedDataAggregate.class).assertAndApply(command);
             }
+        }
+    }
+
+    @Nested
+    class AggregateEventRoutingTests {
+
+        private static final String aggregateId = "routed-aggregate";
+        private static final String eventRoutingKey = "message-routing-key";
+
+        @Test
+        void defaultAggregateEventRoutingUsesMessageRoutingKey() {
+            TestFixture.create(new AggregateEventRoutingHandler(MessageRoutedAggregate.class))
+                    .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
+                    .expectThat(fc -> assertStoredSegment(fc, aggregateId, eventRoutingKey));
+        }
+
+        @Test
+        void aggregateIdEventRoutingUsesAggregateId() {
+            TestFixture.create(new AggregateEventRoutingHandler(AggregateIdRoutedAggregate.class))
+                    .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
+                    .expectThat(fc -> assertStoredSegment(fc, aggregateId, aggregateId));
+        }
+
+        @Test
+        void aggregateIdEventRoutingSetsSegmentBeforeSerializedDispatchInterceptors() {
+            AtomicReference<Integer> observedSegment = new AtomicReference<>();
+            TestFixture.create(DefaultFluxzero.builder()
+                                       .addDispatchInterceptor(new DispatchInterceptor() {
+                                           @Override
+                                           public Message interceptDispatch(Message message, MessageType messageType,
+                                                                            String topic) {
+                                               return message;
+                                           }
+
+                                           @Override
+                                           public SerializedMessage modifySerializedMessage(
+                                                   SerializedMessage serializedMessage, Message message,
+                                                   MessageType messageType, String topic) {
+                                               observedSegment.set(serializedMessage.getSegment());
+                                               return serializedMessage;
+                                           }
+                                       }, MessageType.EVENT),
+                               new AggregateEventRoutingHandler(AggregateIdRoutedAggregate.class))
+                    .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
+                    .expectThat(fc -> assertEquals(
+                            ConsistentHashing.computeSegment(aggregateId), observedSegment.get()));
+        }
+
+        @Test
+        void applyEventRoutingCanUseAggregateId() {
+            TestFixture.create(new AggregateEventRoutingHandler(MessageRoutedAggregateWithApplyOverride.class))
+                    .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
+                    .expectThat(fc -> assertStoredSegment(fc, aggregateId, aggregateId));
+        }
+
+        @Test
+        void applyEventRoutingCanUseMessageRoutingKey() {
+            TestFixture.create(new AggregateEventRoutingHandler(AggregateIdRoutedAggregateWithApplyOverride.class))
+                    .whenCommand(new ApplyRoutedAggregateEvent(aggregateId, eventRoutingKey))
+                    .expectThat(fc -> assertStoredSegment(fc, aggregateId, eventRoutingKey));
+        }
+
+        private static void assertStoredSegment(Fluxzero fc, String aggregateId, String routingKey) {
+            assertEquals(ConsistentHashing.computeSegment(routingKey),
+                         fc.client().getEventStoreClient().getEvents(aggregateId, -1L)
+                                 .findFirst().orElseThrow().getSegment());
         }
     }
 
@@ -1295,6 +1366,63 @@ class EventSourcingRepositoryTest {
     @Aggregate
     @Builder(toBuilder = true)
     record TestModelWithoutApplyEvent(Object firstEvent, Object secondEvent) {
+    }
+
+    @AllArgsConstructor
+    static class AggregateEventRoutingHandler {
+        Class<?> aggregateType;
+
+        @HandleCommand
+        void handle(ApplyRoutedAggregateEvent command) {
+            loadAggregate(command.aggregateId(), aggregateType).apply(
+                    new RoutedAggregateEvent(command.eventRoutingKey()));
+        }
+    }
+
+    record ApplyRoutedAggregateEvent(@RoutingKey String aggregateId, String eventRoutingKey) {
+    }
+
+    record RoutedAggregateEvent(@RoutingKey String routingKey) {
+    }
+
+    @Aggregate
+    static class MessageRoutedAggregate {
+        String routingKey;
+
+        @Apply
+        public MessageRoutedAggregate(RoutedAggregateEvent event) {
+            this.routingKey = event.routingKey();
+        }
+    }
+
+    @Aggregate(eventRouting = AggregateEventRouting.AGGREGATE_ID)
+    static class AggregateIdRoutedAggregate {
+        String routingKey;
+
+        @Apply
+        public AggregateIdRoutedAggregate(RoutedAggregateEvent event) {
+            this.routingKey = event.routingKey();
+        }
+    }
+
+    @Aggregate
+    static class MessageRoutedAggregateWithApplyOverride {
+        String routingKey;
+
+        @Apply(eventRouting = AggregateEventRouting.AGGREGATE_ID)
+        public MessageRoutedAggregateWithApplyOverride(RoutedAggregateEvent event) {
+            this.routingKey = event.routingKey();
+        }
+    }
+
+    @Aggregate(eventRouting = AggregateEventRouting.AGGREGATE_ID)
+    static class AggregateIdRoutedAggregateWithApplyOverride {
+        String routingKey;
+
+        @Apply(eventRouting = AggregateEventRouting.MESSAGE_ROUTING_KEY)
+        public AggregateIdRoutedAggregateWithApplyOverride(RoutedAggregateEvent event) {
+            this.routingKey = event.routingKey();
+        }
     }
 
     record CreateModel() {

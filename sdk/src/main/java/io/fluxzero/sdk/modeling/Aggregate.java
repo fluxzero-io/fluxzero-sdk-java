@@ -154,6 +154,15 @@ public @interface Aggregate {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
+     * Controls how events published from this aggregate are assigned to a message segment.
+     * <p>
+     * The default preserves the regular {@link io.fluxzero.sdk.publishing.routing.RoutingKey @RoutingKey}-based
+     * message routing behavior. Use {@link AggregateEventRouting#AGGREGATE_ID} to keep all published events for the
+     * same aggregate on the segment derived from the aggregate id.
+     */
+    AggregateEventRouting eventRouting() default AggregateEventRouting.MESSAGE_ROUTING_KEY;
+
+    /**
      * Whether the aggregate should be indexed in Fluxzero's document store (disabled by default).
      */
     boolean searchable() default false;
