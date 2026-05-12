@@ -71,6 +71,29 @@ public interface PropertySource {
     }
 
     /**
+     * Returns the value of the property as an integer.
+     *
+     * @param name the name of the property to look up
+     * @return the parsed integer value, or {@code null} if not present
+     * @throws NumberFormatException if the property value is not a valid integer
+     */
+    default Integer getInteger(String name) {
+        return getInteger(name, null);
+    }
+
+    /**
+     * Returns the value of the property as an integer, falling back to a default if not present.
+     *
+     * @param name         the name of the property
+     * @param defaultValue the value to return if the property is not set
+     * @return the parsed integer value, or {@code defaultValue} if not present
+     * @throws NumberFormatException if the property value is not a valid integer
+     */
+    default Integer getInteger(String name, Integer defaultValue) {
+        return Optional.ofNullable(get(name)).map(Integer::valueOf).orElse(defaultValue);
+    }
+
+    /**
      * Returns the property value, or the given default if not present.
      *
      * @param name         the name of the property

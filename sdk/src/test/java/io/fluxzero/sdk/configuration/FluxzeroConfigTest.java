@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.QUERY;
+import static io.fluxzero.common.TestUtils.callWithSystemProperties;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class FluxzeroConfigTest {
@@ -43,5 +45,20 @@ public class FluxzeroConfigTest {
         DefaultFluxzero.builder()
                 .addConsumerConfiguration(config1, QUERY)
                 .addConsumerConfiguration(config2, COMMAND);
+    }
+
+    @Test
+    void publicationDepthIsExposedByConfiguration() {
+        FluxzeroConfiguration configuration = DefaultFluxzero.builder().setMaxPublicationDepth(42);
+
+        assertEquals(42, configuration.maxPublicationDepth());
+    }
+
+    @Test
+    void publicationDepthDefaultCanBeConfiguredByProperty() {
+        FluxzeroConfiguration configuration = callWithSystemProperties(
+                DefaultFluxzero::builder, "fluxzero.maxPublicationDepth", "37");
+
+        assertEquals(37, configuration.maxPublicationDepth());
     }
 }

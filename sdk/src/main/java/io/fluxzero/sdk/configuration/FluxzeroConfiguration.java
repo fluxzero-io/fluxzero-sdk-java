@@ -92,6 +92,11 @@ public interface FluxzeroConfiguration {
     /** Ordered dispatch interceptors grouped per message type. */
     Map<MessageType, List<DispatchInterceptor>> dispatchInterceptors();
 
+    /**
+     * Maximum allowed publication-chain depth. A negative value disables the built-in recursive publication guard.
+     */
+    int maxPublicationDepth();
+
     /** Ordered handler decorators grouped per message type. */
     Map<MessageType, List<HandlerDecorator>> handlerDecorators();
 

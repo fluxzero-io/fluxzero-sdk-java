@@ -59,25 +59,7 @@ import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
-import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
-import io.fluxzero.sdk.publishing.CommandGateway;
-import io.fluxzero.sdk.publishing.DefaultCommandGateway;
-import io.fluxzero.sdk.publishing.DefaultErrorGateway;
-import io.fluxzero.sdk.publishing.DefaultEventGateway;
-import io.fluxzero.sdk.publishing.DefaultGenericGateway;
-import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
-import io.fluxzero.sdk.publishing.DefaultQueryGateway;
-import io.fluxzero.sdk.publishing.DefaultRequestHandler;
-import io.fluxzero.sdk.publishing.DefaultResultGateway;
-import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.publishing.ErrorGateway;
-import io.fluxzero.sdk.publishing.EventGateway;
-import io.fluxzero.sdk.publishing.GenericGateway;
-import io.fluxzero.sdk.publishing.MetricsGateway;
-import io.fluxzero.sdk.publishing.QueryGateway;
-import io.fluxzero.sdk.publishing.RequestHandler;
-import io.fluxzero.sdk.publishing.ResultGateway;
-import io.fluxzero.sdk.publishing.WebRequestGateway;
+import io.fluxzero.sdk.publishing.*;
 import io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
@@ -270,7 +252,9 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     @Getter
+    @Accessors(fluent = true)
     public static class Builder implements FluxzeroBuilder {
+        private static final String MAX_PUBLICATION_DEPTH_PROPERTY = "fluxzero.maxPublicationDepth";
 
         private Serializer serializer = new JacksonSerializer();
         private Serializer snapshotSerializer = serializer;
@@ -316,6 +300,8 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableCacheEvictionMetrics;
         private boolean disableWebResponseCompression;
         private boolean disableAdhocDispatchInterceptor;
+        private int maxPublicationDepth = DefaultPropertySource.getInstance()
+                .getInteger(MAX_PUBLICATION_DEPTH_PROPERTY, RecursivePublicationGuard.DEFAULT_MAX_DEPTH);
         private boolean makeApplicationInstance;
         private boolean disableKeepalive;
         private UserProvider userProvider = UserProvider.defaultUserProvider;
@@ -594,6 +580,12 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public FluxzeroBuilder setMaxPublicationDepth(int maxDepth) {
+            maxPublicationDepth = maxDepth;
+            return this;
+        }
+
+        @Override
         public FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance) {
             this.makeApplicationInstance = makeApplicationInstance;
             return this;
@@ -735,6 +727,15 @@ public class DefaultFluxzero implements Fluxzero {
                 EnumSet.allOf(MessageType.class).forEach(
                         messageType -> dispatchChains.computeIfPresent(messageType,
                                                                              (t, i) -> adhocInterceptor.andThen(i)));
+            }
+
+            if (maxPublicationDepth >= 0) {
+                RecursivePublicationGuard recursivePublicationGuard =
+                        new RecursivePublicationGuard(maxPublicationDepth);
+                Stream.of(COMMAND, EVENT, QUERY, WEBREQUEST, CUSTOM).forEach(
+                        messageType -> dispatchChains.computeIfPresent(
+                                messageType, (t, i) -> i.andThen(recursivePublicationGuard)));
+                dispatchChains.computeIfPresent(SCHEDULE, (t, i) -> i.andThen(recursivePublicationGuard));
             }
 
             /*

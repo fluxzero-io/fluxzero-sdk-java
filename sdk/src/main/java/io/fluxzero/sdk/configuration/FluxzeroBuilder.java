@@ -298,6 +298,15 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disableAdhocDispatchInterceptor();
 
     /**
+     * Sets the maximum publication-chain depth.
+     * <p>
+     * The default is {@code 100}. A new external dispatch or scheduled branch starts at depth {@code 0}; messages
+     * published while handling another message use the current depth plus one. Set this to a negative value to disable
+     * the guard.
+     */
+    FluxzeroBuilder setMaxPublicationDepth(int maxDepth);
+
+    /**
      * Marks the built instance as the global (application-level) {@link Fluxzero}.
      */
     FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance);

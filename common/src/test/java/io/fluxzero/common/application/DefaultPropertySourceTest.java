@@ -50,6 +50,16 @@ class DefaultPropertySourceTest {
         }, "environment", "test");
     }
 
+    @Test
+    void getInteger() {
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals(42, source.getInteger("integer.value"));
+            assertEquals(7, source.getInteger("missing.value", 7));
+        }, "integer.value", "42");
+    }
+
     @Nested
     class PropertySubstitutionsString {
         @Test
