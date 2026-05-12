@@ -405,6 +405,11 @@
     "annotations" : [ {
       "annotationType" : "lombok.Getter",
       "values" : {}
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
     } ]
   } ]
 }

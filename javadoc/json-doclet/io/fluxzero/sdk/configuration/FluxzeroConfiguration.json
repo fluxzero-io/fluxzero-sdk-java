@@ -155,6 +155,17 @@
     "varArgs" : false,
     "documentation" : "Whether the application instance should be created automatically on first use. "
   }, {
+    "name" : "maxPublicationDepth",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#maxPublicationDepth",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maximum allowed publication-chain depth. A negative value disables the built-in recursive publication guard.\n"
+  }, {
     "name" : "messageRoutingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#messageRoutingInterceptor",
     "returnType" : "io.fluxzero.sdk.publishing.DispatchInterceptor",

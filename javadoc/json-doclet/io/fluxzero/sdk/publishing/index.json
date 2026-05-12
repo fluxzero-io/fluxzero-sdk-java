@@ -95,6 +95,16 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway",
     "kind" : "interface"
   }, {
+    "file" : "RecursivePublicationException.json",
+    "name" : "RecursivePublicationException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.RecursivePublicationException",
+    "kind" : "class"
+  }, {
+    "file" : "RecursivePublicationGuard.json",
+    "name" : "RecursivePublicationGuard",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.RecursivePublicationGuard",
+    "kind" : "class"
+  }, {
     "file" : "RequestHandler.json",
     "name" : "RequestHandler",
     "qualifiedName" : "io.fluxzero.sdk.publishing.RequestHandler",

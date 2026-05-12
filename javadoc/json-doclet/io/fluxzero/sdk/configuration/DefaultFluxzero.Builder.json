@@ -7,12 +7,25 @@
   "annotations" : [ {
     "annotationType" : "lombok.Getter",
     "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.Accessors",
+    "values" : {
+      "fluent" : "true"
+    }
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.configuration.FluxzeroBuilder" ],
   "fields" : [ {
+    "name" : "MAX_PUBLICATION_DEPTH_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.MAX_PUBLICATION_DEPTH_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.maxPublicationDepth"
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.batchInterceptors",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>>",
@@ -224,6 +237,14 @@
     "name" : "makeApplicationInstance",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.makeApplicationInstance",
     "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxPublicationDepth",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.maxPublicationDepth",
+    "type" : "int",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1417,6 +1438,25 @@
     "parameters" : [ {
       "name" : "webResponseMapper",
       "type" : "io.fluxzero.sdk.web.WebResponseMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setMaxPublicationDepth",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#setMaxPublicationDepth",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxDepth",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -129,6 +129,43 @@
     "varArgs" : false,
     "documentation" : " Returns the value of the property as a boolean, falling back to a default if not present.\n\n @param name         the name of the property\n @param defaultValue the value to return if the property is not set\n @return the parsed boolean value, or {@code defaultValue} if not present\n"
   }, {
+    "name" : "getInteger",
+    "qualifiedName" : "io.fluxzero.common.application.PropertySource#getInteger",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the value of the property as an integer.\n\n @param name the name of the property to look up\n @return the parsed integer value, or {@code null} if not present\n @throws NumberFormatException if the property value is not a valid integer\n"
+  }, {
+    "name" : "getInteger",
+    "qualifiedName" : "io.fluxzero.common.application.PropertySource#getInteger",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the value of the property as an integer, falling back to a default if not present.\n\n @param name         the name of the property\n @param defaultValue the value to return if the property is not set\n @return the parsed integer value, or {@code defaultValue} if not present\n @throws NumberFormatException if the property value is not a valid integer\n"
+  }, {
     "name" : "join",
     "qualifiedName" : "io.fluxzero.common.application.PropertySource#join",
     "returnType" : "io.fluxzero.common.application.PropertySource",
