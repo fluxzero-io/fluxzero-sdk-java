@@ -46,7 +46,7 @@
         <kotlin.version>2.3.21</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <mockito.version>5.23.0</mockito.version>
-        <slf4j.version>2.0.17</slf4j.version>
+        <slf4j.version>2.0.18</slf4j.version>
     </properties>
 
     <dependencyManagement>
