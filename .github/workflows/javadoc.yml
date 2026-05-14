@@ -53,7 +53,7 @@ jobs:
 
       - name: Set maven version
         if: ${{ inputs.version != '' }}
-        run: ./mvnw -B versions:set -DnewVersion=${{ inputs.version }}
+        run: ./mvnw -B versions:set -DnewVersion=${{ inputs.version }} -DprocessAllModules=true
 
       - name: Maven install (to fetch json-doclet from GitHub Packages)
         run: ./mvnw -B install -DskipTests

@@ -30,7 +30,8 @@
         <module>test-server</module>
         <module>proxy</module>
         <module>annotation-processor-tests</module>
-        <module>kotlin-tests</module>
+        <module>java-downstream-project</module>
+        <module>kotlin-downstream-project</module>
     </modules>
 
     <name>Fluxzero Java SDK</name>
@@ -47,7 +48,7 @@
         <json.doclet.version>0.0.10</json.doclet.version>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
-        <argLine></argLine>
+        <argLine/>
     </properties>
 
     <dependencyManagement>
@@ -381,15 +382,18 @@
                 <artifactId>maven-enforcer-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>enforce-maven-3</id>
+                        <id>enforce-build-tools</id>
                         <goals>
                             <goal>enforce</goal>
                         </goals>
                         <configuration>
                             <rules>
                                 <requireMavenVersion>
-                                    <version>3.6.3</version>
+                                    <version>[3.9.0,)</version>
                                 </requireMavenVersion>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                </requireJavaVersion>
                             </rules>
                         </configuration>
                     </execution>
@@ -506,7 +510,8 @@
                             <waitMaxTime>3600</waitMaxTime>
                             <excludeArtifacts>
                                 <artifact>annotation-processor-tests</artifact>
-                                <artifact>kotlin-tests</artifact>
+                                <artifact>java-downstream-project</artifact>
+                                <artifact>kotlin-downstream-project</artifact>
                             </excludeArtifacts>
                         </configuration>
                     </plugin>

@@ -10,8 +10,8 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - `sdk`: the public Java SDK, including configuration, publishing, tracking, handlers, persistence, scheduling, web support, Spring integration, and the `TestFixture`.
 - `test-server`: an in-memory Fluxzero server used for local and integration-style testing.
 - `proxy`: the request-forwarding proxy server and its shaded runnable artifact.
-- `fluxzero-bom`: dependency-management BOM for SDK consumers.
-- `annotation-processor-tests` and `kotlin-tests`: compatibility modules that must keep working when annotations, reflection, handlers, or serialization change.
+- `fluxzero-bom`: dependency-management BOM for downstream SDK projects.
+- `annotation-processor-tests`, `java-downstream-project`, and `kotlin-downstream-project`: compatibility checks that must keep working when annotations, reflection, handlers, serialization, public artifacts, or downstream project setup change.
 - `project-files`: AI-assistant files for projects that use the SDK, not for building this SDK itself.
 
 ## Build And Test

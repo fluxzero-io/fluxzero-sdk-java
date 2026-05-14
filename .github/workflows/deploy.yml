@@ -50,7 +50,7 @@ jobs:
 
       - name: Set maven version
         run: |
-          ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }}
+          ./mvnw -B versions:set -DnewVersion=${{ steps.tag_version.outputs.new_tag }} -DprocessAllModules=true
 
       - name: Build and test
         run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
@@ -108,7 +108,7 @@ jobs:
       # the artifacts only contain the built jars
       - name: Set maven version
         run: |
-          ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }}
+          ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }} -DprocessAllModules=true
 
       - name: Deploy to Maven Central
         run: ./mvnw -P deploy -B deploy -DskipTests
