@@ -25,7 +25,10 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.handling.Request;
+import io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Value;
 import lombok.experimental.Accessors;
@@ -77,6 +80,8 @@ public class DefaultSocketSession implements SocketSession {
     private final String url;
     @Getter
     private final Map<String, List<String>> headers;
+    @Getter(AccessLevel.PACKAGE)
+    private final RefreshableUser sessionUser;
 
     private final ResultGateway webResponseGateway;
     private final TaskScheduler taskScheduler;
@@ -86,6 +91,15 @@ public class DefaultSocketSession implements SocketSession {
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private final Map<Long, PendingRequest<?>> pendingRequests = new ConcurrentHashMap<>();
+
+    /**
+     * Returns the user currently associated with this socket session.
+     *
+     * @return the current session user, or {@code null} if the session has no authenticated user
+     */
+    public User getUser() {
+        return sessionUser.user();
+    }
 
     @Override
     public CompletableFuture<Void> sendMessage(Object value, Guarantee guarantee) {
@@ -127,7 +141,7 @@ public class DefaultSocketSession implements SocketSession {
         } catch (Throwable ignored) {
             return Optional.empty();
         }
-        if (!request.isValid()) {
+        if (request == null || !request.isValid()) {
             return Optional.empty();
         }
         return message.withData(new Data<>(JsonUtils.asBytes(request.getRequest()), null, 0))
@@ -167,7 +181,7 @@ public class DefaultSocketSession implements SocketSession {
         } catch (Throwable ignored) {
             return Optional.empty();
         }
-        if (!response.isValid()) {
+        if (response == null || !response.isValid()) {
             return Optional.empty();
         }
         return Optional.of(

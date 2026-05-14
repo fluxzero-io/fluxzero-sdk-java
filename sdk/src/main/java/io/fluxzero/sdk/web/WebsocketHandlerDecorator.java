@@ -26,6 +26,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
+import io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -118,6 +120,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             return new DefaultSocketSession(sId, target,
                                             WebRequest.getUrl(m.getMetadata()),
                                             WebRequest.getHeaders(m.getMetadata()),
+                                            new RefreshableUser(User.getCurrent()),
                                             webResponseGateway, taskScheduler, this::onAbort);
         });
     }
@@ -197,6 +200,7 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             if (socketPatterns(handler).isEmpty()) {
                 return handler;
             }
+            handler = useSessionUser(handler);
             handler = handleRequest(handler);
             handler = closeOnError(handler);
             handler = cleanUpOnClose(handler);
@@ -273,6 +277,33 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             };
         }
         return handler;
+    }
+
+    protected Handler<DeserializingMessage> useSessionUser(Handler<DeserializingMessage> handler) {
+        return new DelegatingHandler<>(handler) {
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return delegate.getInvoker(withSessionUser(message));
+            }
+        };
+    }
+
+    protected DeserializingMessage withSessionUser(DeserializingMessage message) {
+        String method = WebRequest.getMethod(message.getMetadata());
+        if (message.getMessageType() != WEBREQUEST || !isEstablishedWebsocketFrame(method)) {
+            return message;
+        }
+        return ofNullable(WebRequest.getSocketSessionId(message.getMetadata()))
+                .flatMap(sessionId -> ofNullable(openSessions.get(sessionId)))
+                .map(session -> message.putContext(RefreshableUser.class, session.getSessionUser()))
+                .orElse(message);
+    }
+
+    private boolean isEstablishedWebsocketFrame(String method) {
+        return switch (method) {
+            case WS_MESSAGE, WS_PONG, WS_CLOSE -> true;
+            case null, default -> false;
+        };
     }
 
     protected Handler<DeserializingMessage> handleRequest(Handler<DeserializingMessage> handler) {

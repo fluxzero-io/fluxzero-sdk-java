@@ -25,14 +25,18 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.Request;
+import io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider;
 import io.fluxzero.sdk.tracking.handling.authentication.FixedUserProvider;
 import io.fluxzero.sdk.tracking.handling.authentication.MockUser;
+import io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -63,6 +67,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
@@ -1841,6 +1847,243 @@ public class HandleWebTest {
                 @HandleSocketClose("/secured/messagePriority")
                 @RequiresUser
                 void closeAfterMessage() {
+                }
+            }
+        }
+
+        @Nested
+        class RefreshableUserTests {
+
+            private static final String sessionUserUrl = "/sessionUser";
+
+            @Test
+            void testSocketSessionPinsUserForMessages() {
+                BlockingUserProvider userProvider = new BlockingUserProvider();
+
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                                   new SessionUserHandler())
+                        .givenWebRequest(toSessionUserRequest(WS_OPEN))
+                        .given(fc -> userProvider.disableUserResolution())
+                        .whenWebRequest(toSessionUserRequest(WS_MESSAGE))
+                        .expectWebResponses("mockUser/mockUser");
+            }
+
+            @Test
+            void testSocketSessionPinsUserForPong() {
+                BlockingUserProvider userProvider = new BlockingUserProvider();
+
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                                   new SessionUserHandler())
+                        .givenWebRequest(toSessionUserRequest(WS_OPEN))
+                        .given(fc -> userProvider.disableUserResolution())
+                        .whenWebRequest(toSessionUserRequest(WS_PONG))
+                        .expectEvents("pong: mockUser/mockUser");
+            }
+
+            @Test
+            void testSocketSessionPinsUserForClose() {
+                BlockingUserProvider userProvider = new BlockingUserProvider();
+
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                                   new SessionUserHandler())
+                        .givenWebRequest(toSessionUserRequest(WS_OPEN))
+                        .given(fc -> userProvider.disableUserResolution())
+                        .whenWebRequest(toSessionUserRequest(WS_CLOSE))
+                        .expectEvents("close: mockUser/mockUser");
+            }
+
+            @Test
+            void testSocketSessionRefreshesPinnedUserWhenProviderSupportsIt() {
+                RefreshingSocketUserProvider userProvider = new RefreshingSocketUserProvider();
+
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(userProvider),
+                                   new RefreshingSessionUserHandler())
+                        .givenWebRequest(toRefreshUserRequest(WS_OPEN))
+                        .given(fc -> userProvider.disableUserResolution())
+                        .whenWebRequest(toRefreshUserRequest(WS_MESSAGE))
+                        .expectWebResponses("true/true");
+            }
+
+            @Test
+            void testSocketOpenUsesRequestUserWhenSessionAlreadyExists() {
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new HeaderUserProvider()),
+                                   new ReopeningSessionUserHandler())
+                        .givenWebRequest(toHeaderUserRequest(WS_OPEN, "first"))
+                        .whenWebRequest(toHeaderUserRequest(WS_OPEN, "second"))
+                        .expectEvents("open: true/true");
+            }
+
+            private WebRequest toSessionUserRequest(String method) {
+                return WebRequest.builder().method(method).url(sessionUserUrl)
+                        .metadata(Metadata.of("sessionId", "sessionUser")).build();
+            }
+
+            private WebRequest toRefreshUserRequest(String method) {
+                return WebRequest.builder().method(method).url("/refreshUser")
+                        .metadata(Metadata.of("sessionId", "refreshUser")).build();
+            }
+
+            private WebRequest toHeaderUserRequest(String method, String user) {
+                return WebRequest.builder().method(method).url("/reopeningSessionUser").header("user", user)
+                        .metadata(Metadata.of("sessionId", "reopeningSessionUser")).build();
+            }
+
+            static class SessionUserHandler {
+                @HandleSocketOpen(sessionUserUrl)
+                void open(SocketSession session) {
+                }
+
+                @HandleSocketMessage(sessionUserUrl)
+                @RequiresUser
+                String message(User user) {
+                    return User.getCurrent().getName() + "/" + user.getName();
+                }
+
+                @HandleSocketPong(sessionUserUrl)
+                @RequiresUser
+                void pong(User user) {
+                    Fluxzero.publishEvent("pong: " + User.getCurrent().getName() + "/" + user.getName());
+                }
+
+                @HandleSocketClose(sessionUserUrl)
+                @RequiresUser
+                void close(User user) {
+                    Fluxzero.publishEvent("close: " + User.getCurrent().getName() + "/" + user.getName());
+                }
+            }
+
+            static class RefreshingSessionUserHandler {
+                @HandleSocketOpen("/refreshUser")
+                void open(SocketSession session) {
+                }
+
+                @HandleSocketMessage("/refreshUser")
+                @RequiresAnyRole("refreshed")
+                String message(User user) {
+                    return User.getCurrent().hasRole("refreshed") + "/" + user.hasRole("refreshed");
+                }
+            }
+
+            static class ReopeningSessionUserHandler {
+                @HandleSocketOpen("/reopeningSessionUser")
+                @RequiresUser
+                void open(User user, DefaultSocketSession session) {
+                    Fluxzero.publishEvent(
+                            "open: " + user.hasRole("second") + "/" + session.getUser().hasRole("first"));
+                }
+            }
+
+            static class BlockingUserProvider extends AbstractUserProvider {
+                private final AtomicReference<User> user = new AtomicReference<>(new MockUser());
+                private final AtomicBoolean userResolutionDisabled = new AtomicBoolean();
+
+                BlockingUserProvider() {
+                    super(User.class);
+                }
+
+                void disableUserResolution() {
+                    user.set(null);
+                    userResolutionDisabled.set(true);
+                }
+
+                @Override
+                public User getActiveUser() {
+                    return getUser();
+                }
+
+                @Override
+                public User getSystemUser() {
+                    return getUser();
+                }
+
+                @Override
+                public User getUserById(Object userId) {
+                    return getUser();
+                }
+
+                @Override
+                public User fromMessage(HasMessage message) {
+                    return getUser();
+                }
+
+                private User getUser() {
+                    if (userResolutionDisabled.get()) {
+                        throw new AssertionError("Socket session user should be reused");
+                    }
+                    return user.get();
+                }
+            }
+
+            static class HeaderUserProvider extends AbstractUserProvider {
+
+                HeaderUserProvider() {
+                    super(User.class);
+                }
+
+                @Override
+                public User getUserById(Object userId) {
+                    return null;
+                }
+
+                @Override
+                public User getSystemUser() {
+                    return null;
+                }
+
+                @Override
+                public User fromMessage(HasMessage message) {
+                    return message.toMessage() instanceof WebRequest webRequest
+                            ? Optional.ofNullable(webRequest.getHeader("user")).map(MockUser::new).orElse(null) : null;
+                }
+            }
+
+            static class RefreshingSocketUserProvider extends AbstractUserProvider
+                    implements RefreshingUserProvider<MockUser> {
+                private final AtomicReference<MockUser> user = new AtomicReference<>(new MockUser());
+                private final AtomicBoolean userResolutionDisabled = new AtomicBoolean();
+
+                RefreshingSocketUserProvider() {
+                    super(MockUser.class);
+                }
+
+                void disableUserResolution() {
+                    user.set(null);
+                    userResolutionDisabled.set(true);
+                }
+
+                @Override
+                public User getActiveUser() {
+                    return getUser();
+                }
+
+                @Override
+                public User getSystemUser() {
+                    return getUser();
+                }
+
+                @Override
+                public User getUserById(Object userId) {
+                    return getUser();
+                }
+
+                @Override
+                public User fromMessage(HasMessage message) {
+                    if (userResolutionDisabled.get()) {
+                        throw new AssertionError("Socket session user should be refreshed, not resolved");
+                    }
+                    return super.fromMessage(message);
+                }
+
+                @Override
+                public MockUser refreshUser(MockUser user, HasMessage message) {
+                    return new MockUser("refreshed");
+                }
+
+                private MockUser getUser() {
+                    if (userResolutionDisabled.get()) {
+                        throw new AssertionError("Socket session user should be refreshed, not resolved");
+                    }
+                    return user.get();
                 }
             }
         }

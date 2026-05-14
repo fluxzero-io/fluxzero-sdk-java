@@ -221,7 +221,8 @@ public class DeserializingMessage implements HasMessage {
     }
 
     public DeserializingMessage withPayload(Object payload) {
-        return new DeserializingMessage(toMessage().withPayload(payload), messageType, topic, serializer);
+        return withSameContext(new DeserializingMessage(toMessage().withPayload(payload), messageType, topic,
+                                                       serializer));
     }
 
     @Override
@@ -299,9 +300,21 @@ public class DeserializingMessage implements HasMessage {
 
     public DeserializingMessage withData(Data<byte[]> data) {
         var serializedMessage = getSerializedObject().withData(data);
-        return serializer.deserializeMessage(serializedMessage, messageType);
+        return withSameContext(serializer.deserializeMessage(serializedMessage, messageType));
     }
 
+    private DeserializingMessage withSameContext(DeserializingMessage result) {
+        result.context = context;
+        return result;
+    }
+
+    /**
+     * Returns a message-scoped context value, computing and storing it when it is absent.
+     *
+     * @param contextKey the type key for the context value
+     * @param provider   the provider used to compute the value when absent
+     * @return the existing or computed context value
+     */
     @SuppressWarnings("unchecked")
     @Synchronized
     public <T> T computeContextIfAbsent(Class<T> contextKey, Function<DeserializingMessage, ? extends T> provider) {
@@ -309,6 +322,34 @@ public class DeserializingMessage implements HasMessage {
             context = new ConcurrentHashMap<>();
         }
         return (T) context.computeIfAbsent(contextKey, k -> provider.apply(this));
+    }
+
+    /**
+     * Returns a message-scoped context value.
+     *
+     * @param contextKey the type key for the context value
+     * @return the context value, or {@link Optional#empty()} when absent
+     */
+    @SuppressWarnings("unchecked")
+    @Synchronized
+    public <T> Optional<T> getContext(Class<T> contextKey) {
+        return Optional.ofNullable(context).map(c -> (T) c.get(contextKey));
+    }
+
+    /**
+     * Stores a message-scoped context value.
+     *
+     * @param contextKey the type key for the context value
+     * @param value      the context value to store
+     * @return this message
+     */
+    @Synchronized
+    public <T> DeserializingMessage putContext(Class<T> contextKey, T value) {
+        if (context == null) {
+            context = new ConcurrentHashMap<>();
+        }
+        context.put(contextKey, value);
+        return this;
     }
 
     /**

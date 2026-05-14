@@ -150,6 +150,13 @@ public interface UserProvider {
             }
 
             @Override
+            public User refreshUser(User user, HasMessage message) {
+                User refreshed = super.refreshUser(user, message);
+                return other instanceof RefreshingUserProvider<?> refreshingUserProvider
+                        ? refreshUser(refreshingUserProvider, refreshed, message) : refreshed;
+            }
+
+            @Override
             public boolean containsUser(Metadata metadata) {
                 return super.containsUser(metadata) || other.containsUser(metadata);
             }

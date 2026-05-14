@@ -44,8 +44,18 @@ public class UserParameterResolver extends TypedParameterResolver<Object> {
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
-        return m -> (m instanceof HasMessage
-                ? Optional.of(((HasMessage) m)) : ofNullable(DeserializingMessage.getCurrent()))
-                .map(userProvider::fromMessage).orElseGet(User::getCurrent);
+        return m -> {
+            DeserializingMessage currentMessage =
+                    m instanceof DeserializingMessage dm ? dm : DeserializingMessage.getCurrent();
+            if (currentMessage != null) {
+                Optional<RefreshableUser> refreshableUser = currentMessage.getContext(RefreshableUser.class);
+                if (refreshableUser.isPresent()) {
+                    return refreshableUser.get().user();
+                }
+            }
+            return (m instanceof HasMessage
+                    ? Optional.of(((HasMessage) m)) : ofNullable(currentMessage))
+                    .map(userProvider::fromMessage).orElseGet(User::getCurrent);
+        };
     }
 }

@@ -22,7 +22,7 @@ import lombok.AllArgsConstructor;
  * An extendable {@link UserProvider} that delegates to another {@link UserProvider}.
  */
 @AllArgsConstructor
-public class DelegatingUserProvider implements UserProvider {
+public class DelegatingUserProvider implements RefreshingUserProvider<User> {
     protected final UserProvider delegate;
 
     @Override
@@ -43,6 +43,25 @@ public class DelegatingUserProvider implements UserProvider {
     @Override
     public User fromMessage(HasMessage message) {
         return delegate.fromMessage(message);
+    }
+
+    /**
+     * Refreshes the supplied user when the delegate supports {@link RefreshingUserProvider}; otherwise returns the
+     * original user unchanged.
+     *
+     * @param user    the previously resolved user identity
+     * @param message the message being authorized or handled
+     * @return the refreshed user, or the original user if the delegate does not support refresh
+     */
+    @Override
+    public User refreshUser(User user, HasMessage message) {
+        return delegate instanceof RefreshingUserProvider<?> refreshingUserProvider
+                ? refreshUser(refreshingUserProvider, user, message) : user;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected User refreshUser(RefreshingUserProvider refreshingUserProvider, User user, HasMessage message) {
+        return refreshingUserProvider.refreshUser(user, message);
     }
 
     @Override

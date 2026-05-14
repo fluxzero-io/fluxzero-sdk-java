@@ -28,6 +28,10 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
+import static io.fluxzero.sdk.web.WebRequest.methodKey;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
 import static java.util.Optional.ofNullable;
 
@@ -39,12 +43,7 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     public Message interceptDispatch(Message m, MessageType messageType, String topic) {
         if (!userProvider.containsUser(m.getMetadata())) {
-            Optional<DeserializingMessage> currentMessage = ofNullable(DeserializingMessage.getCurrent());
-            User user = currentMessage.isPresent() ?
-                    currentMessage.get().getMessageType() == WEBREQUEST ? userProvider.getActiveUser() :
-                            userProvider.getSystemUser() :
-                    ofNullable(userProvider.getActiveUser())
-                            .orElseGet(() -> messageType == WEBREQUEST ? null : userProvider.getSystemUser());
+            User user = getDispatchUser(m, messageType);
             if (user != null) {
                 m = m.withMetadata(userProvider.addToMetadata(m.getMetadata(), user));
             }
@@ -57,7 +56,7 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                                                                     HandlerInvoker invoker) {
         return m -> {
             User previous = User.getCurrent();
-            User user = userProvider.fromMessage(m);
+            User user = getCurrentUser(m);
             try {
                 User.current.set(user);
                 if (m.getType() != null) {
@@ -68,6 +67,81 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                 User.current.set(previous);
             }
         };
+    }
+
+    protected User getCurrentUser(DeserializingMessage m) {
+        Optional<RefreshableUser> refreshableUser = m.getContext(RefreshableUser.class);
+        if (refreshableUser.isPresent()) {
+            return refreshableUser.get().user();
+        }
+        return userProvider.fromMessage(m);
+    }
+
+    protected User getDispatchUser(Message m, MessageType messageType) {
+        Optional<DeserializingMessage> currentMessage = ofNullable(DeserializingMessage.getCurrent());
+        Optional<RefreshableUser> refreshableUser =
+                currentMessage.flatMap(message -> message.getContext(RefreshableUser.class));
+        if (refreshableUser.isPresent()) {
+            return refreshableUser.get().user();
+        }
+        if (isEstablishedWebsocketFrame(m, messageType)) {
+            return null;
+        }
+        if (currentMessage.isPresent()) {
+            return currentMessage.get().getMessageType() == WEBREQUEST
+                    ? userProvider.getActiveUser() : userProvider.getSystemUser();
+        }
+        User activeUser = userProvider.getActiveUser();
+        return activeUser != null || messageType == WEBREQUEST ? activeUser : userProvider.getSystemUser();
+    }
+
+    protected boolean isEstablishedWebsocketFrame(Message m, MessageType messageType) {
+        if (messageType != WEBREQUEST) {
+            return false;
+        }
+        return switch (m.getMetadata().get(methodKey)) {
+            case WS_MESSAGE, WS_PONG, WS_CLOSE -> true;
+            case null, default -> false;
+        };
+    }
+
+    protected User getAuthorizingUser(DeserializingMessage m) {
+        Optional<RefreshableUser> refreshableUser = m.getContext(RefreshableUser.class);
+        if (refreshableUser.isPresent()) {
+            return refreshUser(refreshableUser.get(), m);
+        }
+        User user;
+        try {
+            user = userProvider.fromMessage(m);
+        } catch (Throwable ignored) {
+            user = null;
+        }
+        if (user == null) {
+            user = userProvider.getActiveUser();
+        }
+        return user;
+    }
+
+    protected User refreshUser(RefreshableUser refreshableUser, DeserializingMessage m) {
+        Optional<RefreshedUser> refreshedUser = m.getContext(RefreshedUser.class);
+        if (refreshedUser.isPresent()) {
+            return refreshedUser.get().user();
+        }
+        User user = refreshableUser.user();
+        if (userProvider instanceof RefreshingUserProvider<?> refreshingUserProvider) {
+            user = refreshUser(refreshingUserProvider, user, m);
+            refreshableUser.update(user);
+        }
+        m.putContext(RefreshedUser.class, new RefreshedUser(user));
+        return user;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private User refreshUser(RefreshingUserProvider refreshingUserProvider, User user, DeserializingMessage m) {
+        return (User) refreshingUserProvider.refreshUser(user, m);
+    }
+
+    private record RefreshedUser(User user) {
     }
 
     @Override
@@ -87,15 +161,7 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                                 .map(c -> i.getTargetClass().isAssignableFrom(c)).orElse(false)) {
                             return Optional.of(i);
                         }
-                        User user;
-                        try {
-                            user = userProvider.fromMessage(m);
-                        } catch (Throwable ignored) {
-                            user = null;
-                        }
-                        if (user == null) {
-                            user = userProvider.getActiveUser();
-                        }
+                        User user = getAuthorizingUser(m);
                         try {
                             return assertAuthorized(i.getTargetClass(), i.getMethod(), user)
                                     ? Optional.of(i) : Optional.empty();

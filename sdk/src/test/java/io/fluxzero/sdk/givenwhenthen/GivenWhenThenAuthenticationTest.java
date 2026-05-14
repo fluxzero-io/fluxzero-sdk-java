@@ -37,6 +37,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.HandlePost;
+import io.fluxzero.sdk.web.WebRequest;
 import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -208,6 +209,14 @@ public class GivenWhenThenAuthenticationTest {
     }
 
     @Test
+    void testWebRequestWithoutUserDoesNotUseActiveUserDuringInvocation() {
+        TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new ActiveOnlyUserProvider()),
+                           new CurrentUserEndpoint())
+                .whenPost("/current-user", "payload")
+                .expectWebResponse(r -> r.getStatus() == 200 && "none".equals(r.getPayload()));
+    }
+
+    @Test
     void testAuthorizedModifyAsSystem() {
         user = new MockUser("modify", "system");
         testFixture.whenCommand(new Update()).expectSuccessfulResult();
@@ -301,6 +310,42 @@ public class GivenWhenThenAuthenticationTest {
         @HandleQuery
         String handle(ForbidsCurrentUser query) {
             return "success";
+        }
+    }
+
+    private static class CurrentUserEndpoint {
+        @HandlePost("/current-user")
+        String currentUser(String ignored) {
+            User user = User.getCurrent();
+            return user == null ? "none" : user.getName();
+        }
+    }
+
+    private static class ActiveOnlyUserProvider extends AbstractUserProvider {
+        private final User activeUser = new MockUser("active");
+
+        ActiveOnlyUserProvider() {
+            super(User.class);
+        }
+
+        @Override
+        public User getActiveUser() {
+            return activeUser;
+        }
+
+        @Override
+        public User getUserById(Object userId) {
+            return activeUser;
+        }
+
+        @Override
+        public User getSystemUser() {
+            return activeUser;
+        }
+
+        @Override
+        public User fromMessage(io.fluxzero.sdk.common.HasMessage message) {
+            return message.toMessage() instanceof WebRequest ? null : super.fromMessage(message);
         }
     }
 

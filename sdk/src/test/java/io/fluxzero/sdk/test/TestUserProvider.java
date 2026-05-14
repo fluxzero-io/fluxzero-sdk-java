@@ -14,10 +14,9 @@
 
 package io.fluxzero.sdk.test;
 
+import io.fluxzero.sdk.tracking.handling.authentication.DelegatingUserProvider;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
-import lombok.AllArgsConstructor;
-import lombok.experimental.Delegate;
 
 import java.util.Optional;
 
@@ -48,16 +47,16 @@ import java.util.Optional;
  * @see UserProvider
  * @see io.fluxzero.sdk.test.TestFixture#withProductionUserProvider()
  */
-@AllArgsConstructor
-public class TestUserProvider implements UserProvider {
+public class TestUserProvider extends DelegatingUserProvider {
 
     /**
      * Delegate provider, usually the production default.
      * <p>
      * All calls except {@link #getActiveUser()} are forwarded directly to this delegate.
      */
-    @Delegate
-    private final UserProvider delegate;
+    public TestUserProvider(UserProvider delegate) {
+        super(delegate);
+    }
 
     /**
      * Returns the currently active user.
