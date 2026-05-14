@@ -346,7 +346,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a message-scoped context value, computing and storing it when it is absent.\n\n @param contextKey the type key for the context value\n @param provider   the provider used to compute the value when absent\n @return the existing or computed context value\n"
   }, {
     "name" : "computeForBatch",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeForBatch",
@@ -457,6 +457,30 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getContext",
+    "returnType" : "java.util.Optional<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "contextKey",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a message-scoped context value.\n\n @param contextKey the type key for the context value\n @return the context value, or {@link Optional#empty()} when absent\n"
   }, {
     "name" : "getCurrent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getCurrent",
@@ -634,6 +658,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "putContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#putContext",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "contextKey",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a message-scoped context value.\n\n @param contextKey the type key for the context value\n @param value      the context value to store\n @return this message\n"
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#run",
     "returnType" : "void",
@@ -738,6 +786,22 @@
     "parameters" : [ {
       "name" : "payload",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSameContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withSameContext",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

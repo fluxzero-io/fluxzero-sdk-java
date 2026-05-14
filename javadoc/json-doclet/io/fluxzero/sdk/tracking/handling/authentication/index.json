@@ -20,6 +20,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$AuthorizingHandler",
     "kind" : "class"
   }, {
+    "file" : "AuthenticatingInterceptor.RefreshedUser.json",
+    "name" : "AuthenticatingInterceptor.RefreshedUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$RefreshedUser",
+    "kind" : "record"
+  }, {
     "file" : "CurrentUserParameterResolver.json",
     "name" : "CurrentUserParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.CurrentUserParameterResolver",
@@ -49,6 +54,16 @@
     "name" : "NoUserRequired",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired",
     "kind" : "annotation_type"
+  }, {
+    "file" : "RefreshableUser.json",
+    "name" : "RefreshableUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser",
+    "kind" : "class"
+  }, {
+    "file" : "RefreshingUserProvider.json",
+    "name" : "RefreshingUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider",
+    "kind" : "interface"
   }, {
     "file" : "RequiresAnyRole.json",
     "name" : "RequiresAnyRole",

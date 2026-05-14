@@ -121,7 +121,7 @@
       "annotations" : [ ]
     }, {
       "name" : "socketPatterns",
-      "type" : "java.util.List<io.fluxzero.sdk.web.WebPattern>",
+      "type" : "java.util.List<io.fluxzero.sdk.web.WebsocketHandlerDecorator.SocketPattern>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -157,6 +157,44 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handshakeDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#handshakeDecorator",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isEstablishedWebsocketFrame",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#isEstablishedWebsocketFrame",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lifecycleDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#lifecycleDecorator",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -259,6 +297,54 @@
     "varArgs" : false,
     "documentation" : " Resolves a {@link SocketSession} parameter from the current {@link HasMessage} context.\n <p>\n The session is tracked per session ID and reused for subsequent requests over the same connection. If no session\n exists for the current message's session ID, a new one is created.\n\n @param p                the method parameter being resolved\n @param methodAnnotation the handler method's annotation (e.g. {@code @HandleWeb})\n @return a function that resolves the {@link SocketSession} from the message\n"
   }, {
+    "name" : "socketPatterns",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#socketPatterns",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.WebsocketHandlerDecorator.SocketPattern>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "useSessionUser",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#useSessionUser",
+    "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSessionUser",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#withSessionUser",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "wrap",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#wrap",
     "returnType" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
@@ -280,5 +366,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "SocketPattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SocketPattern",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
+  } ]
 }

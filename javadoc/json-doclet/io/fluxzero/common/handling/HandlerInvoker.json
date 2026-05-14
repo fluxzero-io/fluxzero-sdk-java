@@ -153,6 +153,27 @@
     "varArgs" : false,
     "documentation" : " Returns a no-op invoker that performs no action and returns {@code null}.\n"
   }, {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#noOp",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a no-op invoker associated with a handler method. This is useful for synthetic framework invocations that\n should still expose the user handler's metadata to decorators and interceptors.\n"
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#run",
     "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
@@ -185,11 +206,6 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker",
     "kind" : "class",
     "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.AllArgsConstructor",
-      "values" : {
-        "access" : "PRIVATE"
-      }
-    } ]
+    "annotations" : [ ]
   } ]
 }

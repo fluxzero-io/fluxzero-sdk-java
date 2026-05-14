@@ -11,7 +11,7 @@
   "documentation" : " An extendable {@link UserProvider} that delegates to another {@link UserProvider}.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.authentication.UserProvider" ],
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider<io.fluxzero.sdk.tracking.handling.authentication.User>" ],
   "fields" : [ {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.DelegatingUserProvider.delegate",
@@ -165,6 +165,61 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "refreshUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.DelegatingUserProvider#refreshUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"rawtypes\",\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "refreshingUserProvider",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "refreshUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.DelegatingUserProvider#refreshUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Refreshes the supplied user when the delegate supports {@link RefreshingUserProvider}; otherwise returns the\n original user unchanged.\n\n @param user    the previously resolved user identity\n @param message the message being authorized or handled\n @return the refreshed user, or the original user if the delegate does not support refresh\n"
   }, {
     "name" : "removeFromMetadata",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.DelegatingUserProvider#removeFromMetadata",

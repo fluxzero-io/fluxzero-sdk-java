@@ -4,13 +4,8 @@
   "packageName" : "io.fluxzero.common.handling",
   "kind" : "class",
   "modifiers" : [ "final", "public", "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {
-      "access" : "PRIVATE"
-    }
-  } ],
-  "documentation" : " A simple invoker backed by a {@link Callable}, typically used for test utilities or framework-internal logic. Not\n associated with any actual handler method.\n",
+  "annotations" : [ ],
+  "documentation" : " A simple invoker backed by a {@link Callable}, typically used for test utilities or framework-internal logic.\n It may optionally expose handler metadata without invoking that handler.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.HandlerInvoker" ],
@@ -18,6 +13,14 @@
     "name" : "callable",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.callable",
     "type" : "java.util.concurrent.Callable<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.executable",
+    "type" : "java.lang.reflect.Executable",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -38,14 +41,52 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "targetClass",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker.targetClass",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "SimpleInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#SimpleInvoker",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "SimpleInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$SimpleInvoker#SimpleInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

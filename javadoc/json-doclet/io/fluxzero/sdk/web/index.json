@@ -585,6 +585,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator",
     "kind" : "class"
   }, {
+    "file" : "WebsocketHandlerDecorator.SocketPattern.json",
+    "name" : "WebsocketHandlerDecorator.SocketPattern",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator$SocketPattern",
+    "kind" : "record"
+  }, {
     "file" : "WebsocketResponseInterceptor.json",
     "name" : "WebsocketResponseInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor",
