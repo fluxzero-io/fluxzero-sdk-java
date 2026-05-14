@@ -590,8 +590,5 @@
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor",
     "kind" : "class"
   } ],
-  "subdirectories" : [ {
-    "name" : "fixture",
-    "path" : "fixture"
-  } ]
+  "subdirectories" : [ ]
 }
