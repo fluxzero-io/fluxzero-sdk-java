@@ -16,7 +16,6 @@ package io.fluxzero.common.handling;
 
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.ThrowingRunnable;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 
@@ -47,6 +46,14 @@ public interface HandlerInvoker {
      */
     static HandlerInvoker noOp() {
         return SimpleInvoker.noOpInvoker;
+    }
+
+    /**
+     * Returns a no-op invoker associated with a handler method. This is useful for synthetic framework invocations that
+     * should still expose the user handler's metadata to decorators and interceptors.
+     */
+    static HandlerInvoker noOp(Class<?> targetClass, Executable method) {
+        return new SimpleInvoker(() -> null, targetClass, method);
     }
 
     /**
@@ -214,25 +221,36 @@ public interface HandlerInvoker {
     }
 
     /**
-     * A simple invoker backed by a {@link Callable}, typically used for test utilities or framework-internal logic. Not
-     * associated with any actual handler method.
+     * A simple invoker backed by a {@link Callable}, typically used for test utilities or framework-internal logic.
+     * It may optionally expose handler metadata without invoking that handler.
      */
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
     final class SimpleInvoker implements HandlerInvoker {
-        private static final SimpleInvoker noOpInvoker = new SimpleInvoker(() -> null);
-
         private static final Executable method = ObjectUtils.call(() -> SimpleInvoker.class.getMethod("invoke"));
 
+        private static final SimpleInvoker noOpInvoker = new SimpleInvoker(() -> null);
+
         private final Callable<?> callable;
+        private final Class<?> targetClass;
+        private final Executable executable;
+
+        private SimpleInvoker(Callable<?> callable) {
+            this(callable, SimpleInvoker.class, method);
+        }
+
+        private SimpleInvoker(Callable<?> callable, Class<?> targetClass, Executable executable) {
+            this.callable = callable;
+            this.targetClass = targetClass;
+            this.executable = executable;
+        }
 
         @Override
         public Class<?> getTargetClass() {
-            return SimpleInvoker.class;
+            return targetClass;
         }
 
         @Override
         public Executable getMethod() {
-            return method;
+            return executable;
         }
 
         @Override

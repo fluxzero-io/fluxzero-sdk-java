@@ -1714,6 +1714,137 @@ public class HandleWebTest {
             }
         }
 
+        @Nested
+        class AutoHandshakeAuthorizationTests {
+
+            @Test
+            void testAutoHandshakeRequiresUserFromOpenHandler() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
+                        .expectExceptionalResult(UnauthenticatedException.class);
+            }
+
+            @Test
+            void testAutoHandshakeRequiresUserFromMessageHandlerWhenOpenIsMissing() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/message").build())
+                        .expectExceptionalResult(UnauthenticatedException.class);
+            }
+
+            @Test
+            void testAutoHandshakeSilentlySkipsWhenRequirementIsSilent() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/silent").build())
+                        .expectExceptionalResult(TimeoutException.class);
+            }
+
+            @Test
+            void testAutoHandshakeRequiresUserFromPongHandlerWhenOpenAndMessageAreMissing() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/pong").build())
+                        .expectExceptionalResult(UnauthenticatedException.class);
+            }
+
+            @Test
+            void testAutoHandshakeRequiresUserFromCloseHandlerWhenOtherLifecycleHandlersAreMissing() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/close").build())
+                        .expectExceptionalResult(UnauthenticatedException.class);
+            }
+
+            @Test
+            void testAutoHandshakeUsesOpenBeforeMoreRestrictiveLifecycleHandlers() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE)
+                                                .url("/secured/openPriority").build())
+                        .expectSuccessfulResult();
+            }
+
+            @Test
+            void testAutoHandshakeUsesMessageBeforeMoreRestrictiveLifecycleHandlersWhenOpenIsMissing() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE)
+                                                .url("/secured/messagePriority").build())
+                        .expectSuccessfulResult();
+            }
+
+            @Test
+            void testAutoHandshakeAllowedWithUser() {
+                TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
+                                new FixedUserProvider(new MockUser())), new SecuredHandshakeHandler())
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
+                        .expectSuccessfulResult();
+            }
+
+            static class SecuredHandshakeHandler {
+
+                @HandleSocketOpen("/secured/open")
+                @RequiresUser
+                void open() {
+                }
+
+                @HandleSocketMessage("/secured/message")
+                @RequiresUser
+                void message() {
+                }
+
+                @HandleSocketOpen("/secured/silent")
+                @RequiresUser(throwIfUnauthorized = false)
+                void silent() {
+                }
+
+                @HandleSocketPong("/secured/pong")
+                @RequiresUser
+                void pong() {
+                }
+
+                @HandleSocketClose("/secured/close")
+                @RequiresUser
+                void close() {
+                }
+
+                @HandleSocketOpen("/secured/openPriority")
+                void openPriority() {
+                }
+
+                @HandleSocketMessage("/secured/openPriority")
+                @RequiresUser
+                void messageAfterOpen() {
+                }
+
+                @HandleSocketPong("/secured/openPriority")
+                @RequiresUser
+                void pongAfterOpen() {
+                }
+
+                @HandleSocketClose("/secured/openPriority")
+                @RequiresUser
+                void closeAfterOpen() {
+                }
+
+                @HandleSocketMessage("/secured/messagePriority")
+                void messagePriority() {
+                }
+
+                @HandleSocketPong("/secured/messagePriority")
+                @RequiresUser
+                void pongAfterMessage() {
+                }
+
+                @HandleSocketClose("/secured/messagePriority")
+                @RequiresUser
+                void closeAfterMessage() {
+                }
+            }
+        }
+
 
         static class Handler {
             @HandleSocketHandshake("manual")

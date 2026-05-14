@@ -748,7 +748,8 @@ public class DefaultFluxzero implements Fluxzero {
             //add websocket request handler decorator
             var websocketHandlerDecorator =
                     new WebsocketHandlerDecorator(webResponseGateway, serializer, taskScheduler);
-            handlerChains.computeIfPresent(WEBREQUEST, (t, i) -> websocketHandlerDecorator.andThen(i));
+            handlerChains.computeIfPresent(WEBREQUEST, (t, i) -> websocketHandlerDecorator.lifecycleDecorator()
+                    .andThen(i).andThen(websocketHandlerDecorator.handshakeDecorator()));
 
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers =
                     new ArrayList<>(registeredParameterResolvers);

@@ -48,6 +48,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static io.fluxzero.sdk.web.WebRequest.requireSocketSessionId;
 import static java.util.Arrays.stream;
@@ -181,33 +182,87 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
      */
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        Class<?> type = handler.getTargetClass();
-        var socketPatterns =
-                concat(getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
-                        .flatMap(m -> WebUtils.getWebPatterns(type, null, m).stream())
-                        .filter(p -> isWebsocket(p.getMethod())).toList();
-        if (!socketPatterns.isEmpty()) {
-            handler = enableHandshake(handler, socketPatterns);
+        return lifecycleDecorator().andThen(handshakeDecorator()).wrap(handler);
+    }
+
+    public HandlerDecorator handshakeDecorator() {
+        return handler -> {
+            var socketPatterns = socketPatterns(handler);
+            return socketPatterns.isEmpty() ? handler : enableHandshake(handler, socketPatterns);
+        };
+    }
+
+    public HandlerDecorator lifecycleDecorator() {
+        return handler -> {
+            if (socketPatterns(handler).isEmpty()) {
+                return handler;
+            }
             handler = handleRequest(handler);
             handler = closeOnError(handler);
             handler = cleanUpOnClose(handler);
             websocketHandlers.add(handler);
-        }
-        return handler;
+            return handler;
+        };
+    }
+
+    protected List<SocketPattern> socketPatterns(Handler<DeserializingMessage> handler) {
+        Class<?> type = handler.getTargetClass();
+        return concat(getAllMethods(type).stream(), stream(type.getDeclaredConstructors()))
+                .flatMap(m -> WebUtils.getWebPatterns(type, null, m).stream()
+                        .filter(p -> isWebsocket(p.getMethod()))
+                        .map(p -> new SocketPattern(m, p))).toList();
     }
 
     protected Handler<DeserializingMessage> enableHandshake(Handler<DeserializingMessage> handler,
-                                                            List<WebPattern> socketPatterns) {
-        socketPatterns.stream().filter(p -> WS_HANDSHAKE.equals(p.getMethod()))
+                                                            List<SocketPattern> socketPatterns) {
+        socketPatterns.stream().map(SocketPattern::pattern).filter(p -> WS_HANDSHAKE.equals(p.getMethod()))
                 .map(WebPattern::getPath).distinct().forEach(websocketPaths::add);
-        var pathsRequiringHandshake = socketPatterns.stream().map(WebPattern::getPath).distinct()
+        var pathsRequiringHandshake = socketPatterns.stream().map(SocketPattern::pattern).map(WebPattern::getPath)
+                .distinct()
                 .filter(websocketPaths::add).toList();
         if (!pathsRequiringHandshake.isEmpty()) {
+            WebRouteMatcher<Executable> openHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<Executable> messageHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<Executable> pongHandlers = new WebRouteMatcher<>();
+            WebRouteMatcher<Executable> closeHandlers = new WebRouteMatcher<>();
+            socketPatterns.stream()
+                    .filter(p -> pathsRequiringHandshake.contains(p.pattern().getPath()))
+                    .forEach(p -> {
+                        if (WS_OPEN.equals(p.pattern().getMethod())) {
+                            openHandlers.add(p.pattern(), p.executable());
+                        }
+                        if (WS_MESSAGE.equals(p.pattern().getMethod())) {
+                            messageHandlers.add(p.pattern(), p.executable());
+                        }
+                        if (WS_PONG.equals(p.pattern().getMethod())) {
+                            pongHandlers.add(p.pattern(), p.executable());
+                        }
+                        if (WS_CLOSE.equals(p.pattern().getMethod())) {
+                            closeHandlers.add(p.pattern(), p.executable());
+                        }
+                    });
+            Class<?> targetClass = handler.getTargetClass();
             handler = new DelegatingHandler<DeserializingMessage>(handler) {
                 @Override
                 public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                     return delegate.getInvoker(message)
-                            .or(() -> matches(message) ? Optional.of(HandlerInvoker.noOp()) : empty());
+                            .or(() -> matches(message) ? autoHandshakeInvoker(message) : empty());
+                }
+
+                Optional<HandlerInvoker> autoHandshakeInvoker(DeserializingMessage message) {
+                    DefaultWebRequestContext context = getWebRequestContext(message);
+                    HandlerInvoker invoker = openHandlers
+                            .match(WS_OPEN, context.getOrigin(), context.getRequestPath())
+                            .map(WebRouteMatcher.Match::value)
+                            .or(() -> messageHandlers.match(WS_MESSAGE, context.getOrigin(), context.getRequestPath())
+                                    .map(WebRouteMatcher.Match::value))
+                            .or(() -> pongHandlers.match(WS_PONG, context.getOrigin(), context.getRequestPath())
+                                    .map(WebRouteMatcher.Match::value))
+                            .or(() -> closeHandlers.match(WS_CLOSE, context.getOrigin(), context.getRequestPath())
+                                    .map(WebRouteMatcher.Match::value))
+                            .map(method -> HandlerInvoker.noOp(targetClass, method))
+                            .orElseGet(HandlerInvoker::noOp);
+                    return Optional.of(invoker);
                 }
 
                 boolean matches(DeserializingMessage message) {
@@ -303,6 +358,9 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                        && WS_CLOSE.equals(WebRequest.getMethod(message.getMetadata()));
             }
         };
+    }
+
+    protected record SocketPattern(Executable executable, WebPattern pattern) {
     }
 
 }
