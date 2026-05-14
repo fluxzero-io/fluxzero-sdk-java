@@ -47,6 +47,7 @@
         <json.doclet.version>0.0.10</json.doclet.version>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
+        <argLine></argLine>
     </properties>
 
     <dependencyManagement>
@@ -197,7 +198,7 @@
                         <systemPropertyVariables>
                             <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
                         </systemPropertyVariables>
-                        <argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>
+                        <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
                         <properties>
                             <configurationParameters>
                                 junit.jupiter.execution.parallel.enabled = true
