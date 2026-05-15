@@ -25,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
  * <ol>
  *   <li>{@link EnvironmentVariablesSource} – highest precedence</li>
  *   <li>{@link SystemPropertiesSource}</li>
+ *   <li>{@link FluxzeroAdditionalPropertiesSource} – extra locations declared with
+ *       {@code FLUXZERO_CONFIG_LOCATIONS}</li>
  *   <li>{@link ApplicationEnvironmentPropertiesSource} – e.g. application-dev.properties</li>
  *   <li>{@link ApplicationPropertiesSource} – fallback base configuration</li>
  *   <li>{@link FluxzeroPropertiesSource} – Fluxzero-specific SDK defaults</li>
@@ -42,6 +44,7 @@ public class DefaultPropertySource implements PropertySource {
     public DefaultPropertySource() {
         this.delegate = PropertySource.join(
                 EnvironmentVariablesSource.INSTANCE, new SystemPropertiesSource(),
+                new FluxzeroAdditionalPropertiesSource(),
                 new ApplicationEnvironmentPropertiesSource(),
                 new ApplicationPropertiesSource(),
                 new FluxzeroPropertiesSource());

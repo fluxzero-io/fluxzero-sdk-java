@@ -17,7 +17,10 @@ package io.fluxzero.common.application;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
 
 import static io.fluxzero.common.TestUtils.runWithSystemProperties;
@@ -25,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DefaultPropertySourceTest {
+    @TempDir
+    Path tempDir;
+
 
     @Test
     void fromSystemProperty() {
@@ -48,6 +54,82 @@ class DefaultPropertySourceTest {
             assertEquals("envbar", source.get("propertiesFile.foo"));
             assertEquals("bar", source.get("envFile.foo"));
         }, "environment", "test");
+    }
+
+    @Test
+    void fromFluxzeroAdditionalLocation() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, """
+                foo=fromAdditionalLocation
+                additional.secret=bar
+                propertiesFile.foo=fromAdditionalLocation
+                """);
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("fromAdditionalLocation", source.get("foo"));
+            assertEquals("fromAdditionalLocation", source.get("propertiesFile.foo"));
+            assertEquals("bar", source.get("additional.secret"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString());
+    }
+
+    @Test
+    void systemPropertiesOverrideFluxzeroAdditionalLocation() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, "additional.secret=fromAdditionalLocation");
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("fromSystemProperty", source.get("additional.secret"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString(),
+                                "additional.secret", "fromSystemProperty");
+    }
+
+    @Test
+    void fromMultipleFluxzeroAdditionalLocations() throws Exception {
+        Path first = tempDir.resolve("first.properties");
+        Path second = tempDir.resolve("second.properties");
+        Files.writeString(first, """
+                additional.first=first
+                additional.shared=first
+                """);
+        Files.writeString(second, """
+                additional.second=second
+                additional.shared=second
+                """);
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("first", source.get("additional.first"));
+            assertEquals("second", source.get("additional.second"));
+            assertEquals("second", source.get("additional.shared"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY,
+                                first.toUri() + "," + second.toUri());
+    }
+
+    @Test
+    void optionalFluxzeroAdditionalLocationMayBeMissing() {
+        Path secrets = tempDir.resolve("missing.properties");
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("bar", source.get("foo"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY,
+                                "optional:" + secrets.toUri());
+    }
+
+    @Test
+    void fromFluxzeroAdditionalClasspathLocation() {
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("fromClasspathAdditional", source.get("additional.classpath"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY,
+                                "classpath:additional-fluxzero.properties");
     }
 
     @Test

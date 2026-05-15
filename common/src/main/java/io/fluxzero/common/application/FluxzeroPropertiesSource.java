@@ -58,16 +58,23 @@ public class FluxzeroPropertiesSource extends JavaPropertiesSource {
     }
 
     @SneakyThrows
-    private static Properties loadJsonProperties(String fileName) {
+    static Properties loadJsonProperties(String fileName) {
         Properties result = new Properties();
         String normalized = fileName.startsWith("/") ? fileName.substring(1) : fileName;
         var resources = Collections.list(FluxzeroPropertiesSource.class.getClassLoader()
                                              .getResources(normalized)).reversed();
         for (URL resource : resources) {
             try (InputStream inputStream = resource.openStream()) {
-                flattenJsonProperties(result, "", JsonUtils.writer.readTree(inputStream));
+                result.putAll(loadJsonProperties(inputStream));
             }
         }
+        return result;
+    }
+
+    @SneakyThrows
+    static Properties loadJsonProperties(InputStream inputStream) {
+        Properties result = new Properties();
+        flattenJsonProperties(result, "", JsonUtils.writer.readTree(inputStream));
         return result;
     }
 
