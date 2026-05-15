@@ -36,6 +36,7 @@ final class ValidationRun {
     private final ValidationSettings settings;
     private final boolean fieldOnly;
     private final boolean skipMethodsAfterFieldViolations;
+    private final boolean beanPropertyMethodNamesOnly;
     private final List<DefaultValidationMetadata.DefaultConstraintViolation<?>> violations = new ArrayList<>();
     private final Set<Object> validationStack = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<ProcessedConstraint> processedConstraints = new HashSet<>();
@@ -74,6 +75,7 @@ final class ValidationRun {
         this.settings = settings;
         this.fieldOnly = fieldOnly;
         this.skipMethodsAfterFieldViolations = skipMethodsAfterFieldViolations;
+        this.beanPropertyMethodNamesOnly = settings.beanPropertyMethodNamesOnly();
         this.deduplicateConstraints = deduplicateConstraints;
     }
 
@@ -91,6 +93,10 @@ final class ValidationRun {
 
     boolean skipMethodsAfterFieldViolations() {
         return skipMethodsAfterFieldViolations;
+    }
+
+    boolean beanPropertyMethodNamesOnly() {
+        return beanPropertyMethodNamesOnly;
     }
 
     boolean skippedMethodsAfterFieldViolations() {

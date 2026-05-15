@@ -117,7 +117,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
             }
         }
         for (Method method : ReflectionUtils.getAllMethods(type)) {
-            if (isBeanPropertyMethod(method) && MemberMetadata.methodHasValidation(method)) {
+            if (isBeanPropertyMethodCandidate(method) && MemberMetadata.methodHasValidation(method)) {
                 MemberMetadata metadata = MemberMetadata.method(method);
                 if (!metadata.duplicates(fieldMembers.get(metadata.propertyName()))) {
                     result.add(metadata);
@@ -127,29 +127,11 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         return List.copyOf(result);
     }
 
-    private static boolean isBeanPropertyMethod(Method method) {
+    private static boolean isBeanPropertyMethodCandidate(Method method) {
         return method.getParameterCount() == 0
                && ReflectionUtils.hasReturnType(method)
                && !Modifier.isStatic(method.getModifiers())
-               && !method.getDeclaringClass().isAssignableFrom(method.getReturnType())
-               && hasBeanPropertyName(method);
-    }
-
-    private static boolean hasBeanPropertyName(Method method) {
-        String name = method.getName();
-        return hasPrefixedPropertyName(name, "get")
-               || (isBooleanType(method.getReturnType())
-                   && (hasPrefixedPropertyName(name, "is") || hasPrefixedPropertyName(name, "has")));
-    }
-
-    private static boolean hasPrefixedPropertyName(String name, String prefix) {
-        return name.length() > prefix.length()
-               && name.startsWith(prefix)
-               && Character.isUpperCase(name.charAt(prefix.length()));
-    }
-
-    private static boolean isBooleanType(Class<?> type) {
-        return type == boolean.class || type == Boolean.class;
+               && !method.getDeclaringClass().isAssignableFrom(method.getReturnType());
     }
 
     @SuppressWarnings("unchecked")
@@ -235,6 +217,7 @@ static final class KotlinSupport {
 }
 
 record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoker invoker, boolean method,
+                      boolean beanPropertyMethodName,
                       List<ConstraintMeta> constraints, TypeUseValidationMetadata typeUse,
                       boolean cascaded, List<ValidationAnnotationUtils.GroupConversion> conversions) {
     static boolean fieldHasValidation(Field field) {
@@ -248,7 +231,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(field);
         return new MemberMetadata(field.getName(), field,
                                   ReflectionUtils.getTypeMetadata(field.getDeclaringClass()).invoker(field, true),
-                                  false, constraints,
+                                  false, false, constraints,
                                   TypeUseValidationMetadata.of(field.getAnnotatedType(), constraints, cascaded, conversions),
                                   cascaded, conversions);
     }
@@ -262,7 +245,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         List<ConstraintMeta> constraints = ValidationAnnotationUtils.constraintMetas(parameter);
         boolean cascaded = ReflectionUtils.getAnnotation(parameter, Valid.class).isPresent();
         List<ValidationAnnotationUtils.GroupConversion> conversions = ValidationAnnotationUtils.groupConversions(parameter);
-        return new MemberMetadata(propertyName, parameter, invoker, false, constraints,
+        return new MemberMetadata(propertyName, parameter, invoker, false, false, constraints,
                                   TypeUseValidationMetadata.of(parameter.getAnnotatedType(), constraints, cascaded, conversions),
                                   cascaded, conversions);
     }
@@ -285,7 +268,7 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
                 .toList();
         return new MemberMetadata(propertyName(method), method,
                                   ReflectionUtils.getTypeMetadata(method.getDeclaringClass()).invoker(method, true),
-                                  true, constraints,
+                                  true, hasBeanPropertyName(method), constraints,
                                   TypeUseValidationMetadata.of(method.getAnnotatedReturnType(), constraints, cascaded,
                                                      conversions),
                                   cascaded, conversions);
@@ -303,6 +286,13 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
             return decapitalize(name, 3);
         }
         return ReflectionUtils.getPropertyName(method);
+    }
+
+    private static boolean hasBeanPropertyName(Method method) {
+        String name = method.getName();
+        return hasPrefixedPropertyName(name, "get")
+               || (isBooleanType(method.getReturnType())
+                   && (hasPrefixedPropertyName(name, "is") || hasPrefixedPropertyName(name, "has")));
     }
 
     private static boolean hasPrefixedPropertyName(String name, String prefix) {
@@ -345,11 +335,17 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (!appliesToGroup(group)) {
             return;
         }
+        if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
+            return;
+        }
         validateValue(run, owner, invoker.invoke(owner), group, parentPath, true);
     }
 
     void validate(ValidationRun run, Object owner, Class<?>[] groups, ValidationPath parentPath, boolean cascade) {
         if (!appliesToAnyGroup(groups)) {
+            return;
+        }
+        if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
             return;
         }
         validateValue(run, owner, invoker.invoke(owner), groups, parentPath, cascade);

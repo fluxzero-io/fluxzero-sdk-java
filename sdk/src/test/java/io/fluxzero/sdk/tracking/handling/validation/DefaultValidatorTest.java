@@ -207,8 +207,27 @@ class DefaultValidatorTest {
     }
 
     @Test
-    void nonGetterMethodConstraintsAreIgnored() {
-        subject.assertValid(new ArbitraryMethodConstraint());
+    void nonGetterMethodConstraintsAreValidatedByDefault() {
+        ValidationException e = assertThrows(ValidationException.class,
+                                            () -> subject.assertValid(new ArbitraryMethodConstraint()));
+
+        assertEquals("anythingGoes must be true", e.getMessage());
+    }
+
+    @Test
+    void beanPropertyMethodNameCompatibilityIgnoresNonGetterMethodConstraints() {
+        String property = DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY;
+        String previous = System.getProperty(property);
+        try {
+            System.setProperty(property, "true");
+            subject.assertValid(new ArbitraryMethodConstraint());
+        } finally {
+            if (previous == null) {
+                System.clearProperty(property);
+            } else {
+                System.setProperty(property, previous);
+            }
+        }
     }
 
     @Test
