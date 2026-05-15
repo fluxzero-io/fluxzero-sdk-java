@@ -20,6 +20,7 @@ import io.fluxzero.common.application.ApplicationPropertiesSource;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.EnvironmentVariablesSource;
+import io.fluxzero.common.application.FluxzeroPropertiesSource;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.application.SystemPropertiesSource;
 import io.fluxzero.common.encryption.Encryption;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
  *   <li>{@link SystemPropertiesSource}</li>
  *   <li>{@link ApplicationEnvironmentPropertiesSource} – e.g. application-dev.properties</li>
  *   <li>{@link ApplicationPropertiesSource} – fallback base configuration from application.properties</li>
+ *   <li>{@link FluxzeroPropertiesSource} – Fluxzero-specific SDK defaults from fluxzero.properties or fluxzero.json</li>
  * </ol>
  *
  * <p>Property resolution supports typed access, default values, encryption, and template substitution.

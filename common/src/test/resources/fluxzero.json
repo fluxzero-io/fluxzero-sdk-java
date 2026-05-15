@@ -1,0 +1,10 @@
+{
+  "fluxzero": {
+    "json": {
+      "foo": "bar",
+      "enabled": true
+    },
+    "number": 42,
+    "shared": "json"
+  }
+}

@@ -51,6 +51,30 @@ class DefaultPropertySourceTest {
     }
 
     @Test
+    void fromFluxzeroPropertiesFiles() {
+        var source = new DefaultPropertySource();
+
+        assertEquals("bar", source.get("fluxzero.properties.foo"));
+        assertEquals("bar", source.get("fluxzero.json.foo"));
+        assertEquals("true", source.get("fluxzero.json.enabled"));
+        assertEquals("42", source.get("fluxzero.number"));
+    }
+
+    @Test
+    void applicationPropertiesOverrideFluxzeroPropertiesFiles() {
+        var source = new DefaultPropertySource();
+
+        assertEquals("bar", source.get("foo"));
+    }
+
+    @Test
+    void fluxzeroPropertiesOverrideFluxzeroJson() {
+        var source = new DefaultPropertySource();
+
+        assertEquals("properties", source.get("fluxzero.shared"));
+    }
+
+    @Test
     void getInteger() {
         runWithSystemProperties(() -> {
             var source = new DefaultPropertySource();
