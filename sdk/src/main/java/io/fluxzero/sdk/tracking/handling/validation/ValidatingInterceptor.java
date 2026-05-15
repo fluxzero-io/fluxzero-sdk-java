@@ -18,6 +18,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
+import java.lang.annotation.Annotation;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -28,12 +29,13 @@ import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.defau
  */
 public class ValidatingInterceptor implements HandlerInterceptor {
     private final Validator validator;
+    private final boolean validatePayload;
 
     /**
      * Creates an interceptor backed by the default validator.
      */
     public ValidatingInterceptor() {
-        this.validator = defaultValidator;
+        this(defaultValidator);
     }
 
     /**
@@ -42,12 +44,23 @@ public class ValidatingInterceptor implements HandlerInterceptor {
      * @param validator the validator to use for payload and return value validation
      */
     public ValidatingInterceptor(Validator validator) {
-        this.validator = Objects.requireNonNull(validator);
+        this(validator, true);
     }
 
     /**
-     * Wraps handler invocation with payload validation before invocation and return value validation after invocation
-     * when the handler method declares return constraints.
+     * Creates an interceptor backed by the supplied validator.
+     *
+     * @param validator       the validator to use for validation
+     * @param validatePayload whether incoming message payloads should be validated before handler invocation
+     */
+    public ValidatingInterceptor(Validator validator, boolean validatePayload) {
+        this.validator = Objects.requireNonNull(validator);
+        this.validatePayload = validatePayload;
+    }
+
+    /**
+     * Wraps handler invocation with payload validation before invocation. Non-passive request handlers with a method
+     * annotation also get return value validation when the handler method declares return constraints.
      *
      * @param function handler invocation function
      * @param invoker  handler metadata and invocation context
@@ -56,14 +69,24 @@ public class ValidatingInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        boolean validateReturnValue = validator.hasReturnValueValidation(invoker.getMethod());
+        boolean validateReturnValue = shouldValidateReturnValue(invoker);
         return m -> {
-            ValidationUtils.assertValid(m.getPayload(), validator);
+            if (validatePayload) {
+                ValidationUtils.assertValid(m.getPayload(), validator);
+            }
             Object result = function.apply(m);
-            if (validateReturnValue) {
+            if (validateReturnValue && m.getMessageType().isRequest()) {
                 validator.assertValidReturnValue(null, invoker.getMethod(), result);
             }
             return result;
         };
+    }
+
+    private boolean shouldValidateReturnValue(HandlerInvoker invoker) {
+        Annotation methodAnnotation = invoker.getMethodAnnotation();
+        return methodAnnotation != null
+               && !invoker.isPassive()
+               && invoker.expectResult()
+               && validator.hasReturnValueValidation(invoker.getMethod());
     }
 }

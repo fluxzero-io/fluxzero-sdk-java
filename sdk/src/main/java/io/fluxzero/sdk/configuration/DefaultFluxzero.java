@@ -672,11 +672,13 @@ public class DefaultFluxzero implements Fluxzero {
                         type -> dispatchChains.compute(type, (t, i) -> correlatingInterceptor.andThen(i)));
             }
 
-            //enable command and query validation before handling
+            //enable request validation before handling
             if (!disablePayloadValidation) {
                 ValidatingInterceptor interceptor = new ValidatingInterceptor(validator);
                 Stream.of(CUSTOM, COMMAND, QUERY).forEach(type -> handlerChains.computeIfPresent(
                         type, (t, i) -> i.andThen(interceptor)));
+                handlerChains.computeIfPresent(WEBREQUEST,
+                                               (t, i) -> i.andThen(new ValidatingInterceptor(validator, false)));
             }
 
             //enable scheduling interceptor
