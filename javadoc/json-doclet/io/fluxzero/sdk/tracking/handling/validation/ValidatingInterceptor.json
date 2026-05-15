@@ -4,15 +4,20 @@
   "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " A {@link HandlerInterceptor} that validates the payload of messages before they are handled.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
   "fields" : [ {
+    "name" : "validatePayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor.validatePayload",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "validator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor.validator",
     "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
@@ -30,7 +35,42 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an interceptor backed by the default validator.\n"
+  }, {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor backed by the supplied validator.\n\n @param validator the validator to use for payload and return value validation\n"
+  }, {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validatePayload",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor backed by the supplied validator.\n\n @param validator       the validator to use for validation\n @param validatePayload whether incoming message payloads should be validated before handler invocation\n"
   } ],
   "methods" : [ {
     "name" : "interceptHandling",
@@ -48,6 +88,22 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Wraps handler invocation with payload validation before invocation. Non-passive request handlers with a method\n annotation also get return value validation when the handler method declares return constraints.\n\n @param function handler invocation function\n @param invoker  handler metadata and invocation context\n @return a validating handler invocation function\n"
+  }, {
+    "name" : "shouldValidateReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#shouldValidateReturnValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "invoker",
       "type" : "io.fluxzero.common.handling.HandlerInvoker",
       "varArgs" : false,

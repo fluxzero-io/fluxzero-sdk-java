@@ -1,21 +1,18 @@
 {
-  "name" : "FieldResolver",
-  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator$FieldResolver",
-  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "name" : "DefaultTraversableResolver",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultTraversableResolver",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
   "kind" : "class",
-  "modifiers" : [ "private", "static" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "jakarta.validation.TraversableResolver" ],
   "fields" : [ ],
   "constructors" : [ {
-    "name" : "FieldResolver",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator$FieldResolver#FieldResolver",
+    "name" : "DefaultTraversableResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultTraversableResolver#DefaultTraversableResolver",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -26,7 +23,7 @@
   } ],
   "methods" : [ {
     "name" : "isCascadable",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator$FieldResolver#isCascadable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultTraversableResolver#isCascadable",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -62,10 +59,10 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "{@inheritDoc} "
   }, {
     "name" : "isReachable",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator$FieldResolver#isReachable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultTraversableResolver#isReachable",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -101,7 +98,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "{@inheritDoc} "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

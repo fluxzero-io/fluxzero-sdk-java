@@ -69,6 +69,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getKotlinParameterName",
+    "qualifiedName" : "io.fluxzero.common.reflection.KotlinReflectionUtils#getKotlinParameterName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the Kotlin source parameter name for a Java reflection parameter.\n\n @param parameter the Java reflection parameter to resolve\n @return the Kotlin parameter name, or {@code null} when no matching Kotlin value parameter exists\n"
+  }, {
+    "name" : "getPrimaryConstructor",
+    "qualifiedName" : "io.fluxzero.common.reflection.KotlinReflectionUtils#getPrimaryConstructor",
+    "returnType" : "java.lang.reflect.Constructor<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the Java reflection constructor that corresponds to a Kotlin class' primary constructor.\n\n @param type the Kotlin type to inspect\n @return the Java constructor for the Kotlin primary constructor, or {@code null} when none is available\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -1,0 +1,97 @@
+{
+  "name" : "FluxzeroValidationProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Jakarta Validation provider that exposes the SDK validator through the standard bootstrap API.\n <p>\n This provider supports the SDK's Jakarta Validation profile. XML configuration/mappings, CDI lifecycle integration,\n TraversableResolver reachability rules, and full Expression Language message evaluation are intentionally not part of\n that profile.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "jakarta.validation.spi.ValidationProvider<io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration>" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "FluxzeroValidationProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider#FluxzeroValidationProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "buildValidatorFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider#buildValidatorFactory",
+    "returnType" : "jakarta.validation.ValidatorFactory",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configurationState",
+      "type" : "jakarta.validation.spi.ConfigurationState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "createGenericConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider#createGenericConfiguration",
+    "returnType" : "jakarta.validation.Configuration<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "state",
+      "type" : "jakarta.validation.spi.BootstrapState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "createSpecializedConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider#createSpecializedConfiguration",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "state",
+      "type" : "jakarta.validation.spi.BootstrapState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DefaultValidatorFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$DefaultValidatorFactory",
+    "kind" : "class",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "JakartaValidatorAdapter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter",
+    "kind" : "class",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  } ]
+}

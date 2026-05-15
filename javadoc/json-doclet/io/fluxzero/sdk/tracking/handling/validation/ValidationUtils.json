@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Utility class providing common validation and authorization routines for message payloads such as commands, queries,\n and web requests.\n <p>\n The {@code ValidationUtils} class supports two primary responsibilities:\n <ol>\n     <li><strong>Object validation</strong>: Validates message payloads using a {@link Validator}, optionally\n     applying validation groups specified via {@link ValidateWith} annotations.</li>\n     <li><strong>Authorization enforcement</strong>: Performs role-based access checks based on annotations such as\n     {@link RequiresAnyRole}, {@link ForbidsAnyRole}, and {@link NoUserRequired} declared on classes, methods, or packages.</li>\n </ol>\n\n <h2>Validation</h2>\n <p>\n Validation is typically executed automatically by the {@link ValidatingInterceptor} before invoking handler methods.\n The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code Jsr380Validator}).\n <p>\n Methods like {@link #assertValid(Object, Class[])} and {@link #checkValidity(Object, Validator, Class[])}\n support recursive validation of collections and custom validation groups.\n\n <h2>Authorization</h2>\n <p>\n The class also performs role-based security checks. Handler methods or message payloads can declare required roles,\n which are evaluated against the current {@link User}. If authorization fails, the utility throws either\n {@link UnauthenticatedException} or {@link UnauthorizedException}.\n\n <h2>Examples</h2>\n <pre>{@code\n ValidationUtils.assertValid(payload); // Validate a single object\n boolean isValid = ValidationUtils.isValid(payload, MyGroup.class); // Validate with a group\n\n User user = ...;\n ValidationUtils.assertAuthorized(MyCommand.class, user); // Authorization check\n }</pre>\n\n @see Validator\n @see ValidatingInterceptor\n @see RequiresAnyRole\n @see ForbidsAnyRole\n @see NoUserRequired\n @see ValidateWith\n @see UnauthenticatedException\n @see UnauthorizedException\n",
+  "documentation" : " Utility class providing common validation and authorization routines for message payloads such as commands, queries,\n and web requests.\n <p>\n The {@code ValidationUtils} class supports two primary responsibilities:\n <ol>\n     <li><strong>Object validation</strong>: Validates message payloads using a {@link Validator}, optionally\n     applying validation groups specified via {@link ValidateWith} annotations.</li>\n     <li><strong>Authorization enforcement</strong>: Performs role-based access checks based on annotations such as\n     {@link RequiresAnyRole}, {@link ForbidsAnyRole}, and {@link NoUserRequired} declared on classes, methods, or packages.</li>\n </ol>\n\n <h2>Validation</h2>\n <p>\n Validation is typically executed automatically by the {@link ValidatingInterceptor} before invoking handler methods.\n The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code DefaultValidator}).\n <p>\n Methods like {@link #assertValid(Object, Class[])} and {@link #checkValidity(Object, Validator, Class[])}\n support recursive validation of collections and custom validation groups.\n\n <h2>Authorization</h2>\n <p>\n The class also performs role-based security checks. Handler methods or message payloads can declare required roles,\n which are evaluated against the current {@link User}. If authorization fails, the utility throws either\n {@link UnauthenticatedException} or {@link UnauthorizedException}.\n\n <h2>Examples</h2>\n <pre>{@code\n ValidationUtils.assertValid(payload); // Validate a single object\n boolean isValid = ValidationUtils.isValid(payload, MyGroup.class); // Validate with a group\n\n User user = ...;\n ValidationUtils.assertAuthorized(MyCommand.class, user); // Authorization check\n }</pre>\n\n @see Validator\n @see ValidatingInterceptor\n @see RequiresAnyRole\n @see ForbidsAnyRole\n @see NoUserRequired\n @see ValidateWith\n @see UnauthenticatedException\n @see UnauthorizedException\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -18,7 +18,7 @@
     "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Returns the default {@link Validator} used for message validation.\n <p>\n This is resolved via Java's {@link ServiceLoader} mechanism. If no custom {@link Validator} is found, a default\n JSR 380 (Bean Validation) implementation is used.\n",
+    "documentation" : " Returns the default {@link Validator} used for message validation.\n <p>\n This is resolved via Java's {@link ServiceLoader} mechanism. If no custom {@link Validator} is found, a default\n Jakarta Validation implementation is used.\n",
     "constantValue" : null
   }, {
     "name" : "noUserRequired",
@@ -213,7 +213,39 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Asserts that executable arguments satisfy JSR 380 constraints declared on method or constructor parameters.\n\n @param target     the target object for method invocation (ignored for constructors and static methods)\n @param executable the executable that will be invoked\n @param arguments  resolved argument values in declaration order\n"
+    "documentation" : " Asserts that executable arguments satisfy Jakarta Validation constraints declared on method or constructor\n parameters.\n\n @param target     the target object for method invocation (ignored for constructors and static methods)\n @param executable the executable that will be invoked\n @param arguments  resolved argument values in declaration order\n"
+  }, {
+    "name" : "assertValidReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#assertValidReturnValue",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asserts that an executable return value satisfies constraints declared on the method or constructor return value.\n\n @param target      the target object for method invocation (ignored for constructors and static methods)\n @param executable  the executable that produced the value\n @param returnValue returned value\n"
   }, {
     "name" : "checkValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#checkValidity",
@@ -261,6 +293,105 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : " Checks whether the provided object is valid, using the default {@link Validator} and validation groups.\n\n @param object the object to validate\n @param groups optional validation groups\n @return an {@link Optional} containing a {@link ValidationException} if validation fails, or empty if valid\n"
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates the object using the provided validator and returns structured constraint violations with property paths.\n\n @param object    the object to validate\n @param validator the validator to use\n @param groups    optional validation groups\n @param <T>       object type\n @return structured constraint violations\n @throws UnsupportedOperationException if the supplied validator does not expose raw violations\n"
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates the object using the default validator and returns structured constraint violations with property paths.\n <p>\n This method is intended for tests, diagnostics, and integrations that need structured validation\n output instead of the formatted messages stored in {@link ValidationException}.\n\n @param object the object to validate\n @param groups optional validation groups\n @param <T>    object type\n @return structured constraint violations\n"
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objects",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates each element in the collection using the provided validator and returns structured constraint violations.\n\n @param objects   the objects to validate\n @param validator the validator to use\n @param groups    optional validation groups\n @return structured constraint violations for the collection elements\n @throws UnsupportedOperationException if the supplied validator does not expose raw violations\n"
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objects",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates each element in the collection using the default validator and returns structured constraint violations.\n\n @param objects the objects to validate\n @param groups  optional validation groups\n @return structured constraint violations for the collection elements\n"
   }, {
     "name" : "getRequiredRoles",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils#getRequiredRoles",

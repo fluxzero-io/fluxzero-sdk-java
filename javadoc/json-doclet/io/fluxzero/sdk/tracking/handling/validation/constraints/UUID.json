@@ -1,0 +1,104 @@
+{
+  "name" : "UUID",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID.List"
+    }
+  }, {
+    "annotationType" : "jakarta.validation.Constraint",
+    "values" : {
+      "validatedBy" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUIDValidator.class"
+    }
+  } ],
+  "documentation" : " Validates that a character sequence is a canonical UUID string.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "groups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID#groups",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return validation groups for which this constraint applies\n"
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return violation message template\n"
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID#payload",
+    "returnType" : "java.lang.Class<? extends jakarta.validation.Payload>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return payload metadata associated with this constraint\n"
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID#version",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return required UUID version, or {@code -1} to allow any version\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID$List",
+    "kind" : "annotation_type",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.annotation.Documented",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.annotation.Target",
+      "values" : {
+        "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+      }
+    }, {
+      "annotationType" : "java.lang.annotation.Retention",
+      "values" : {
+        "value" : "RUNTIME"
+      }
+    } ]
+  } ]
+}

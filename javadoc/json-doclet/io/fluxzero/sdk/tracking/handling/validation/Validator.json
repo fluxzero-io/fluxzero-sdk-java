@@ -8,7 +8,7 @@
     "annotationType" : "java.lang.FunctionalInterface",
     "values" : {}
   } ],
-  "documentation" : " Strategy interface for validating message payloads and other objects prior to handler invocation.\n <p>\n Implementations of this interface are typically invoked by the {@link ValidatingInterceptor}, which is automatically\n registered by the Fluxzero client. Validation occurs before the message is passed to the handler method.\n\n <p>\n A {@code Validator} is responsible for detecting constraint violations and producing a {@link ValidationException} if\n applicable. It supports validation groups to selectively apply rules.\n\n <h2>Usage</h2>\n The validator may be used programmatically:\n\n <pre>{@code\n validator.assertValid(new CreateUserCommand(...));\n }</pre>\n\n <p>\n But more commonly, it is used implicitly:\n <ul>\n     <li>When the {@link ValidatingInterceptor} is registered with the {@code HandlerFactory}</li>\n     <li>Or when using dependency injection or framework-level validation support</li>\n </ul>\n\n <h2>Custom Implementations</h2>\n Custom validators can be created to support use cases like:\n <ul>\n     <li>JSR 380 / Bean Validation annotations (e.g., {@code @NotNull}, {@code @Size})</li>\n     <li>Domain-specific validation rules</li>\n     <li>Structural validation on incoming {@link io.fluxzero.common.MessageType#WEBREQUEST web requests}</li>\n </ul>\n\n <p>\n This interface is designed to be functional and composable, enabling fluent use within client applications.\n\n @see ValidatingInterceptor\n @see ValidationException\n",
+  "documentation" : " Strategy interface for validating message payloads and other objects prior to handler invocation.\n <p>\n Implementations of this interface are typically invoked by the {@link ValidatingInterceptor}, which is automatically\n registered by the Fluxzero client. Validation occurs before the message is passed to the handler method.\n\n <p>\n A {@code Validator} is responsible for detecting constraint violations and producing a {@link ValidationException} if\n applicable. It supports validation groups to selectively apply rules.\n\n <h2>Usage</h2>\n The validator may be used programmatically:\n\n <pre>{@code\n validator.assertValid(new CreateUserCommand(...));\n }</pre>\n\n <p>\n But more commonly, it is used implicitly:\n <ul>\n     <li>When the {@link ValidatingInterceptor} is registered with the {@code HandlerFactory}</li>\n     <li>Or when using dependency injection or framework-level validation support</li>\n </ul>\n\n <h2>Custom Implementations</h2>\n Custom validators can be created to support use cases like:\n <ul>\n     <li>Jakarta Validation annotations (e.g., {@code @NotNull}, {@code @Size})</li>\n     <li>Domain-specific validation rules</li>\n     <li>Structural validation on incoming {@link io.fluxzero.common.MessageType#WEBREQUEST web requests}</li>\n </ul>\n\n <p>\n This interface is designed to be functional and composable, enabling fluent use within client applications.\n\n @see ValidatingInterceptor\n @see ValidationException\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ ],
@@ -94,6 +94,38 @@
     "varArgs" : false,
     "documentation" : " Validates invocation arguments for a method or constructor and throws when constraints are violated.\n\n @param target     the method target instance (ignored for constructors)\n @param executable the executable being invoked\n @param arguments  invocation arguments\n @throws ValidationException if arguments are invalid\n"
   }, {
+    "name" : "assertValidReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#assertValidReturnValue",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ "io.fluxzero.sdk.tracking.handling.validation.ValidationException" ],
+    "varArgs" : false,
+    "documentation" : " Validates a method or constructor return value and throws when constraints are violated.\n\n @param target      the method target instance (ignored for constructors)\n @param executable  the executable that produced the value\n @param returnValue the value returned by the executable\n @throws ValidationException if the return value is invalid\n"
+  }, {
     "name" : "checkParameterValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#checkParameterValidity",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
@@ -123,6 +155,38 @@
     "varArgs" : false,
     "documentation" : " Validates invocation arguments for a method or constructor and returns an optional\n {@link ValidationException} when constraints are violated.\n\n @param target     the method target instance (ignored for constructors)\n @param executable the executable being invoked\n @param arguments  invocation arguments\n @return an optional validation exception\n"
   }, {
+    "name" : "checkReturnValueValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#checkReturnValueValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Validates a method or constructor return value and returns an optional {@link ValidationException} when\n constraints are violated.\n\n @param target      the method target instance (ignored for constructors)\n @param executable  the executable that produced the value\n @param returnValue the value returned by the executable\n @return an optional validation exception\n"
+  }, {
     "name" : "checkValidity",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#checkValidity",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
@@ -143,6 +207,43 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : " Validates the given object and returns an optional {@link ValidationException} if the object is invalid.\n\n @param object the object to validate\n @param groups optional validation groups to apply\n @param <T>    the type of object being validated\n @return an {@link Optional} containing the validation error if validation failed, or empty if valid\n"
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates the given object and returns structured constraint violations, including their property paths, invalid\n values, messages, and constraint metadata.\n\n @param object the object to validate\n @param groups optional validation groups to apply\n @param <T>    the type of object being validated\n @return constraint violations found while validating the object\n @throws UnsupportedOperationException if this validator only exposes formatted {@link ValidationException}s\n"
+  }, {
+    "name" : "hasReturnValueValidation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#hasReturnValueValidation",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the executable declares return value constraints that this validator can evaluate.\n\n @param executable the executable whose return value may be validated\n @return {@code true} if return value validation should be performed\n"
   }, {
     "name" : "isValid",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator#isValid",

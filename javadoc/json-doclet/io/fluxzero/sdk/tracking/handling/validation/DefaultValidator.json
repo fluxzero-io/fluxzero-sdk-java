@@ -1,0 +1,77 @@
+{
+  "name" : "DefaultValidator",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Canonical SDK entry point for Fluxzero's Validation implementation.\n <p>\n This validator supports the Jakarta Validation annotations and features used by the SDK, including built-in\n constraints, custom constraints, groups, cascaded validation, type-use/container validation, executable parameter\n and return-value validation, metadata lookup, value extractors, and Fluxzero-clock based temporal checks.\n <p>\n It is intentionally not a full standalone Jakarta Validation provider replacement for every TCK edge case:\n XML mappings, {@code validation.xml}, CDI lifecycle integration, TraversableResolver reachability rules, and full\n Expression Language message evaluation are outside the supported SDK profile.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Application property that switches bean validation for no-argument methods to JavaBean/Hibernate-compatible\n getter naming only. When set to {@code true}, only annotated {@code getX()}, {@code isX()}, and\n {@code hasX()} methods are treated as bean properties. The default is {@code false}, so any annotated\n no-argument method with a return value is validated.\n",
+    "constantValue" : "fluxzero.validation.beanPropertyMethodNamesOnly"
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator#DefaultValidator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that uses the current Fluxzero clock for temporal constraints.\n"
+  }, {
+    "name" : "DefaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator#DefaultValidator",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clockProvider",
+      "type" : "jakarta.validation.ClockProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that obtains its clock from the supplied Jakarta {@link ClockProvider}.\n\n @param clockProvider provider used for temporal constraints\n"
+  }, {
+    "name" : "DefaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator#DefaultValidator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that uses the supplied clock for temporal constraints such as {@code @Past} and\n {@code @Future}.\n\n @param clock the clock to use while validating temporal constraints\n"
+  } ],
+  "methods" : [ {
+    "name" : "createDefault",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator#createDefault",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the default SDK validator instance.\n\n @return a validator backed by the current Fluxzero clock\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,189 @@
+{
+  "name" : "FluxzeroAdditionalPropertiesSource",
+  "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link PropertySource} that loads extra configuration from locations declared through\n {@value #CONFIG_LOCATIONS_PROPERTY}.\n <p>\n The property can be set as an environment variable or JVM system property. Multiple locations can be separated with\n commas. Supported locations are {@code file:/path/to/config.properties}, plain file paths, and\n {@code classpath:config.properties}. Prefix a location with {@code optional:} to ignore it when it does not exist.\n Later locations override earlier locations.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.application.JavaPropertiesSource",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "CONFIG_LOCATIONS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Environment variable or system property that points to extra Fluxzero configuration locations.\n",
+    "constantValue" : "FLUXZERO_CONFIG_LOCATIONS"
+  }, {
+    "name" : "CONFIG_LOCATIONS_PROPERTY_ALIAS",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Lower-case system property alias for {@link #CONFIG_LOCATIONS_PROPERTY}.\n",
+    "constantValue" : "fluxzero.config.locations"
+  } ],
+  "constructors" : [ {
+    "name" : "FluxzeroAdditionalPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#FluxzeroAdditionalPropertiesSource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a source backed by the configured additional locations.\n"
+  } ],
+  "methods" : [ {
+    "name" : "filePath",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#filePath",
+    "returnType" : "java.nio.file.Path",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "location",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#load",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputStream",
+      "type" : "java.io.InputStream",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "location",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAdditionalProperties",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#loadAdditionalProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadClasspathLocation",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#loadClasspathLocation",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "location",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadLocation",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#loadLocation",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "location",
+      "type" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource.ConfigLocation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadLocations",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#loadLocations",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "locations",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadRequiredLocation",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#loadRequiredLocation",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "location",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putAll",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource#putAll",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "properties",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ConfigLocation",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource$ConfigLocation",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

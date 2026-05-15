@@ -129,6 +129,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "uniqueItems",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.uniqueItems",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "SchemaMetadataBuilder",

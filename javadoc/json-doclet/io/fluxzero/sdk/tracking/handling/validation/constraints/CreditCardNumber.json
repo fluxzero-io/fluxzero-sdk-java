@@ -1,0 +1,104 @@
+{
+  "name" : "CreditCardNumber",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber.List"
+    }
+  }, {
+    "annotationType" : "jakarta.validation.Constraint",
+    "values" : {
+      "validatedBy" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumberValidator.class"
+    }
+  } ],
+  "documentation" : " Validates that a character sequence is a credit card number according to the Luhn checksum.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "groups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber#groups",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return validation groups for which this constraint applies\n"
+  }, {
+    "name" : "ignoreNonDigitCharacters",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber#ignoreNonDigitCharacters",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return whether spaces, dashes, and other non-digit characters are ignored before validation\n"
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return violation message template\n"
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber#payload",
+    "returnType" : "java.lang.Class<? extends jakarta.validation.Payload>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return payload metadata associated with this constraint\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber$List",
+    "kind" : "annotation_type",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.annotation.Documented",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.annotation.Target",
+      "values" : {
+        "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+      }
+    }, {
+      "annotationType" : "java.lang.annotation.Retention",
+      "values" : {
+        "value" : "RUNTIME"
+      }
+    } ]
+  } ]
+}

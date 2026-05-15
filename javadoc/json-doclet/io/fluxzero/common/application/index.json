@@ -30,6 +30,21 @@
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource",
     "kind" : "enum"
   }, {
+    "file" : "FluxzeroAdditionalPropertiesSource.json",
+    "name" : "FluxzeroAdditionalPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroAdditionalPropertiesSource.ConfigLocation.json",
+    "name" : "FluxzeroAdditionalPropertiesSource.ConfigLocation",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource$ConfigLocation",
+    "kind" : "record"
+  }, {
+    "file" : "FluxzeroPropertiesSource.json",
+    "name" : "FluxzeroPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource",
+    "kind" : "class"
+  }, {
     "file" : "JavaPropertiesSource.json",
     "name" : "JavaPropertiesSource",
     "qualifiedName" : "io.fluxzero.common.application.JavaPropertiesSource",

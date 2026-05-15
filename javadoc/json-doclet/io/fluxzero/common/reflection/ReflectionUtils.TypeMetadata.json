@@ -58,6 +58,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "annotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.annotations",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.reflect.AnnotatedElement,java.util.List<java.lang.annotation.Annotation>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "declaredFieldsByName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.declaredFieldsByName",
     "type" : "java.util.Map<java.lang.String,java.lang.reflect.Field>",
@@ -310,6 +318,22 @@
     }, {
       "name" : "returnType",
       "type" : "java.lang.Class<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "annotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotations",
+    "returnType" : "java.util.List<java.lang.annotation.Annotation>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "java.lang.reflect.AnnotatedElement",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

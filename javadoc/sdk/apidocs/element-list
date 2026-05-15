@@ -32,6 +32,8 @@ io.fluxzero.sdk.tracking.handling.authentication
 io.fluxzero.sdk.tracking.handling.contentfiltering
 io.fluxzero.sdk.tracking.handling.errorreporting
 io.fluxzero.sdk.tracking.handling.validation
+io.fluxzero.sdk.tracking.handling.validation.constraints
+io.fluxzero.sdk.tracking.handling.validation.jakarta
 io.fluxzero.sdk.tracking.metrics
 io.fluxzero.sdk.tracking.metrics.host
 io.fluxzero.sdk.tracking.metrics.host.collectors

@@ -45,7 +45,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a validation exception with a formatted message and the complete set of violation messages.\n\n @param message    formatted exception message\n @param violations individual violation messages\n"
   } ],
   "methods" : [ ],
   "enumConstants" : [ ],

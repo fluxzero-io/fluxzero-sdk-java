@@ -628,6 +628,22 @@
     "varArgs" : false,
     "documentation" : " Replaces the default {@link TaskScheduler} implementation.\n"
   }, {
+    "name" : "replaceValidator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceValidator",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replaceFunction",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.tracking.handling.validation.Validator>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the validator used for payload and web parameter validation.\n\n @param replaceFunction function that receives the current validator and returns the replacement\n @return this builder instance\n"
+  }, {
     "name" : "replaceWebResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#replaceWebResponseMapper",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

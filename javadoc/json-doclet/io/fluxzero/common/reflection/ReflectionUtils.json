@@ -61,6 +61,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "leafValueTypeCache",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.leafValueTypeCache",
+    "type" : "java.lang.ClassValue<java.lang.Boolean>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "leafValueTypes",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.leafValueTypes",
     "type" : "java.util.Set<java.lang.Class<?>>",
@@ -105,6 +113,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "annotationAttributeMethod",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#annotationAttributeMethod",
+    "returnType" : "java.util.Optional<java.lang.reflect.Method>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotationType",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "asClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#asClass",
     "returnType" : "java.lang.Class<?>",
@@ -144,6 +173,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "box",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#box",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a primitive type to its wrapper class and leaves non-primitive types unchanged.\n\n @param type the type to box\n @return the wrapper type for primitives, otherwise {@code type}\n"
   }, {
     "name" : "classExists",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#classExists",
@@ -423,6 +468,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getAllInterfaces",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAllInterfaces",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns all interfaces implemented by the supplied type, including interfaces inherited through superclasses and\n parent interfaces.\n\n @param type the type to inspect, or {@code null}\n @return interfaces in deterministic discovery order\n"
   }, {
     "name" : "getAllMethods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAllMethods",
@@ -783,6 +844,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getAnnotationAttribute",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAttribute",
+    "returnType" : "java.util.Optional<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a single annotation attribute value when it exists and matches the requested type.\n\n @param annotation   the annotation to inspect\n @param name         the attribute name\n @param expectedType the expected attribute value type\n @param <T>          attribute value type\n @return the attribute value, or empty if the attribute is absent or has another type\n"
+  }, {
+    "name" : "getAnnotationAttributes",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAttributes",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns all no-argument attributes declared by an annotation instance.\n\n @param annotation the annotation to inspect\n @return annotation attribute values keyed by attribute name\n"
+  }, {
     "name" : "getAnnotationOnSuper",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationOnSuper",
     "returnType" : "A",
@@ -808,6 +916,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getAnnotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotations",
+    "returnType" : "java.util.List<java.lang.annotation.Annotation>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "java.lang.reflect.AnnotatedElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the direct annotations present on an annotated element.\n <p>\n For type, field, method, constructor, and parameter elements, the result is cached in the declaring\n {@link TypeMetadata}. Use {@link #getTypeAnnotations(Class)} when inherited Fluxzero type annotation semantics\n are needed, and {@link #getPackageAnnotations(Package)} for recursive package annotation lookup.\n\n @param element the annotated element to inspect\n @return annotations present on the element, or an empty list when {@code element} is {@code null}\n"
   }, {
     "name" : "getAnnotationsOnSuper",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationsOnSuper",
@@ -1678,6 +1802,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasNonDefaultAnnotationAttribute",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasNonDefaultAnnotationAttribute",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether an annotation attribute has a value that differs from its declared default.\n\n @param annotation the annotation to inspect\n @param name       the attribute name\n @return {@code true} if the attribute has a default and the actual value differs from it\n"
+  }, {
     "name" : "hasProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasProperty",
     "returnType" : "boolean",
@@ -2054,6 +2199,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "rawAnnotations",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#rawAnnotations",
+    "returnType" : "java.util.List<java.lang.annotation.Annotation>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "java.lang.reflect.AnnotatedElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rawClass",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#rawClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a reflective {@link Type} to the best raw {@link Class} representation available.\n\n @param type the reflective type to resolve\n @return the raw class, or {@link Object} when no more specific class can be resolved\n"
+  }, {
     "name" : "readProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#readProperty",
     "returnType" : "java.util.Optional<T>",
@@ -2303,6 +2480,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "unbox",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#unbox",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts a primitive wrapper type to its primitive class and leaves other types unchanged.\n\n @param type the type to unbox\n @return the primitive type for wrappers, otherwise {@code type}\n"
   }, {
     "name" : "writeProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#writeProperty",

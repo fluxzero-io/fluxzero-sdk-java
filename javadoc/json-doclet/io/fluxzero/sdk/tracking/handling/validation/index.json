@@ -5,14 +5,14 @@
     "documentation" : null
   },
   "files" : [ {
-    "file" : "Jsr380Validator.json",
-    "name" : "Jsr380Validator",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator",
-    "kind" : "class"
+    "file" : "ConstraintViolation.json",
+    "name" : "ConstraintViolation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation",
+    "kind" : "record"
   }, {
-    "file" : "Jsr380Validator.FieldResolver.json",
-    "name" : "Jsr380Validator.FieldResolver",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator$FieldResolver",
+    "file" : "DefaultValidator.json",
+    "name" : "DefaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator",
     "kind" : "class"
   }, {
     "file" : "ValidateWith.json",
@@ -45,5 +45,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
     "kind" : "interface"
   } ],
-  "subdirectories" : [ ]
+  "subdirectories" : [ {
+    "name" : "constraints",
+    "path" : "constraints"
+  }, {
+    "name" : "jakarta",
+    "path" : "jakarta"
+  } ]
 }

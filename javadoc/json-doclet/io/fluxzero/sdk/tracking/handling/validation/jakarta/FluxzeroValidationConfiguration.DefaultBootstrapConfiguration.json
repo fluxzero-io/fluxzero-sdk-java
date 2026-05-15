@@ -1,0 +1,249 @@
+{
+  "name" : "DefaultBootstrapConfiguration",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ "jakarta.validation.BootstrapConfiguration" ],
+  "fields" : [ {
+    "name" : "properties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration.properties",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultBootstrapConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#DefaultBootstrapConfiguration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "properties",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getClockProviderClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getClockProviderClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getConstraintMappingResourcePaths",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getConstraintMappingResourcePaths",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getConstraintValidatorFactoryClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getConstraintValidatorFactoryClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getDefaultProviderClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getDefaultProviderClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getDefaultValidatedExecutableTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getDefaultValidatedExecutableTypes",
+    "returnType" : "java.util.Set<jakarta.validation.executable.ExecutableType>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getMessageInterpolatorClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getMessageInterpolatorClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getParameterNameProviderClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getParameterNameProviderClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getProperties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getProperties",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getTraversableResolverClassName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getTraversableResolverClassName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getValueExtractorClassNames",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#getValueExtractorClassNames",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isExecutableValidationEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#isExecutableValidationEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "properties",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#properties",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "properties",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

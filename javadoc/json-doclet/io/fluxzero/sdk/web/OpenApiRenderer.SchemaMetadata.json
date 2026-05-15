@@ -129,6 +129,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "uniqueItems",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaMetadata.uniqueItems",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "SchemaMetadata",
@@ -179,6 +187,11 @@
     }, {
       "name" : "maxSize",
       "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "uniqueItems",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -430,6 +443,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "uniqueItems",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaMetadata#uniqueItems",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
@@ -505,6 +529,11 @@
   }, {
     "name" : "type",
     "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "uniqueItems",
+    "type" : "boolean",
     "annotations" : [ ],
     "documentation" : null
   } ],

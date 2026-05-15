@@ -354,6 +354,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "validator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.validator",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "webResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.webResponseMapper",
     "type" : "io.fluxzero.sdk.web.WebResponseMapper",
@@ -1425,6 +1433,28 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "replaceValidator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#replaceValidator",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replaceFunction",
+      "type" : "java.util.function.@lombok.NonNull UnaryOperator<io.fluxzero.sdk.tracking.handling.validation.Validator>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the validator used by payload and web parameter validation.\n\n @param replaceFunction function that receives the current validator and returns the replacement\n @return this builder\n"
   }, {
     "name" : "replaceWebResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#replaceWebResponseMapper",

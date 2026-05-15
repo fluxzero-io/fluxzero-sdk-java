@@ -1,0 +1,505 @@
+{
+  "name" : "DefaultJakartaValidator",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Default reflection based Jakarta Validation implementation used by the SDK.\n <p>\n This class lives in the Jakarta implementation package; the public SDK entry point remains\n {@link io.fluxzero.sdk.tracking.handling.validation.DefaultValidator}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.validation.Validator" ],
+  "fields" : [ {
+    "name" : "settings",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator.settings",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.ValidationSettings",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultJakartaValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#DefaultJakartaValidator",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that uses the current Fluxzero clock for temporal constraints.\n"
+  }, {
+    "name" : "DefaultJakartaValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#DefaultJakartaValidator",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.ValidationSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultJakartaValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#DefaultJakartaValidator",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clockProvider",
+      "type" : "jakarta.validation.ClockProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that obtains its clock from the supplied Jakarta {@link ClockProvider}.\n\n @param clockProvider provider used for temporal constraints\n"
+  }, {
+    "name" : "DefaultJakartaValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#DefaultJakartaValidator",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a validator that uses the supplied clock for temporal constraints such as {@code @Past} and\n {@code @Future}.\n\n @param clock the clock to use while validating temporal constraints\n"
+  } ],
+  "methods" : [ {
+    "name" : "checkParameterValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#checkParameterValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "arguments",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Validates method or constructor arguments against executable parameter constraints.\n\n @param target     target instance for methods, or {@code null} for constructors/static methods\n @param executable the method or constructor declaring the constraints\n @param arguments  argument values in declaration order\n @return an optional validation exception when constraints fail\n"
+  }, {
+    "name" : "checkReturnValueValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#checkReturnValueValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Validates a method or constructor return value against return value constraints.\n\n @param target      target instance for methods, or {@code null} for constructors/static methods\n @param executable  the executable that produced the value\n @param returnValue returned value\n @return an optional validation exception when constraints fail\n"
+  }, {
+    "name" : "checkValidity",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#checkValidity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates a bean instance using Jakarta validation annotations.\n\n @param object the object to validate\n @param groups optional validation groups\n @param <T>    object type\n @return an optional validation exception when constraints fail\n"
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#format",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "v",
+      "type" : "jakarta.validation.ConstraintViolation<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fullPath",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#format",
+    "returnType" : "java.util.SortedSet<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "violations",
+      "type" : "java.util.Collection<? extends jakarta.validation.ConstraintViolation<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fullPath",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getConstraintViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Validates a bean instance and returns raw constraint violations.\n <p>\n This method mirrors Jakarta Validator's raw validation style: it returns structured violations and does not\n suppress exceptions from getter validation after field constraints have failed.\n\n @param object the object to validate\n @param groups optional validation groups\n @param <T>    object type\n @return raw constraint violations, including property paths and descriptors\n"
+  }, {
+    "name" : "getJakartaConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getJakartaConstraintViolations",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "getParameterConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getParameterConstraintViolations",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "arguments",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "getPropertyConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getPropertyConstraintViolations",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "getPropertyPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getPropertyPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "v",
+      "type" : "jakarta.validation.ConstraintViolation<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "full",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getReturnValueConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getReturnValueConstraintViolations",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "getValueConstraintViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#getValueConstraintViolations",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "beanType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "hasReturnValueValidation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#hasReturnValueValidation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the executable declares return value constraints or cascaded return value validation.\n\n @param executable the executable to inspect\n @return {@code true} when return value validation should run\n"
+  }, {
+    "name" : "newValidationException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#newValidationException",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "violations",
+      "type" : "java.util.Collection<? extends jakarta.validation.ConstraintViolation<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toFluxzeroViolation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#toFluxzeroViolation",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "violation",
+      "type" : "jakarta.validation.ConstraintViolation<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toFluxzeroViolations",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#toFluxzeroViolations",
+    "returnType" : "java.util.Set<io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "violations",
+      "type" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
