@@ -39,14 +39,17 @@ import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Array;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.net.URL;
 import java.time.LocalDate;
@@ -88,7 +91,6 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.commons.lang3.ClassUtils.getAllInterfaces;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 /**
@@ -227,6 +229,58 @@ public class ReflectionUtils {
 
     public static List<Method> getAllMethods(Class<?> type) {
         return getTypeMetadata(type).methods();
+    }
+
+    /**
+     * Returns all interfaces implemented by the supplied type, including interfaces inherited through superclasses and
+     * parent interfaces.
+     *
+     * @param type the type to inspect, or {@code null}
+     * @return interfaces in deterministic discovery order
+     */
+    public static List<Class<?>> getAllInterfaces(Class<?> type) {
+        if (type == null) {
+            return List.of();
+        }
+        return List.copyOf(ClassUtils.getAllInterfaces(type));
+    }
+
+    /**
+     * Converts a primitive type to its wrapper class and leaves non-primitive types unchanged.
+     *
+     * @param type the type to box
+     * @return the wrapper type for primitives, otherwise {@code type}
+     */
+    public static Class<?> box(Class<?> type) {
+        return type.isPrimitive() ? ClassUtils.primitiveToWrapper(type) : type;
+    }
+
+    /**
+     * Converts a primitive wrapper type to its primitive class and leaves other types unchanged.
+     *
+     * @param type the type to unbox
+     * @return the primitive type for wrappers, otherwise {@code type}
+     */
+    public static Class<?> unbox(Class<?> type) {
+        Class<?> primitive = ClassUtils.wrapperToPrimitive(type);
+        return primitive == null ? type : primitive;
+    }
+
+    /**
+     * Resolves a reflective {@link Type} to the best raw {@link Class} representation available.
+     *
+     * @param type the reflective type to resolve
+     * @return the raw class, or {@link Object} when no more specific class can be resolved
+     */
+    public static Class<?> rawClass(Type type) {
+        return switch (type) {
+            case Class<?> c -> c;
+            case ParameterizedType p when p.getRawType() instanceof Class<?> c -> c;
+            case GenericArrayType a -> Array.newInstance(rawClass(a.getGenericComponentType()), 0).getClass();
+            case TypeVariable<?> ignored -> Object.class;
+            case WildcardType w when w.getUpperBounds().length > 0 -> rawClass(w.getUpperBounds()[0]);
+            default -> Object.class;
+        };
     }
 
     public static Optional<Method> getMethod(Class<?> type, String name) {
@@ -399,6 +453,32 @@ public class ReflectionUtils {
         return getTypeMetadata(type).typeAnnotations();
     }
 
+    /**
+     * Returns the direct annotations present on an annotated element.
+     * <p>
+     * For type, field, method, constructor, and parameter elements, the result is cached in the declaring
+     * {@link TypeMetadata}. Use {@link #getTypeAnnotations(Class)} when inherited Fluxzero type annotation semantics
+     * are needed, and {@link #getPackageAnnotations(Package)} for recursive package annotation lookup.
+     *
+     * @param element the annotated element to inspect
+     * @return annotations present on the element, or an empty list when {@code element} is {@code null}
+     */
+    public static List<Annotation> getAnnotations(AnnotatedElement element) {
+        return switch (element) {
+            case null -> List.of();
+            case Class<?> type -> getTypeMetadata(type).annotations(type);
+            case Field field -> getTypeMetadata(field.getDeclaringClass()).annotations(field);
+            case Executable executable -> getTypeMetadata(executable.getDeclaringClass()).annotations(executable);
+            case Parameter parameter -> getTypeMetadata(parameter.getDeclaringExecutable().getDeclaringClass())
+                    .annotations(parameter);
+            default -> rawAnnotations(element);
+        };
+    }
+
+    private static List<Annotation> rawAnnotations(AnnotatedElement element) {
+        return List.of(element.getAnnotations());
+    }
+
     @SuppressWarnings("unchecked")
     public static <A extends Annotation> Optional<A> getPackageAnnotation(Package p, Class<A> annotationType) {
         return getPackageAnnotations(p).stream()
@@ -418,7 +498,7 @@ public class ReflectionUtils {
         if (p == null) {
             return emptyList();
         }
-        Stream<Annotation> stream = stream(p.getAnnotations());
+        Stream<Annotation> stream = rawAnnotations(p).stream();
         if (recursive) {
             stream = Stream.concat(stream,
                                    computePackageAnnotations(getFirstKnownAncestorPackage(p.getName()), true).stream());
@@ -608,8 +688,8 @@ public class ReflectionUtils {
     }
 
     private static boolean isNullableAnnotationPresent(Parameter parameter) {
-        return stream(parameter.getAnnotations()).anyMatch(ReflectionUtils::isNullableAnnotation)
-               || stream(parameter.getAnnotatedType().getAnnotations()).anyMatch(ReflectionUtils::isNullableAnnotation);
+        return getAnnotations(parameter).stream().anyMatch(ReflectionUtils::isNullableAnnotation)
+               || getAnnotations(parameter.getAnnotatedType()).stream().anyMatch(ReflectionUtils::isNullableAnnotation);
     }
 
     private static boolean isNullableAnnotation(Annotation annotation) {
@@ -755,6 +835,17 @@ public class ReflectionUtils {
             java.util.Currency.class, java.time.temporal.Temporal.class,
             java.time.temporal.TemporalAmount.class
     );
+    private static final ClassValue<Boolean> leafValueTypeCache = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (Class<?> leafValueType : leafValueTypes) {
+                if (leafValueType.isAssignableFrom(type)) {
+                    return true;
+                }
+            }
+            return type.isEnum() || Leaf.class.isAssignableFrom(type);
+        }
+    };
 
     /**
      * Returns whether the given value should be treated as a terminal scalar during reflective traversal.
@@ -779,10 +870,7 @@ public class ReflectionUtils {
         if (value == null) {
             return true;
         }
-        Class<?> type = value.getClass();
-        return leafValueTypes.stream().anyMatch(t -> t.isAssignableFrom(type))
-               || type.isEnum()
-               || Leaf.class.isAssignableFrom(type);
+        return leafValueTypeCache.get(value.getClass());
     }
 
     public static boolean isAnnotationPresent(Parameter parameter, Class<? extends Annotation> annotationType) {
@@ -830,6 +918,8 @@ public class ReflectionUtils {
                 new ConcurrentHashMap<>();
         private final ConcurrentHashMap<AnnotationProjectionKey, Optional<?>> annotationAsCache =
                 new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<AnnotatedElement, List<Annotation>> annotations =
+                new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, Function<Object, Object>> getters = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, BiConsumer<Object, Object>> setters = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, PropertyPathMetadata> propertyPaths = new ConcurrentHashMap<>();
@@ -840,9 +930,9 @@ public class ReflectionUtils {
             this.type = type;
             this.methods = List.copyOf(computeAllMethods(type));
             this.fields = List.copyOf(computeAllFields(type));
-            this.typeAnnotations = Stream.concat(stream(type.getAnnotations()),
+            this.typeAnnotations = Stream.concat(rawAnnotations(type).stream(),
                                                  getAllInterfaces(type).stream()
-                                                         .flatMap(iType -> stream(iType.getAnnotations())))
+                                                         .flatMap(iType -> rawAnnotations(iType).stream()))
                     .filter(ObjectUtils.distinctByKey(Annotation::annotationType))
                     .collect(toCollection(LinkedHashSet::new));
 
@@ -900,6 +990,10 @@ public class ReflectionUtils {
 
         public Collection<? extends Annotation> typeAnnotations() {
             return typeAnnotations;
+        }
+
+        public List<Annotation> annotations(AnnotatedElement element) {
+            return annotations.computeIfAbsent(element, ReflectionUtils::rawAnnotations);
         }
 
         @SuppressWarnings("unchecked")
@@ -1278,6 +1372,71 @@ public class ReflectionUtils {
         return member;
     }
 
+    /**
+     * Returns all no-argument attributes declared by an annotation instance.
+     *
+     * @param annotation the annotation to inspect
+     * @return annotation attribute values keyed by attribute name
+     */
+    public static Map<String, Object> getAnnotationAttributes(Annotation annotation) {
+        if (annotation == null) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Method method : annotation.annotationType().getDeclaredMethods()) {
+            if (method.getParameterCount() == 0) {
+                result.put(method.getName(), getTypeMetadata(annotation.annotationType())
+                        .invoker(method, true).invoke(annotation));
+            }
+        }
+        return Map.copyOf(result);
+    }
+
+    /**
+     * Returns a single annotation attribute value when it exists and matches the requested type.
+     *
+     * @param annotation   the annotation to inspect
+     * @param name         the attribute name
+     * @param expectedType the expected attribute value type
+     * @param <T>          attribute value type
+     * @return the attribute value, or empty if the attribute is absent or has another type
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Optional<T> getAnnotationAttribute(Annotation annotation, String name, Class<T> expectedType) {
+        if (annotation == null || name == null || expectedType == null) {
+            return Optional.empty();
+        }
+        return annotationAttributeMethod(annotation.annotationType(), name)
+                .map(method -> getTypeMetadata(annotation.annotationType()).invoker(method, true).invoke(annotation))
+                .filter(value -> box(expectedType).isInstance(value))
+                .map(value -> (T) box(expectedType).cast(value));
+    }
+
+    /**
+     * Returns whether an annotation attribute has a value that differs from its declared default.
+     *
+     * @param annotation the annotation to inspect
+     * @param name       the attribute name
+     * @return {@code true} if the attribute has a default and the actual value differs from it
+     */
+    public static boolean hasNonDefaultAnnotationAttribute(Annotation annotation, String name) {
+        if (annotation == null || name == null) {
+            return false;
+        }
+        return annotationAttributeMethod(annotation.annotationType(), name)
+                .filter(method -> method.getDefaultValue() != null)
+                .map(method -> !Objects.deepEquals(method.getDefaultValue(),
+                                                   getTypeMetadata(annotation.annotationType())
+                                                           .invoker(method, true).invoke(annotation)))
+                .orElse(false);
+    }
+
+    private static Optional<Method> annotationAttributeMethod(Class<? extends Annotation> annotationType,
+                                                             String name) {
+        return getTypeMetadata(annotationType).method(name)
+                .filter(method -> method.getParameterCount() == 0);
+    }
+
     /*
         Returns meta annotation if desired
      */
@@ -1336,11 +1495,12 @@ public class ReflectionUtils {
         if (!matchedType.equals(targetAnnotation)) {
             var typeAnnotation = matchedType.getAnnotation(targetAnnotation);
             for (Method method : targetAnnotation.getDeclaredMethods()) {
-                params.put(method.getName(), method.invoke(typeAnnotation));
+                params.put(method.getName(), getTypeMetadata(targetAnnotation).invoker(method, true)
+                        .invoke(typeAnnotation));
             }
         }
         for (Method method : matchedType.getDeclaredMethods()) {
-            params.put(method.getName(), method.invoke(annotation));
+            params.put(method.getName(), getTypeMetadata(matchedType).invoker(method, true).invoke(annotation));
         }
         if (Map.class.equals(returnType)) {
             return Optional.of((T) params);
@@ -1357,7 +1517,7 @@ public class ReflectionUtils {
     }
 
     public static boolean has(Class<? extends Annotation> annotationClass, Parameter parameter) {
-        for (Annotation annotation : parameter.getAnnotations()) {
+        for (Annotation annotation : getAnnotations(parameter)) {
             if (isOrHas(annotation, annotationClass)) {
                 return true;
             }
@@ -1406,7 +1566,7 @@ public class ReflectionUtils {
 
     @SuppressWarnings("unchecked")
     private static <A extends Annotation> Optional<A> resolveFieldAnnotation(Field f, Class<? extends Annotation> a) {
-        return Optional.ofNullable((A) f.getAnnotation(a)).or(() -> stream(f.getAnnotations())
+        return Optional.ofNullable((A) f.getAnnotation(a)).or(() -> getAnnotations(f).stream()
                 .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a))
                 .findFirst().map(hit -> (A) hit));
     }
@@ -1453,7 +1613,7 @@ public class ReflectionUtils {
 
     @SuppressWarnings("unchecked")
     private static <A extends Annotation> A getTopLevelAnnotation(AnnotatedElement m, Class<? extends Annotation> a) {
-        return Optional.ofNullable((A) m.getAnnotation(a)).orElseGet(() -> (A) stream(m.getAnnotations())
+        return Optional.ofNullable((A) m.getAnnotation(a)).orElseGet(() -> (A) getAnnotations(m).stream()
                 .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a)).findFirst()
                 .orElse(null));
     }
@@ -1462,7 +1622,7 @@ public class ReflectionUtils {
     private static <A extends Annotation> List<A> getTopLevelAnnotations(AnnotatedElement m,
                                                                          Class<? extends Annotation> a) {
         return Optional.ofNullable(m.getAnnotation(a)).map(v -> Stream.of((A) v))
-                .orElseGet(() -> stream(m.getAnnotations())
+                .orElseGet(() -> getAnnotations(m).stream()
                         .filter(metaAnnotation -> metaAnnotation.annotationType().isAnnotationPresent(a))
                         .map(v -> (A) v))
                 .collect(toCollection(ArrayList::new));

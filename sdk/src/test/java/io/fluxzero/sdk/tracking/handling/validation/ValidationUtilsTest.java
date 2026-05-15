@@ -16,11 +16,18 @@ package io.fluxzero.sdk.tracking.handling.validation;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Builder;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.isValid;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,9 +49,48 @@ class ValidationUtilsTest {
         assertTrue(isValid(ValidateWithExample.builder().foo(new Foo("")).stringInGroup1("bla").build()));
     }
 
+    @Test
+    void assertValidReturnValueUsesDefaultValidator() throws Exception {
+        Method method = ReturnValueExample.class.getDeclaredMethod("handle");
+
+        ValidationUtils.assertValidReturnValue(new ReturnValueExample(), method, "ok");
+
+        assertThrows(ValidationException.class,
+                     () -> ValidationUtils.assertValidReturnValue(new ReturnValueExample(), method, ""));
+    }
+
+    @Test
+    void getsRawConstraintViolationsWithPropertyPaths() {
+        Set<ConstraintViolation<RawViolationExample>> violations =
+                ValidationUtils.getConstraintViolations(new RawViolationExample("x", "y", "123"));
+
+        assertEquals(Map.of(
+                             "first", "custom message",
+                             "second", "custom message",
+                             "code", "must match \"[A-Z]{4}[0-9]{7}\""),
+                     violations.stream().collect(Collectors.toMap(
+                             v -> v.getPropertyPath().toString(), ConstraintViolation::getMessage)));
+    }
+
     @Value
     public static class Foo {
         @NotBlank String bar;
+    }
+
+    private record RawViolationExample(@Pattern(regexp = "[0-9]+", message = "custom message") String first,
+                                       @Pattern(regexp = "[0-9]+", message = "custom message") String second,
+                                       String code) {
+        @Pattern(regexp = "[A-Z]{4}[0-9]{7}")
+        String getCode() {
+            return code;
+        }
+    }
+
+    private static class ReturnValueExample {
+        @NotBlank
+        String handle() {
+            return "ok";
+        }
     }
 
     @Value

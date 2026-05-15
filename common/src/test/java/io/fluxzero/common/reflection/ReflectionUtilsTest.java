@@ -33,9 +33,12 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.determineCommonAncestors;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
@@ -210,6 +213,54 @@ class ReflectionUtilsTest {
     }
 
     @Nested
+    class ReflectionHelperTests {
+        @Test
+        void resolvesInterfacesAcrossClassHierarchy() {
+            assertEquals(List.of(ChildContract.class, ParentContract.class),
+                         ReflectionUtils.getAllInterfaces(ChildContractImpl.class));
+        }
+
+        @Test
+        void boxesAndUnboxesPrimitiveTypes() {
+            assertSame(Integer.class, ReflectionUtils.box(int.class));
+            assertSame(String.class, ReflectionUtils.box(String.class));
+            assertSame(int.class, ReflectionUtils.unbox(Integer.class));
+            assertSame(String.class, ReflectionUtils.unbox(String.class));
+        }
+
+        @Test
+        void resolvesRawClassFromGenericTypes() throws Exception {
+            assertSame(List.class, ReflectionUtils.rawClass(field("names").getGenericType()));
+            assertSame(List[].class, ReflectionUtils.rawClass(field("nameArrays").getGenericType()));
+
+            ParameterizedType numbers = (ParameterizedType) field("numbers").getGenericType();
+            assertSame(Number.class, ReflectionUtils.rawClass(numbers.getActualTypeArguments()[0]));
+        }
+
+        private Field field(String name) throws NoSuchFieldException {
+            return GenericTypes.class.getDeclaredField(name);
+        }
+
+        private interface ParentContract {
+        }
+
+        private interface ChildContract extends ParentContract {
+        }
+
+        private static class ParentContractImpl implements ParentContract {
+        }
+
+        private static class ChildContractImpl extends ParentContractImpl implements ChildContract {
+        }
+
+        private static class GenericTypes {
+            private List<String> names;
+            private List<String>[] nameArrays;
+            private List<? extends Number> numbers;
+        }
+    }
+
+    @Nested
     class AnnotationTests {
         @Test
         void findsMetaAnnotatedField() {
@@ -236,11 +287,38 @@ class ReflectionUtilsTest {
         }
 
         @Test
+        void leavesHasMethodNameAsPropertyName() {
+            AccessibleObject property = getAnnotatedProperty(HasGetter.class, Marker.class).orElseThrow();
+
+            assertInstanceOf(java.lang.reflect.Method.class, property);
+            assertEquals("hasValue", ReflectionUtils.getPropertyName(property));
+        }
+
+        @Test
         void deduplicatesSamePropertyFromFieldAndInterfaceMethod() {
             List<? extends AccessibleObject> properties = getAnnotatedProperties(DuplicateProperty.class, Marker.class);
             assertEquals(1, properties.size());
             assertEquals("value", ReflectionUtils.getPropertyName(properties.getFirst()));
             assertInstanceOf(java.lang.reflect.Field.class, properties.getFirst());
+        }
+
+        @Test
+        void readsPrivateNestedAnnotationAttributes() {
+            AttributeMarker annotation = AttributeAnnotatedType.class.getAnnotation(AttributeMarker.class);
+
+            assertEquals(List.of(annotation), ReflectionUtils.getAnnotations(AttributeAnnotatedType.class));
+            assertEquals("custom", ReflectionUtils.getAnnotationAttribute(annotation, "value", String.class)
+                    .orElseThrow());
+            assertEquals(42, ReflectionUtils.getAnnotationAttribute(annotation, "number", int.class)
+                    .orElseThrow());
+            assertEquals(Map.of("value", "custom", "number", 42),
+                         ReflectionUtils.getAnnotationAttributes(annotation));
+            assertTrue(ReflectionUtils.hasNonDefaultAnnotationAttribute(annotation, "value"));
+            assertFalse(ReflectionUtils.hasNonDefaultAnnotationAttribute(annotation, "number"));
+
+            ArrayAttributeMarker arrayAnnotation = ArrayAttributeAnnotatedType.class.getAnnotation(
+                    ArrayAttributeMarker.class);
+            assertFalse(ReflectionUtils.hasNonDefaultAnnotationAttribute(arrayAnnotation, "names"));
         }
     }
 
@@ -322,6 +400,20 @@ class ReflectionUtilsTest {
         String value();
     }
 
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    private @interface AttributeMarker {
+        String value() default "default";
+
+        int number() default 42;
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    private @interface ArrayAttributeMarker {
+        String[] names() default {"default"};
+    }
+
     private static class MetaAnnotatedField {
         @MetaMarker
         private final String value = "test";
@@ -331,6 +423,14 @@ class ReflectionUtilsTest {
     private static class EnclosingType {
         private static class InnerType {
         }
+    }
+
+    @AttributeMarker("custom")
+    private static class AttributeAnnotatedType {
+    }
+
+    @ArrayAttributeMarker
+    private static class ArrayAttributeAnnotatedType {
     }
 
     @Value
@@ -346,6 +446,13 @@ class ReflectionUtilsTest {
     }
 
     private static class StaticInterfaceMethodImpl implements StaticInterfaceMethod {
+    }
+
+    private static class HasGetter {
+        @Marker
+        boolean hasValue() {
+            return true;
+        }
     }
 
     private interface DuplicatePropertyContract {

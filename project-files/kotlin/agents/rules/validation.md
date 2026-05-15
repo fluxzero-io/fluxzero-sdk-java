@@ -38,7 +38,11 @@ data is filtered according to user permissions before it ever reaches the networ
 
 ## Payload Validation
 
-Fluxzero integrates with **Jakarta Validation**. Annotate your Command and Query records to enforce constraints.
+Fluxzero integrates with **Jakarta Validation** through the SDK's built-in validator. Annotate your Command and Query
+records to enforce constraints. The supported SDK profile covers standard constraints, Fluxzero convenience
+constraints, custom validators, groups, cascaded/container validation, executable parameter/return validation, and raw
+constraint violations. XML mappings, `validation.xml`, CDI lifecycle integration, TraversableResolver reachability
+rules, and full Expression Language message evaluation are intentionally not supported.
 
 ### Structural Validation
 

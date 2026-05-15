@@ -952,14 +952,25 @@ If a class implements `Request<R>`, Flux will use its declared generic type (R) 
 
 ## Payload Validation
 
-Fluxzero automatically validates incoming request payloads using [JSR 380](https://beanvalidation.org/2.0/)
-(Bean Validation 2.0) annotations.
+Fluxzero automatically validates incoming request payloads using a built-in
+[Jakarta Validation](https://jakarta.ee/specifications/bean-validation/3.1/) implementation. Hibernate Validator is
+not required for normal SDK payload validation.
 
 This includes support for:
 
-- `@NotNull`, `@NotBlank`, `@Size`, etc.
-- `@Valid` on nested objects
+- standard Jakarta constraints such as `@NotNull`, `@NotBlank`, `@Size`, `@Pattern`, numeric constraints and temporal
+  constraints
+- Fluxzero convenience constraints such as `@Length`, `@Range`, `@URL`, `@UUID`, `@CreditCardNumber`, and
+  `@UniqueElements`
+- `@Valid` on nested objects and container/type-use validation for arrays, `List`, `Map`, `Optional`, and registered
+  custom value extractors
+- validation groups, group sequences, group conversion, and custom constraint validators
+- executable parameter and return-value validation
 - Constraint violations in command/query/webrequest payloads
+
+The supported profile is aimed at SDK usage, not at being a drop-in provider for every Jakarta Validation TCK edge
+case. XML mappings, `validation.xml`, CDI lifecycle integration, TraversableResolver reachability rules, and full
+Expression Language message evaluation are intentionally not supported.
 
 If a constraint is violated, the handler method is **never called**. Instead, a `ValidationException`,
 is thrown before the handler is invoked.
@@ -5346,11 +5357,9 @@ compatible with recent versions.
 
 #### 🔍 Payload Validation
 
-| Dependency                                    | Scope   |
-|-----------------------------------------------|---------|
-| `org.hibernate.validator:hibernate-validator` | runtime |
-| `org.glassfish.expressly:expressly`           | runtime |
-| `org.jboss.logging:jboss-logging`             | runtime |
+| Dependency                                        | Scope   |
+|---------------------------------------------------|---------|
+| `jakarta.validation:jakarta.validation-api`       | runtime |
 
 #### ⚙️ Utilities
 
@@ -5406,7 +5415,7 @@ Fluxzero aims to stay up-to-date with its core dependencies. We strive to:
 
 - Use the **latest stable versions** where possible,
 - Avoid breaking backward compatibility for common transitive consumers,
-- Update frequently, especially for frameworks like **Jackson**, **Spring**, **Hibernate Validator**, and **JUnit**.
+- Update frequently, especially for frameworks like **Jackson**, **Spring**, Jakarta APIs, and **JUnit**.
 
 ---
 

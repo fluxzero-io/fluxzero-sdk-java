@@ -18,6 +18,7 @@ import kotlin.jvm.JvmClassMappingKt;
 import kotlin.reflect.KClass;
 import kotlin.reflect.KFunction;
 import kotlin.reflect.KParameter;
+import kotlin.reflect.full.KClasses;
 import kotlin.reflect.jvm.ReflectJvmMapping;
 
 import java.lang.reflect.Constructor;
@@ -47,6 +48,29 @@ public class KotlinReflectionUtils {
         }
         return kotlinFunction.getParameters().stream().filter(p -> p.getKind() == KParameter.Kind.VALUE)
                 .skip(paramIndex).findFirst().orElse(null);
+    }
+
+    /**
+     * Returns the Kotlin source parameter name for a Java reflection parameter.
+     *
+     * @param parameter the Java reflection parameter to resolve
+     * @return the Kotlin parameter name, or {@code null} when no matching Kotlin value parameter exists
+     */
+    public static String getKotlinParameterName(Parameter parameter) {
+        KParameter kotlinParameter = asKotlinParameter(parameter);
+        return kotlinParameter == null ? null : kotlinParameter.getName();
+    }
+
+    /**
+     * Returns the Java reflection constructor that corresponds to a Kotlin class' primary constructor.
+     *
+     * @param type the Kotlin type to inspect
+     * @return the Java constructor for the Kotlin primary constructor, or {@code null} when none is available
+     */
+    public static Constructor<?> getPrimaryConstructor(Class<?> type) {
+        KClass<?> kotlinClass = JvmClassMappingKt.getKotlinClass(type);
+        KFunction<?> primaryConstructor = KClasses.getPrimaryConstructor(kotlinClass);
+        return primaryConstructor == null ? null : ReflectJvmMapping.getJavaConstructor(primaryConstructor);
     }
 
     public static KFunction<?> asKotlinFunction(Executable executable) {

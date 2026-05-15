@@ -1341,6 +1341,9 @@ public class OpenApiProcessor extends AbstractProcessor {
             schema.put("array".equals(schema.path("type").asText()) ? "maxItems" : "maxLength",
                        metadata.maxSize());
         }
+        if (metadata.uniqueItems()) {
+            schema.put("uniqueItems", true);
+        }
         if (!isBlank(metadata.pattern())) {
             schema.put("pattern", metadata.pattern());
         }
@@ -1352,7 +1355,8 @@ public class OpenApiProcessor extends AbstractProcessor {
     private boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {
         return !isBlank(metadata.description()) || !isBlank(metadata.example()) || !isBlank(metadata.defaultValue())
                || !isBlank(metadata.minimum()) || !isBlank(metadata.maximum()) || metadata.minSize() != null
-               || metadata.maxSize() != null || !isBlank(metadata.pattern()) || metadata.deprecated();
+               || metadata.maxSize() != null || metadata.uniqueItems() || !isBlank(metadata.pattern())
+               || metadata.deprecated();
     }
 
     private void wrapReference(ObjectNode schema) {
@@ -2166,6 +2170,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             String maximum,
             Integer minSize,
             Integer maxSize,
+            boolean uniqueItems,
             String pattern,
             List<String> allowableValues,
             boolean required,
@@ -2189,6 +2194,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         private String maximum = "";
         private Integer minSize;
         private Integer maxSize;
+        private boolean uniqueItems;
         private String pattern = "";
         private final List<String> allowableValues = new ArrayList<>();
         private boolean required;
@@ -2264,6 +2270,26 @@ public class OpenApiProcessor extends AbstractProcessor {
                 }
                 case "jakarta.validation.constraints.Pattern" -> pattern(stringValue(values.get("regexp")));
                 case "jakarta.validation.constraints.Email" -> format("email");
+                case "io.fluxzero.sdk.tracking.handling.validation.constraints.Range" -> {
+                    minimum(stringValue(values.get("min")));
+                    String max = stringValue(values.get("max"));
+                    if (!Long.toString(Long.MAX_VALUE).equals(max)) {
+                        maximum(max);
+                    }
+                }
+                case "io.fluxzero.sdk.tracking.handling.validation.constraints.Length" -> {
+                    Integer min = integerValue(values.get("min"));
+                    Integer max = integerValue(values.get("max"));
+                    if (min != null && min > 0) {
+                        minSize = min;
+                    }
+                    if (max != null && max < Integer.MAX_VALUE) {
+                        maxSize = max;
+                    }
+                }
+                case "io.fluxzero.sdk.tracking.handling.validation.constraints.URL" -> format("uri");
+                case "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID" -> format("uuid");
+                case "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements" -> uniqueItems = true;
                 default -> {
                 }
             }
@@ -2331,7 +2357,7 @@ public class OpenApiProcessor extends AbstractProcessor {
 
         SchemaMetadata build() {
             return new SchemaMetadata(description, type, format, example, defaultValue, minimum, maximum,
-                                      minSize, maxSize, pattern, List.copyOf(allowableValues), required,
+                                      minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues), required,
                                       deprecated, hidden, implementation);
         }
     }

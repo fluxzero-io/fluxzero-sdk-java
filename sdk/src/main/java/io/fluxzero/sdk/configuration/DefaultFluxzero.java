@@ -95,8 +95,10 @@ import io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.tracking.handling.contentfiltering.ContentFilterInterceptor;
 import io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor;
+import io.fluxzero.sdk.tracking.handling.validation.DefaultValidator;
 import io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
+import io.fluxzero.sdk.tracking.handling.validation.Validator;
 import io.fluxzero.sdk.tracking.metrics.HandlerMonitor;
 import io.fluxzero.sdk.tracking.metrics.TrackerMonitor;
 import io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector;
@@ -278,6 +280,8 @@ public class DefaultFluxzero implements Fluxzero {
         private final Map<MessageType, List<BatchInterceptor>> batchInterceptors =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> List.of()));
         private final DelegatingClock clock = new DelegatingClock();
+        private Validator validator = ValidationUtils.defaultValidator.getClass() == DefaultValidator.class
+                ? new DefaultValidator(clock) : ValidationUtils.defaultValidator;
         private final SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
@@ -343,6 +347,18 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder registerUserProvider(UserProvider userProvider) {
             this.userProvider = userProvider;
+            return this;
+        }
+
+        /**
+         * Replaces the validator used by payload and web parameter validation.
+         *
+         * @param replaceFunction function that receives the current validator and returns the replacement
+         * @return this builder
+         */
+        @Override
+        public FluxzeroBuilder replaceValidator(@NonNull UnaryOperator<Validator> replaceFunction) {
+            this.validator = Objects.requireNonNull(replaceFunction.apply(validator));
             return this;
         }
 
@@ -658,7 +674,7 @@ public class DefaultFluxzero implements Fluxzero {
 
             //enable command and query validation before handling
             if (!disablePayloadValidation) {
-                ValidatingInterceptor interceptor = new ValidatingInterceptor();
+                ValidatingInterceptor interceptor = new ValidatingInterceptor(validator);
                 Stream.of(CUSTOM, COMMAND, QUERY).forEach(type -> handlerChains.computeIfPresent(
                         type, (t, i) -> i.andThen(interceptor)));
             }
@@ -1024,7 +1040,7 @@ public class DefaultFluxzero implements Fluxzero {
                 MessageType messageType) {
             if (messageType == WEBREQUEST && !disableWebParameterValidation) {
                 return (message, target, executable, arguments) ->
-                        ValidationUtils.assertValidParameters(target, executable, arguments);
+                        validator.assertValidParameters(target, executable, arguments);
             }
             return MethodInvocationValidator.noOp();
         }

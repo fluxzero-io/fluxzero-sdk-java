@@ -977,13 +977,15 @@ public class SearchTest {
         @Test
         void getFacetStats() {
             testFixture.whenApplying(fc -> Fluxzero.search("test").facetStats())
-                    .<List<FacetStats>>expectResult(stats -> stats.size() == 6
+                    .<List<FacetStats>>expectResult(stats -> stats.size() == 7
                                                              && stats.contains(
                             new FacetStats("custom", "testCustom", 2))
                                                              && stats.contains(
                             new FacetStats("facetField", "testField", 2))
                                                              && stats.contains(
                             new FacetStats("facetGetter", "testGetter", 2))
+                                                             && stats.contains(
+                            new FacetStats("hasFacetFlag", "true", 2))
                                                              && stats.contains(new FacetStats("facetList", "value1", 2))
                                                              && stats.contains(
                             new FacetStats("facetList/status", "value2", 2))
@@ -1168,6 +1170,11 @@ public class SearchTest {
         @Facet("custom")
         public String facetCustom() {
             return "testCustom";
+        }
+
+        @Facet
+        public boolean hasFacetFlag() {
+            return true;
         }
 
         @Value

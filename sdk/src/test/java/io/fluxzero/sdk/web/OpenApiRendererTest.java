@@ -15,6 +15,11 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
+import io.fluxzero.sdk.tracking.handling.validation.constraints.Range;
+import io.fluxzero.sdk.tracking.handling.validation.constraints.URL;
+import io.fluxzero.sdk.tracking.handling.validation.constraints.UUID;
+import io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -203,6 +208,13 @@ class OpenApiRendererTest {
         assertEquals("primary", properties.path("status").path("enum").get(0).asText());
         assertEquals("secondary", properties.path("status").path("enum").get(1).asText());
         assertEquals("secondary", properties.path("status").path("example").asText());
+        assertEquals(2, properties.path("ranged").path("minimum").asInt());
+        assertEquals(7, properties.path("ranged").path("maximum").asInt());
+        assertEquals(3, properties.path("lengthLimited").path("minLength").asInt());
+        assertEquals(12, properties.path("lengthLimited").path("maxLength").asInt());
+        assertEquals("uri", properties.path("homepage").path("format").asText());
+        assertEquals("uuid", properties.path("externalId").path("format").asText());
+        assertTrue(properties.path("uniqueTags").path("uniqueItems").asBoolean());
         assertFalse(properties.has("secret"));
         JsonNode required = document.path("components").path("schemas").path("AccessorDto").path("required");
         assertTrue(contains(required, "status"));
@@ -321,6 +333,16 @@ class OpenApiRendererTest {
         @ApiDoc(description = "Status", allowableValues = {"primary", "secondary"}, example = "secondary",
                 defaultValue = "primary", required = true)
         String status;
+        @Range(min = 2, max = 7)
+        int ranged;
+        @Length(min = 3, max = 12)
+        String lengthLimited;
+        @URL
+        String homepage;
+        @UUID
+        String externalId;
+        @UniqueElements
+        List<String> uniqueTags;
         @ApiDocExclude
         String secret;
         List<String> aliases;

@@ -19,6 +19,7 @@ import jakarta.annotation.Nullable;
 
 import java.lang.reflect.Executable;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Strategy interface for validating message payloads and other objects prior to handler invocation.
@@ -47,7 +48,7 @@ import java.util.Optional;
  * <h2>Custom Implementations</h2>
  * Custom validators can be created to support use cases like:
  * <ul>
- *     <li>JSR 380 / Bean Validation annotations (e.g., {@code @NotNull}, {@code @Size})</li>
+ *     <li>Jakarta Validation annotations (e.g., {@code @NotNull}, {@code @Size})</li>
  *     <li>Domain-specific validation rules</li>
  *     <li>Structural validation on incoming {@link io.fluxzero.common.MessageType#WEBREQUEST web requests}</li>
  * </ul>
@@ -70,6 +71,21 @@ public interface Validator {
      * @return an {@link Optional} containing the validation error if validation failed, or empty if valid
      */
     <T> Optional<ValidationException> checkValidity(T object, Class<?>... groups);
+
+    /**
+     * Validates the given object and returns structured constraint violations, including their property paths, invalid
+     * values, messages, and constraint metadata.
+     *
+     * @param object the object to validate
+     * @param groups optional validation groups to apply
+     * @param <T>    the type of object being validated
+     * @return constraint violations found while validating the object
+     * @throws UnsupportedOperationException if this validator only exposes formatted {@link ValidationException}s
+     */
+    default <T> Set<ConstraintViolation<T>> getConstraintViolations(T object, Class<?>... groups) {
+        throw new UnsupportedOperationException(getClass().getName()
+                                                + " does not expose raw constraint violations");
+    }
 
     /**
      * Validates the given object and throws a {@link ValidationException} if it is invalid.
@@ -137,5 +153,44 @@ public interface Validator {
      */
     default boolean areParametersValid(@Nullable Object target, Executable executable, Object[] arguments) {
         return checkParameterValidity(target, executable, arguments).isEmpty();
+    }
+
+    /**
+     * Returns whether the executable declares return value constraints that this validator can evaluate.
+     *
+     * @param executable the executable whose return value may be validated
+     * @return {@code true} if return value validation should be performed
+     */
+    default boolean hasReturnValueValidation(Executable executable) {
+        return false;
+    }
+
+    /**
+     * Validates a method or constructor return value and returns an optional {@link ValidationException} when
+     * constraints are violated.
+     *
+     * @param target      the method target instance (ignored for constructors)
+     * @param executable  the executable that produced the value
+     * @param returnValue the value returned by the executable
+     * @return an optional validation exception
+     */
+    default Optional<ValidationException> checkReturnValueValidity(
+            @Nullable Object target, Executable executable, @Nullable Object returnValue) {
+        return Optional.empty();
+    }
+
+    /**
+     * Validates a method or constructor return value and throws when constraints are violated.
+     *
+     * @param target      the method target instance (ignored for constructors)
+     * @param executable  the executable that produced the value
+     * @param returnValue the value returned by the executable
+     * @throws ValidationException if the return value is invalid
+     */
+    default void assertValidReturnValue(@Nullable Object target, Executable executable, @Nullable Object returnValue)
+            throws ValidationException {
+        checkReturnValueValidity(target, executable, returnValue).ifPresent(e -> {
+            throw e;
+        });
     }
 }

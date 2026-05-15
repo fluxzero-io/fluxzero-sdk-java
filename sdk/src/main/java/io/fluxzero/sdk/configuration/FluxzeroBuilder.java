@@ -36,6 +36,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
+import io.fluxzero.sdk.tracking.handling.validation.Validator;
 import io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration;
 import io.fluxzero.sdk.web.LocalServerConfig;
 import io.fluxzero.sdk.web.WebResponseMapper;
@@ -179,6 +180,16 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Replaces the default {@link TaskScheduler} implementation.
      */
     FluxzeroBuilder replaceTaskScheduler(Function<Clock, TaskScheduler> function);
+
+    /**
+     * Replaces the validator used for payload and web parameter validation.
+     *
+     * @param replaceFunction function that receives the current validator and returns the replacement
+     * @return this builder instance
+     */
+    default FluxzeroBuilder replaceValidator(UnaryOperator<Validator> replaceFunction) {
+        throw new UnsupportedOperationException("This FluxzeroBuilder does not support replacing validators");
+    }
 
     /**
      * Replaces the identity provider used to generate message and entity identifiers.

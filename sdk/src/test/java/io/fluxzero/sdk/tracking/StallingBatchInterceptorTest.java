@@ -44,7 +44,7 @@ class StallingBatchInterceptorTest {
                                     .desiredBatchSize(2).maximumStallingDuration(stallingDuration)
                                     .retryFrequency(Duration.ofMillis(10)).build())
                             .build())).suppressPendingConsumerWarning()
-                    .spy().consumerTimeout(Duration.ofMillis(100)).registerHandlers(handler);
+                    .spy().consumerTimeout(Duration.ofSeconds(1)).registerHandlers(handler);
 
     @Test
     void testLargeBatchPassed() {

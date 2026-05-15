@@ -51,6 +51,13 @@ class ValidatingInterceptorTest {
                 .expectSuccessfulResult();
     }
 
+    @Test
+    void validatesReturnValue() {
+        TestFixture.create(new ReturnValueHandler())
+                .whenCommand(new ReturnValueCommand())
+                .expectExceptionalResult(ValidationException.class);
+    }
+
     @Value
     private static class BasicCommand {
         @NotNull String aString;
@@ -67,10 +74,23 @@ class ValidatingInterceptorTest {
     private interface GroupA {
     }
 
+    private record ReturnValueCommand() {
+    }
+
+    private record ReturnValue(@NotNull String value) {
+    }
+
     private static class MockHandler {
         @HandleCommand
         void handle(Object command) {
         }
     }
 
+    private static class ReturnValueHandler {
+        @HandleCommand
+        @jakarta.validation.Valid
+        ReturnValue handle(ReturnValueCommand command) {
+            return new ReturnValue(null);
+        }
+    }
 }

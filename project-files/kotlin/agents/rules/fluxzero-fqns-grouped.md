@@ -298,7 +298,7 @@ io.fluxzero.sdk.tracking.handling.authentication.User
 io.fluxzero.sdk.tracking.handling.authentication.UserParameterResolver
 io.fluxzero.sdk.tracking.handling.authentication.UserProvider
 io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor
-io.fluxzero.sdk.tracking.handling.validation.Jsr380Validator
+io.fluxzero.sdk.tracking.handling.validation.DefaultValidator
 io.fluxzero.sdk.tracking.handling.validation.ValidateWith
 io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor
 io.fluxzero.sdk.tracking.handling.validation.ValidationException

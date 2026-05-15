@@ -932,6 +932,9 @@ public final class OpenApiRenderer {
         if (metadata.maxSize != null) {
             schema.put("array".equals(schema.path("type").asText()) ? "maxItems" : "maxLength", metadata.maxSize);
         }
+        if (metadata.uniqueItems) {
+            schema.put("uniqueItems", true);
+        }
         if (!isBlank(metadata.pattern)) {
             schema.put("pattern", metadata.pattern);
         }
@@ -943,7 +946,8 @@ public final class OpenApiRenderer {
     private static boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {
         return !isBlank(metadata.description) || !isBlank(metadata.example) || !isBlank(metadata.defaultValue)
                || !isBlank(metadata.minimum) || !isBlank(metadata.maximum) || metadata.minSize != null
-               || metadata.maxSize != null || !isBlank(metadata.pattern) || metadata.deprecated;
+               || metadata.maxSize != null || metadata.uniqueItems || !isBlank(metadata.pattern)
+               || metadata.deprecated;
     }
 
     private static void wrapReference(ObjectNode schema) {
@@ -1453,6 +1457,7 @@ public final class OpenApiRenderer {
             String maximum,
             Integer minSize,
             Integer maxSize,
+            boolean uniqueItems,
             String pattern,
             List<String> allowableValues,
             boolean required,
@@ -1474,6 +1479,7 @@ public final class OpenApiRenderer {
             private String maximum = "";
             private Integer minSize;
             private Integer maxSize;
+            private boolean uniqueItems;
             private String pattern = "";
             private final List<String> allowableValues = new ArrayList<>();
             private boolean required;
@@ -1549,6 +1555,26 @@ public final class OpenApiRenderer {
                     case "jakarta.validation.constraints.Pattern" -> pattern(stringValue(annotationValue(annotation,
                                                                                                           "regexp")));
                     case "jakarta.validation.constraints.Email" -> format("email");
+                    case "io.fluxzero.sdk.tracking.handling.validation.constraints.Range" -> {
+                        minimum(stringValue(annotationValue(annotation, "min")));
+                        Object max = annotationValue(annotation, "max");
+                        if (!(max instanceof Long value && value == Long.MAX_VALUE)) {
+                            maximum(stringValue(max));
+                        }
+                    }
+                    case "io.fluxzero.sdk.tracking.handling.validation.constraints.Length" -> {
+                        Object min = annotationValue(annotation, "min");
+                        Object max = annotationValue(annotation, "max");
+                        if (min instanceof Integer value && value > 0) {
+                            minSize = value;
+                        }
+                        if (max instanceof Integer value && value < Integer.MAX_VALUE) {
+                            maxSize = value;
+                        }
+                    }
+                    case "io.fluxzero.sdk.tracking.handling.validation.constraints.URL" -> format("uri");
+                    case "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID" -> format("uuid");
+                    case "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements" -> uniqueItems = true;
                     default -> {
                     }
                 }
@@ -1616,7 +1642,7 @@ public final class OpenApiRenderer {
 
             SchemaMetadata build() {
                 return new SchemaMetadata(description, type, format, example, defaultValue, minimum, maximum,
-                                          minSize, maxSize, pattern, List.copyOf(allowableValues), required,
+                                          minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues), required,
                                           deprecated, hidden, implementation);
             }
         }

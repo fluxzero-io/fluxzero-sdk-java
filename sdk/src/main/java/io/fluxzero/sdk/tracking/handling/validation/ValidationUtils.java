@@ -35,10 +35,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -64,7 +66,7 @@ import static java.util.stream.Stream.concat;
  * <h2>Validation</h2>
  * <p>
  * Validation is typically executed automatically by the {@link ValidatingInterceptor} before invoking handler methods.
- * The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code Jsr380Validator}).
+ * The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code DefaultValidator}).
  * <p>
  * Methods like {@link #assertValid(Object, Class[])} and {@link #checkValidity(Object, Validator, Class[])}
  * support recursive validation of collections and custom validation groups.
@@ -99,11 +101,11 @@ public class ValidationUtils {
      * Returns the default {@link Validator} used for message validation.
      * <p>
      * This is resolved via Java's {@link ServiceLoader} mechanism. If no custom {@link Validator} is found, a default
-     * JSR 380 (Bean Validation) implementation is used.
+     * Jakarta Validation implementation is used.
      */
     public static final Validator defaultValidator = Optional.of(ServiceLoader.load(Validator.class))
             .map(ServiceLoader::iterator).filter(Iterator::hasNext).map(Iterator::next)
-            .orElseGet(Jsr380Validator::createDefault);
+            .orElseGet(DefaultValidator::createDefault);
     private static final RequiredRole noUserRequired = new RequiredRole(null, false, false, false);
 
     /*
@@ -119,6 +121,32 @@ public class ValidationUtils {
      */
     public static Optional<ValidationException> checkValidity(Object object, Class<?>... groups) {
         return checkValidity(object, defaultValidator, groups);
+    }
+
+    /**
+     * Validates the object using the default validator and returns structured constraint violations with property paths.
+     * <p>
+     * This method is intended for tests, diagnostics, and integrations that need structured validation
+     * output instead of the formatted messages stored in {@link ValidationException}.
+     *
+     * @param object the object to validate
+     * @param groups optional validation groups
+     * @param <T>    object type
+     * @return structured constraint violations
+     */
+    public static <T> Set<ConstraintViolation<T>> getConstraintViolations(T object, Class<?>... groups) {
+        return getConstraintViolations(object, defaultValidator, groups);
+    }
+
+    /**
+     * Validates each element in the collection using the default validator and returns structured constraint violations.
+     *
+     * @param objects the objects to validate
+     * @param groups  optional validation groups
+     * @return structured constraint violations for the collection elements
+     */
+    public static Set<ConstraintViolation<?>> getConstraintViolations(Collection<?> objects, Class<?>... groups) {
+        return getConstraintViolations(objects, defaultValidator, groups);
     }
 
     /**
@@ -164,6 +192,46 @@ public class ValidationUtils {
     }
 
     /**
+     * Validates the object using the provided validator and returns structured constraint violations with property paths.
+     *
+     * @param object    the object to validate
+     * @param validator the validator to use
+     * @param groups    optional validation groups
+     * @param <T>       object type
+     * @return structured constraint violations
+     * @throws UnsupportedOperationException if the supplied validator does not expose raw violations
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <T> Set<ConstraintViolation<T>> getConstraintViolations(
+            T object, Validator validator, Class<?>... groups) {
+        if (object instanceof Collection<?> collection) {
+            return (Set) getConstraintViolations(collection, validator, groups);
+        }
+        return validator.getConstraintViolations(object, getValidationGroups(object, groups));
+    }
+
+    /**
+     * Validates each element in the collection using the provided validator and returns structured constraint violations.
+     *
+     * @param objects   the objects to validate
+     * @param validator the validator to use
+     * @param groups    optional validation groups
+     * @return structured constraint violations for the collection elements
+     * @throws UnsupportedOperationException if the supplied validator does not expose raw violations
+     */
+    public static Set<ConstraintViolation<?>> getConstraintViolations(
+            Collection<?> objects, Validator validator, Class<?>... groups) {
+        Set<ConstraintViolation<?>> result = new LinkedHashSet<>();
+        if (objects == null) {
+            return result;
+        }
+        for (Object element : objects) {
+            result.addAll(getConstraintViolations(element, validator, groups));
+        }
+        return result;
+    }
+
+    /**
      * Returns {@code true} if the object is valid, using the given {@link Validator} and validation groups.
      *
      * @param object    the object to validate
@@ -199,7 +267,8 @@ public class ValidationUtils {
     }
 
     /**
-     * Asserts that executable arguments satisfy JSR 380 constraints declared on method or constructor parameters.
+     * Asserts that executable arguments satisfy Jakarta Validation constraints declared on method or constructor
+     * parameters.
      *
      * @param target     the target object for method invocation (ignored for constructors and static methods)
      * @param executable the executable that will be invoked
@@ -207,6 +276,18 @@ public class ValidationUtils {
      */
     public static void assertValidParameters(@Nullable Object target, Executable executable, Object[] arguments) {
         defaultValidator.assertValidParameters(target, executable, arguments);
+    }
+
+    /**
+     * Asserts that an executable return value satisfies constraints declared on the method or constructor return value.
+     *
+     * @param target      the target object for method invocation (ignored for constructors and static methods)
+     * @param executable  the executable that produced the value
+     * @param returnValue returned value
+     */
+    public static void assertValidReturnValue(
+            @Nullable Object target, Executable executable, @Nullable Object returnValue) {
+        defaultValidator.assertValidReturnValue(target, executable, returnValue);
     }
 
     private static Class<?>[] getValidationGroups(Object object, Class<?>[] customGroups) {

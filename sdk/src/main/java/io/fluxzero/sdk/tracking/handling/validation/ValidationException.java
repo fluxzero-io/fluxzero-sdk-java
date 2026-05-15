@@ -33,9 +33,15 @@ import java.util.TreeSet;
 public class ValidationException extends FunctionalException {
     private final SortedSet<String> violations;
 
+    /**
+     * Creates a validation exception with a formatted message and the complete set of violation messages.
+     *
+     * @param message    formatted exception message
+     * @param violations individual violation messages
+     */
     @ConstructorProperties({"message", "violations"})
     public ValidationException(String message, Set<String> violations) {
-        super(message);
+        super(message, null, false, false);
         this.violations = new TreeSet<>(violations);
     }
 }

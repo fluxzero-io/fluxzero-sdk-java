@@ -111,6 +111,13 @@ class OpenApiProcessorTest {
         assertEquals("primary", accessor.path("status").path("enum").get(0).asText());
         assertEquals("secondary", accessor.path("status").path("enum").get(1).asText());
         assertEquals("secondary", accessor.path("status").path("example").asText());
+        assertEquals(2, accessor.path("ranged").path("minimum").asInt());
+        assertEquals(7, accessor.path("ranged").path("maximum").asInt());
+        assertEquals(3, accessor.path("lengthLimited").path("minLength").asInt());
+        assertEquals(12, accessor.path("lengthLimited").path("maxLength").asInt());
+        assertEquals("uri", accessor.path("homepage").path("format").asText());
+        assertEquals("uuid", accessor.path("externalId").path("format").asText());
+        assertTrue(accessor.path("uniqueTags").path("uniqueItems").asBoolean());
         assertEquals("First paragraph.\n\nSecond paragraph with String link.",
                      accessor.path("javadocParagraphs").path("description").asText());
         assertFalse(accessor.has("secret"));
@@ -244,6 +251,16 @@ class OpenApiProcessorTest {
         @ApiDoc(description = "Status", allowableValues = {"primary", "secondary"}, example = "secondary",
                 defaultValue = "primary", required = true)
         String status;
+        @io.fluxzero.sdk.tracking.handling.validation.constraints.Range(min = 2, max = 7)
+        int ranged;
+        @io.fluxzero.sdk.tracking.handling.validation.constraints.Length(min = 3, max = 12)
+        String lengthLimited;
+        @io.fluxzero.sdk.tracking.handling.validation.constraints.URL
+        String homepage;
+        @io.fluxzero.sdk.tracking.handling.validation.constraints.UUID
+        String externalId;
+        @io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements
+        List<String> uniqueTags;
         @ApiDocExclude
         String secret;
         List<String> aliases;
