@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.testserver.TestServer",
     "kind" : "class"
   }, {
+    "file" : "TestServer.RuntimeLifecycleMetrics.json",
+    "name" : "TestServer.RuntimeLifecycleMetrics",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics",
+    "kind" : "class"
+  }, {
     "file" : "TestServer.StoreIdentifier.json",
     "name" : "TestServer.StoreIdentifier",
     "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier",

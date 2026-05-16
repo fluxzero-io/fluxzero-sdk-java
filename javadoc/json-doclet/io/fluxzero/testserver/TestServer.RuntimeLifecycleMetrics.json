@@ -1,0 +1,121 @@
+{
+  "name" : "RuntimeLifecycleMetrics",
+  "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics",
+  "packageName" : "io.fluxzero.testserver",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "namespaces",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics.namespaces",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "startupEvent",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics.startupEvent",
+    "type" : "io.fluxzero.common.api.RuntimeLifecycleEvent",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "startupNamespaces",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics.startupNamespaces",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RuntimeLifecycleMetrics",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#RuntimeLifecycleMetrics",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "metricsLog",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#metricsLog",
+    "returnType" : "io.fluxzero.testserver.metrics.MetricsLog",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerStartupMetric",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#registerStartupMetric",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metricsLog",
+      "type" : "io.fluxzero.testserver.metrics.MetricsLog",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "started",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#started",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stopping",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#stopping",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

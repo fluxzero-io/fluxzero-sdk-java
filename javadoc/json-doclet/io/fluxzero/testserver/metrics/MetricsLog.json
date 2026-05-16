@@ -14,7 +14,7 @@
   "methods" : [ {
     "name" : "registerMetrics",
     "qualifiedName" : "io.fluxzero.testserver.metrics.MetricsLog#registerMetrics",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -30,7 +30,7 @@
   }, {
     "name" : "registerMetrics",
     "qualifiedName" : "io.fluxzero.testserver.metrics.MetricsLog#registerMetrics",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

@@ -77,14 +77,51 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "appendMetrics",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.DefaultMetricsLog#appendMetrics",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerMetrics",
     "qualifiedName" : "io.fluxzero.testserver.metrics.DefaultMetricsLog#registerMetrics",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializeMetrics",
+    "qualifiedName" : "io.fluxzero.testserver.metrics.DefaultMetricsLog#serializeMetrics",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "event",

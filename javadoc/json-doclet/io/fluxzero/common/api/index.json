@@ -75,6 +75,16 @@
     "qualifiedName" : "io.fluxzero.common.api.ResultBatch",
     "kind" : "class"
   }, {
+    "file" : "RuntimeLifecycleEvent.json",
+    "name" : "RuntimeLifecycleEvent",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent",
+    "kind" : "class"
+  }, {
+    "file" : "RuntimeLifecycleEvent.Phase.json",
+    "name" : "RuntimeLifecycleEvent.Phase",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase",
+    "kind" : "enum"
+  }, {
     "file" : "SerializedMessage.json",
     "name" : "SerializedMessage",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage",

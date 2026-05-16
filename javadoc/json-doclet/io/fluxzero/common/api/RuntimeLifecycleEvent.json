@@ -1,0 +1,77 @@
+{
+  "name" : "RuntimeLifecycleEvent",
+  "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Metric event emitted when a Fluxzero Runtime changes lifecycle phase.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "phase",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.phase",
+    "type" : "io.fluxzero.common.api.RuntimeLifecycleEvent.Phase",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The lifecycle phase that was reached by the runtime.\n",
+    "constantValue" : null
+  }, {
+    "name" : "port",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.port",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Port the runtime listens on.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtime",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.runtime",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Human-readable runtime name, such as {@code FluxzeroTestServer}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtimeVersion",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.runtimeVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Runtime version if available from build metadata.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Epoch milliseconds when the lifecycle phase occurred.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RuntimeLifecycleEvent",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent#RuntimeLifecycleEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Phase",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

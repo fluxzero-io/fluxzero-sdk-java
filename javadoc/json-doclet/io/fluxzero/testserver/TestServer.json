@@ -13,9 +13,25 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "DEFAULT_NAMESPACE",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer.DEFAULT_NAMESPACE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "public"
+  }, {
+    "name" : "RUNTIME_NAME",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer.RUNTIME_NAME",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FluxzeroTestServer"
+  }, {
     "name" : "clients",
     "qualifiedName" : "io.fluxzero.testserver.TestServer.clients",
-    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.lang.String,io.fluxzero.sdk.configuration.client.Client>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -23,7 +39,7 @@
   }, {
     "name" : "metricsLogSupplier",
     "qualifiedName" : "io.fluxzero.testserver.TestServer.metricsLogSupplier",
-    "type" : "java.util.function.Function<java.lang.String,io.fluxzero.testserver.metrics.MetricsLog>",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.lang.String,io.fluxzero.testserver.metrics.MetricsLog>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -41,6 +57,64 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "closeCommandIdempotencyStore",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#closeCommandIdempotencyStore",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStoreClosed",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createMetricsLog",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#createMetricsLog",
+    "returnType" : "io.fluxzero.testserver.metrics.MetricsLog",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getLocalPort",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getLocalPort",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallbackPort",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getMessageLogMaintenance",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageLogMaintenance",
     "returnType" : "io.fluxzero.common.tracking.MessageLogMaintenance",
@@ -127,6 +201,22 @@
       "annotations" : [ ]
     }, {
       "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMetricsMessageStore",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getMetricsMessageStore",
+    "returnType" : "io.fluxzero.common.tracking.MessageStore",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -188,6 +278,84 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registerLifecycleMetric",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#registerLifecycleMetric",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metricsLog",
+      "type" : "io.fluxzero.testserver.metrics.MetricsLog",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "event",
+      "type" : "io.fluxzero.common.api.RuntimeLifecycleEvent",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerRuntimeLifecycle",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#registerRuntimeLifecycle",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStoreClosed",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "runtimeLifecycleMetrics",
+      "type" : "io.fluxzero.testserver.TestServer.RuntimeLifecycleMetrics",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runtimeLifecycleEvent",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#runtimeLifecycleEvent",
+    "returnType" : "io.fluxzero.common.api.RuntimeLifecycleEvent",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "phase",
+      "type" : "io.fluxzero.common.api.RuntimeLifecycleEvent.Phase",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#start",
     "returnType" : "void",
@@ -203,10 +371,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "RuntimeLifecycleMetrics",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "StoreIdentifier",
     "qualifiedName" : "io.fluxzero.testserver.TestServer$StoreIdentifier",
     "kind" : "class",
