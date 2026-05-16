@@ -26,31 +26,20 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
-import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
@@ -67,7 +56,7 @@ import static java.util.stream.Collectors.toMap;
  *   <li>Internally starts a special tracker that continuously appends new messages to a bounded in-memory cache.</li>
  *   <li>Trackers that read from this client are first served from the local cache when possible.</li>
  *   <li>Falls back to the delegate {@link TrackingClient} for uncached or missed messages.</li>
- *   <li>Trackers waiting for new messages are notified via scheduled polling or real-time cache updates.</li>
+ *   <li>Falls back to the delegate when the cache has no immediately available messages.</li>
  *   <li>Cache size is limited via {@code maxCacheSize}; old messages are evicted in insertion order.</li>
  * </ul>
  *
@@ -82,37 +71,38 @@ import static java.util.stream.Collectors.toMap;
  * <ul>
  *   <li>Uses a background tracker configured with {@code ignoreSegment = true} and {@code clientControlledIndex = true}
  *       to stream all new messages into the cache.</li>
- *   <li>Trackers calling {@link #read} are served from the cache if their {@code lastIndex} is already present.</li>
- *   <li>If not, the delegate is queried directly to maintain completeness.</li>
+ *   <li>Trackers calling {@link #read} are served from the cache if their {@code lastIndex} is already present and
+ *       the next batch is available in memory.</li>
+ *   <li>If not, the delegate is queried directly to maintain completeness and runtime-side lifecycle behavior.</li>
  * </ul>
  *
  * <h2>Thread Safety</h2>
  * <ul>
  *   <li>The cache is backed by a {@link ConcurrentSkipListMap} for safe concurrent access.</li>
- *   <li>Eviction and tracker notifications are synchronized to prevent race conditions.</li>
+ *   <li>Eviction is synchronized to prevent race conditions.</li>
  * </ul>
  *
  * @see TrackingClient
  * @see WebsocketTrackingClient
  * @see Fluxzero
  */
-@RequiredArgsConstructor
-@Slf4j
 public class CachingTrackingClient implements TrackingClient {
     @Getter
     private final TrackingClient delegate;
     private final int maxCacheSize;
 
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
-    private final ExecutorService waitingTrackerExecutor = newWorkerPool("CachingTrackingClient-waiting", 8);
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
 
     private final ConcurrentSkipListMap<Long, SerializedMessage> cache = new ConcurrentSkipListMap<>();
-    private final Map<String, Runnable> waitingTrackers = new ConcurrentHashMap<>();
 
     public CachingTrackingClient(WebsocketTrackingClient delegate) {
         this(delegate, 1024);
+    }
+
+    public CachingTrackingClient(TrackingClient delegate, int maxCacheSize) {
+        this.delegate = delegate;
+        this.maxCacheSize = maxCacheSize;
     }
 
     @Override
@@ -128,66 +118,26 @@ public class CachingTrackingClient implements TrackingClient {
                                                     delegate.getTopic(), cacheFillerConfig, fc))
                     .orElseGet(() -> DefaultTracker.start(this::cacheNewMessages, cacheFillerConfig, delegate));
         }
-        if (lastIndex != null && cache.containsKey(lastIndex)) {
+        if (!config.clientControlledIndex() && lastIndex != null && cache.containsKey(lastIndex)) {
             Instant deadline = now().plus(config.getMaxWaitDuration());
             return delegate.claimSegment(trackerId, lastIndex, config).thenCompose(r -> {
                 Long minIndex = r.getPosition().lowestIndexForSegment(r.getSegment()).orElse(null);
                 if (minIndex != null) {
-                    CompletableFuture<MessageBatch> result = new CompletableFuture<>();
                     MessageBatch messageBatch = getMessageBatch(config, minIndex, r);
                     if (!messageBatch.isEmpty()) {
-                        result.complete(messageBatch);
+                        return CompletableFuture.completedFuture(messageBatch);
                     } else {
-                        waitForMessages(trackerId,
-                                        ofNullable(messageBatch.getLastIndex()).orElse(minIndex),
-                                        config, r, deadline, result);
+                        Duration remaining = Duration.between(now(), deadline);
+                        ConsumerConfiguration delegateConfig = config.toBuilder()
+                                .maxWaitDuration(remaining.compareTo(Duration.ZERO) <= 0 ? Duration.ZERO : remaining)
+                                .build();
+                        return delegate.read(trackerId, lastIndex, delegateConfig);
                     }
-                    return result;
                 }
                 return delegate.read(trackerId, lastIndex, config);
             });
         }
         return delegate.read(trackerId, lastIndex, config);
-    }
-
-    private void waitForMessages(String trackerId, long minIndex,
-                                 ConsumerConfiguration config,
-                                 ClaimSegmentResult claimResult, Instant deadline,
-                                 CompletableFuture<MessageBatch> future) {
-        AtomicLong atomicIndex = new AtomicLong(minIndex);
-        long timeout = Duration.between(now(), deadline).toMillis();
-        if (timeout <= 0) {
-            future.complete(new MessageBatch(claimResult.getSegment(), List.of(), atomicIndex.get(), claimResult.getPosition(), true));
-        } else {
-            ScheduledFuture<?> timeoutSchedule = scheduler.schedule(() -> {
-                try {
-                    if (future.complete(
-                            new MessageBatch(claimResult.getSegment(), List.of(), atomicIndex.get(), claimResult.getPosition(), true))) {
-                        waitingTrackers.remove(trackerId);
-                    }
-                } finally {
-                    if (atomicIndex.get() > minIndex) {
-                        try {
-                            storePosition(config.getName(), claimResult.getSegment(), atomicIndex.get()).get();
-                        } catch (Exception e) {
-                            log.error("Failed to update position of {}", config.getName(), e);
-                        }
-                    }
-                }
-            }, timeout, MILLISECONDS);
-            Runnable fetchTask = new Runnable() {
-                @Override
-                public void run() {
-                    MessageBatch batch = getMessageBatch(config, atomicIndex.get(), claimResult);
-                    if (!batch.isEmpty() && future.complete(batch) && waitingTrackers.remove(trackerId, this)) {
-                        timeoutSchedule.cancel(false);
-                    } else {
-                        atomicIndex.updateAndGet(c -> Optional.ofNullable(batch.getLastIndex()).orElse(c));
-                    }
-                }
-            };
-            waitingTrackers.put(trackerId, fetchTask);
-        }
     }
 
     protected MessageBatch getMessageBatch(ConsumerConfiguration config, long minIndex, ClaimSegmentResult claim) {
@@ -222,7 +172,6 @@ public class CachingTrackingClient implements TrackingClient {
                                     m.getSegment() % SegmentRange.MAX_SEGMENT))
                     .collect(toMap(SerializedMessage::getIndex, Function.identity()));
             cache.putAll(messageMap);
-            waitingTrackers.values().forEach(waitingTrackerExecutor::execute);
             removeOldMessages();
         }
     }
@@ -278,8 +227,6 @@ public class CachingTrackingClient implements TrackingClient {
     @Override
     public void close() {
         ofNullable(registration).ifPresent(Registration::cancel);
-        scheduler.shutdown();
-        waitingTrackerExecutor.shutdown();
         delegate.close();
     }
 }

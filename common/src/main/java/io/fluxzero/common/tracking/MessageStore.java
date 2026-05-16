@@ -90,6 +90,11 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
     void setRetentionTime(Duration retentionPeriod);
 
     /**
+     * Removes all messages from this store while keeping the logical log available for future appends.
+     */
+    void truncate();
+
+    /**
      * Attempts to unwrap the current instance to a concrete implementation or extension of {@code MessageStore}.
      *
      * @param type the desired type to unwrap to

@@ -31,6 +31,7 @@ import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
 import io.fluxzero.common.tracking.DefaultTrackingStrategy;
 import io.fluxzero.common.tracking.InMemoryPositionStore;
+import io.fluxzero.common.tracking.MessageLogMaintenance;
 import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.common.tracking.PositionStore;
 import io.fluxzero.common.tracking.TrackingStrategy;
@@ -50,33 +51,100 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     private final MessageStore messageStore;
     private final PositionStore positionStore;
     private final MessageType messageType;
+    private final String topic;
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
-        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType);
+        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, null);
     }
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType,
                             CommandIdempotencyStore commandIdempotencyStore) {
-        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType,
+        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, null,
              commandIdempotencyStore);
+    }
+
+    /**
+     * Creates a consumer endpoint for a topic-specific message log.
+     *
+     * @param messageStore            the message store backing the endpoint
+     * @param messageType             the message type exposed by this endpoint
+     * @param topic                   the topic exposed by this endpoint
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     */
+    public ConsumerEndpoint(MessageStore messageStore, MessageType messageType, String topic,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, topic,
+             commandIdempotencyStore);
+    }
+
+    /**
+     * Creates a consumer endpoint backed by shared maintenance components for one message log.
+     *
+     * @param maintenance             the shared message log maintenance components
+     * @param messageType             the message type exposed by this endpoint
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     */
+    public ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        this(maintenance, messageType, null, commandIdempotencyStore);
+    }
+
+    /**
+     * Creates a consumer endpoint backed by shared maintenance components for one message log.
+     *
+     * @param maintenance             the shared message log maintenance components
+     * @param messageType             the message type exposed by this endpoint
+     * @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     */
+    public ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic,
+                            CommandIdempotencyStore commandIdempotencyStore) {
+        this(maintenance.getTrackingStrategy(), maintenance.getMessageStore(), maintenance.getPositionStore(),
+             messageType, topic, commandIdempotencyStore);
     }
 
     public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
                             PositionStore positionStore, MessageType messageType) {
+        this(trackingStrategy, messageStore, positionStore, messageType, null);
+    }
+
+    /**
+     * Creates a consumer endpoint from explicit tracking components.
+     *
+     * @param trackingStrategy the tracking strategy backing reads and claims
+     * @param messageStore     the message store backing direct reads
+     * @param positionStore    the position store backing consumer positions
+     * @param messageType      the message type exposed by this endpoint
+     * @param topic            the topic exposed by this endpoint, or {@code null} for non-topic message types
+     */
+    public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
+                            PositionStore positionStore, MessageType messageType, String topic) {
         this.trackingStrategy = trackingStrategy;
         this.messageStore = messageStore;
         this.positionStore = positionStore;
         this.messageType = messageType;
+        this.topic = topic;
     }
 
+    /**
+     * Creates a consumer endpoint from explicit tracking components.
+     *
+     * @param trackingStrategy        the tracking strategy backing reads and claims
+     * @param messageStore            the message store backing direct reads
+     * @param positionStore           the position store backing consumer positions
+     * @param messageType             the message type exposed by this endpoint
+     * @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     */
     public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
-                            PositionStore positionStore, MessageType messageType,
+                            PositionStore positionStore, MessageType messageType, String topic,
                             CommandIdempotencyStore commandIdempotencyStore) {
         super(commandIdempotencyStore);
         this.trackingStrategy = trackingStrategy;
         this.messageStore = messageStore;
         this.positionStore = positionStore;
         this.messageType = messageType;
+        this.topic = topic;
     }
 
     @Handle
@@ -150,6 +218,8 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
 
     @Override
     public String toString() {
-        return "ConsumerEndpoint{logType='" + messageType + "'}";
+        return topic == null
+                ? "ConsumerEndpoint{logType='" + messageType + "'}"
+                : "ConsumerEndpoint{messageType=" + messageType + ", topic='" + topic + "'}";
     }
 }

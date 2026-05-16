@@ -42,4 +42,5 @@ public class LocalEventStoreClient extends LocalTrackingClient implements EventS
     public void close() {
         super.close();
     }
+
 }

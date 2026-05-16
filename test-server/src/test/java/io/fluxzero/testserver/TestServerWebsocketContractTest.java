@@ -239,6 +239,95 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void truncateCustomTopicOverFullServerClearsMessagesPositionsAndAllowsTrackingToContinue() throws Exception {
+        WebSocketClient client = client("truncate-custom-topic");
+        try {
+            String topic = "orders-" + UUID.randomUUID();
+            GatewayClient gateway = client.getGatewayClient(CUSTOM, topic);
+            TrackingClient tracking = client.getTrackingClient(CUSTOM, topic);
+            String consumer = "truncate-custom-topic-consumer";
+
+            await(gateway.append(STORED, message("before-1"), message("before-2")));
+            MessageBatch beforeTruncate = await(tracking.read(
+                    "tracker-before", null, ConsumerConfiguration.builder().name(consumer).build()));
+            assertEquals(2, beforeTruncate.getSize());
+            await(tracking.storePosition(consumer, beforeTruncate.getSegment(), beforeTruncate.getLastIndex(), STORED));
+            assertFalse(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
+
+            await(gateway.truncate(STORED));
+
+            assertTrue(tracking.readFromIndex(0, 10).isEmpty());
+            assertTrue(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
+
+            await(gateway.append(STORED, message("after")));
+            MessageBatch afterTruncate = await(tracking.read(
+                    "tracker-after", null, ConsumerConfiguration.builder().name(consumer).build()));
+            assertEquals(1, afterTruncate.getSize());
+            await(tracking.storePosition(consumer, afterTruncate.getSegment(), afterTruncate.getLastIndex(), STORED));
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
+    void truncateCustomTopicOverFullServerDisconnectsActiveWaitingTracker() throws Exception {
+        WebSocketClient client = client("truncate-custom-topic-waiting");
+        try {
+            String topic = "live-" + UUID.randomUUID();
+            GatewayClient gateway = client.getGatewayClient(CUSTOM, topic);
+            TrackingClient tracking = client.getTrackingClient(CUSTOM, topic);
+            String consumer = "truncate-custom-topic-waiting-consumer";
+
+            CompletableFuture<MessageBatch> waitingBatch = tracking.read(
+                    "waiting-tracker", null, ConsumerConfiguration.builder()
+                            .name(consumer).maxWaitDuration(Duration.ofSeconds(30)).build());
+            Thread.sleep(250L);
+            assertFalse(waitingBatch.isDone());
+
+            await(gateway.truncate(STORED));
+
+            MessageBatch finalBatch = await(waitingBatch);
+            assertEquals(0, finalBatch.getSize());
+            assertArrayEquals(new int[]{0, 0}, finalBatch.getSegment());
+            assertTrue(finalBatch.isCaughtUp());
+
+            await(gateway.append(STORED, message("after")));
+            MessageBatch afterDelete = await(tracking.read(
+                    "tracker-after", null, ConsumerConfiguration.builder().name(consumer).build()));
+            assertEquals(1, afterDelete.getSize());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
+    void truncateEventLogOverFullServerClearsMessagesPositionsAndAllowsTrackingToContinue() throws Exception {
+        WebSocketClient client = client("truncate-event-log");
+        try {
+            GatewayClient gateway = client.getGatewayClient(EVENT);
+            TrackingClient tracking = client.getTrackingClient(EVENT);
+            String consumer = "truncate-event-log-consumer";
+
+            await(gateway.append(STORED, message("before")));
+            MessageBatch beforeTruncate = await(tracking.read(
+                    "tracker-before", null, ConsumerConfiguration.builder().name(consumer).build()));
+            assertEquals(1, beforeTruncate.getSize());
+            await(tracking.storePosition(consumer, beforeTruncate.getSegment(), beforeTruncate.getLastIndex(), STORED));
+
+            await(gateway.truncate(STORED));
+
+            assertTrue(tracking.readFromIndex(0, 10).isEmpty());
+            assertTrue(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
+            await(gateway.append(STORED, message("after")));
+            MessageBatch afterTruncate = await(tracking.read(
+                    "tracker-after", null, ConsumerConfiguration.builder().name(consumer).build()));
+            assertEquals(1, afterTruncate.getSize());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
     void eventSourcingRequestsRoundTripOverFullServer() throws Exception {
         WebSocketClient client = client("event-sourcing");
         try {

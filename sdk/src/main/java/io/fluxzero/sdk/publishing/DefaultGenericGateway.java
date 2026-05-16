@@ -198,6 +198,11 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return gatewayClient.setRetentionTime(duration, guarantee);
     }
 
+    @Override
+    public CompletableFuture<Void> truncate(Guarantee guarantee) {
+        return gatewayClient.truncate(guarantee);
+    }
+
     protected CompletableFuture<Message> emptyReturnMessage() {
         CompletableFuture<Message> c = CompletableFuture.completedFuture(Message.asMessage(null));
         if (messageType == MessageType.WEBREQUEST) {

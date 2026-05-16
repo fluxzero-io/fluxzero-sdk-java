@@ -148,6 +148,13 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         notifyMonitors();
     }
 
+    @Override
+    public synchronized void truncate() {
+        scheduleIdsByIndex.clear();
+        minScheduleIndex.set(0L);
+        super.truncate();
+    }
+
     public synchronized List<Schedule> getFutureSchedules(Serializer serializer) {
         return asList(scheduleIdsByIndex.tailMap(indexFromMillis(clock.millis()), false), serializer);
     }

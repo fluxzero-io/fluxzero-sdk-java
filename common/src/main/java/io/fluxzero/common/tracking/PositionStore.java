@@ -55,6 +55,11 @@ public interface PositionStore {
     Position position(String consumer);
 
     /**
+     * Removes all stored consumer positions while keeping this position store available for future tracking.
+     */
+    void truncate();
+
+    /**
      * Closes any underlying resources held by the store.
      */
     void close();

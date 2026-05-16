@@ -145,6 +145,13 @@ public class InMemoryMessageStore implements MessageStore {
     }
 
     @Override
+    public synchronized void truncate() {
+        messageLog.clear();
+        nextIndex.set(0L);
+        notifyMonitors(Collections.emptyList());
+    }
+
+    @Override
     public Registration registerMonitor(Consumer<List<SerializedMessage>> monitor) {
         monitors.add(monitor);
         return () -> monitors.remove(monitor);

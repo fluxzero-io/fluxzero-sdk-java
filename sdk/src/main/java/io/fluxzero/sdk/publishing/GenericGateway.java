@@ -263,6 +263,23 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
 
     /**
+     * Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.
+     *
+     * @return a {@link CompletableFuture} that completes once the log is truncated
+     */
+    default CompletableFuture<Void> truncate() {
+        return truncate(Guarantee.STORED);
+    }
+
+    /**
+     * Truncates this gateway's message log and clears associated tracking positions.
+     *
+     * @param guarantee the delivery guarantee to apply to the truncate operation
+     * @return a {@link CompletableFuture} that completes once the log is truncated
+     */
+    CompletableFuture<Void> truncate(Guarantee guarantee);
+
+    /**
      * Closes this gateway and releases any underlying resources.
      */
     void close();

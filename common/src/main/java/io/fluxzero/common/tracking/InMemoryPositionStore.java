@@ -47,6 +47,11 @@ public class InMemoryPositionStore implements PositionStore {
     }
 
     @Override
+    public void truncate() {
+        positions.clear();
+    }
+
+    @Override
     public void close() {
         //no op
     }

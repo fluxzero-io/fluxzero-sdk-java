@@ -87,6 +87,15 @@ public class TestServerScheduleStore implements MessageStore, SchedulingClient {
         }
     }
 
+    @Override
+    public synchronized void truncate() {
+        if (upcomingDeadline != null) {
+            upcomingDeadline.getScheduleToken().cancel();
+            upcomingDeadline = null;
+        }
+        delegate.truncate();
+    }
+
     @Value
     static class Deadline {
         long timestamp;

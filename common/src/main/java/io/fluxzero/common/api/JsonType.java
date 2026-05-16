@@ -35,6 +35,7 @@ import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
+import io.fluxzero.common.api.publishing.Truncate;
 import io.fluxzero.common.api.scheduling.CancelSchedule;
 import io.fluxzero.common.api.scheduling.GetSchedule;
 import io.fluxzero.common.api.scheduling.GetScheduleResult;
@@ -95,6 +96,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //publishing
         @JsonSubTypes.Type(value = Append.class, name = "append"),
         @JsonSubTypes.Type(value = SetRetentionTime.class, name = "setRetentionTime"),
+        @JsonSubTypes.Type(value = Truncate.class, name = "truncate"),
 
         //tracking
         @JsonSubTypes.Type(value = Read.class, name = "read"),

@@ -21,7 +21,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
-import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.common.api.publishing.Truncate;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 
@@ -123,6 +123,11 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
     @Override
     public CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee) {
         return sendCommand(new SetRetentionTime(duration.getSeconds(), guarantee));
+    }
+
+    @Override
+    public CompletableFuture<Void> truncate(Guarantee guarantee) {
+        return sendCommand(new Truncate(guarantee));
     }
 
     @Override

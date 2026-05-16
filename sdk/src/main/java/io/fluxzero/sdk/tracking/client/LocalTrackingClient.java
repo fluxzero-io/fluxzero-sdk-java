@@ -25,6 +25,7 @@ import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.tracking.DefaultTrackingStrategy;
 import io.fluxzero.common.tracking.HasMessageStore;
 import io.fluxzero.common.tracking.InMemoryPositionStore;
+import io.fluxzero.common.tracking.MessageLogMaintenance;
 import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.common.tracking.PositionStore;
 import io.fluxzero.common.tracking.TrackingStrategy;
@@ -92,6 +93,9 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
 
     @Getter(lazy = true)
     private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore);
+    @Getter(lazy = true)
+    private final MessageLogMaintenance messageLogMaintenance =
+            new MessageLogMaintenance(messageStore, positionStore, getTrackingStrategy());
 
     public LocalTrackingClient(MessageType messageType, String topic, Duration messageExpiration) {
         this.messageStore = new InMemoryMessageStore(messageType, messageExpiration);
@@ -188,6 +192,11 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                                                      Guarantee guarantee) {
         getTrackingStrategy().disconnectTrackers(t -> t.getTrackerId().equalsIgnoreCase(trackerId), sendFinalEmptyBatch);
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> truncate(Guarantee guarantee) {
+        return getMessageLogMaintenance().truncate();
     }
 
     @Override

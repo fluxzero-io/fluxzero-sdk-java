@@ -186,7 +186,7 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public CompletableFuture<Void> deleteCollection(String collection, Guarantee guarantee) {
-        documents.values().removeIf(d -> Objects.equals(collection, d.getCollection()));
+        truncateCollection(collection);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -245,6 +245,12 @@ public class InMemorySearchStore implements SearchClient {
         }
         lastIndex = lastIndex == null ? -1L : lastIndex;
         return map.tailMap(lastIndex, false).values().stream().limit(maxSize);
+    }
+
+    public synchronized void truncateCollection(String collection) {
+        documents.values().removeIf(d -> Objects.equals(collection, d.getCollection()));
+        messageLogs.remove(collection);
+        notifyMonitors(collection, List.of());
     }
 
     protected synchronized void storeMessages(Map<String, SerializedDocument> updates) {
