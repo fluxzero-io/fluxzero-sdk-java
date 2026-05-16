@@ -14,7 +14,6 @@
 
 package io.fluxzero.testserver.metrics;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.JsonType;
@@ -25,6 +24,7 @@ import io.fluxzero.common.tracking.MessageStore;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,18 +48,31 @@ public class DefaultMetricsLog implements MetricsLog {
     }
 
     @Override
-    public void registerMetrics(JsonType event, Metadata metadata) {
+    public CompletableFuture<Void> registerMetrics(JsonType event, Metadata metadata) {
         var finalMetadata = metadata.with("$applicationId", "FluxzeroTestServer");
-        workerPool.submit(() -> {
-            try {
-                Revision revision = event.getClass().getAnnotation(Revision.class);
-                byte[] payload = objectMapper.writeValueAsBytes(event);
-                store.append(new SerializedMessage(
-                        new Data<>(payload, event.getClass().getName(), revision == null ? 0 : revision.value(), Data.JSON_FORMAT),
-                        finalMetadata, randomUUID().toString(), currentTimeMillis()));
-            } catch (JsonProcessingException e) {
-                log.error("Failed to serialize metrics {}", event, e);
-            }
-        });
+        return CompletableFuture.supplyAsync(() -> serializeMetrics(event, finalMetadata), workerPool)
+                .thenCompose(this::appendMetrics);
+    }
+
+    private SerializedMessage serializeMetrics(JsonType event, Metadata metadata) {
+        try {
+            Revision revision = event.getClass().getAnnotation(Revision.class);
+            byte[] payload = objectMapper.writeValueAsBytes(event);
+            return new SerializedMessage(
+                    new Data<>(payload, event.getClass().getName(), revision == null ? 0 : revision.value(), Data.JSON_FORMAT),
+                    metadata, randomUUID().toString(), currentTimeMillis());
+        } catch (Exception e) {
+            log.error("Failed to serialize metrics {}", event, e);
+            throw new IllegalStateException("Failed to serialize metrics", e);
+        }
+    }
+
+    private CompletableFuture<Void> appendMetrics(SerializedMessage message) {
+        try {
+            return store.append(message);
+        } catch (Exception e) {
+            log.error("Failed to append metrics {}", message, e);
+            return CompletableFuture.failedFuture(e);
+        }
     }
 }
