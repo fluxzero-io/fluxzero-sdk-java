@@ -41,6 +41,53 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "getMessageLogMaintenance",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageLogMaintenance",
+    "returnType" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessageLogMaintenance",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageLogMaintenance",
+    "returnType" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getMessageStore",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#getMessageStore",
     "returnType" : "io.fluxzero.common.tracking.MessageStore",

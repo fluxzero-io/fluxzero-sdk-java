@@ -135,6 +135,17 @@
     "varArgs" : false,
     "documentation" : " Sets the retention period for messages. Messages older than this duration may be removed depending on\n the implementation.\n\n @param retentionPeriod duration to retain messages\n"
   }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#truncate",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes all messages from this store while keeping the logical log available for future appends.\n"
+  }, {
     "name" : "unwrap",
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#unwrap",
     "returnType" : "T",

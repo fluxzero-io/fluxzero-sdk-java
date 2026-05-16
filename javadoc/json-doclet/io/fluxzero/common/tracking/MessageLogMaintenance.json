@@ -1,0 +1,111 @@
+{
+  "name" : "MessageLogMaintenance",
+  "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+  "packageName" : "io.fluxzero.common.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Coordinates maintenance operations that span the message log, tracking positions and active trackers.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "messageStore",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance.messageStore",
+    "type" : "io.fluxzero.common.tracking.MessageStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "positionStore",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance.positionStore",
+    "type" : "io.fluxzero.common.tracking.PositionStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackingStrategy",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance.trackingStrategy",
+    "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MessageLogMaintenance",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance#MessageLogMaintenance",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingStrategy",
+      "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates message log maintenance for the given shared log components.\n\n @param messageStore     the message store to maintain\n @param positionStore    the position store associated with the message log\n @param trackingStrategy the tracking strategy that owns active trackers for the message log\n"
+  } ],
+  "methods" : [ {
+    "name" : "getMessageStore",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance#getMessageStore",
+    "returnType" : "io.fluxzero.common.tracking.MessageStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message store maintained by this instance.\n\n @return the message store\n"
+  }, {
+    "name" : "getPositionStore",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance#getPositionStore",
+    "returnType" : "io.fluxzero.common.tracking.PositionStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the position store maintained by this instance.\n\n @return the position store\n"
+  }, {
+    "name" : "getTrackingStrategy",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance#getTrackingStrategy",
+    "returnType" : "io.fluxzero.common.tracking.TrackingStrategy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the tracking strategy whose active trackers are coordinated by this instance.\n\n @return the tracking strategy\n"
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance#truncate",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Truncates the message log and clears all tracking positions.\n <p>\n Active trackers are disconnected first and receive a final empty batch so consumers can stop waiting before the\n underlying stores are cleared.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

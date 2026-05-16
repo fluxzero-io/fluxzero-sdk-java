@@ -13,6 +13,14 @@
   "superClass" : "io.fluxzero.testserver.websocket.WebsocketEndpoint",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "maintenance",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint.maintenance",
+    "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "messageType",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint.messageType",
     "type" : "io.fluxzero.common.MessageType",
@@ -38,6 +46,61 @@
     "constantValue" : null
   } ],
   "constructors" : [ {
+    "name" : "ProducerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#ProducerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a producer endpoint backed by the shared maintenance components for one message log.\n\n @param maintenance the shared message log maintenance components\n @param messageType the message type exposed by this endpoint\n @param topic       the topic exposed by this endpoint, or {@code null} for non-topic message types\n"
+  }, {
+    "name" : "ProducerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#ProducerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a producer endpoint backed by the shared maintenance components for one message log.\n\n @param maintenance             the shared message log maintenance components\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n"
+  }, {
     "name" : "ProducerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#ProducerEndpoint",
     "modifiers" : [ "public" ],
@@ -140,6 +203,41 @@
     "parameters" : [ {
       "name" : "request",
       "type" : "io.fluxzero.common.api.publishing.SetRetentionTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.publishing.Truncate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newMaintenance",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#newMaintenance",
+    "returnType" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "store",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

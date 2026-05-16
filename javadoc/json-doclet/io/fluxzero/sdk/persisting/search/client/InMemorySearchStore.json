@@ -605,6 +605,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "truncateCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#truncateCollection",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

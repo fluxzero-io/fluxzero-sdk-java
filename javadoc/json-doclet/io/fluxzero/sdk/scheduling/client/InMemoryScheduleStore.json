@@ -341,6 +341,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#truncate",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

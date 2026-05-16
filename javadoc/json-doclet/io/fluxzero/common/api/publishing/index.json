@@ -19,6 +19,11 @@
     "name" : "SetRetentionTime",
     "qualifiedName" : "io.fluxzero.common.api.publishing.SetRetentionTime",
     "kind" : "class"
+  }, {
+    "file" : "Truncate.json",
+    "name" : "Truncate",
+    "qualifiedName" : "io.fluxzero.common.api.publishing.Truncate",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

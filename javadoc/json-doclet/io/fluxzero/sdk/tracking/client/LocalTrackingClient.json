@@ -13,6 +13,19 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.tracking.HasMessageStore", "io.fluxzero.sdk.publishing.client.GatewayClient", "io.fluxzero.sdk.tracking.client.TrackingClient" ],
   "fields" : [ {
+    "name" : "messageLogMaintenance",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.messageLogMaintenance",
+    "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "messageStore",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.messageStore",
     "type" : "io.fluxzero.common.tracking.MessageStore",
@@ -409,6 +422,25 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#truncate",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,

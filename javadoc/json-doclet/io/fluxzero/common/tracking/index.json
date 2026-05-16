@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.common.tracking.InMemoryPositionStore",
     "kind" : "class"
   }, {
+    "file" : "MessageLogMaintenance.json",
+    "name" : "MessageLogMaintenance",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "kind" : "class"
+  }, {
     "file" : "MessageStore.json",
     "name" : "MessageStore",
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStore",

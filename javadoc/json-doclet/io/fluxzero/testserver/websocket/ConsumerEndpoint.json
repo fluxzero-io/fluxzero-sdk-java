@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "trackingStrategy",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint.trackingStrategy",
     "type" : "io.fluxzero.common.tracking.TrackingStrategy",
@@ -52,6 +60,61 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a consumer endpoint backed by shared maintenance components for one message log.\n\n @param maintenance             the shared message log maintenance components\n @param messageType             the message type exposed by this endpoint\n @param commandIdempotencyStore the idempotency store used for command handling\n"
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a consumer endpoint backed by shared maintenance components for one message log.\n\n @param maintenance             the shared message log maintenance components\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n"
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "messageStore",
       "type" : "io.fluxzero.common.tracking.MessageStore",
       "varArgs" : false,
@@ -90,6 +153,36 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a consumer endpoint for a topic-specific message log.\n\n @param messageStore            the message store backing the endpoint\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint\n @param commandIdempotencyStore the idempotency store used for command handling\n"
   }, {
     "name" : "ConsumerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
@@ -147,6 +240,46 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a consumer endpoint from explicit tracking components.\n\n @param trackingStrategy the tracking strategy backing reads and claims\n @param messageStore     the message store backing direct reads\n @param positionStore    the position store backing consumer positions\n @param messageType      the message type exposed by this endpoint\n @param topic            the topic exposed by this endpoint, or {@code null} for non-topic message types\n"
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackingStrategy",
+      "type" : "io.fluxzero.common.tracking.TrackingStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "commandIdempotencyStore",
       "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
       "varArgs" : false,
@@ -154,7 +287,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a consumer endpoint from explicit tracking components.\n\n @param trackingStrategy        the tracking strategy backing reads and claims\n @param messageStore            the message store backing direct reads\n @param positionStore           the position store backing consumer positions\n @param messageType             the message type exposed by this endpoint\n @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types\n @param commandIdempotencyStore the idempotency store used for command handling\n"
   } ],
   "methods" : [ {
     "name" : "handle",

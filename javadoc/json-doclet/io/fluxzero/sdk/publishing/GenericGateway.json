@@ -470,6 +470,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes once the retention setting is updated\n"
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#truncate",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.\n\n @return a {@link CompletableFuture} that completes once the log is truncated\n"
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#truncate",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Truncates this gateway's message log and clears associated tracking positions.\n\n @param guarantee the delivery guarantee to apply to the truncate operation\n @return a {@link CompletableFuture} that completes once the log is truncated\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -85,6 +85,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Stores the latest processed index for a given segment range and consumer.\n\n @param consumer  the consumer name (e.g., the tracking processor)\n @param segment   the segment range for which this index applies\n @param lastIndex the last index successfully handled\n @return a future that completes when the position is stored\n"
+  }, {
+    "name" : "truncate",
+    "qualifiedName" : "io.fluxzero.common.tracking.PositionStore#truncate",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes all stored consumer positions while keeping this position store available for future tracking.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
