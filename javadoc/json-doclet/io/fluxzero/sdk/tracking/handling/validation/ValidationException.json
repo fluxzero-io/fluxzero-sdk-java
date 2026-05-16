@@ -8,29 +8,32 @@
     "annotationType" : "lombok.Getter",
     "values" : {}
   } ],
-  "documentation" : " Indicates that a request (typically a command or query) contains one or more field-level violations that prevent\n further processing.\n <p>\n The {@link #violations} set contains a sorted list of human-readable violation messages.\n </p>\n",
+  "documentation" : " Indicates that a request (typically a command or query) contains one or more field-level violations that prevent\n further processing.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.exception.FunctionalException",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "violationSummaries",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException.violationSummaries",
+    "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.validation.ValidationException.ViolationSummary>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Lightweight string-only violation summaries with full property paths.\n",
+    "constantValue" : null
+  }, {
     "name" : "violations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException.violations",
     "type" : "java.util.SortedSet<java.lang.String>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
-    "documentation" : null,
+    "documentation" : " Sorted legacy violation strings used by older Fluxzero clients.\n",
     "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ValidationException",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException#ValidationException",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.beans.ConstructorProperties",
-      "values" : {
-        "value" : "\"message\",\"violations\""
-      }
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "message",
@@ -45,10 +48,46 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a validation exception with a formatted message and the complete set of violation messages.\n\n @param message    formatted exception message\n @param violations individual violation messages\n"
+    "documentation" : null
+  }, {
+    "name" : "ValidationException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException#ValidationException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"message\",\"violations\",\"violationSummaries\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "violations",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "violationSummaries",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.validation.ValidationException.ViolationSummary>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ViolationSummary",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException$ViolationSummary",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

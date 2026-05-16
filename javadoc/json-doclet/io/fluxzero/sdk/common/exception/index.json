@@ -5,6 +5,26 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "FluxzeroErrorCode.json",
+    "name" : "FluxzeroErrorCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode",
+    "kind" : "enum"
+  }, {
+    "file" : "FluxzeroErrorReport.json",
+    "name" : "FluxzeroErrorReport",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroErrorReport.Builder.json",
+    "name" : "FluxzeroErrorReport.Builder",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroErrors.json",
+    "name" : "FluxzeroErrors",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors",
+    "kind" : "class"
+  }, {
     "file" : "FunctionalException.json",
     "name" : "FunctionalException",
     "qualifiedName" : "io.fluxzero.sdk.common.exception.FunctionalException",

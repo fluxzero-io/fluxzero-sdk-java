@@ -5,12 +5,55 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Exception thrown during the initialization of message tracking in Fluxzero.\n <p>\n This exception indicates a configuration or startup problem when assigning handlers to consumers\n or when attempting to initiate tracking more than once for the same consumer configuration.\n",
+  "documentation" : " Exception thrown during message tracking in Fluxzero.\n <p>\n This exception indicates a configuration, startup, or runtime problem when assigning handlers to consumers,\n starting tracking, or keeping tracker state in sync.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.RuntimeException",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "fluxzeroErrorReport",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException.fluxzeroErrorReport",
+    "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
+    "name" : "TrackingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#TrackingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzeroErrorReport",
+      "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "TrackingException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#TrackingException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzeroErrorReport",
+      "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "TrackingException",
     "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#TrackingException",
     "modifiers" : [ "public" ],
@@ -46,7 +89,53 @@
     "varArgs" : false,
     "documentation" : " Constructs a new {@code TrackingException} with the specified message and cause.\n\n @param message the detail message\n @param cause   the root cause\n"
   } ],
-  "methods" : [ ],
+  "methods" : [ {
+    "name" : "getDocumentationUrl",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#getDocumentationUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getErrorCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#getErrorCode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getFluxzeroErrorReport",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.TrackingException#getFluxzeroErrorReport",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

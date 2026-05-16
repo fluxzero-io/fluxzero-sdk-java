@@ -471,6 +471,22 @@
     "varArgs" : false,
     "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes once the retention setting is updated\n"
   }, {
+    "name" : "timeoutDuration",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#timeoutDuration",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timeout",
+      "type" : "io.fluxzero.sdk.publishing.Timeout",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#truncate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

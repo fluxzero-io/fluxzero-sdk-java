@@ -14,7 +14,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.RuntimeException",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "fluxzeroErrorReport",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException.fluxzeroErrorReport",
+    "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "TechnicalException",
     "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#TechnicalException",
@@ -22,6 +30,41 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "TechnicalException",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#TechnicalException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzeroErrorReport",
+      "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "TechnicalException",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#TechnicalException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzeroErrorReport",
+      "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -125,6 +168,52 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getDocumentationUrl",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#getDocumentationUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the documentation URL for the error code, if available.\n"
+  }, {
+    "name" : "getErrorCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#getErrorCode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the stable Fluxzero error code, if available.\n"
+  }, {
+    "name" : "getFluxzeroErrorReport",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#getFluxzeroErrorReport",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the structured Fluxzero report backing this exception, if this exception was created from one.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.common.exception.TechnicalException#hashCode",

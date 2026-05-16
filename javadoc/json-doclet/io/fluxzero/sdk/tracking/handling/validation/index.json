@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException",
     "kind" : "class"
   }, {
+    "file" : "ValidationException.ViolationSummary.json",
+    "name" : "ValidationException.ViolationSummary",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException$ViolationSummary",
+    "kind" : "record"
+  }, {
     "file" : "ValidationUtils.json",
     "name" : "ValidationUtils",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",

@@ -498,6 +498,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "violationSummaries",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#violationSummaries",
+    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.validation.ValidationException.ViolationSummary>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "violations",
+      "type" : "java.util.Collection<? extends jakarta.validation.ConstraintViolation<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
