@@ -28,9 +28,9 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - This public SDK is used by many external projects. Small mistakes can propagate widely, so favor durable, well-tested solutions over quick patches, local workarounds, or behavior that is hard to explain.
 - Do not paper over unclear failures. Understand the root cause, preserve invariants, and document any intentional trade-off in code, tests, or the commit body.
 - Preserve the existing package boundaries. Put shared serialization/protocol/reflection behavior in `common`, public SDK behavior in `sdk`, and server-specific behavior in `test-server` or `proxy`.
-- Follow existing Java style: Apache license headers on Java/XML files that use them, standard Java imports before static imports, Lombok where it is already the local pattern, and small package-private tests where possible.
+- Follow existing Java style: Apache license headers on Java/XML files that use them, standard Java imports before static imports, Lombok for boilerplate such as constructors/getters/builders where it fits the local pattern, and small package-private tests where possible.
 - Keep public SDK APIs backward compatible unless the task explicitly calls for a breaking change.
-- Add Javadoc for every new or changed public type, constructor, method, and field. These repositories are broadly shared, so public API surface should be documented even when the behavior seems obvious.
+- Document new or changed public API surface. Prefer field/type/method Javadoc for data objects and Lombok-backed classes; constructor-level Javadoc may be omitted when Lombok or field documentation already makes the constructor contract clear.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
 - Avoid adding dependencies casually. If a dependency is needed, manage versions from the root POM or the relevant BOM/module pattern.
 - When changing message handling, tracking, scheduling, websocket, persistence, serialization, or reflection behavior, add focused tests in the owning module and consider both synchronous and asynchronous `TestFixture` paths.

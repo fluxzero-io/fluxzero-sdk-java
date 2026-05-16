@@ -29,6 +29,7 @@ import java.lang.reflect.Modifier;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -272,13 +273,24 @@ public class DefaultJakartaValidator implements Validator {
 
     protected ValidationException newValidationException(Collection<? extends ConstraintViolation<?>> violations) {
         return new ValidationException(format(violations, false).stream().collect(joining(lineSeparator())),
-                                       format(violations, true));
+                                       format(violations, true), violationSummaries(violations));
     }
 
     protected SortedSet<String> format(Collection<? extends ConstraintViolation<?>> violations,
                                        boolean fullPath) {
         return violations.stream().map(v -> format(v, fullPath))
                 .collect(toCollection(() -> new TreeSet<>(CASE_INSENSITIVE_ORDER)));
+    }
+
+    protected List<ValidationException.ViolationSummary> violationSummaries(
+            Collection<? extends ConstraintViolation<?>> violations) {
+        return violations.stream()
+                .map(violation -> new ValidationException.ViolationSummary(
+                        getPropertyPath(violation, true), violation.getMessage()))
+                .sorted((a, b) -> {
+                    int path = CASE_INSENSITIVE_ORDER.compare(a.path(), b.path());
+                    return path == 0 ? CASE_INSENSITIVE_ORDER.compare(a.message(), b.message()) : path;
+                }).toList();
     }
 
     protected static String format(ConstraintViolation<?> v, boolean fullPath) {

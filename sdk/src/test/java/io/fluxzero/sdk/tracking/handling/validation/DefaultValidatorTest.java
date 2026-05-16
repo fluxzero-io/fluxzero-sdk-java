@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
@@ -66,6 +67,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
 import static java.lang.annotation.ElementType.FIELD;
@@ -108,6 +110,11 @@ class DefaultValidatorTest {
 
         assertEquals(6, e.getViolations().size());
         assertTrue(e.getViolations().stream().anyMatch(v -> v.equals("member.aBoolean must be true")));
+        assertTrue(e.getViolations().contains("custom message"));
+        assertTrue(e.getViolationSummaries().contains(
+                new ValidationException.ViolationSummary("aCustomString", "custom message")));
+        assertTrue(e.getViolationSummaries().contains(
+                new ValidationException.ViolationSummary("member.aBoolean", "must be true")));
         assertEquals("""
                              aBoolean must be true
                              aList element must not be blank
@@ -128,6 +135,19 @@ class DefaultValidatorTest {
                 assertThrows(ValidationException.class, () -> subject.assertValid(object, Group.class));
         assertEquals(1, e.getViolations().size());
         assertEquals("aNumberWithGroupConstraint must be greater than or equal to 5", e.getMessage());
+    }
+
+    @Test
+    void validationExceptionFailedConstraintsRoundTripAsStrings() throws Exception {
+        ValidationException exception = new ValidationException(
+                "custom message", Set.of("custom message"),
+                List.of(new ValidationException.ViolationSummary("aCustomString", "custom message")));
+
+        ValidationException restored = JacksonSerializer.defaultObjectMapper.readValue(
+                JacksonSerializer.defaultObjectMapper.writeValueAsString(exception), ValidationException.class);
+
+        assertEquals(exception.getViolations(), restored.getViolations());
+        assertEquals(exception.getViolationSummaries(), restored.getViolationSummaries());
     }
 
     @Test
