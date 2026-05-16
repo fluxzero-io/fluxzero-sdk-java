@@ -90,6 +90,22 @@
     "varArgs" : false,
     "documentation" : " Register a task to run before this Fluxzero instance is closed.\n"
   }, {
+    "name" : "bulkUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#bulkUpdate",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepare a fluent bulk update for the given document collection.\n <p>\n Example usage: {@code Fluxzero.bulkUpdate(\"my_collection\").index(doc1).delete(doc2Id).execute();}\n\n @see DocumentStore#bulkUpdate(Object)\n"
+  }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#cache",
     "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",

@@ -14,6 +14,25 @@
   "methods" : [ {
     "name" : "bulkUpdate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#bulkUpdate",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares a fluent bulk update builder for the specified collection.\n"
+  }, {
+    "name" : "bulkUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#bulkUpdate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ {

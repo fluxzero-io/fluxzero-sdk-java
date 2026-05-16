@@ -5,6 +5,11 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "BulkUpdateBuilder.json",
+    "name" : "BulkUpdateBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "kind" : "interface"
+  }, {
     "file" : "DefaultDocumentStore.json",
     "name" : "DefaultDocumentStore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore",
