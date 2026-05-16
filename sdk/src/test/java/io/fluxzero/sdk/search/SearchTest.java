@@ -485,6 +485,34 @@ public class SearchTest {
     }
 
     @Test
+    void staticBulkUpdateBuilderIndexesAndDeletesDocuments() {
+        Instant now = Instant.now();
+        SomeSearchable expected = new SomeSearchable("indexed", now);
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("deleted", now), "deleted", "bulk")
+                .given(fc -> Fluxzero.bulkUpdate("bulk")
+                        .index(expected)
+                        .delete("deleted")
+                        .execute().get())
+                .whenSearching("bulk")
+                .expectResult(List.of(expected));
+    }
+
+    @Test
+    void documentStoreBulkUpdateBuilderIndexesAndDeletesDocuments() {
+        Instant now = Instant.now();
+        SomeSearchable expected = new SomeSearchable("indexed", now);
+        TestFixture.create()
+                .givenDocument(new SomeSearchable("deleted", now), "deleted", "bulk")
+                .given(fc -> fc.documentStore().bulkUpdate("bulk")
+                        .index(expected)
+                        .delete("deleted")
+                        .execute().get())
+                .whenSearching("bulk")
+                .expectResult(List.of(expected));
+    }
+
+    @Test
     void testGroupSerialization() {
         Group input = Group.of("foo", "bar", "flux", "zero");
         String json = JsonUtils.asJson(input);

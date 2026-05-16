@@ -3897,6 +3897,32 @@ Fluxzero.index(myObject, "customCollection");
 
 ---
 
+### Bulk Updates
+
+Use `Fluxzero.bulkUpdate(...)` when you want to apply mixed index and delete operations to a collection in one request:
+
+[//]: # (@formatter:off)
+```java
+Fluxzero.bulkUpdate("customCollection")
+    .index(doc1)
+    .delete(doc2Id)
+    .execute();
+```
+[//]: # (@formatter:on)
+
+The same builder is available from an injected `DocumentStore`:
+
+[//]: # (@formatter:off)
+```java
+documentStore.bulkUpdate("customCollection")
+    .index(doc1)
+    .delete(doc2Id)
+    .execute();
+```
+[//]: # (@formatter:on)
+
+---
+
 ### Searchable Domain Models
 
 Many models in Flux (e.g. aggregates or stateful handlers) are automatically indexable:
