@@ -94,6 +94,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getConfiguredPort",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#getConfiguredPort",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getLocalPort",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#getLocalPort",
     "returnType" : "int",
@@ -276,7 +287,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Standalone process entry point.\n\n <p>Do not call this method to embed the test server in another application. Use {@link #startServer(int)} instead\n so the caller owns the server lifecycle and shutdown order.</p>\n"
   }, {
     "name" : "registerLifecycleMetric",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#registerLifecycleMetric",
@@ -370,17 +381,75 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Starts an embedded test server on the given port without registering a JVM shutdown hook.\n\n <p>Callers that need to stop the embedded server explicitly should use {@link #startServer(int)}.</p>\n\n @param port the port to bind, or {@code 0} to select a random available port\n"
   }, {
     "name" : "startServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
     "returnType" : "org.eclipse.jetty.server.Server",
-    "modifiers" : [ "static" ],
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an embedded test server using the configured port.\n\n <p>The port is resolved from {@code FLUXZERO_PORT}, {@code FLUX_PORT}, {@code port}, or {@code 8888}, in that\n order. The returned Jetty server is owned by the caller and should be stopped by the caller.</p>\n\n @return the started Jetty server\n"
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "port",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an embedded test server on the given port.\n\n <p>The returned Jetty server is owned by the caller and should be stopped by the caller. This method does not\n register a JVM shutdown hook, so it can be used safely in applications that coordinate their own shutdown order.</p>\n\n @param port the port to bind, or {@code 0} to select a random available port\n @return the started Jetty server\n"
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registerShutdownHook",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stopServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#stopServer",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStore",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandIdempotencyStoreClosed",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

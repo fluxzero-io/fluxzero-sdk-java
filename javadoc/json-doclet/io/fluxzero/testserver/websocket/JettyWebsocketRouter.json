@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : 0
   }, {
+    "name" : "endpoints",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter.endpoints",
+    "type" : "java.util.Set<io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "routes",
     "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter.routes",
     "type" : "java.util.List<io.fluxzero.testserver.websocket.JettyWebsocketRouter.Route>",
@@ -107,6 +115,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "shutDownEndpoints",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#shutDownEndpoints",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#start",
     "returnType" : "org.eclipse.jetty.server.Server",
@@ -121,7 +140,7 @@
     } ],
     "thrownTypes" : [ "java.lang.Exception" ],
     "varArgs" : false,
-    "documentation" : " Starts Jetty on the given port.\n\n @return the started Jetty server, owned by the caller\n"
+    "documentation" : " Starts Jetty on the given port.\n\n <p>The server does not register Jetty's JVM shutdown hook. When the returned server is stopped, the router shuts\n down any endpoints it created.</p>\n\n @return the started Jetty server, owned by the caller\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
