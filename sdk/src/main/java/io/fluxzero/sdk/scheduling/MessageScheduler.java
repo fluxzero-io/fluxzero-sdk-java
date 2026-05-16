@@ -22,6 +22,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Namespaced;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
@@ -103,10 +104,10 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @return the effective schedule ID
      */
     default String schedulePeriodic(@NonNull Object value, Object scheduleId) {
-        var periodic = ReflectionUtils.<Periodic>getTypeAnnotation(
-                value instanceof Message m ? m.getPayloadClass() : value.getClass(), Periodic.class);
+        Class<?> payloadType = value instanceof Message m ? m.getPayloadClass() : value.getClass();
+        var periodic = ReflectionUtils.<Periodic>getTypeAnnotation(payloadType, Periodic.class);
         if (periodic == null) {
-            throw new IllegalArgumentException("Could not determine when to schedule this value");
+            throw new IllegalArgumentException(FluxzeroErrors.periodicScheduleAnnotationMissing(payloadType).format());
         }
         Instant nextDeadline = Optional.ofNullable(nextDeadline(periodic.cron(), periodic.timeZone())).orElseGet(
                 () -> Fluxzero.currentTime().plusMillis(periodic.timeUnit().toMillis(

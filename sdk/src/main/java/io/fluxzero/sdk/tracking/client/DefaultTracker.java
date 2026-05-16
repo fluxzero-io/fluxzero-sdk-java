@@ -22,6 +22,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -41,7 +42,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -303,7 +303,8 @@ public class DefaultTracker implements Runnable, Registration {
                 }
             }
         } catch (Exception e) {
-            throw new TrackingException(format("Failed to suspend tracker %s after reaching max index", tracker), e);
+            throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                    "suspending tracker after reaching max index", tracker, null, suspendedIndex, e), e);
         }
     }
 
@@ -451,13 +452,11 @@ public class DefaultTracker implements Runnable, Registration {
                                 if (!running.get()) {
                                     return null;
                                 }
-                                throw new TrackingException(
-                                        format("Interrupted while storing position of segments %s for tracker %s to index %s",
-                                               Arrays.toString(segment), tracker, index), e);
+                                throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                                        "storing tracker position", tracker, segment, index, e), e);
                             } catch (Exception e) {
-                                throw new TrackingException(
-                                        format("Failed to store position of segments %s for tracker %s to index %s",
-                                               Arrays.toString(segment), tracker, index), e);
+                                throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                                        "storing tracker position", tracker, segment, index, e), e);
                             }
                         }, retryDelay, e2 -> running.get());
             }

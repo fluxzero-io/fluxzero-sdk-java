@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.errorreporting;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -31,7 +32,6 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.isLocalHandler;
-import static java.lang.String.format;
 
 /**
  * {@link HandlerInterceptor} that reports exceptions to the configured {@link ErrorGateway}.
@@ -89,7 +89,8 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         Metadata metadata = cause.getMetadata();
         if (!(e instanceof FunctionalException || e instanceof TechnicalException)) {
             metadata = metadata.with("stackTrace", ExceptionUtils.getStackTrace(e));
-            e = new TechnicalException(format("Handler %s failed to handle a %s", invoker.getTargetClass(), cause));
+            e = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
+                    invoker.getTargetClass().getName(), cause.toString(), e));
         }
         errorGateway.report(new Message(e, metadata));
     }

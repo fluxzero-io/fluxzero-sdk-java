@@ -225,6 +225,7 @@ What follows is a summary of the most important features.
 - [Tracking Messages](#tracking-messages)
 - [Message Replays](#message-replays)
 - [Dynamic Dead Letter Queue (DLQ)](#dynamic-dead-letter-queue-dlq)
+- [Fluxzero Error Codes](#fluxzero-error-codes)
 - [Local Handlers](#local-handlers)
 - [Payload Validation](#payload-validation)
 - [User and Role-Based Access Control](#user-and-role-based-access-control)
@@ -746,6 +747,34 @@ class CommandReplayHandler {
 
 The error log acts as a **time-travel debugger** — it gives you full control over how and when to address failures, now
 or in the future.
+
+---
+
+### Fluxzero Error Codes
+
+Some SDK exceptions include a stable Fluxzero error code in their message and, where the exception type supports it,
+via `getErrorCode()` and `getDocumentationUrl()`. The explanatory text can improve over time, but the code should
+remain stable so logs, support notes, and docs can all point at the same problem.
+Once published, error codes are treated as part of the SDK support contract: new categories get new codes, existing
+codes are not reused for a different meaning.
+
+To keep repeated failures from flooding logs, the SDK renders the full multi-line explanation for the first 100
+occurrences of a code in a JVM. Later occurrences use a short message with the same error code and documentation URL.
+
+| Code          | Meaning                                      | Typical fix |
+|---------------|----------------------------------------------|-------------|
+| `FZ-SDK-0001` | No Fluxzero instance is available            | Create a Fluxzero instance and run the code inside `fluxzero.apply(...)`, or set `Fluxzero.applicationInstance`. |
+| `FZ-SDK-0002` | Request timed out while waiting for a result | Register/start the matching handler, check namespace/topic/routing, or use fire-and-forget for commands that do not return a result. |
+| `FZ-SDK-0003` | Handler invocation failed                    | Inspect the cause and stack trace; use `FunctionalException` for expected business rejections. |
+| `FZ-SDK-0004` | Response dispatch failed                     | Check response serialization, dispatch interceptors, and result/web-response log connectivity. |
+| `FZ-SDK-0005` | Thread interrupted while waiting             | Check caller shutdown, cancellation, or timeout behavior and decide whether to retry. |
+| `FZ-SDK-0006` | Message dispatch failed                      | Check dispatch interceptors, serialization, topic/namespace configuration, and client connectivity. |
+| `FZ-SDK-0007` | No `UserProvider` is configured              | Configure `Fluxzero#userProvider`, set `UserProvider.defaultUserProvider`, or remove `Message.addUser(...)`. |
+| `FZ-SDK-0008` | Tracking consumer configuration is invalid   | Make consumer names unique, register handlers before tracking starts, or add a matching `@Consumer`/`ConsumerConfiguration`. |
+| `FZ-SDK-0009` | Periodic schedule configuration is invalid   | Add a cron expression or positive delay to `@Periodic`, or disable it explicitly with `Periodic.DISABLED`. |
+| `FZ-SDK-0010` | Tracking failed during runtime               | Check the original cause, client/message-store connectivity, and whether shutdown or interruption was expected. |
+
+Each code links to `https://fluxzero.io/docs/errors#<code>` in formatted SDK messages.
 
 ---
 

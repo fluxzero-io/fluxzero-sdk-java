@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -111,9 +112,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
             return;
         }
         if (periodic.cron().isBlank() && periodic.delay() <= 0) {
-            throw new IllegalStateException(format(
-                    "Periodic annotation on type %s is invalid. "
-                    + "Period should be a positive number of  milliseconds.", payloadType));
+            throw new IllegalStateException(FluxzeroErrors.periodicScheduleInvalid(payloadType).format());
         }
         if (periodic.autoStart()) {
             Fluxzero fluxzero = Fluxzero.get();

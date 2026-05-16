@@ -14,12 +14,38 @@
 
 package io.fluxzero.sdk.publishing;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.fluxzero.sdk.common.exception.FluxzeroErrorReport;
+
 import java.beans.ConstructorProperties;
 
 public class TimeoutException extends RuntimeException {
+    private final FluxzeroErrorReport fluxzeroErrorReport;
+
     @ConstructorProperties({"message"})
     public TimeoutException(String message) {
         super(message);
+        this.fluxzeroErrorReport = null;
+    }
+
+    public TimeoutException(FluxzeroErrorReport fluxzeroErrorReport) {
+        super(fluxzeroErrorReport.formatSafely());
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
+    }
+
+    @JsonIgnore
+    public FluxzeroErrorReport getFluxzeroErrorReport() {
+        return fluxzeroErrorReport;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getErrorCode() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getErrorCode();
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getDocumentationUrl() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getDocumentationUrl();
     }
 }
-

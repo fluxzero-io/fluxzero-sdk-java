@@ -15,6 +15,7 @@ This guide helps you quickly resolve common issues encountered when building Flu
 - [Entity & State Issues](#entity-state-issues)
 - [Routing & Handlers](#routing-handlers)
 - [System & Infrastructure](#system-infrastructure)
+- [SDK Error Codes](#sdk-error-codes)
 
 ---
 
@@ -131,3 +132,28 @@ This guide helps you quickly resolve common issues encountered when building Flu
 **Fix**:
 - Add `@field:Valid` to any property that contains a class with validation constraints.
 - See: [Handling: Validation](./handling.md#payloads)
+
+---
+
+<a name="sdk-error-codes"></a>
+
+## SDK Error Codes
+
+Fluxzero SDK error messages can include stable codes. Prefer matching on the code in logs and support notes, while using
+the human-readable sections to choose the fix.
+Published codes are stable support identifiers: do not assume the explanatory text is fixed, and do not reuse an
+existing code for a different category. After 100 full renders of the same code in one JVM, the SDK emits a shorter
+message with the code and docs URL (`https://fluxzero.io/docs/errors#<code>`) to avoid flooding logs.
+
+| Code          | Meaning                                    | Fix |
+|---------------|--------------------------------------------|-----|
+| `FZ-SDK-0001` | No Fluxzero instance is available          | Run inside `fluxzero.apply(...)`, set `Fluxzero.applicationInstance`, or use `TestFixture`. |
+| `FZ-SDK-0002` | Request timed out                          | Register/start the matching handler and check namespace, topic, routing, passive handlers, and result return values. |
+| `FZ-SDK-0003` | Handler invocation failed                  | Inspect the cause; use a `FunctionalException` for expected business failures. |
+| `FZ-SDK-0004` | Response dispatch failed                   | Check response serialization, interceptors, and result/web-response connectivity. |
+| `FZ-SDK-0005` | Thread interrupted while waiting           | Check shutdown/cancellation behavior and retry policy. |
+| `FZ-SDK-0006` | Message dispatch failed                    | Check dispatch interceptors, serialization, namespace/topic, and client connectivity. |
+| `FZ-SDK-0007` | Missing `UserProvider`                     | Configure `Fluxzero#userProvider`, set `UserProvider.defaultUserProvider`, or remove `Message.addUser(...)`. |
+| `FZ-SDK-0008` | Invalid tracking consumer configuration    | Use unique consumer names, register handlers before tracking starts, or add a matching `@Consumer`/`ConsumerConfiguration`. |
+| `FZ-SDK-0009` | Invalid `@Periodic` schedule configuration | Add `cron`, add a positive `delay`, or use `Periodic.DISABLED`. |
+| `FZ-SDK-0010` | Tracking failed during runtime             | Check the cause, client/message-store connectivity, and expected shutdown/interruption behavior. |

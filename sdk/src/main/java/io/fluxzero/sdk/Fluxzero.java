@@ -31,6 +31,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.UuidFactory;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -151,7 +152,8 @@ public interface Fluxzero extends AutoCloseable {
     static Fluxzero get() {
         return Optional.ofNullable(instance.get())
                 .orElseGet(() -> Optional.ofNullable(applicationInstance.get())
-                        .orElseThrow(() -> new IllegalStateException("Fluxzero instance not set")));
+                        .orElseThrow(() -> new IllegalStateException(
+                                FluxzeroErrors.fluxzeroInstanceMissing().format())));
     }
 
     /**

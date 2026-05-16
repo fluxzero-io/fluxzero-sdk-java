@@ -16,10 +16,12 @@
 package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Namespaced;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.Request;
 import lombok.SneakyThrows;
@@ -34,7 +36,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.sdk.common.Message.asMessage;
-import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.stream;
 
@@ -220,19 +221,20 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     default <R> R sendAndWait(Message message) {
         CompletableFuture<R> future = send(message);
         try {
-            Timeout timeout = message.getPayload().getClass().getAnnotation(Timeout.class);
+            Timeout timeout = message.getPayloadClass().getAnnotation(Timeout.class);
             if (timeout != null) {
                 return future.get(timeout.value(), timeout.timeUnit());
             }
             return future.get(1, TimeUnit.MINUTES);
         } catch (java.util.concurrent.TimeoutException e) {
-            throw new TimeoutException(format("Request %s (type %s) has timed out", message.getMessageId(),
-                                              message.getPayloadClass()));
+            Timeout timeout = message.getPayloadClass().getAnnotation(Timeout.class);
+            throw new TimeoutException(FluxzeroErrors.requestTimedOut(
+                    "request", message.getPayloadClass().getName(), message.getMessageId(), null,
+                    MessageType.RESULT.name(), timeoutDuration(timeout)));
         } catch (InterruptedException e) {
             currentThread().interrupt();
-            throw new GatewayException(
-                    format("Thread interrupted while waiting for result of %s (type %s)",
-                           message.getMessageId(), message.getPayloadClass()), e);
+            throw new GatewayException(FluxzeroErrors.threadInterrupted(
+                    "the response", message.getMessageId(), message.getPayloadClass().getName()), e);
         } catch (ExecutionException e) {
             throw e.getCause();
         }
@@ -283,4 +285,10 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      * Closes this gateway and releases any underlying resources.
      */
     void close();
+
+    private Duration timeoutDuration(Timeout timeout) {
+        return timeout == null ? Duration.ofMinutes(1)
+                : Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value()));
+    }
+
 }

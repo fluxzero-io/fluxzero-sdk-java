@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -48,7 +49,6 @@ import java.util.stream.Collectors;
 
 import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
-import static java.lang.String.format;
 import static java.util.stream.Stream.ofNullable;
 
 @AllArgsConstructor
@@ -123,7 +123,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     return gatewayClient.append(guarantee, finalMessages);
                 }
             } catch (Exception e) {
-                throw new GatewayException(format("Failed to send and forget %s messages", messages.length), e);
+                throw new GatewayException(FluxzeroErrors.messageDispatchFailed(
+                        messageType, topic, messages.length, e), e);
             }
         }
         return CompletableFuture.completedFuture(null);

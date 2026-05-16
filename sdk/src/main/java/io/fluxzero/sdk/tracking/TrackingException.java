@@ -14,13 +14,18 @@
 
 package io.fluxzero.sdk.tracking;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.fluxzero.sdk.common.exception.FluxzeroErrorReport;
+
 /**
- * Exception thrown during the initialization of message tracking in Fluxzero.
+ * Exception thrown during message tracking in Fluxzero.
  * <p>
- * This exception indicates a configuration or startup problem when assigning handlers to consumers
- * or when attempting to initiate tracking more than once for the same consumer configuration.
+ * This exception indicates a configuration, startup, or runtime problem when assigning handlers to consumers,
+ * starting tracking, or keeping tracker state in sync.
  */
 public class TrackingException extends RuntimeException {
+    private final FluxzeroErrorReport fluxzeroErrorReport;
 
     /**
      * Constructs a new {@code TrackingException} with the specified message and cause.
@@ -30,6 +35,7 @@ public class TrackingException extends RuntimeException {
      */
     public TrackingException(String message, Throwable cause) {
         super(message, cause);
+        this.fluxzeroErrorReport = null;
     }
 
     /**
@@ -39,5 +45,31 @@ public class TrackingException extends RuntimeException {
      */
     public TrackingException(String message) {
         super(message);
+        this.fluxzeroErrorReport = null;
+    }
+
+    public TrackingException(FluxzeroErrorReport fluxzeroErrorReport) {
+        super(fluxzeroErrorReport.formatSafely());
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
+    }
+
+    public TrackingException(FluxzeroErrorReport fluxzeroErrorReport, Throwable cause) {
+        super(fluxzeroErrorReport.formatSafely(), cause);
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
+    }
+
+    @JsonIgnore
+    public FluxzeroErrorReport getFluxzeroErrorReport() {
+        return fluxzeroErrorReport;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getErrorCode() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getErrorCode();
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getDocumentationUrl() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getDocumentationUrl();
     }
 }

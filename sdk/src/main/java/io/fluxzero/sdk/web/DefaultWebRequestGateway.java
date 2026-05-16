@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
@@ -28,7 +30,6 @@ import lombok.experimental.Delegate;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -70,13 +71,15 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
             return stripHeadPayload(request, (WebResponse) delegate.sendForMessage(request)
                     .get(settings.getTimeout().toMillis() + 5_000L, MILLISECONDS));
         } catch (java.util.concurrent.TimeoutException e) {
-            throw new TimeoutException(format("Request %s (url %s) has timed out", request.getMessageId(),
-                                              WebRequest.getUrl(request.getMetadata())));
+            throw new TimeoutException(FluxzeroErrors.requestTimedOut(
+                    "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
+                    request.getMessageId(), null, MessageType.WEBRESPONSE.name(),
+                    settings.getTimeout().plusMillis(5_000L)));
         } catch (InterruptedException e) {
             currentThread().interrupt();
-            throw new GatewayException(
-                    format("Thread interrupted while waiting for result of %s (url %s)",
-                           request.getMessageId(), WebRequest.getUrl(request.getMetadata())), e);
+            throw new GatewayException(FluxzeroErrors.threadInterrupted(
+                    "the web response", request.getMessageId(),
+                    request.getMethod() + " " + WebRequest.getUrl(request.getMetadata())), e);
         } catch (ExecutionException e) {
             throw e.getCause();
         }

@@ -24,6 +24,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -158,8 +159,12 @@ public class DefaultTracking implements Tracking {
 
 
             if (!Collections.disjoint(consumers.keySet(), startedConfigurations)) {
-                throw new TrackingException("Failed to start tracking. "
-                                            + "Consumers for some handlers have already started tracking.");
+                throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                        "Tracking already started for one or more consumers",
+                        "Fluxzero was asked to start tracking for handlers whose consumers are already running.",
+                        "Register all handlers for the same consumer before starting tracking, or use a separate "
+                        + "consumer name for the new handler set.",
+                        null, consumers.keySet()));
             }
 
             startedConfigurations.addAll(consumers.keySet());
@@ -192,7 +197,13 @@ public class DefaultTracking implements Tracking {
                     if (a.equals(b)) {
                         return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
                     }
-                    throw new IllegalStateException(format("Consumer name %s is already in use", a.getName()));
+                    throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                            "Consumer name is configured more than once",
+                            "Fluxzero found multiple different consumer configurations named `%s`.".formatted(
+                                    a.getName()),
+                            "Use unique consumer names, or make the repeated @Consumer configurations identical so "
+                            + "Fluxzero can merge their handler filters.",
+                            null, a.getName()));
                 }, LinkedHashMap::new));
         var result = configurations.values().stream().map(config -> {
             var matches =
@@ -205,7 +216,12 @@ public class DefaultTracking implements Tracking {
         unassignedHandlers.removeAll(
                 result.values().stream().flatMap(Collection::stream).distinct().toList());
         unassignedHandlers.forEach(h -> {
-            throw new TrackingException(format("Failed to find consumer for %s", h));
+            throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                    "No consumer configuration found for handler",
+                    "Fluxzero could not match handler `%s` to any configured consumer.".formatted(h),
+                    "Annotate the handler, class, or package with @Consumer, or add a ConsumerConfiguration whose "
+                    + "handlerFilter matches this handler.",
+                    h, null));
         });
         return result;
     }
@@ -353,8 +369,8 @@ public class DefaultTracking implements Tracking {
                 if (result instanceof Throwable) {
                     result = unwrapException((Throwable) result);
                     if (!(result instanceof FunctionalException)) {
-                        result = new TechnicalException(format("Handler %s failed to handle a %s",
-                                                               h.getMethod(), message), (Throwable) result);
+                        result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
+                                h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
                     }
                 }
                 SerializedMessage request = message.getSerializedObject();

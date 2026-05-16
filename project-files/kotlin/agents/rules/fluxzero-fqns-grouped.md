@@ -12,6 +12,9 @@ io.fluxzero.sdk.common.IdentityProvider
 io.fluxzero.sdk.common.LazyId
 io.fluxzero.sdk.common.Message
 io.fluxzero.sdk.common.UuidFactory
+io.fluxzero.sdk.common.exception.FluxzeroErrorCode
+io.fluxzero.sdk.common.exception.FluxzeroErrorReport
+io.fluxzero.sdk.common.exception.FluxzeroErrors
 io.fluxzero.sdk.common.exception.FunctionalException
 io.fluxzero.sdk.common.exception.ServiceException
 io.fluxzero.sdk.common.exception.TechnicalException

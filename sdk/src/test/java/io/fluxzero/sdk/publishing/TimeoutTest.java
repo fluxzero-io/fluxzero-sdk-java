@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class TimeoutTest {
 
     @Test
@@ -43,6 +45,11 @@ class TimeoutTest {
         class UnhandledRequest { }
 
         TestFixture.create().whenApplying(fc -> Fluxzero.queryAndWait(new UnhandledRequest()))
-                .expectExceptionalResult(TimeoutException.class);
+                .verifyExceptionalResult((TimeoutException e) -> {
+                    assertTrue(e.getMessage().contains("FZ-SDK-0002"));
+                    assertTrue(e.getMessage().contains("What happened:"));
+                    assertTrue(e.getMessage().contains("How to fix:"));
+                    assertTrue(e.getMessage().contains("docs/errors#FZ-SDK-0002"));
+                });
     }
 }

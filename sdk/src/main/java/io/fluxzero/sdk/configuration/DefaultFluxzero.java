@@ -32,6 +32,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.Memoization;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -212,7 +213,7 @@ public class DefaultFluxzero implements Fluxzero {
     @Override
     public Tracking tracking(MessageType messageType) {
         return Optional.ofNullable(trackingSupplier.get(messageType)).orElseThrow(
-                () -> new TrackingException(String.format("Tracking is not supported for type %s", messageType)));
+                () -> new TrackingException(FluxzeroErrors.trackingNotSupported(messageType)));
     }
 
     @Override
