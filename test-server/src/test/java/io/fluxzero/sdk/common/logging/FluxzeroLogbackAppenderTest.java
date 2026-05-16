@@ -28,6 +28,8 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.testserver.TestServer;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,12 +54,18 @@ import static org.mockito.Mockito.verify;
 @Isolated
 class FluxzeroLogbackAppenderTest {
     private static final int port = 9127;
+    private static Server server;
 
     private final Fluxzero fluxzero = TestFixture.create().spy().getFluxzero();
 
     @BeforeAll
     static void beforeAll() {
-        TestServer.start(port);
+        server = TestServer.startServer(port);
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        server.stop();
     }
 
     @BeforeEach

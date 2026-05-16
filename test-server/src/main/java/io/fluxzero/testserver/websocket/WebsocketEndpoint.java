@@ -85,7 +85,6 @@ import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
-import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
 
@@ -146,8 +145,6 @@ public abstract class WebsocketEndpoint {
         this.requestExecutor = requestExecutor;
         this.commandIdempotencyStore = commandIdempotencyStore;
         this.ownsCommandIdempotencyStore = ownsCommandIdempotencyStore;
-        getRuntime().addShutdownHook(
-                Thread.ofPlatform().name(getClass().getSimpleName() + "-shutdown").unstarted(this::shutDown));
     }
 
     private final Handler<ClientMessage> handler =
@@ -521,7 +518,9 @@ public abstract class WebsocketEndpoint {
     protected void shutDown() {
         if (shuttingDown.compareAndSet(false, true)) {
             try {
-                Thread.sleep(500);
+                if (!sessionBacklogs.isEmpty()) {
+                    Thread.sleep(500);
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } finally {

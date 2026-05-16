@@ -97,15 +97,53 @@ public class TestServer {
     private static final MemoizingFunction<String, MetricsLog> metricsLogSupplier =
             memoize(TestServer::createMetricsLog);
 
+    /**
+     * Standalone process entry point.
+     *
+     * <p>Do not call this method to embed the test server in another application. Use {@link #startServer(int)} instead
+     * so the caller owns the server lifecycle and shutdown order.</p>
+     */
     public static void main(final String[] args) {
-        start(getIntegerProperty("FLUXZERO_PORT", getIntegerProperty("FLUX_PORT", getIntegerProperty("port", 8888))));
+        startServer(getConfiguredPort(), true);
     }
 
+    /**
+     * Starts an embedded test server on the given port without registering a JVM shutdown hook.
+     *
+     * <p>Callers that need to stop the embedded server explicitly should use {@link #startServer(int)}.</p>
+     *
+     * @param port the port to bind, or {@code 0} to select a random available port
+     */
     public static void start(int port) {
         startServer(port);
     }
 
-    static Server startServer(int port) {
+    /**
+     * Starts an embedded test server using the configured port.
+     *
+     * <p>The port is resolved from {@code FLUXZERO_PORT}, {@code FLUX_PORT}, {@code port}, or {@code 8888}, in that
+     * order. The returned Jetty server is owned by the caller and should be stopped by the caller.</p>
+     *
+     * @return the started Jetty server
+     */
+    public static Server startServer() {
+        return startServer(getConfiguredPort());
+    }
+
+    /**
+     * Starts an embedded test server on the given port.
+     *
+     * <p>The returned Jetty server is owned by the caller and should be stopped by the caller. This method does not
+     * register a JVM shutdown hook, so it can be used safely in applications that coordinate their own shutdown order.</p>
+     *
+     * @param port the port to bind, or {@code 0} to select a random available port
+     * @return the started Jetty server
+     */
+    public static Server startServer(int port) {
+        return startServer(port, false);
+    }
+
+    private static Server startServer(int port, boolean registerShutdownHook) {
         JettyWebsocketRouter router = new JettyWebsocketRouter();
         CommandIdempotencyStore commandIdempotencyStore = new CommandIdempotencyStore();
         RuntimeLifecycleMetrics runtimeLifecycleMetrics = new RuntimeLifecycleMetrics();
@@ -179,26 +217,36 @@ public class TestServer {
         registerRuntimeLifecycle(server, localPort, commandIdempotencyStore, commandIdempotencyStoreClosed,
                                  runtimeLifecycleMetrics);
 
-        getRuntime().addShutdownHook(Thread.ofPlatform().name("fluxzero-test-server-shutdown").unstarted(() -> {
-            log.info("Initiating controlled shutdown");
-            try {
-                server.stop();
-            } catch (InterruptedException e) {
-                log.warn("Thread to kill server was interrupted");
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                log.warn("Failed to stop test server", e);
-            } finally {
-                closeCommandIdempotencyStore(commandIdempotencyStore, commandIdempotencyStoreClosed);
-            }
-        }));
+        if (registerShutdownHook) {
+            getRuntime().addShutdownHook(Thread.ofPlatform().name("fluxzero-test-server-shutdown").unstarted(
+                    () -> stopServer(server, commandIdempotencyStore, commandIdempotencyStoreClosed)));
+        }
 
         log.info("Fluxzero test server running on port {}", localPort);
         return server;
     }
 
+    private static void stopServer(Server server, CommandIdempotencyStore commandIdempotencyStore,
+                                   AtomicBoolean commandIdempotencyStoreClosed) {
+        log.info("Initiating controlled shutdown");
+        try {
+            server.stop();
+        } catch (InterruptedException e) {
+            log.warn("Thread to kill server was interrupted");
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Failed to stop test server", e);
+        } finally {
+            closeCommandIdempotencyStore(commandIdempotencyStore, commandIdempotencyStoreClosed);
+        }
+    }
+
     private static MetricsLog createMetricsLog(String namespace) {
         return new DefaultMetricsLog(getMessageStore(namespace, METRICS));
+    }
+
+    private static int getConfiguredPort() {
+        return getIntegerProperty("FLUXZERO_PORT", getIntegerProperty("FLUX_PORT", getIntegerProperty("port", 8888)));
     }
 
     private static void registerRuntimeLifecycle(Server server, int port, CommandIdempotencyStore commandIdempotencyStore,

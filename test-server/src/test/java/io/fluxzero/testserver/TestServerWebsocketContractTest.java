@@ -52,6 +52,8 @@ import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
+import org.eclipse.jetty.server.Server;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -85,10 +87,16 @@ class TestServerWebsocketContractTest {
     private static final int PORT = 9131;
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
+    private static Server server;
 
     @BeforeAll
     static void beforeAll() {
-        TestServer.start(PORT);
+        server = TestServer.startServer(PORT);
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        server.stop();
     }
 
     @Test

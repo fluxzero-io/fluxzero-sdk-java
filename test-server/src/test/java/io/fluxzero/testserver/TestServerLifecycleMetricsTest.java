@@ -21,9 +21,12 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import java.net.ServerSocket;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,8 +36,10 @@ import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STARTED;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STOPPING;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Isolated
 class TestServerLifecycleMetricsTest {
 
     private final JacksonSerializer serializer = new JacksonSerializer();
@@ -67,6 +72,32 @@ class TestServerLifecycleMetricsTest {
         }
     }
 
+    @Test
+    void startServerWithoutPortReadsConfiguredPortWithoutShutdownHook() throws Exception {
+        String previousFluxzeroPort = System.getProperty("FLUXZERO_PORT");
+        String previousFluxPort = System.getProperty("FLUX_PORT");
+        String previousPort = System.getProperty("port");
+        System.setProperty("FLUXZERO_PORT", "0");
+        System.clearProperty("FLUX_PORT");
+        System.clearProperty("port");
+        Server server = null;
+        try {
+            server = TestServer.startServer();
+            ServerConnector connector = getServerConnector(server);
+
+            assertEquals(0, connector.getPort());
+            assertTrue(connector.getLocalPort() > 0);
+            assertTrue(server.isRunning());
+        } finally {
+            if (server != null && server.isRunning()) {
+                server.stop();
+            }
+            restoreProperty("FLUXZERO_PORT", previousFluxzeroPort);
+            restoreProperty("FLUX_PORT", previousFluxPort);
+            restoreProperty("port", previousPort);
+        }
+    }
+
     private void assertLifecyclePhase(MessageStore metricsStore, RuntimeLifecycleEvent.Phase phase, int port) {
         assertTrue(lifecycleEvents(metricsStore).stream()
                            .anyMatch(event -> event.getPhase() == phase
@@ -86,6 +117,22 @@ class TestServerLifecycleMetricsTest {
     private static int availablePort() throws Exception {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
+        }
+    }
+
+    private static ServerConnector getServerConnector(Server server) {
+        return Arrays.stream(server.getConnectors())
+                .filter(ServerConnector.class::isInstance)
+                .map(ServerConnector.class::cast)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static void restoreProperty(String name, String value) {
+        if (value == null) {
+            System.clearProperty(name);
+        } else {
+            System.setProperty(name, value);
         }
     }
 }

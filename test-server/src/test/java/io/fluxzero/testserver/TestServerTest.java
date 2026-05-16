@@ -33,6 +33,8 @@ import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,10 +52,16 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 class TestServerTest {
 
     private static final int port = 9123;
+    private static Server server;
 
     @BeforeAll
     static void beforeAll() {
-        TestServer.start(port);
+        server = TestServer.startServer(port);
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        server.stop();
     }
 
     @Autowired
@@ -244,4 +252,3 @@ class TestServerTest {
     }
 
 }
-
