@@ -508,7 +508,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void retryOutstandingRequests(String sessionId) {
         if (!closed.get() && !requests.isEmpty()) {
             try {
-                sleep(1_000);
+                long retryDelayMillis = retryOutstandingRequestsDelay().toMillis();
+                if (retryDelayMillis > 0) {
+                    sleep(retryDelayMillis);
+                }
             } catch (InterruptedException e) {
                 currentThread().interrupt();
                 throw new IllegalStateException("Thread interrupted while retrying outstanding requests (session: %s)"
@@ -523,6 +526,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                         });
             }
         }
+    }
+
+    /**
+     * Delay before outstanding requests from a closed session are resent on a replacement session.
+     */
+    protected Duration retryOutstandingRequestsDelay() {
+        return Duration.ofSeconds(1);
     }
 
     @Override

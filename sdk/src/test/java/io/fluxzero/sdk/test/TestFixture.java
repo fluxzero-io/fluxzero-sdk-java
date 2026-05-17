@@ -24,9 +24,11 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
@@ -108,6 +110,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.CUSTOM;
+import static io.fluxzero.common.MessageType.DOCUMENT;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.SCHEDULE;
@@ -378,6 +381,7 @@ public class TestFixture implements Given<TestFixture>, When {
         fluxzeroBuilder.replacePropertySource(s -> new SimplePropertySource(testProperties).andThen(s));
         this.interceptor = new GivenWhenThenInterceptor(this);
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
+        client = trackRemoteDocumentUpdates(client);
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
@@ -432,6 +436,7 @@ public class TestFixture implements Given<TestFixture>, When {
         var currentClient = currentFixture.fluxzero.client().unwrap();
         var newClient = currentClient instanceof LocalClient
                 ? LocalClient.newInstance(null) : currentClient;
+        newClient = trackRemoteDocumentUpdates(newClient);
         newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         this.fluxzero = spying
                 ? new SpyingFluxzero(fluxzeroBuilder.build(new SpyingClient(newClient)))
@@ -445,6 +450,10 @@ public class TestFixture implements Given<TestFixture>, When {
     /*
         Modifications
      */
+
+    private Client trackRemoteDocumentUpdates(Client client) {
+        return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
+    }
 
     /**
      * Sets the maximum time to wait for a response to a request in the {@code given} and {@code when} phase.
@@ -1270,6 +1279,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return this;
     }
 
+    ImmutableFixtureResult getFixtureResult() {
+        return ImmutableFixtureResult.from(fixtureResult);
+    }
+
+    void registerWebParameter(String name, String value) {
+        fixtureResult.getKnownWebParams().put(name, value);
+    }
+
     protected void resetMocks() {
         if (spying) {
             ((SpyingClient) fluxzero.client()).resetMocks();
@@ -1546,9 +1563,39 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
 
+        public void monitorDocumentDispatch(SerializedDocument document) {
+            try {
+                SerializedMessage message = new SerializedMessage(
+                        document.getDocument(), Metadata.of("$start", document.getTimestamp(), "$end",
+                                                            document.getEnd()),
+                        document.getId(), document.getTimestamp());
+                monitorDispatch(testFixture.fluxzero.serializer().deserializeMessage(message, DOCUMENT).toMessage(),
+                                DOCUMENT, document.getCollection(), testFixture.fluxzero.client().namespace());
+            } catch (Exception e) {
+                log.warn("Failed to monitor an indexed document. This may cause your test to fail.", e);
+            }
+        }
+
+        public void cancelDocumentDispatch(List<SerializedDocument> documents) {
+            Map<String, Set<String>> messageIdsByTopic = new HashMap<>();
+            documents.forEach(document -> messageIdsByTopic
+                    .computeIfAbsent(document.getCollection(), ignored -> new CopyOnWriteArraySet<>())
+                    .add(document.getId()));
+            synchronized (testFixture.consumers) {
+                testFixture.consumers.forEach((consumer, messages) -> {
+                    if (consumer.getMessageType() == DOCUMENT) {
+                        ofNullable(messageIdsByTopic.get(consumer.getTopic()))
+                                .ifPresent(messageIds -> messages.removeIf(
+                                        message -> messageIds.contains(message.getMessageId())));
+                    }
+                });
+                testFixture.checkConsumers();
+            }
+        }
+
         protected Boolean captureMessage(Message message) {
             return testFixture.fixtureResult.isCollectingResults()
-                   && ofNullable(testFixture.getFixtureResult().getTracedMessage())
+                   && ofNullable(testFixture.fixtureResult.getTracedMessage())
                            .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true);
         }
 

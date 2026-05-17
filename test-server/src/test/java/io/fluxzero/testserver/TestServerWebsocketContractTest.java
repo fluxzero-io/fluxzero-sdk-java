@@ -53,9 +53,12 @@ import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -83,20 +86,24 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Execution(ExecutionMode.CONCURRENT)
 class TestServerWebsocketContractTest {
-    private static final int PORT = 9131;
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
     private static Server server;
+    private static int port;
 
     @BeforeAll
     static void beforeAll() {
-        server = TestServer.startServer(PORT);
+        server = TestServer.startServer(0);
+        port = localPort(server);
     }
 
     @AfterAll
     static void afterAll() throws Exception {
-        server.stop();
+        if (server != null) {
+            server.stop();
+        }
     }
 
     @Test
@@ -160,12 +167,11 @@ class TestServerWebsocketContractTest {
         try {
             rawSession.sendBinary(ByteBuffer.wrap("not json".getBytes(UTF_8)));
             rawSession.sendBinary(ByteBuffer.wrap("{\"@type\":\"notAFluxzeroRequest\"}".getBytes(UTF_8)));
-
-            Thread.sleep(250L);
-            assertTrue(rawSession.isOpen());
-            assertFalse(rawEndpoint.awaitClose(100, TimeUnit.MILLISECONDS));
-            assertNull(rawEndpoint.error());
             rawSession.sendPing(ByteBuffer.wrap(new byte[]{1}));
+            assertTrue(rawEndpoint.awaitPong(1, TimeUnit.SECONDS));
+            assertTrue(rawSession.isOpen());
+            assertFalse(rawEndpoint.isClosed());
+            assertNull(rawEndpoint.error());
 
             await(client.getGatewayClient(EVENT).append(STORED, message("after-malformed")));
             assertEquals(List.of("after-malformed"), client.getTrackingClient(EVENT).readFromIndex(0, 10).stream()
@@ -462,7 +468,7 @@ class TestServerWebsocketContractTest {
                                                              List<CompressionAlgorithm> compressionAlgorithms) {
         String uniqueId = testName + "-" + UUID.randomUUID();
         var builder = WebSocketClient.ClientConfig.builder()
-                .runtimeBaseUrl("ws://localhost:" + PORT)
+                .runtimeBaseUrl("ws://localhost:" + port)
                 .namespace(namespace)
                 .name("TestServer contract " + testName)
                 .id("contract-client-" + uniqueId)
@@ -474,6 +480,18 @@ class TestServerWebsocketContractTest {
             builder.supportedCompressionAlgorithms(compressionAlgorithms);
         }
         return builder.build();
+    }
+
+    private static int localPort(Server server) {
+        for (var connector : server.getConnectors()) {
+            if (connector instanceof ServerConnector serverConnector) {
+                int localPort = serverConnector.getLocalPort();
+                if (localPort > 0) {
+                    return localPort;
+                }
+            }
+        }
+        throw new IllegalStateException("Started test server has no bound local port");
     }
 
     private static SerializedMessage message(String value) {
@@ -522,6 +540,7 @@ class TestServerWebsocketContractTest {
 
     private static class RecordingRawEndpoint implements WebsocketEndpoint {
         private final CountDownLatch closed = new CountDownLatch(1);
+        private final CountDownLatch pong = new CountDownLatch(1);
         private final AtomicReference<Throwable> error = new AtomicReference<>();
 
         @Override
@@ -534,6 +553,7 @@ class TestServerWebsocketContractTest {
 
         @Override
         public void onPong(ByteBuffer data, WebsocketSession session) {
+            pong.countDown();
         }
 
         @Override
@@ -546,8 +566,12 @@ class TestServerWebsocketContractTest {
             this.error.set(error);
         }
 
-        boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-            return closed.await(timeout, unit);
+        boolean awaitPong(long timeout, TimeUnit unit) throws InterruptedException {
+            return pong.await(timeout, unit);
+        }
+
+        boolean isClosed() {
+            return closed.getCount() == 0;
         }
 
         Throwable error() {
@@ -586,5 +610,11 @@ class TestServerWebsocketContractTest {
         boolean awaitReconnect(long timeout, TimeUnit unit) throws InterruptedException {
             return reconnected.await(timeout, unit);
         }
+
+        @Override
+        protected Duration retryOutstandingRequestsDelay() {
+            return Duration.ZERO;
+        }
     }
+
 }

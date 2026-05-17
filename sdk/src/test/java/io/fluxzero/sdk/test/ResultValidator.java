@@ -106,7 +106,7 @@ public class ResultValidator<R> implements Then<R> {
         webResponses = fixtureResult.getWebResponses();
         metrics = fixtureResult.getMetrics();
         newSchedules = fixtureResult.getSchedules();
-        allSchedules = testFixture.getFutureSchedules();
+        allSchedules = List.copyOf(testFixture.getFutureSchedules());
         errors = fixtureResult.getErrors();
         customMessages = fixtureResult.getCustomMessages();
     }
@@ -152,7 +152,7 @@ public class ResultValidator<R> implements Then<R> {
             throw new GivenWhenThenAssertionError("Cannot name last result, no result was returned during the when phase");
         }
         Object value = result instanceof HasMessage m ? m.getPayload() : result;
-        testFixture.getFixtureResult().getKnownWebParams().put(name, value.toString());
+        testFixture.registerWebParameter(name, value.toString());
         return this;
     }
 

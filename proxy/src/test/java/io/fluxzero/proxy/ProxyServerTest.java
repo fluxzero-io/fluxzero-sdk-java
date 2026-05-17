@@ -302,15 +302,18 @@ class ProxyServerTest {
 
         @Test
         void closeSocketExternally() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
                         ws.sendClose(1000, "bla");
-                        Thread.sleep(100);
+                        assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
+                                   "Timed out waiting for the websocket close handler");
                     }))
                     .expectResult("1000")
                     .expectEvents("ws closed with 1000");
@@ -318,6 +321,7 @@ class ProxyServerTest {
 
         @Test
         void closeSocketFromApplication() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketOpen("/")
                         void open(SocketSession session) {
@@ -328,9 +332,11 @@ class ProxyServerTest {
                         void close(Integer reason) {
                             log.info("ws closed with " + reason);
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
-                    .whenApplying(openSocketAnd(ws -> Thread.sleep(100)))
+                    .whenApplying(openSocketAnd(ws -> assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
+                                                                 "Timed out waiting for the websocket close handler")))
                     .expectResult("1001")
                     .expectEvents("ws closed with 1001");
         }

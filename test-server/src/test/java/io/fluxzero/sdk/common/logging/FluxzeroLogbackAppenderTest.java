@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
@@ -97,7 +97,7 @@ class FluxzeroLogbackAppenderTest {
     @Test
     void testConsoleErrorWithIgnoreMarker() {
         log.error(ClientUtils.ignoreMarker, "mock error");
-        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), after(250).never()).append(
+        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), never()).append(
                 any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
                         ConsoleError.class.getName().equals(message.getData().getType())));
     }
@@ -109,7 +109,7 @@ class FluxzeroLogbackAppenderTest {
         Fluxzero.applicationInstance.set(null);
         try {
             log.error("mock error without fluxzero");
-            verify(fluxzero.client().getGatewayClient(MessageType.ERROR), after(250).never()).append(
+            verify(fluxzero.client().getGatewayClient(MessageType.ERROR), never()).append(
                     any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
                             ConsoleError.class.getName().equals(message.getData().getType())));
         } finally {
