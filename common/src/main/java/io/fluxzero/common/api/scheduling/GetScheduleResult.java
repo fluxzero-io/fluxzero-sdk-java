@@ -14,14 +14,14 @@
 
 package io.fluxzero.common.api.scheduling;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
  * Response to a {@link GetSchedule} request, containing the matching {@link SerializedSchedule}, if found.
  */
 @Value
-public class GetScheduleResult implements RequestResult {
+public class GetScheduleResult extends AbstractRequestResult {
     /**
      * The identifier of the request this result corresponds to.
      */

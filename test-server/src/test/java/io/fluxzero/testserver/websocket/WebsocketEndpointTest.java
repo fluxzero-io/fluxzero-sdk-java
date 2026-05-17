@@ -143,6 +143,22 @@ class WebsocketEndpointTest {
     }
 
     @Test
+    void responseContainsRequestReceivedTimestamp() {
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run);
+        ServerWebsocketSession session = session("session-1");
+        TestCommand command = new TestCommand(CompletableFuture.completedFuture(null), STORED);
+        long requestReceivedTimestamp = 123456789L;
+
+        endpoint.onOpen(session);
+        endpoint.dispatch(session, command, requestReceivedTimestamp);
+
+        RequestResult result = endpoint.results("session-1").getFirst();
+        assertVoidResult(command, result);
+        assertEquals(requestReceivedTimestamp, result.getRequestReceivedTimestamp());
+        endpoint.shutDown();
+    }
+
+    @Test
     void duplicateCommandWithoutStoredResponseIsNotCached() {
         TestEndpoint endpoint = new TestEndpoint(Runnable::run);
         ServerWebsocketSession firstSession = session("session-1");
@@ -215,6 +231,10 @@ class WebsocketEndpointTest {
 
         void dispatch(ServerWebsocketSession session, TestCommand command) {
             dispatchRequest(session, command);
+        }
+
+        void dispatch(ServerWebsocketSession session, TestCommand command, long requestReceivedTimestamp) {
+            dispatchRequest(session, command, requestReceivedTimestamp);
         }
 
         int invocations() {

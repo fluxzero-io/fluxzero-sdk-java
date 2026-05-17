@@ -25,7 +25,7 @@ import lombok.Value;
  * @see RequestResult
  */
 @Value
-public class BooleanResult implements RequestResult {
+public class BooleanResult extends AbstractRequestResult {
 
     /**
      * ID correlating this result with its originating request.

@@ -15,7 +15,7 @@
 package io.fluxzero.common.api.keyvalue;
 
 import io.fluxzero.common.api.Data;
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -28,7 +28,7 @@ import lombok.Value;
  * @see Data
  */
 @Value
-public class GetValueResult implements RequestResult {
+public class GetValueResult extends AbstractRequestResult {
 
     /**
      * The ID correlating this response to its {@link GetValue} request.

@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.tracking;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import lombok.Value;
 
@@ -26,7 +26,7 @@ import java.util.List;
  * Contains the messages read from the specified index and accompanying metadata for auditing and metrics logging.
  */
 @Value
-public class ReadFromIndexResult implements RequestResult {
+public class ReadFromIndexResult extends AbstractRequestResult {
 
     /**
      * The request ID associated with the original {@code ReadFromIndex} request.

@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.modeling;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
  * @see Relationship
  */
 @Value
-public class GetRelationshipsResult implements RequestResult {
+public class GetRelationshipsResult extends AbstractRequestResult {
 
     /**
      * Unique identifier linking this result to the originating {@link GetRelationships} request.

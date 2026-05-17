@@ -25,7 +25,7 @@ import lombok.Value;
  * @see RequestResult
  */
 @Value
-public class VoidResult implements RequestResult {
+public class VoidResult extends AbstractRequestResult {
 
     /**
      * ID correlating this result with its originating request.

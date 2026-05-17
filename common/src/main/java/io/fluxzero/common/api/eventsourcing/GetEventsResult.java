@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.eventsourcing;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import lombok.Value;
 
@@ -33,7 +33,7 @@ import lombok.Value;
  * @see SerializedMessage
  */
 @Value
-public class GetEventsResult implements RequestResult {
+public class GetEventsResult extends AbstractRequestResult {
 
     /**
      * A unique identifier that correlates this result with its {@link GetEvents} request.

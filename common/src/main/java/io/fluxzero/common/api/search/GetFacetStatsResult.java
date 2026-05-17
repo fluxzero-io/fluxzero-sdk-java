@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 import java.util.List;
@@ -25,7 +25,7 @@ import java.util.List;
  * Contains aggregated counts of documents per facet field value.
  */
 @Value
-public class GetFacetStatsResult implements RequestResult {
+public class GetFacetStatsResult extends AbstractRequestResult {
 
     /**
      * The identifier of the request that triggered this result.

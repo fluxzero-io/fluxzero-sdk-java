@@ -391,9 +391,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 log().warn("Could not find outstanding read request for id {}", result.getRequestId());
             } else {
                 try {
+                    long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
                     Metadata metadata = metricsMetadata()
                             .with("requestId", webSocketRequest.request.getRequestId(),
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
+                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp,
+                                  "requestReceivedTimestamp",
+                                  requestReceivedTimestamp > 0 ? requestReceivedTimestamp : null,
+                                  "responseTimestamp", result.getTimestamp(),
+                                  "serverMsDuration", requestReceivedTimestamp > 0
+                                                      ? result.getTimestamp() - requestReceivedTimestamp : null)
                             .with(webSocketRequest.correlationData)
                             .with("batchId", batchId)
                             .with("sessionId", sessionId)

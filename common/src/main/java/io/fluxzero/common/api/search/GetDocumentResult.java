@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -27,7 +27,7 @@ import lombok.Value;
  * @see SerializedDocument
  */
 @Value
-public class GetDocumentResult implements RequestResult {
+public class GetDocumentResult extends AbstractRequestResult {
 
     /**
      * The ID of the request that triggered this result. Used to correlate the response with the original request.

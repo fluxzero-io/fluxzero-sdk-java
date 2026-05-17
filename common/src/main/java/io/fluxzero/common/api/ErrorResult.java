@@ -43,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  * @see RequestResult
  */
 @Value
-public class ErrorResult implements RequestResult {
+public class ErrorResult extends AbstractRequestResult {
 
     /**
      * ID correlating this result with its originating request.

@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 import java.util.List;
@@ -28,7 +28,7 @@ import java.util.List;
  * @see SerializedDocument
  */
 @Value
-public class SearchDocumentsResult implements RequestResult {
+public class SearchDocumentsResult extends AbstractRequestResult {
 
     /**
      * The unique identifier of the originating search request.

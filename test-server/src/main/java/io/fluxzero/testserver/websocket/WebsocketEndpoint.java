@@ -86,6 +86,7 @@ import static io.fluxzero.common.serialization.compression.CompressionUtils.comp
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
 import static java.lang.String.format;
+import static java.lang.System.currentTimeMillis;
 import static java.util.Optional.ofNullable;
 
 @Slf4j
@@ -114,6 +115,7 @@ public abstract class WebsocketEndpoint {
     private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
     private final TaskScheduler pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
+    private final ThreadLocal<Long> requestReceivedTimestamps = new ThreadLocal<>();
     protected final AtomicBoolean shuttingDown = new AtomicBoolean();
     protected volatile boolean shutDown;
 
@@ -191,20 +193,25 @@ public abstract class WebsocketEndpoint {
     }
 
     public void onMessage(byte[] bytes, ServerWebsocketSession session) {
+        long requestReceivedTimestamp = currentTimeMillis();
         try {
-            dispatchRequest(session, deserializeRequest(session, bytes));
+            dispatchRequest(session, deserializeRequest(session, bytes), requestReceivedTimestamp);
         } catch (Throwable e) {
             log.error("Failed to handle request", e);
         }
     }
 
     protected void dispatchRequest(ServerWebsocketSession session, JsonType request) {
+        dispatchRequest(session, request, currentTimeMillis());
+    }
+
+    protected void dispatchRequest(ServerWebsocketSession session, JsonType request, long requestReceivedTimestamp) {
         if (request instanceof RequestBatch<?> batch) {
-            batch.getRequests().forEach(r -> dispatchRequest(session, r));
+            batch.getRequests().forEach(r -> dispatchRequest(session, r, requestReceivedTimestamp));
         } else if (request instanceof Command command && shouldHandleIdempotently(command)) {
-            submitRequestTask(session, command, () -> processCommandRequest(session, command));
+            submitRequestTask(session, command, () -> processCommandRequest(session, command, requestReceivedTimestamp));
         } else {
-            submitRequestTask(session, request, () -> processRequest(session, request));
+            submitRequestTask(session, request, () -> processRequest(session, request, requestReceivedTimestamp));
         }
     }
 
@@ -226,16 +233,18 @@ public abstract class WebsocketEndpoint {
         }
     }
 
-    private void processRequest(ServerWebsocketSession session, JsonType request) {
+    private void processRequest(ServerWebsocketSession session, JsonType request, long requestReceivedTimestamp) {
         try {
             if (!canProcessRequest(session, request)) {
                 return;
             }
-            handleMessage(session, request);
+            runWithRequestReceivedTimestamp(requestReceivedTimestamp, () -> handleMessage(session, request));
         } catch (Throwable e) {
             log.error("Failed to handle request", e);
             if (request instanceof Request r) {
-                doSendResult(session, new ErrorResult(r.getRequestId(), "Fluxzero TestServer: request could not be handled"));
+                doSendResult(session, withRequestReceivedTimestamp(
+                        new ErrorResult(r.getRequestId(), "Fluxzero TestServer: request could not be handled"),
+                        requestReceivedTimestamp));
             }
         }
     }
@@ -260,7 +269,7 @@ public abstract class WebsocketEndpoint {
         return true;
     }
 
-    private void processCommandRequest(ServerWebsocketSession session, Command command) {
+    private void processCommandRequest(ServerWebsocketSession session, Command command, long requestReceivedTimestamp) {
         try {
             if (!canProcessRequest(session, command)) {
                 return;
@@ -271,49 +280,59 @@ public abstract class WebsocketEndpoint {
                 replayCommandResult(session, command, registration.result());
                 return;
             }
-            handleCommandMessage(session, command, registration.result());
+            handleCommandMessage(session, command, registration.result(), requestReceivedTimestamp);
         } catch (Throwable e) {
             log.error("Failed to handle request", e);
-            doSendResult(session, new ErrorResult(command.getRequestId(), "Fluxzero TestServer: request could not be handled"));
+            doSendResult(session, withRequestReceivedTimestamp(
+                    new ErrorResult(command.getRequestId(), "Fluxzero TestServer: request could not be handled"),
+                    requestReceivedTimestamp));
         }
     }
 
     protected void handleMessage(ServerWebsocketSession session, JsonType message) {
+        handleMessage(session, message, currentRequestReceivedTimestamp());
+    }
+
+    protected void handleMessage(ServerWebsocketSession session, JsonType message, long requestReceivedTimestamp) {
         if (message instanceof RequestBatch<?> batch) {
-            createTasks(batch, session).forEach(Runnable::run);
+            createTasks(batch, session, requestReceivedTimestamp).forEach(Runnable::run);
         } else {
             try {
                 Object result = handler.getInvoker(new ClientMessage(message, session)).orElseThrow().invoke();
-                trySendResult(session, message, result);
+                trySendResult(session, message, result, requestReceivedTimestamp);
             } catch (Throwable e) {
                 log.error("Could not handle request {}", message, e);
-                trySendResult(session, message, e);
+                trySendResult(session, message, e, requestReceivedTimestamp);
             }
         }
     }
 
-    private void trySendResult(ServerWebsocketSession session, JsonType message, Object result) {
+    private void trySendResult(ServerWebsocketSession session, JsonType message, Object result,
+                               long requestReceivedTimestamp) {
         if (message instanceof Request request) {
-            toRequestResult(request, message, result).thenAccept(response -> response.ifPresent(
-                    r -> doSendResult(session, r)));
+            toRequestResult(request, message, result, requestReceivedTimestamp)
+                    .thenAccept(response -> response.ifPresent(r -> doSendResult(session, r)));
         }
     }
 
     private void handleCommandMessage(ServerWebsocketSession session, Command command,
-                                      CommandIdempotencyStore.CommandResult commandResult) {
+                                      CommandIdempotencyStore.CommandResult commandResult,
+                                      long requestReceivedTimestamp) {
         try {
             Object result = handler.getInvoker(new ClientMessage(command, session)).orElseThrow().invoke();
-            toRequestResult(command, command, result).whenComplete((response, e) -> {
-                Optional<RequestResult> completedResponse = e == null ? response : Optional.of(new ErrorResult(
-                        command.getRequestId(), "Error in Fluxzero TestServer"));
+            toRequestResult(command, command, result, requestReceivedTimestamp).whenComplete((response, e) -> {
+                Optional<RequestResult> completedResponse = e == null ? response : Optional.of(
+                        withRequestReceivedTimestamp(new ErrorResult(
+                                command.getRequestId(), "Error in Fluxzero TestServer"), requestReceivedTimestamp));
                 commandResult.complete(completedResponse);
                 completedResponse.ifPresent(r -> doSendResult(session, r));
             });
         } catch (Throwable e) {
             log.error("Could not handle request {}", command, e);
-            toRequestResult(command, command, e).whenComplete((response, error) -> {
-                Optional<RequestResult> completedResponse = error == null ? response : Optional.of(new ErrorResult(
-                        command.getRequestId(), "Error in Fluxzero TestServer"));
+            toRequestResult(command, command, e, requestReceivedTimestamp).whenComplete((response, error) -> {
+                Optional<RequestResult> completedResponse = error == null ? response : Optional.of(
+                        withRequestReceivedTimestamp(new ErrorResult(
+                                command.getRequestId(), "Error in Fluxzero TestServer"), requestReceivedTimestamp));
                 commandResult.complete(completedResponse);
                 completedResponse.ifPresent(r -> doSendResult(session, r));
             });
@@ -338,48 +357,56 @@ public abstract class WebsocketEndpoint {
     }
 
     private CompletableFuture<Optional<RequestResult>> toRequestResult(Request request, JsonType message,
-                                                                       Object result) {
+                                                                       Object result, long requestReceivedTimestamp) {
         if (request instanceof Command command && command.getGuarantee().compareTo(STORED) < 0) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         if (result instanceof RequestResult response) {
-            return CompletableFuture.completedFuture(Optional.of(response));
+            return CompletableFuture.completedFuture(Optional.of(
+                    withRequestReceivedTimestamp(response, requestReceivedTimestamp)));
         }
         if (result instanceof Throwable) {
             return CompletableFuture.completedFuture(Optional.of(
-                    new ErrorResult(request.getRequestId(), "Error in Fluxzero TestServer")));
+                    withRequestReceivedTimestamp(
+                            new ErrorResult(request.getRequestId(), "Error in Fluxzero TestServer"),
+                            requestReceivedTimestamp)));
         }
         if (result == null) {
             return request instanceof Command
-                    ? CompletableFuture.completedFuture(Optional.of(new VoidResult(request.getRequestId())))
+                    ? CompletableFuture.completedFuture(Optional.of(withRequestReceivedTimestamp(
+                            new VoidResult(request.getRequestId()), requestReceivedTimestamp)))
                     : CompletableFuture.completedFuture(Optional.empty());
         }
         if (result instanceof Boolean v) {
-            return CompletableFuture.completedFuture(Optional.of(new BooleanResult(request.getRequestId(), v)));
+            return CompletableFuture.completedFuture(Optional.of(withRequestReceivedTimestamp(
+                    new BooleanResult(request.getRequestId(), v), requestReceivedTimestamp)));
         }
         if (result instanceof String v) {
-            return CompletableFuture.completedFuture(Optional.of(new StringResult(request.getRequestId(), v)));
+            return CompletableFuture.completedFuture(Optional.of(withRequestReceivedTimestamp(
+                    new StringResult(request.getRequestId(), v), requestReceivedTimestamp)));
         }
         if (result instanceof CompletableFuture<?> future) {
             CompletableFuture<Optional<RequestResult>> response = new CompletableFuture<>();
             future.whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("Could not handle request {} ({})", request.getRequestId(), message.getClass(), e);
-                    toRequestResult(request, message, e).whenComplete((errorResponse, error) -> {
-                        if (error != null) {
-                            response.completeExceptionally(error);
-                        } else {
-                            response.complete(errorResponse);
-                        }
-                    });
+                    toRequestResult(request, message, e, requestReceivedTimestamp)
+                            .whenComplete((errorResponse, error) -> {
+                                if (error != null) {
+                                    response.completeExceptionally(error);
+                                } else {
+                                    response.complete(errorResponse);
+                                }
+                            });
                 } else {
-                    toRequestResult(request, message, r).whenComplete((nestedResponse, error) -> {
-                        if (error != null) {
-                            response.completeExceptionally(error);
-                        } else {
-                            response.complete(nestedResponse);
-                        }
-                    });
+                    toRequestResult(request, message, r, requestReceivedTimestamp)
+                            .whenComplete((nestedResponse, error) -> {
+                                if (error != null) {
+                                    response.completeExceptionally(error);
+                                } else {
+                                    response.complete(nestedResponse);
+                                }
+                            });
                 }
             });
             return response;
@@ -387,6 +414,30 @@ public abstract class WebsocketEndpoint {
         log.warn("Not able to send back result of type {} to client. Contents: {}. Request: {}",
                  result.getClass(), result, request);
         return CompletableFuture.completedFuture(Optional.empty());
+    }
+
+    private void runWithRequestReceivedTimestamp(long requestReceivedTimestamp, Runnable task) {
+        Long previous = requestReceivedTimestamps.get();
+        requestReceivedTimestamps.set(requestReceivedTimestamp);
+        try {
+            task.run();
+        } finally {
+            if (previous == null) {
+                requestReceivedTimestamps.remove();
+            } else {
+                requestReceivedTimestamps.set(previous);
+            }
+        }
+    }
+
+    private long currentRequestReceivedTimestamp() {
+        Long requestReceivedTimestamp = requestReceivedTimestamps.get();
+        return requestReceivedTimestamp != null ? requestReceivedTimestamp : currentTimeMillis();
+    }
+
+    private static <T extends RequestResult> T withRequestReceivedTimestamp(T result, long requestReceivedTimestamp) {
+        result.setRequestReceivedTimestamp(requestReceivedTimestamp);
+        return result;
     }
 
     protected void doSendResult(ServerWebsocketSession session, RequestResult result) {
@@ -397,7 +448,12 @@ public abstract class WebsocketEndpoint {
     }
 
     protected Stream<Runnable> createTasks(RequestBatch<?> batch, ServerWebsocketSession session) {
-        return batch.getRequests().stream().map(r -> () -> handleMessage(session, r));
+        return createTasks(batch, session, currentRequestReceivedTimestamp());
+    }
+
+    protected Stream<Runnable> createTasks(RequestBatch<?> batch, ServerWebsocketSession session,
+                                           long requestReceivedTimestamp) {
+        return batch.getRequests().stream().map(r -> () -> handleMessage(session, r, requestReceivedTimestamp));
     }
 
     protected void sendResultBatch(ServerWebsocketSession session, List<RequestResult> results) {
