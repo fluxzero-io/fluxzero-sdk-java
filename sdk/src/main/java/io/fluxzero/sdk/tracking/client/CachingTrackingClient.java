@@ -121,10 +121,11 @@ public class CachingTrackingClient implements TrackingClient {
         if (!config.clientControlledIndex() && lastIndex != null && cache.containsKey(lastIndex)) {
             Instant deadline = now().plus(config.getMaxWaitDuration());
             return delegate.claimSegment(trackerId, lastIndex, config).thenCompose(r -> {
+                boolean returnImmediately = config.getMaxWaitDuration().compareTo(Duration.ZERO) <= 0;
                 Long minIndex = r.getPosition().lowestIndexForSegment(r.getSegment()).orElse(null);
                 if (minIndex != null) {
                     MessageBatch messageBatch = getMessageBatch(config, minIndex, r);
-                    if (!messageBatch.isEmpty()) {
+                    if (!messageBatch.isEmpty() || returnImmediately) {
                         return CompletableFuture.completedFuture(messageBatch);
                     } else {
                         Duration remaining = Duration.between(now(), deadline);
@@ -133,6 +134,10 @@ public class CachingTrackingClient implements TrackingClient {
                                 .build();
                         return delegate.read(trackerId, lastIndex, delegateConfig);
                     }
+                }
+                if (returnImmediately) {
+                    return CompletableFuture.completedFuture(
+                            new MessageBatch(r.getSegment(), List.of(), null, r.getPosition(), true));
                 }
                 return delegate.read(trackerId, lastIndex, config);
             });

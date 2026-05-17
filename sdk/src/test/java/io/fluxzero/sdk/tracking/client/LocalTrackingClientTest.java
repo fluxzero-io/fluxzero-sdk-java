@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.CUSTOM;
@@ -131,6 +132,51 @@ class LocalTrackingClientTest {
         }
     }
 
+    @Test
+    @Timeout(10)
+    void cachedTrackerReturnsImmediatelyWithoutDelegateReadWhenMaxWaitIsZero() throws Exception {
+        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+                CUSTOM, "cached-zero", Duration.ofMinutes(5))) {
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
+                SerializedMessage anchor = message("anchor");
+                delegate.append(STORED, anchor).join();
+                client.cache(anchor);
+
+                MessageBatch batch = client.read(
+                        "cached-tracker", anchor.getIndex(), config("cached-zero-consumer").toBuilder()
+                                .maxWaitDuration(Duration.ZERO).build()).get(2, TimeUnit.SECONDS);
+
+                assertEquals(0, batch.getSize());
+                assertTrue(batch.isCaughtUp());
+                assertEquals(0, delegate.cachedTrackerReadCalls.get());
+            }
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void cachedTrackerReturnsImmediatelyWhenZeroMaxWaitClaimHasNoSegment() throws Exception {
+        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+                CUSTOM, "cached-zero-claim", Duration.ofMinutes(5))) {
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
+                SerializedMessage anchor = message("anchor");
+                delegate.append(STORED, anchor).join();
+                client.cache(anchor);
+                delegate.claimSegment("segment-owner", anchor.getIndex(),
+                                      config("cached-zero-consumer")).get(2, TimeUnit.SECONDS);
+
+                MessageBatch batch = client.read(
+                        "cached-tracker", anchor.getIndex(), config("cached-zero-consumer").toBuilder()
+                                .maxWaitDuration(Duration.ZERO).build()).get(2, TimeUnit.SECONDS);
+
+                assertEquals(0, batch.getSize());
+                assertTrue(batch.isCaughtUp());
+                assertArrayEquals(new int[]{0, 0}, batch.getSegment());
+                assertEquals(0, delegate.cachedTrackerReadCalls.get());
+            }
+        }
+    }
+
     private static MessageBatch read(LocalTrackingClient client, String consumer) {
         return client.readAndWait("tracker-" + UUID.randomUUID(), null, config(consumer));
     }
@@ -152,6 +198,23 @@ class LocalTrackingClientTest {
 
         private void cache(SerializedMessage... messages) {
             cacheNewMessages(List.of(messages));
+        }
+    }
+
+    private static class CountingLocalTrackingClient extends LocalTrackingClient {
+        private final AtomicInteger cachedTrackerReadCalls = new AtomicInteger();
+
+        CountingLocalTrackingClient(io.fluxzero.common.MessageType messageType, String topic,
+                                    Duration messageExpiration) {
+            super(messageType, topic, messageExpiration);
+        }
+
+        @Override
+        public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+            if ("cached-tracker".equals(trackerId)) {
+                cachedTrackerReadCalls.incrementAndGet();
+            }
+            return super.read(trackerId, lastIndex, config);
         }
     }
 }
