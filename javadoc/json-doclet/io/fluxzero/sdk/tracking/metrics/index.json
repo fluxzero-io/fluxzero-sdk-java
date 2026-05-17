@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.HandlerMonitor",
     "kind" : "class"
   }, {
+    "file" : "IgnoreMessageEvent.json",
+    "name" : "IgnoreMessageEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent",
+    "kind" : "class"
+  }, {
     "file" : "PauseTrackerEvent.json",
     "name" : "PauseTrackerEvent",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent",

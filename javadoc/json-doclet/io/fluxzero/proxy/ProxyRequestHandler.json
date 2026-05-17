@@ -21,6 +21,22 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_CORS_DOMAINS"
   }, {
+    "name" : "REQUEST_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "REQUEST_TIMEOUT_SECONDS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_REQUEST_TIMEOUT_SECONDS"
+  }, {
     "name" : "SERVER_SHUTDOWN_CLOSE_TIMEOUT",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.SERVER_SHUTDOWN_CLOSE_TIMEOUT",
     "type" : "java.time.Duration",

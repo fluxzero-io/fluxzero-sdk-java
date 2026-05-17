@@ -21,6 +21,7 @@
     "annotationType" : "io.fluxzero.sdk.web.HandleWeb",
     "values" : {
       "method" : "\"WS_HANDSHAKE\"",
+      "skipExpiredRequests" : "false",
       "value" : "\"\""
     }
   } ],

@@ -116,6 +116,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "annotatedTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#annotatedTimeout",
+    "returnType" : "java.util.Optional<java.time.Duration>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#close",
     "returnType" : "void",
@@ -126,6 +142,22 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeRequests",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#completeRequests",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -149,6 +181,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#deserializeResponse",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "emptyReturnMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#emptyReturnMessage",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
@@ -156,6 +204,43 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#prepareRequest",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#requestTimeout",
+    "returnType" : "java.util.Optional<java.time.Duration>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -216,16 +301,73 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendAndWaitTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndWaitTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendForMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendForMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendForMessages",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendForMessages",
     "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    }, {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
@@ -238,6 +380,80 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequests",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendRequests",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.SerializedMessage>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeouts",
+      "type" : "java.util.Map<io.fluxzero.common.api.SerializedMessage,java.time.Duration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequests",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendRequests",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendSingle",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendSingle",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   }, {
     "name" : "setRetentionTime",
@@ -264,6 +480,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "trackCallback",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#trackCallback",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#truncate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -282,8 +519,30 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "unwrap",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#unwrap",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "PendingRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PendingRequest",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

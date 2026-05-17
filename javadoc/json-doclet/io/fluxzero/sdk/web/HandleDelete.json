@@ -64,6 +64,17 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, the handler will not publish a response to the {@code WebResponse} log.\n"
   }, {
+    "name" : "skipExpiredRequests",
+    "qualifiedName" : "io.fluxzero.sdk.web.HandleDelete#skipExpiredRequests",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before\n this handler is invoked.\n\n @see HandleWeb#skipExpiredRequests()\n"
+  }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.web.HandleDelete#value",
     "returnType" : "java.lang.String[]",

@@ -1,0 +1,95 @@
+{
+  "name" : "IgnoreMessageEvent",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Metric event published when a tracked message matched a handler but was deliberately skipped before invocation.\n <p>\n This is distinct from a handler failure: no handler method was invoked and no handler result should be expected.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "EXPIRED_REQUEST",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.EXPIRED_REQUEST",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Reason emitted when an indexed request is skipped because its effective timeout expired before handler invocation.\n",
+    "constantValue" : "expiredRequest"
+  }, {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.consumer",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Name of the consumer or local handler context that ignored the message.\n",
+    "constantValue" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.handler",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Simple name of the handler class that would have handled the message.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.messageIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Index of the ignored message, when available.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.messageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Type of message that was ignored.\n",
+    "constantValue" : null
+  }, {
+    "name" : "payloadType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.payloadType",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Payload type or route descriptor of the ignored message.\n",
+    "constantValue" : null
+  }, {
+    "name" : "reason",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.reason",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Machine-readable reason for ignoring the message.\n",
+    "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Topic of the ignored message, when available.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "IgnoreMessageEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent#IgnoreMessageEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

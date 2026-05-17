@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.tracking.handling",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " Default implementation of the {@link HandlerFactory} for creating message handlers based on reflection.\n <p>\n This factory supports a wide range of handler types including:\n <ul>\n     <li>Simple class-based handlers (e.g., annotated with {@code @HandleCommand}, {@code @HandleQuery}, etc.)</li>\n     <li>{@link Stateful} handlers — persisted and associated via {@link Association}</li>\n     <li>{@link SocketEndpoint} handlers — WebSocket-based interaction handlers</li>\n     <li>{@link TrackSelf} annotated classes — handlers for self-tracking message types</li>\n </ul>\n\n <h2>Customization</h2>\n The factory is configured with the following pluggable components:\n <ul>\n     <li>A {@link MessageType} indicating the type of messages it supports (e.g., COMMAND, QUERY)</li>\n     <li>A {@link HandlerDecorator} used to wrap all created handlers with additional behavior</li>\n     <li>A list of {@link ParameterResolver}s to inject method parameters during handler invocation</li>\n     <li>A {@link MessageFilter} that determines whether a message is applicable to a handler method</li>\n     <li>A {@link HandlerRepository} supplier for managing persisted state in {@code @Stateful} handlers</li>\n     <li>A {@link RepositoryProvider} for shared caching of handler state (e.g., in {@code SocketEndpointHandler})</li>\n </ul>\n\n <h2>Handler Resolution Process</h2>\n The factory inspects the provided target object (or class) and applies the following logic:\n <ol>\n     <li>If the target is annotated with {@link Stateful}, a {@link StatefulHandler} is created</li>\n     <li>If the target is annotated with {@link SocketEndpoint}, a {@link SocketEndpointHandler} is created</li>\n     <li>If the target is annotated with {@link TrackSelf}, a handler is created with a filter ensuring messages are routed to matching payload types</li>\n     <li>Otherwise, a default handler is created using {@link DefaultHandler}</li>\n </ol>\n\n <h2>Decorator Chaining</h2>\n Any additional {@link HandlerInterceptor}s passed at creation are composed with the default decorator\n and applied to the resulting handler.\n\n <h2>Search-Specific Filtering</h2>\n For {@link MessageType#DOCUMENT} and {@link MessageType#CUSTOM}, additional filters like\n {@link HandleDocumentFilter} and {@link HandleCustomFilter} are applied automatically.\n\n <p>\n This class is the main entry point for reflective handler generation in Fluxzero. It is used by both local\n and tracking-based handler registries to resolve method targets dynamically.\n\n @see HandlerFactory\n @see HandlerConfiguration\n @see HandlerInspector\n @see StatefulHandler\n @see SocketEndpointHandler\n @see DefaultHandler\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
@@ -101,6 +98,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "trackingMetricsEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.trackingMetricsEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "webRouteRegistry",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.webRouteRegistry",
     "type" : "java.lang.Object",
@@ -145,39 +150,9 @@
       "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
       "varArgs" : false,
       "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "DefaultHandlerFactory",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#DefaultHandlerFactory",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "messageType",
-      "type" : "io.fluxzero.common.MessageType",
-      "varArgs" : false,
-      "annotations" : [ ]
     }, {
-      "name" : "defaultDecorator",
-      "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "parameterResolvers",
-      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "handlerRepositorySupplier",
-      "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.sdk.modeling.HandlerRepository>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "repositoryProvider",
-      "type" : "io.fluxzero.sdk.tracking.handling.RepositoryProvider",
+      "name" : "trackingMetricsEnabled",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

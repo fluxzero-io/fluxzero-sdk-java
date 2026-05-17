@@ -21,7 +21,7 @@
     "annotationType" : "java.lang.annotation.Inherited",
     "values" : {}
   } ],
-  "documentation" : " Annotation to be placed on requests (i.e. queries and commands). Configures the time before such request will time\n out when sent using sendAndWait-like methods.\n <p>\n Note that non-blocking requests sent using send-methods that return a {@link CompletableFuture} will *not* time out\n automatically. If a timeout is desired on non-blocking requests this needs to be manually configured, e.g. via\n {@link CompletableFuture#orTimeout(long, TimeUnit)}.\n",
+  "documentation" : " Annotation to be placed on requests (i.e. queries and commands). Configures the time before such request will time\n out when sent using request/response methods such as {@code send} and {@code sendAndWait}.\n <p>\n If no timeout is configured here, blocking {@code sendAndWait} calls use their standard one-minute timeout while\n non-blocking {@code send} calls use the gateway's default request handling behavior.\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],

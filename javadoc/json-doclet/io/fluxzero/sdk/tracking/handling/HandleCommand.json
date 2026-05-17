@@ -62,6 +62,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " If {@code true}, this handler is considered passive and will not emit a result message.\n Useful when the handler is for side effects only.\n"
+  }, {
+    "name" : "skipExpiredRequests",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCommand#skipExpiredRequests",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, indexed request messages whose effective timeout has already expired may be skipped before this\n handler is invoked.\n <p>\n Defaults to {@code false} so a sender-side timeout does not change command execution semantics. Enable this only\n for commands that are safe to drop when they are stale.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

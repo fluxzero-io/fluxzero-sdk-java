@@ -39,6 +39,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "addSettings",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#addSettings",
+    "returnType" : "io.fluxzero.sdk.web.WebRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "forDefaultNamespace",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#forDefaultNamespace",
     "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestGateway",
@@ -65,6 +86,22 @@
     "parameters" : [ {
       "name" : "namespace",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responseTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#responseTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -135,6 +172,11 @@
     }, {
       "annotationType" : "lombok.SneakyThrows",
       "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -145,6 +187,27 @@
     }, {
       "name" : "settings",
       "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendForMessage",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestGateway#sendForMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

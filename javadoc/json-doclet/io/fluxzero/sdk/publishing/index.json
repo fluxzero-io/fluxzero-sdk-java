@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
     "kind" : "class"
   }, {
+    "file" : "DefaultGenericGateway.PendingRequest.json",
+    "name" : "DefaultGenericGateway.PendingRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PendingRequest",
+    "kind" : "record"
+  }, {
     "file" : "DefaultMetricsGateway.json",
     "name" : "DefaultMetricsGateway",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultMetricsGateway",
