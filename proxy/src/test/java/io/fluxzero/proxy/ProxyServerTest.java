@@ -31,20 +31,25 @@ import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.HandleOptions;
 import io.fluxzero.sdk.web.HandlePost;
 import io.fluxzero.sdk.web.HandleSocketClose;
+import io.fluxzero.sdk.web.HandleSocketHandshake;
 import io.fluxzero.sdk.web.HandleSocketMessage;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleSocketPong;
 import io.fluxzero.sdk.web.Path;
 import io.fluxzero.sdk.web.SocketSession;
 import io.fluxzero.sdk.web.WebRequest;
+import io.fluxzero.sdk.web.WebResponse;
+import io.fluxzero.sdk.web.WebResponseGateway;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import java.io.ByteArrayInputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -53,9 +58,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.WebSocket;
+import java.net.http.WebSocketHandshakeException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -66,8 +76,10 @@ import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
@@ -97,6 +109,28 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock("PROXY_HEALTH_ENDPOINT")
+        void healthEndpointCanBeConfigured() throws Exception {
+            String previousValue = System.getProperty("PROXY_HEALTH_ENDPOINT");
+            ProxyServer configuredProxyServer = null;
+            try {
+                System.setProperty("PROXY_HEALTH_ENDPOINT", "/internal/ready");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                assertEquals("Healthy", httpClient.send(
+                        newBuilder(URI.create(format("http://0.0.0.0:%s/internal/ready", configuredPort))).GET()
+                                .build(), BodyHandlers.ofString()).body());
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty("PROXY_HEALTH_ENDPOINT", previousValue);
+            }
+        }
+
+        @Test
         void get() {
             testFixture.registerHandlers(new Object() {
                         @HandleGet("/")
@@ -109,6 +143,139 @@ class ProxyServerTest {
                     .whenApplying(fc -> httpClient.send(newRequest().GET().build(),
                                                         BodyHandlers.ofString()).body())
                     .expectResult("Hello World");
+        }
+
+        @Test
+        void requestPathQueryAndRepeatedHeadersAreForwarded() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/echo")
+                        String echo(WebRequest request) {
+                            return "%s|%s|%s".formatted(request.getPath(),
+                                                        String.join(",", request.getHeaders("X-Repeat")),
+                                                        request.getHeader("X-Single"));
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create("http://0.0.0.0:%s/echo?alpha=1&alpha=2&space=a%%20b"
+                                                           .formatted(proxyPort)))
+                                    .GET()
+                                    .header("X-Repeat", "one")
+                                    .header("X-Repeat", "two")
+                                    .header("X-Single", "single")
+                                    .build(), BodyHandlers.ofString()).body())
+                    .expectResult("/echo?alpha=1&alpha=2&space=a%20b|one,two|single");
+        }
+
+        @Test
+        void statusContentTypeAndRepeatedResponseHeadersArePreserved() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/response-headers")
+                        WebResponse response() {
+                            return WebResponse.builder()
+                                    .status(202)
+                                    .contentType("text/custom")
+                                    .header("X-Reply", List.of("one", "two"))
+                                    .payload("accepted")
+                                    .build();
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/response-headers", proxyPort)))
+                                    .GET().build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(202, response.statusCode());
+                        assertEquals("accepted", response.body());
+                        assertEquals("text/custom", response.headers().firstValue("Content-Type").orElse(null));
+                        assertEquals(List.of("one", "two"), response.headers().allValues("X-Reply"));
+                    });
+        }
+
+        @Test
+        void singleChunkInputStreamResponsesAreServedThroughProxy() {
+            byte[] payload = "streamed through proxy".getBytes(StandardCharsets.UTF_8);
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/small-stream")
+                        WebResponse stream() {
+                            return WebResponse.builder()
+                                    .status(200)
+                                    .contentType("text/plain")
+                                    .payload(new ByteArrayInputStream(payload))
+                                    .build();
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/small-stream", proxyPort)))
+                                    .GET().build(), BodyHandlers.ofByteArray()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertArrayEquals(payload, response.body());
+                        assertEquals("text/plain", response.headers().firstValue("Content-Type").orElse(null));
+                    });
+        }
+
+        @Test
+        @Disabled("Intended chunked webresponse contract; current Undertow path hangs after UndertowOutputStream.close() throws.")
+        void multiChunkInputStreamResponsesRemoveLengthHeadersAndStreamBody() {
+            byte[] payload = chunkedPayload();
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/stream")
+                        WebResponse stream() {
+                            return WebResponse.builder()
+                                    .status(200)
+                                    .singleValuedHeaders(Map.of(
+                                            "Accept-Ranges", "bytes",
+                                            "Content-Length", "1",
+                                            "X-Stream", "yes"))
+                                    .payload(new ByteArrayInputStream(payload))
+                                    .build();
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://0.0.0.0:%s/stream", proxyPort)))
+                                    .GET().build(), BodyHandlers.ofByteArray()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertArrayEquals(payload, response.body());
+                        assertEquals("yes", response.headers().firstValue("X-Stream").orElse(null));
+                        assertTrue(response.headers().firstValue("Content-Length").isEmpty());
+                        assertTrue(response.headers().firstValue("Accept-Ranges").isEmpty());
+                    });
+        }
+
+        @Test
+        @ResourceLock("FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE")
+        void maxRequestBodySizeRejectsOversizedBodiesBeforeRuntime() throws Exception {
+            String previousValue = System.getProperty("FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE");
+            ProxyServer configuredProxyServer = null;
+            AtomicInteger invocations = new AtomicInteger();
+            try {
+                System.setProperty("FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE", "8");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                    @HandlePost("/limited")
+                    String handle(String body) {
+                        invocations.incrementAndGet();
+                        return body;
+                    }
+                });
+
+                var response = httpClient.send(
+                        newBuilder(URI.create(format("http://0.0.0.0:%s/limited", configuredPort)))
+                                .POST(BodyPublishers.ofString("0123456789"))
+                                .build(), BodyHandlers.ofString());
+
+                assertTrue(response.statusCode() >= 400,
+                           "Expected oversized request to be rejected, got HTTP " + response.statusCode());
+                assertEquals(0, invocations.get());
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty("FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE", previousValue);
+            }
         }
 
         @Test
@@ -311,6 +478,19 @@ class ProxyServerTest {
         }
 
         @Test
+        void sendBinaryMessage() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleSocketMessage("/")
+                        String hello(byte[] payload) {
+                            return "binary %s:%s:%s".formatted(payload.length, payload[0], payload[2]);
+                        }
+                    })
+                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendBinary(
+                            ByteBuffer.wrap(new byte[]{7, 8, 9}), true)))
+                    .expectResult("binary 3:7:9");
+        }
+
+        @Test
         void sendMessageViaSocketParam() {
             testFixture.registerHandlers(new Object() {
                         @HandleSocketMessage("/")
@@ -337,6 +517,60 @@ class ProxyServerTest {
                     })
                     .whenApplying(openSocketAndWait())
                     .expectResult("got pong ping");
+        }
+
+        @Test
+        void selectedSubprotocolIsReturnedToClient() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleSocketOpen("/")
+                        String hello() {
+                            return "opened";
+                        }
+                    })
+                    .whenApplying(openSocketAnd(webSocket -> assertEquals("fluxzero", webSocket.getSubprotocol()),
+                                                "fluxzero"))
+                    .expectResult("opened");
+        }
+
+        @Test
+        void openSocketPreservesRequestPathQueryAndHeaders() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleSocketOpen("/socket")
+                        String hello(WebRequest request) {
+                            return "%s|%s".formatted(request.getPath(), request.getHeader("X-Trace"));
+                        }
+                    })
+                    .whenApplying(openSocketAnd(baseUri("/socket?alpha=1&space=a%20b"),
+                                                builder -> builder.header("X-Trace", "trace-1"),
+                                                webSocket -> {
+                                                }))
+                    .expectResult("/socket?alpha=1&space=a%20b|trace-1");
+        }
+
+        @Test
+        void rejectedHandshakeReturnsHttpStatusWithoutOpeningSocket() {
+            testFixture.registerHandlers(new Object() {
+                @HandleSocketHandshake("/")
+                WebResponse reject() {
+                    return WebResponse.builder().status(403).payload("forbidden").build();
+                }
+
+                @HandleSocketOpen("/")
+                void open() {
+                    throw new AssertionError("Rejected websocket handshakes must not open a websocket session");
+                }
+            });
+
+            CompletionException exception = assertThrows(CompletionException.class, () ->
+                    httpClient.newWebSocketBuilder()
+                            .buildAsync(baseUri(), new WebSocket.Listener() {
+                            })
+                            .join());
+
+            assertTrue(exception.getCause() instanceof WebSocketHandshakeException,
+                       "Expected failed websocket handshake, got " + exception.getCause());
+            WebSocketHandshakeException handshakeException = (WebSocketHandshakeException) exception.getCause();
+            assertEquals(403, handshakeException.getResponse().statusCode());
         }
 
         @Test
@@ -412,9 +646,17 @@ class ProxyServerTest {
         }
 
         private ThrowingFunction<Fluxzero, ?> openSocketAnd(ThrowingConsumer<WebSocket> followUp, String... protocols) {
+            return openSocketAnd(baseUri(), builder -> {
+            }, followUp, protocols);
+        }
+
+        private ThrowingFunction<Fluxzero, ?> openSocketAnd(URI uri,
+                                                            ThrowingConsumer<WebSocket.Builder> builderCustomizer,
+                                                            ThrowingConsumer<WebSocket> followUp,
+                                                            String... protocols) {
             return fc -> {
                 CompletableFuture<String> result = new CompletableFuture<>();
-                WebSocket webSocket = openSocket(result, protocols);
+                WebSocket webSocket = openSocket(uri, result, builderCustomizer, protocols);
                 followUp.accept(webSocket);
                 try {
                     return result.get(5, TimeUnit.SECONDS);
@@ -426,11 +668,19 @@ class ProxyServerTest {
 
         @SneakyThrows
         private WebSocket openSocket(CompletableFuture<String> callback, String... protocols) {
+            return openSocket(baseUri(), callback, builder -> {
+            }, protocols);
+        }
+
+        @SneakyThrows
+        private WebSocket openSocket(URI uri, CompletableFuture<String> callback,
+                                     ThrowingConsumer<WebSocket.Builder> builderCustomizer, String... protocols) {
             WebSocket.Builder builder = httpClient.newWebSocketBuilder();
+            builderCustomizer.accept(builder);
             if (protocols.length > 0) {
                 builder.subprotocols(protocols[0], Arrays.copyOfRange(protocols, 1, protocols.length));
             }
-            return builder.buildAsync(baseUri(), new WebSocket.Listener() {
+            return builder.buildAsync(uri, new WebSocket.Listener() {
                 @Override
                 public CompletionStage<?> onText(WebSocket webSocket1, CharSequence data, boolean last) {
                     callback.complete(String.valueOf(data));
@@ -446,7 +696,11 @@ class ProxyServerTest {
         }
 
         private URI baseUri() {
-            return URI.create(format("ws://0.0.0.0:%s/", proxyPort));
+            return baseUri("/");
+        }
+
+        private URI baseUri(String pathAndQuery) {
+            return URI.create(format("ws://0.0.0.0:%s%s", proxyPort, pathAndQuery));
         }
     }
 
@@ -572,5 +826,21 @@ class ProxyServerTest {
             return newBuilder(URI.create(String.format("http://0.0.0.0:%s%s", proxyPort, path)));
         }
 
+    }
+
+    private static byte[] chunkedPayload() {
+        byte[] payload = new byte[WebResponseGateway.MAX_RESPONSE_SIZE + 17];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        return payload;
+    }
+
+    private static void restoreProperty(String name, String value) {
+        if (value == null) {
+            System.clearProperty(name);
+        } else {
+            System.setProperty(name, value);
+        }
     }
 }
