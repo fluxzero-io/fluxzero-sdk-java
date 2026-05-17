@@ -18,6 +18,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
+import io.fluxzero.sdk.publishing.DefaultGenericGateway;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
@@ -27,6 +28,7 @@ import lombok.SneakyThrows;
 import lombok.With;
 import lombok.experimental.Delegate;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -46,6 +48,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 @AllArgsConstructor
 public class DefaultWebRequestGateway implements WebRequestGateway {
+    private static final String REQUEST_TIMEOUT_METADATA_KEY = "$fluxzero.requestTimeoutMillis";
+
     @Delegate
     @With
     private final GenericGateway delegate;
@@ -65,11 +69,16 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
 
     @Override
     @SneakyThrows
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public WebResponse sendAndWait(WebRequest request, WebRequestSettings settings) {
         try {
+            Duration timeout = settings.getTimeout().plusMillis(5_000L);
             request = request.addMetadata("settings", settings);
-            return stripHeadPayload(request, (WebResponse) delegate.sendForMessage(request)
-                    .get(settings.getTimeout().toMillis() + 5_000L, MILLISECONDS));
+            request = request.addMetadata(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis());
+            CompletableFuture<WebResponse> result = (CompletableFuture) delegate.sendForMessage(request);
+            WebResponse response = delegate instanceof DefaultGenericGateway
+                    ? result.get() : result.get(timeout.toMillis(), MILLISECONDS);
+            return stripHeadPayload(request, response);
         } catch (java.util.concurrent.TimeoutException e) {
             throw new TimeoutException(FluxzeroErrors.requestTimedOut(
                     "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
@@ -81,7 +90,14 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
                     "the web response", request.getMessageId(),
                     request.getMethod() + " " + WebRequest.getUrl(request.getMetadata())), e);
         } catch (ExecutionException e) {
-            throw e.getCause();
+            Throwable cause = e.getCause();
+            if (cause instanceof java.util.concurrent.TimeoutException) {
+                throw new TimeoutException(FluxzeroErrors.requestTimedOut(
+                        "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
+                        request.getMessageId(), null, MessageType.WEBRESPONSE.name(),
+                        settings.getTimeout().plusMillis(5_000L)));
+            }
+            throw cause;
         }
     }
 

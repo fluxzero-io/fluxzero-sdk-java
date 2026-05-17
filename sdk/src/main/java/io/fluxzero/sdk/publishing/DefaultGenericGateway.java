@@ -38,22 +38,28 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
+import static java.lang.Thread.currentThread;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Stream.ofNullable;
 
 @AllArgsConstructor
 @Slf4j
 public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> implements GenericGateway {
+    private static final String REQUEST_TIMEOUT_METADATA_KEY = "$fluxzero.requestTimeoutMillis";
 
     @Getter(AccessLevel.PRIVATE)
     private final Client client;
@@ -133,8 +139,42 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @SuppressWarnings("unchecked")
     @Override
     public List<CompletableFuture<Message>> sendForMessages(Message... messages) {
+        return sendForMessages(null, messages);
+    }
+
+    @Override
+    @SneakyThrows
+    public <R> R sendAndWait(Message message) {
+        Duration timeout = timeoutDuration(message);
+        CompletableFuture<R> future = sendForMessage(message, timeout).thenApply(Message::getPayload);
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            currentThread().interrupt();
+            throw new GatewayException(FluxzeroErrors.threadInterrupted(
+                    "the response", message.getMessageId(), message.getPayloadClass().getName()), e);
+        } catch (ExecutionException e) {
+            Throwable cause = unwrap(e.getCause());
+            if (cause instanceof java.util.concurrent.TimeoutException) {
+                throw new TimeoutException(FluxzeroErrors.requestTimedOut(
+                        "request", message.getPayloadClass().getName(), message.getMessageId(), null,
+                        MessageType.RESULT.name(), timeout));
+            }
+            throw cause;
+        }
+    }
+
+    private CompletableFuture<Message> sendForMessage(Message message, Duration timeout) {
+        return sendForMessages(timeout, message).get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<CompletableFuture<Message>> sendForMessages(Duration defaultTimeout, Message... messages) {
         List<Object> results = new ArrayList<>(messages.length);
+        Map<SerializedMessage, Duration> requestTimeouts = new IdentityHashMap<>();
         for (Message message : messages) {
+            Duration timeout = requestTimeout(message, defaultTimeout);
+            message = message.withMetadata(message.getMetadata().without(REQUEST_TIMEOUT_METADATA_KEY));
             message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
             if (message == null) {
                 results.add(emptyReturnMessage());
@@ -145,6 +185,9 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
             if (localResult.isPresent()) {
                 CompletableFuture<Message> c = localResult.get().thenApply(responseMapper::map);
+                if (timeout != null && !timeout.isNegative()) {
+                    c.orTimeout(timeout.toMillis(), MILLISECONDS);
+                }
                 String messageId = message.getMessageId();
                 callbacks.put(messageId, c);
                 results.add(c.whenComplete((m, e) -> callbacks.remove(messageId)));
@@ -156,13 +199,13 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     continue;
                 }
                 results.add(serializedMessage);
+                requestTimeouts.put(serializedMessage, timeout);
             }
         }
         List<SerializedMessage> serializedMessages = results.stream().filter(r -> r instanceof SerializedMessage)
                 .map(m -> (SerializedMessage) m).collect(Collectors.toList());
         List<CompletableFuture<Message>> externalResults = serializedMessages.isEmpty()
-                ? Collections.emptyList() : requestHandler.sendRequests(
-                        serializedMessages, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new))).stream()
+                ? Collections.emptyList() : sendRequests(serializedMessages, requestTimeouts).stream()
                 .map(r -> r.thenCompose(m -> {
                     Object result;
                     try {
@@ -192,6 +235,40 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 return future.whenComplete((v, e) -> callbacks.remove(m.getMessageId()));
             }
         }).collect(Collectors.toList());
+    }
+
+    private List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,
+                                                                    Map<SerializedMessage, Duration> timeouts) {
+        Duration firstTimeout = timeouts.get(requests.getFirst());
+        boolean sameTimeout = requests.stream().allMatch(r -> Objects.equals(firstTimeout, timeouts.get(r)));
+        if (sameTimeout) {
+            return firstTimeout == null ? requestHandler.sendRequests(
+                    requests, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)))
+                    : requestHandler.sendRequests(
+                            requests, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)),
+                            firstTimeout);
+        }
+        return requests.stream().map(request -> {
+            Duration timeout = timeouts.get(request);
+            return timeout == null ? requestHandler.sendRequest(
+                    request, m -> gatewayClient.append(SENT, m))
+                    : requestHandler.sendRequest(request, m -> gatewayClient.append(SENT, m), timeout);
+        }).toList();
+    }
+
+    private Duration requestTimeout(Message message, Duration defaultTimeout) {
+        String timeoutMillis = message.getMetadata().get(REQUEST_TIMEOUT_METADATA_KEY);
+        return timeoutMillis == null ? defaultTimeout : Duration.ofMillis(Long.parseLong(timeoutMillis));
+    }
+
+    private Duration timeoutDuration(Message message) {
+        Timeout timeout = message.getPayloadClass().getAnnotation(Timeout.class);
+        return timeout == null ? Duration.ofMinutes(1)
+                : Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value()));
+    }
+
+    private Throwable unwrap(Throwable error) {
+        return error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
     }
 
     @Override

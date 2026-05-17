@@ -19,6 +19,8 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,8 +37,10 @@ class TimeoutTest {
             }
         }
 
-        TestFixture.create().whenApplying(fc -> Fluxzero.queryAndWait(new HandleSelfRequest()))
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> Fluxzero.queryAndWait(new HandleSelfRequest()))
                 .expectExceptionalResult(TimeoutException.class);
+        assertTrue(gatewayCallbacks(fixture.getFluxzero().queryGateway()).isEmpty());
     }
 
     @Test
@@ -44,12 +48,39 @@ class TimeoutTest {
         @Timeout(10)
         class UnhandledRequest { }
 
-        TestFixture.create().whenApplying(fc -> Fluxzero.queryAndWait(new UnhandledRequest()))
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> Fluxzero.queryAndWait(new UnhandledRequest()))
                 .verifyExceptionalResult((TimeoutException e) -> {
                     assertTrue(e.getMessage().contains("FZ-SDK-0002"));
                     assertTrue(e.getMessage().contains("What happened:"));
                     assertTrue(e.getMessage().contains("How to fix:"));
                     assertTrue(e.getMessage().contains("docs/errors#FZ-SDK-0002"));
                 });
+        assertTrue(requestHandlerCallbacks(fixture.getFluxzero().queryGateway()).isEmpty());
+    }
+
+    private static Map<?, ?> gatewayCallbacks(Object gateway) {
+        return getField(getField(gateway, "delegate"), "callbacks");
+    }
+
+    private static Map<?, ?> requestHandlerCallbacks(Object gateway) {
+        return getField(getField(getField(gateway, "delegate"), "requestHandler"), "callbacks");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T getField(Object target, String name) {
+        Class<?> type = target.getClass();
+        while (type != null) {
+            try {
+                Field field = type.getDeclaredField(name);
+                field.setAccessible(true);
+                return (T) field.get(target);
+            } catch (NoSuchFieldException e) {
+                type = type.getSuperclass();
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        throw new IllegalArgumentException("No field '%s' on %s".formatted(name, target.getClass().getName()));
     }
 }
