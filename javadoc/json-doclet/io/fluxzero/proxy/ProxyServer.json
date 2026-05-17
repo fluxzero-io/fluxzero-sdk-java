@@ -7,11 +7,6 @@
   "annotations" : [ {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
-  }, {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {
-      "access" : "PROTECTED"
-    }
   } ],
   "documentation" : null,
   "typeParameters" : [ ],
@@ -33,6 +28,14 @@
     "annotations" : [ ],
     "documentation" : " Default maximum request body size: 256 MiB\n",
     "constantValue" : 268435456
+  }, {
+    "name" : "cancelled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.cancelled",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "port",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.port",
@@ -60,14 +63,42 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "shutdownRegistration",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.shutdownRegistration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ProxyServer",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#ProxyServer",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "proxyHandler",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "server",
+      "type" : "io.undertow.Undertow",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "shutdownRegistration",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -81,6 +112,28 @@
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createConfiguredClient",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createConfiguredClient",
+    "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConfiguredPort",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredPort",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
@@ -101,12 +154,23 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Standalone process entry point.\n\n <p>Do not call this method to embed the proxy in another application. Use {@link #start()} instead so the caller\n owns the proxy lifecycle and shutdown order.</p>\n"
   }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#start",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
     "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an embedded proxy server using the configured port and runtime base URL.\n\n <p>The port is resolved from {@code FLUXZERO_PROXY_PORT}, {@code PROXY_PORT}, or {@code 8080}, in that order. The\n Fluxzero runtime URL is resolved from {@code FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}, in\n that order. The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop\n all embedded proxy resources by calling {@link #cancel()}.</p>\n\n <p>This method does not register a JVM shutdown hook, create a Fluxzero keepalive thread, or set a global Fluxzero\n application instance. Use {@link #main(String[])} for standalone process startup.</p>\n\n @return a ProxyServer instance representing the started proxy server and owned embedded resources\n"
+  }, {
+    "name" : "startHttpProxyOnly",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
+    "returnType" : "io.fluxzero.proxy.ProxyServer",
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -122,23 +186,33 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Starts a proxy server on the specified port with the given proxy request handler.\n The server will listen for HTTP requests and route them through the provided handler.\n Additionally, it sets up a health endpoint that responds with a simple \"Healthy\" message.\n\n @param port the port number on which the proxy server will listen. Use 0 to select a random available port.\n @param proxyHandler the handler responsible for processing proxy requests.\n @return a ProxyServer instance representing the started proxy server, allowing further management such as shutdown.\n"
+    "documentation" : " Starts only the HTTP proxy surface for tests and embedded callers that provide their own forwarding lifecycle.\n"
   }, {
-    "name" : "start",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#start",
+    "name" : "startHttpProxyOnly",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
-    "modifiers" : [ "public", "static" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "proxyHandler",
       "type" : "io.fluxzero.proxy.ProxyRequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "shutdownRegistration",
+      "type" : "io.fluxzero.common.Registration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Starts a proxy server on a random available port with the specified proxy request handler.\n The server will listen for HTTP requests and route them through the provided handler.\n\n @param proxyHandler the handler responsible for processing proxy requests.\n @return a ProxyServer instance representing the started proxy server, allowing further management such as shutdown.\n"
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

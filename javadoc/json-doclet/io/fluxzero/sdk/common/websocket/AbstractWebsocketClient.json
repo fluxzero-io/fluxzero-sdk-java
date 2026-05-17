@@ -803,6 +803,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "retryOutstandingRequestsDelay",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#retryOutstandingRequestsDelay",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delay before outstanding requests from a closed session are resent on a replacement session.\n"
+  }, {
     "name" : "schedulePing",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#schedulePing",
     "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PingRegistration",
