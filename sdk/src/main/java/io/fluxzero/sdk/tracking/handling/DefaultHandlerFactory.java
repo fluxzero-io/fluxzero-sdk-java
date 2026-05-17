@@ -212,11 +212,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 }
             }
 
-            Supplier<Object> instanceSupplier = memoize(() -> ReflectionUtils.asInstance(targetClass));
-            return createDefaultHandler(targetClass, m -> targetClass.isAssignableFrom(m.getPayloadClass())
-                    ? m.getPayload() : instanceSupplier.get(), config);
+            return createDefaultHandler(targetClass, createTargetSupplier(targetClass), config);
         }
         return createDefaultHandler(target, m -> target, config);
+    }
+
+    protected Function<DeserializingMessage, ?> createTargetSupplier(Class<?> targetClass) {
+        if (ReflectionUtils.getDefaultConstructor(targetClass).isEmpty()) {
+            // Null makes instance methods ineligible for non-self payloads without trying to instantiate the class.
+            return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : null;
+        }
+        Supplier<Object> instanceSupplier = memoize(() -> ReflectionUtils.asInstance(targetClass));
+        return m -> targetClass.isAssignableFrom(m.getPayloadClass()) ? m.getPayload() : instanceSupplier.get();
     }
 
     protected Handler<DeserializingMessage> createDefaultHandler(

@@ -49,6 +49,8 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
+import io.fluxzero.sdk.configuration.spring.ConditionalOnProperty;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
@@ -90,6 +92,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -128,7 +131,6 @@ import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.empty;
 
@@ -350,6 +352,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
+    private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
     private static final Executor shutdownExecutor =
             newWorkerPool("TestFixture-shutdown", 64);
@@ -564,14 +567,10 @@ public class TestFixture implements Given<TestFixture>, When {
             if (handlers.isEmpty()) {
                 return;
             }
-            handlers.stream().collect(toMap(o -> ifClass(o) instanceof Class<?> c ? c : o instanceof Handler<?> h
-                                                    ? h.getTargetClass() : o.getClass(),
-                                            Function.identity(), (a, b) -> {
-                        log.warn(
-                                "Handler of type {} is registered more than once. Please make sure this is intentional.",
-                                a.getClass());
-                        return a;
-                    }));
+            warnIfDuplicateHandlers(handlers);
+            handlers.stream().map(this::handlerType)
+                    .filter(ClientUtils::isSelfTracking)
+                    .forEach(registeredTrackSelfHandlers::add);
             if (!fixture.synchronous) {
                 fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
                 return;
@@ -584,6 +583,25 @@ public class TestFixture implements Given<TestFixture>, When {
                     .reduce(Registration::merge).orElse(Registration.noOp()));
             fixture.registration = fixture.registration.merge(registration);
         });
+    }
+
+    private void warnIfDuplicateHandlers(List<?> handlers) {
+        Map<Class<?>, Object> uniqueHandlers = new HashMap<>();
+        Set<Class<?>> duplicateHandlerTypes = new HashSet<>();
+        for (Object handler : handlers) {
+            Class<?> handlerType = handlerType(handler);
+            if (uniqueHandlers.putIfAbsent(handlerType, handler) != null) {
+                duplicateHandlerTypes.add(handlerType);
+            }
+        }
+        duplicateHandlerTypes.forEach(handlerType -> log.warn(
+                "Handler of type {} is registered more than once. Please make sure this is intentional.",
+                handlerType));
+    }
+
+    private Class<?> handlerType(Object handler) {
+        return ifClass(handler) instanceof Class<?> handlerClass ? handlerClass : handler instanceof Handler<?> h
+                ? h.getTargetClass() : handler.getClass();
     }
 
     protected Stream<HasLocalHandlers> localHandlerRegistries(Fluxzero fluxzero) {
@@ -1402,8 +1420,40 @@ public class TestFixture implements Given<TestFixture>, When {
     protected <M extends Message> M trace(Object object) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
+        registerAutomaticTrackSelfHandler(result);
         fixtureResult.setTracedMessage(result);
         return result;
+    }
+
+    protected void registerAutomaticTrackSelfHandler(Message message) {
+        if (synchronous || message == null || message.getPayload() == null) {
+            return;
+        }
+        Class<?> payloadClass = message.getPayloadClass();
+        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
+            && registeredTrackSelfHandlers.stream()
+                .noneMatch(handlerType -> handlerType.isAssignableFrom(payloadClass))
+            && registeredTrackSelfHandlers.add(payloadClass)) {
+            registration = registration.merge(fluxzero.registerHandlers(payloadClass));
+        }
+    }
+
+    private boolean matchesTrackSelfConditions(Class<?> payloadClass) {
+        ConditionalOnProperty conditionalOnProperty =
+                ReflectionUtils.getTypeAnnotation(payloadClass, ConditionalOnProperty.class);
+        if (conditionalOnProperty != null) {
+            String value = fluxzero.propertySource().get(conditionalOnProperty.value());
+            if (value == null || !value.matches(conditionalOnProperty.pattern())) {
+                return false;
+            }
+        }
+        ConditionalOnMissingProperty conditionalOnMissingProperty =
+                ReflectionUtils.getTypeAnnotation(payloadClass, ConditionalOnMissingProperty.class);
+        if (conditionalOnMissingProperty != null) {
+            String value = fluxzero.propertySource().get(conditionalOnMissingProperty.value());
+            return value == null || value.isEmpty();
+        }
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -1516,6 +1566,8 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+            testFixture.registerAutomaticTrackSelfHandler(message);
+
             if (testFixture.fixtureResult.isCollectingResults()) {
                 interceptedMessageIds.add(message.getMessageId());
             }

@@ -141,6 +141,16 @@ public class ClientUtils {
     }
 
     /**
+     * Returns whether the specified class, one of its interfaces, or its package is marked with {@link TrackSelf}.
+     *
+     * @param target the handler class
+     * @return {@code true} if marked for self-tracking, {@code false} otherwise
+     */
+    public static boolean isSelfTracking(Class<?> target) {
+        return getTrackSelfAnnotation(target, null).isPresent();
+    }
+
+    /**
      * Retrieves the {@link LocalHandler} annotation associated with a given handler, from its method, its declaring
      * class, or ancestral package, if present.
      */
