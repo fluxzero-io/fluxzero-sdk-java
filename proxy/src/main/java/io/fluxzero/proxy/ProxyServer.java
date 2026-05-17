@@ -22,13 +22,12 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
@@ -39,7 +38,6 @@ import static io.undertow.UndertowOptions.ENABLE_HTTP2;
 import static io.undertow.util.Headers.CONTENT_TYPE;
 
 @Slf4j
-@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProxyServer implements Registration {
 
     /**
@@ -52,25 +50,25 @@ public class ProxyServer implements Registration {
      */
     public static final long DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE = 1L << 30;
 
+    /**
+     * Standalone process entry point.
+     *
+     * <p>Do not call this method to embed the proxy in another application. Use {@link #start()} instead so the caller
+     * owns the proxy lifecycle and shutdown order.</p>
+     */
     public static void main(final String[] args) {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught error", e));
-        int port = getIntegerProperty("PROXY_PORT", 8080);
-        Client client = Optional.ofNullable(getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL"))
-                .map(url -> WebSocketClient.newInstance(
-                        WebSocketClient.ClientConfig.builder()
-                                .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
-                                .runtimeBaseUrl(url)
-                                .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID", "PROJECT_ID")).build()))
-                .orElseThrow(() -> new IllegalStateException("FLUXZERO_BASE_URL environment variable is not set"));
+        Client client = createConfiguredClient();
 
         Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableAutomaticTracking()
                 .makeApplicationInstance(true)
                 .build(client);
 
-        Registration registration = start(port, new ProxyRequestHandler(client))
+        ProxyServer proxyServer = startHttpProxyOnly(getConfiguredPort(), new ProxyRequestHandler(client));
+        Registration registration = proxyServer
                 .merge(ForwardProxyConsumer.start(client));
-        log.info("Fluxzero proxy server running on port {}", port);
+        log.info("Fluxzero proxy server running on port {}", proxyServer.getPort());
 
         fluxzero.beforeShutdown(() -> {
             log.info("Stopping Fluxzero proxy server");
@@ -79,26 +77,50 @@ public class ProxyServer implements Registration {
     }
 
     /**
-     * Starts a proxy server on a random available port with the specified proxy request handler.
-     * The server will listen for HTTP requests and route them through the provided handler.
+     * Starts an embedded proxy server using the configured port and runtime base URL.
      *
-     * @param proxyHandler the handler responsible for processing proxy requests.
-     * @return a ProxyServer instance representing the started proxy server, allowing further management such as shutdown.
+     * <p>The port is resolved from {@code FLUXZERO_PROXY_PORT}, {@code PROXY_PORT}, or {@code 8080}, in that order. The
+     * Fluxzero runtime URL is resolved from {@code FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}, in
+     * that order. The returned server owns the created Fluxzero client and forward proxy consumer; callers should stop
+     * all embedded proxy resources by calling {@link #cancel()}.</p>
+     *
+     * <p>This method does not register a JVM shutdown hook, create a Fluxzero keepalive thread, or set a global Fluxzero
+     * application instance. Use {@link #main(String[])} for standalone process startup.</p>
+     *
+     * @return a ProxyServer instance representing the started proxy server and owned embedded resources
      */
-    public static ProxyServer start(ProxyRequestHandler proxyHandler) {
-        return start(0, proxyHandler);
+    public static ProxyServer start() {
+        Client client = createConfiguredClient();
+        Registration forwardProxyConsumer = Registration.noOp();
+        try {
+            forwardProxyConsumer = ForwardProxyConsumer.start(client);
+            Registration startedForwardProxyConsumer = forwardProxyConsumer;
+            return startHttpProxyOnly(getConfiguredPort(), new ProxyRequestHandler(client), () -> {
+                try {
+                    startedForwardProxyConsumer.cancel();
+                } finally {
+                    client.shutDown();
+                }
+            });
+        } catch (RuntimeException | Error e) {
+            try {
+                forwardProxyConsumer.cancel();
+            } finally {
+                client.shutDown();
+            }
+            throw e;
+        }
     }
 
     /**
-     * Starts a proxy server on the specified port with the given proxy request handler.
-     * The server will listen for HTTP requests and route them through the provided handler.
-     * Additionally, it sets up a health endpoint that responds with a simple "Healthy" message.
-     *
-     * @param port the port number on which the proxy server will listen. Use 0 to select a random available port.
-     * @param proxyHandler the handler responsible for processing proxy requests.
-     * @return a ProxyServer instance representing the started proxy server, allowing further management such as shutdown.
+     * Starts only the HTTP proxy surface for tests and embedded callers that provide their own forwarding lifecycle.
      */
-    public static ProxyServer start(int port, ProxyRequestHandler proxyHandler) {
+    static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler) {
+        return startHttpProxyOnly(port, proxyHandler, Registration.noOp());
+    }
+
+    private static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler,
+                                                 Registration shutdownRegistration) {
         Undertow server = Undertow.builder()
                 .addHttpListener(port, "0.0.0.0")
                 .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, getLongProperty(
@@ -115,17 +137,50 @@ public class ProxyServer implements Registration {
                 .build();
         server.start();
         port = server.getListenerInfo().getFirst().getAddress() instanceof InetSocketAddress a ? a.getPort() : port;
-        return new ProxyServer(proxyHandler, server, port);
+        return new ProxyServer(proxyHandler, server, port, shutdownRegistration);
+    }
+
+    private static Client createConfiguredClient() {
+        return Optional.ofNullable(getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL"))
+                .map(url -> WebSocketClient.newInstance(
+                        WebSocketClient.ClientConfig.builder()
+                                .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
+                                .runtimeBaseUrl(url)
+                                .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID",
+                                                                       "FLUX_PROJECT_ID", "PROJECT_ID"))
+                                .build()))
+                .orElseThrow(() -> new IllegalStateException(
+                        "FLUXZERO_BASE_URL, FLUX_BASE_URL or FLUX_URL property is not set"));
+    }
+
+    private static int getConfiguredPort() {
+        return getIntegerProperty("FLUXZERO_PROXY_PORT", getIntegerProperty("PROXY_PORT", 8080));
     }
 
     private final ProxyRequestHandler proxyHandler;
     private final Undertow server;
     @Getter
     private final int port;
+    private final Registration shutdownRegistration;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
+
+    protected ProxyServer(ProxyRequestHandler proxyHandler, Undertow server, int port,
+                          Registration shutdownRegistration) {
+        this.proxyHandler = proxyHandler;
+        this.server = server;
+        this.port = port;
+        this.shutdownRegistration = shutdownRegistration;
+    }
 
     @Override
     public void cancel() {
-        proxyHandler.close(false);
-        server.stop();
+        if (cancelled.compareAndSet(false, true)) {
+            try {
+                proxyHandler.close(false);
+                server.stop();
+            } finally {
+                shutdownRegistration.cancel();
+            }
+        }
     }
 }

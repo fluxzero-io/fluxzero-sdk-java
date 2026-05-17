@@ -82,7 +82,7 @@ public class OpenApiReferenceDemoApp {
                                                                  .id("proxy-" + UUID.randomUUID())
                                                                  .name("$proxy-openapi-reference-demo")
                                                                  .build());
-        ProxyServer proxy = ProxyServer.start(proxyPort(), new ProxyRequestHandler(proxyClient));
+        ProxyServer proxy = ProxyServer.startHttpProxyOnly(proxyPort(), new ProxyRequestHandler(proxyClient));
 
         Fluxzero app = DefaultFluxzero.builder()
                 .disableShutdownHook()
@@ -117,8 +117,9 @@ public class OpenApiReferenceDemoApp {
     }
 
     private static int proxyPort() {
-        int configuredPort = getIntegerProperty("PROXY_PORT", 8080);
-        if (containsProperty("PROXY_PORT") || availablePort(configuredPort)) {
+        int configuredPort = getIntegerProperty("FLUXZERO_PROXY_PORT", getIntegerProperty("PROXY_PORT", 8080));
+        if (containsProperty("FLUXZERO_PROXY_PORT") || containsProperty("PROXY_PORT")
+            || availablePort(configuredPort)) {
             return configuredPort;
         }
         log.info("Proxy port {} is already in use; using a random available port", configuredPort);

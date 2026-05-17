@@ -74,7 +74,7 @@ class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
     private final ProxyRequestHandler proxyRequestHandler =
             new ProxyRequestHandler(testFixture.getFluxzero().client());
-    private final ProxyServer proxyServer = ProxyServer.start(0, proxyRequestHandler);
+    private final ProxyServer proxyServer = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
     private final int proxyPort = proxyServer.getPort();
 
     private final HttpClient httpClient = HttpClient.newBuilder().build();
