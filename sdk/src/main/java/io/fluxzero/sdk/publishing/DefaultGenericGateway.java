@@ -145,7 +145,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Override
     @SneakyThrows
     public <R> R sendAndWait(Message message) {
-        Duration timeout = timeoutDuration(message);
+        Duration timeout = sendAndWaitTimeout(message);
         CompletableFuture<R> future = sendForMessage(message, timeout).thenApply(Message::getPayload);
         try {
             return future.get();
@@ -258,13 +258,18 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     private Duration requestTimeout(Message message, Duration defaultTimeout) {
         String timeoutMillis = message.getMetadata().get(REQUEST_TIMEOUT_METADATA_KEY);
-        return timeoutMillis == null ? defaultTimeout : Duration.ofMillis(Long.parseLong(timeoutMillis));
+        return timeoutMillis == null ? annotatedTimeout(message).orElse(defaultTimeout)
+                : Duration.ofMillis(Long.parseLong(timeoutMillis));
     }
 
-    private Duration timeoutDuration(Message message) {
+    private Duration sendAndWaitTimeout(Message message) {
+        return annotatedTimeout(message).orElse(Duration.ofMinutes(1));
+    }
+
+    private Optional<Duration> annotatedTimeout(Message message) {
         Timeout timeout = message.getPayloadClass().getAnnotation(Timeout.class);
-        return timeout == null ? Duration.ofMinutes(1)
-                : Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value()));
+        return timeout == null ? Optional.empty()
+                : Optional.of(Duration.ofNanos(timeout.timeUnit().toNanos(timeout.value())));
     }
 
     private Throwable unwrap(Throwable error) {

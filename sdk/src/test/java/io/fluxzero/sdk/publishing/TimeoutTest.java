@@ -20,6 +20,7 @@ import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -40,7 +41,23 @@ class TimeoutTest {
         TestFixture fixture = TestFixture.create();
         fixture.whenApplying(fc -> Fluxzero.queryAndWait(new HandleSelfRequest()))
                 .expectExceptionalResult(TimeoutException.class);
-        assertTrue(gatewayCallbacks(fixture.getFluxzero().queryGateway()).isEmpty());
+        assertEmptyEventually(gatewayCallbacks(fixture.getFluxzero().queryGateway()));
+    }
+
+    @Test
+    void testHandleSelfAsync() {
+        @Timeout(10)
+        class HandleSelfRequest {
+            @HandleQuery
+            CompletableFuture<String> handle() {
+                return new CompletableFuture<>();
+            }
+        }
+
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> fc.queryGateway().send(new HandleSelfRequest()))
+                .expectExceptionalResult(java.util.concurrent.TimeoutException.class);
+        assertEmptyEventually(gatewayCallbacks(fixture.getFluxzero().queryGateway()));
     }
 
     @Test
@@ -56,7 +73,18 @@ class TimeoutTest {
                     assertTrue(e.getMessage().contains("How to fix:"));
                     assertTrue(e.getMessage().contains("docs/errors#FZ-SDK-0002"));
                 });
-        assertTrue(requestHandlerCallbacks(fixture.getFluxzero().queryGateway()).isEmpty());
+        assertEmptyEventually(requestHandlerCallbacks(fixture.getFluxzero().queryGateway()));
+    }
+
+    @Test
+    void testUnhandledAsync() {
+        @Timeout(10)
+        class UnhandledRequest { }
+
+        TestFixture fixture = TestFixture.create();
+        fixture.whenApplying(fc -> fc.queryGateway().send(new UnhandledRequest()))
+                .expectExceptionalResult(java.util.concurrent.TimeoutException.class);
+        assertEmptyEventually(requestHandlerCallbacks(fixture.getFluxzero().queryGateway()));
     }
 
     private static Map<?, ?> gatewayCallbacks(Object gateway) {
@@ -82,5 +110,21 @@ class TimeoutTest {
             }
         }
         throw new IllegalArgumentException("No field '%s' on %s".formatted(name, target.getClass().getName()));
+    }
+
+    private static void assertEmptyEventually(Map<?, ?> callbacks) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+        while (System.nanoTime() < deadline) {
+            if (callbacks.isEmpty()) {
+                return;
+            }
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        }
+        assertTrue(callbacks.isEmpty());
     }
 }
