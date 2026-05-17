@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result returned for a {@link GetFacetStats} request.\n <p>\n Contains aggregated counts of documents per facet field value.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStatsResult.requestId",

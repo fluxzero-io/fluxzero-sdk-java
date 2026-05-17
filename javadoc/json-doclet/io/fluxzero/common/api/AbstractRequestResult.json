@@ -1,0 +1,74 @@
+{
+  "name" : "AbstractRequestResult",
+  "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Base implementation for built-in {@link RequestResult} types.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "fields" : [ {
+    "name" : "requestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult.requestReceivedTimestamp",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AbstractRequestResult",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#AbstractRequestResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getRequestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#getRequestReceivedTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) when the Fluxzero Runtime received the original request.\n"
+  }, {
+    "name" : "setRequestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#setRequestReceivedTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the timestamp at which the Fluxzero Runtime received the original request.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

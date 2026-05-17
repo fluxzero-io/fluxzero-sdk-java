@@ -5,6 +5,11 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "AbstractRequestResult.json",
+    "name" : "AbstractRequestResult",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult",
+    "kind" : "class"
+  }, {
     "file" : "BooleanResult.json",
     "name" : "BooleanResult",
     "qualifiedName" : "io.fluxzero.common.api.BooleanResult",

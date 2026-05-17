@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Response to a {@link GetEvents} request, returning a batch of events for an aggregate.\n <p>\n This class is used by the Fluxzero Runtime to deliver a segment of the event stream associated with an aggregate. It\n includes metadata for sequencing and tracking purposes.\n\n <p>\n Events are returned in an {@link EventBatch}, which includes the aggregate ID, a list of {@link SerializedMessage}s,\n and a flag indicating whether the events were stored-only or also published.\n\n @see GetEvents\n @see EventBatch\n @see SerializedMessage\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "eventBatch",
     "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEventsResult.eventBatch",

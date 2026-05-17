@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result returned in response to a {@link io.fluxzero.common.api.search.GetDocument} request.\n <p>\n This result includes a single {@link SerializedDocument} identified by its ID and collection,\n or {@code null} if the document could not be found.\n\n @see io.fluxzero.common.api.search.GetDocument\n @see SerializedDocument\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "document",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.document",

@@ -10,8 +10,8 @@
   } ],
   "documentation" : " A generic response indicating successful completion of a request without returning any payload.\n <p>\n This is typically used for commands or operations where no result is needed but confirmation is required.\n </p>\n\n @see RequestResult\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.VoidResult.requestId",

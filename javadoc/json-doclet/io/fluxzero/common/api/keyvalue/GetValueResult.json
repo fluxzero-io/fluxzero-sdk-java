@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Response to a {@link GetValue} request, returning the value associated with the given key.\n <p>\n The result includes the serialized form of the value (if found) and a timestamp marking when the value was retrieved.\n </p>\n\n @see GetValue\n @see Data\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.keyvalue.GetValueResult.requestId",

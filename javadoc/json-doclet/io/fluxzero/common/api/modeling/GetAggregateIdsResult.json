@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Response to a {@link GetAggregateIds} request, returning a mapping of aggregate IDs to types.\n <p>\n The result indicates all aggregates that are associated with the provided entity ID.\n This is particularly useful for routing messages or updates when only an entity reference is known.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "aggregateIds",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult.aggregateIds",

@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result for a {@link io.fluxzero.common.api.tracking.ReadFromIndex} request.\n <p>\n Contains the messages read from the specified index and accompanying metadata for auditing and metrics logging.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "messages",
     "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult.messages",

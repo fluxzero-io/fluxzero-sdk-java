@@ -131,6 +131,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "requestReceivedTimestamps",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.requestReceivedTimestamps",
+    "type" : "java.lang.ThreadLocal<java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sessionBacklogs",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.sessionBacklogs",
     "type" : "java.util.Map<java.lang.String,io.fluxzero.testserver.websocket.WebsocketEndpoint.SessionBacklog>",
@@ -310,6 +318,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createTasks",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#createTasks",
+    "returnType" : "java.util.stream.Stream<java.lang.Runnable>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.RequestBatch<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentRequestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#currentRequestReceivedTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeRequest",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#deserializeRequest",
     "returnType" : "io.fluxzero.common.api.JsonType",
@@ -348,6 +393,32 @@
     }, {
       "name" : "request",
       "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "dispatchRequest",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#dispatchRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -541,6 +612,11 @@
       "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -560,6 +636,32 @@
     }, {
       "name" : "message",
       "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleMessage",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#handleMessage",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -683,6 +785,11 @@
       "type" : "io.fluxzero.common.api.Command",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -702,6 +809,11 @@
     }, {
       "name" : "request",
       "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -749,6 +861,27 @@
     }, {
       "name" : "commandResult",
       "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runWithRequestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#runWithRequestReceivedTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -902,6 +1035,11 @@
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -926,6 +1064,32 @@
     }, {
       "name" : "result",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withRequestReceivedTimestamp",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#withRequestReceivedTimestamp",
+    "returnType" : "T",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestReceivedTimestamp",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

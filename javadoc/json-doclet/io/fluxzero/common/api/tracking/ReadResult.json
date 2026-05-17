@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result returned in response to a {@link Read} request for a batch of messages.\n <p>\n Contains the retrieved {@link MessageBatch} and metadata such as request ID and timestamp.\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "messageBatch",
     "qualifiedName" : "io.fluxzero.common.api.tracking.ReadResult.messageBatch",

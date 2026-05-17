@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result of a {@link io.fluxzero.common.api.search.GetSearchHistogram} request.\n <p>\n This result contains a {@link SearchHistogram} that provides time-distribution statistics\n over matching documents, typically for visualization purposes like timeline charts or activity heatmaps.\n\n @see io.fluxzero.common.api.search.GetSearchHistogram\n @see SearchHistogram\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "histogram",
     "qualifiedName" : "io.fluxzero.common.api.search.GetSearchHistogramResult.histogram",

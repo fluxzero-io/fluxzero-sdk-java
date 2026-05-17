@@ -10,8 +10,8 @@
   } ],
   "documentation" : " A generic response containing a boolean value, typically used to indicate success/failure.\n <p>\n Often used for requests such as checks or validations where the outcome is binary.\n </p>\n\n @see RequestResult\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.BooleanResult.requestId",

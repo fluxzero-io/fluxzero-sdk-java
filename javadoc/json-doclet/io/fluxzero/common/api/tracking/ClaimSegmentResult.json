@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Result of a {@link io.fluxzero.common.api.tracking.ClaimSegment} request.\n <p>\n This response confirms that a tracker has successfully claimed a segment range for client-controlled tracking.\n It provides the current {@link Position} and the claimed segment range, allowing the client to manage its own\n message consumption logic.\n\n @see io.fluxzero.common.api.tracking.ClaimSegment\n @see io.fluxzero.common.api.tracking.Position\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "position",
     "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult.position",

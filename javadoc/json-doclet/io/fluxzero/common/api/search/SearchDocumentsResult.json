@@ -10,8 +10,8 @@
   } ],
   "documentation" : " The result of a {@link io.fluxzero.common.api.search.SearchDocuments} request.\n <p>\n This result contains the list of {@link SerializedDocument} matches that satisfied the search query.\n\n @see io.fluxzero.common.api.search.SearchDocuments\n @see SerializedDocument\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchDocumentsResult.matches",

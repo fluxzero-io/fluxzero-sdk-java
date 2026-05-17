@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Response to a {@link GetPosition} request, containing the current tracked position for a specific consumer and\n {@link io.fluxzero.common.MessageType}.\n <p>\n This result provides insight into how far a consumer has progressed in processing messages. The {@link Position}\n includes one or more segment-index pairs that together describe the consumption state of a consumer.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Monitor consumer lag across distributed segments</li>\n   <li>Confirm the effects of a {@link ResetPosition} or {@link StorePosition}</li>\n   <li>Diagnose stuck or lagging consumers by examining last processed indexes</li>\n </ul>\n\n @see GetPosition\n @see Position\n @see ResetPosition\n @see StorePosition\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "position",
     "qualifiedName" : "io.fluxzero.common.api.tracking.GetPositionResult.position",

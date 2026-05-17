@@ -10,8 +10,8 @@
   } ],
   "documentation" : " Response to a {@link GetRelationships} request, containing all known relationships for a given entity ID.\n <p>\n This includes all aggregates that reference or embed the specified entity, along with the entity ID used\n in the relationship.\n\n @see GetRelationships\n @see Relationship\n",
   "typeParameters" : [ ],
-  "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.RequestResult" ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "relationships",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult.relationships",
