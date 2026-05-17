@@ -18,7 +18,6 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
-import io.fluxzero.sdk.publishing.DefaultGenericGateway;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
@@ -33,7 +32,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static java.lang.Thread.currentThread;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Default implementation of the {@link WebRequestGateway} interface that delegates requests to a configured
@@ -48,8 +46,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  */
 @AllArgsConstructor
 public class DefaultWebRequestGateway implements WebRequestGateway {
-    private static final String REQUEST_TIMEOUT_METADATA_KEY = "$fluxzero.requestTimeoutMillis";
-
     @Delegate
     @With
     private final GenericGateway delegate;
@@ -62,8 +58,9 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
-        WebRequest webRequest = request.addMetadata("settings", settings);
-        CompletableFuture<WebResponse> result = (CompletableFuture) delegate.sendForMessage(webRequest);
+        WebRequest webRequest = addSettings(request, settings);
+        Duration timeout = responseTimeout(settings);
+        CompletableFuture<WebResponse> result = (CompletableFuture) sendForMessage(webRequest, timeout);
         return result.thenApply(response -> stripHeadPayload(webRequest, response));
     }
 
@@ -72,18 +69,11 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public WebResponse sendAndWait(WebRequest request, WebRequestSettings settings) {
         try {
-            Duration timeout = settings.getTimeout().plusMillis(5_000L);
-            request = request.addMetadata("settings", settings);
-            request = request.addMetadata(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis());
-            CompletableFuture<WebResponse> result = (CompletableFuture) delegate.sendForMessage(request);
-            WebResponse response = delegate instanceof DefaultGenericGateway
-                    ? result.get() : result.get(timeout.toMillis(), MILLISECONDS);
+            Duration timeout = responseTimeout(settings);
+            request = addSettings(request, settings);
+            CompletableFuture<WebResponse> result = (CompletableFuture) sendForMessage(request, timeout);
+            WebResponse response = result.get();
             return stripHeadPayload(request, response);
-        } catch (java.util.concurrent.TimeoutException e) {
-            throw new TimeoutException(FluxzeroErrors.requestTimedOut(
-                    "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
-                    request.getMessageId(), null, MessageType.WEBRESPONSE.name(),
-                    settings.getTimeout().plusMillis(5_000L)));
         } catch (InterruptedException e) {
             currentThread().interrupt();
             throw new GatewayException(FluxzeroErrors.threadInterrupted(
@@ -116,5 +106,17 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
             return response;
         }
         return response.withPayload(null);
+    }
+
+    private CompletableFuture<?> sendForMessage(WebRequest request, Duration timeout) {
+        return delegate.sendForMessage(request, timeout);
+    }
+
+    private WebRequest addSettings(WebRequest request, WebRequestSettings settings) {
+        return request.withMetadata(request.getMetadata().with("settings", settings));
+    }
+
+    private Duration responseTimeout(WebRequestSettings settings) {
+        return settings.getTimeout().plusMillis(5_000L);
     }
 }

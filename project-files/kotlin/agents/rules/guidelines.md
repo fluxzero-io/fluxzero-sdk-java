@@ -66,6 +66,10 @@ Use this tree to find the correct manual for your current task, ordered by the r
         - [Message Replays & Document Rebuilding](tracking.md#replays)
 - **"I need to understand cross-app runtime interaction, delivery semantics, or tracker scaling"**
     - → [Runtime Interaction Model](runtime-interaction.md)
+- **"I need to publish, consume, or interpret metrics"**
+    - → [Metrics](metrics.md)
+        - [Handle built-in SDK metrics](metrics.md#tracking-metrics)
+        - [Understand ignored messages](metrics.md#ignored-messages)
 
 ### 4. Sending & Scheduling
 
@@ -137,6 +141,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Entities](entities.md)               | Domain modeling, event sourcing, and aggregate lifecycle.    |
 | [Sagas](sagas.md)                     | Stateful handlers and long-running workflows.                |
 | [Tracking](tracking.md)               | Async consumption mechanism, consumers, and replays.         |
+| [Metrics](metrics.md)                 | Observability signals, tracking metrics, and ignored messages. |
 | [Runtime Interaction](runtime-interaction.md) | Cross-app message flow, delivery semantics, and scaling. |
 | [Search](search.md)                   | Leveraging the built-in search engine and document store.    |
 | [Testing](testing.md)                 | Writing fast, reliable tests with `TestFixture`.             |

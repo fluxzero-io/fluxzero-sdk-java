@@ -11,6 +11,7 @@ interface.
 - [Internal Messages](#internal-messages)
     - [Commands](#sending-commands)
     - [Queries](#sending-queries)
+- [Request Timeouts](#request-timeouts)
 - [Custom Topics](#custom-topics)
 - [Specialized Messages](#specialized-messages)
 - [Schedules](#schedules)
@@ -75,6 +76,25 @@ CompletableFuture<UserProfile> result =
     Fluxzero.query(new GetUserProfile(new UserId("user123")));
 ```
 [//]: # (@formatter:on)
+
+---
+
+<a name="request-timeouts"></a>
+
+## Request Timeouts
+
+Request/response sends have an effective timeout. `@Timeout` on the request payload applies to asynchronous sends and
+blocking `AndWait` sends. If no timeout is configured, blocking `sendAndWait` keeps its 60 second wait behavior, while
+asynchronous runtime requests use the request handler default.
+
+The SDK stamps the effective timeout on request metadata so tracking handlers can identify stale indexed requests. See
+[Metrics: Ignored Messages](metrics.md#ignored-messages) for how expired requests are skipped and reported.
+
+Use handler-level `skipExpiredRequests` deliberately:
+
+- Commands default to false so timed-out senders do not change command execution semantics.
+- Queries and HTTP web handlers default to true because stale responses are usually not useful.
+- Set it to false for replay/debug handlers that should inspect historical requests.
 
 ---
 

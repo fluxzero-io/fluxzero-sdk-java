@@ -312,6 +312,7 @@ io.fluxzero.sdk.tracking.metrics.CompleteMessageEvent
 io.fluxzero.sdk.tracking.metrics.DisableMetrics
 io.fluxzero.sdk.tracking.metrics.HandleMessageEvent
 io.fluxzero.sdk.tracking.metrics.HandlerMonitor
+io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent
 io.fluxzero.sdk.tracking.metrics.PauseTrackerEvent
 io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent
 io.fluxzero.sdk.tracking.metrics.TrackerMonitor

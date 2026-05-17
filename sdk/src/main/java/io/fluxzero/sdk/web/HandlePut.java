@@ -55,6 +55,14 @@ public @interface HandlePut {
     boolean passive() default false;
 
     /**
+     * If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before
+     * this handler is invoked.
+     *
+     * @see HandleWeb#skipExpiredRequests()
+     */
+    boolean skipExpiredRequests() default true;
+
+    /**
      * If {@code true}, this route may contribute to automatically generated {@code OPTIONS} responses.
      */
     boolean autoOptions() default true;

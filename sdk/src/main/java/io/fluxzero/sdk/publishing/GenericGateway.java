@@ -166,6 +166,20 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     }
 
     /**
+     * Sends a single request message with the given effective timeout.
+     * <p>
+     * The effective timeout is used for the returned future and is propagated as request metadata so tracking handlers
+     * can skip stale indexed requests before invocation. If {@code timeout} is {@code null}, the gateway falls back to
+     * timeout metadata already present on the message, then {@link Timeout @Timeout} on the payload class, and finally
+     * the request handler default. A negative timeout disables timeout handling for this request.
+     *
+     * @param message the message to send
+     * @param timeout the timeout for this request; {@code null} uses the gateway/request handler defaults
+     * @return a future that completes with the response message
+     */
+    CompletableFuture<Message> sendForMessage(Message message, Duration timeout);
+
+    /**
      * Sends multiple messages and returns a list of futures with their payload responses.
      */
     default <R> List<CompletableFuture<R>> send(Object... messages) {

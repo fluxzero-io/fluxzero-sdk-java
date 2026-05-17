@@ -206,6 +206,10 @@ class UserQueryHandler {
 ```
 [//]: # (@formatter:on)
 
+> **Expired Requests**: `skipExpiredRequests` controls whether an indexed request may be skipped when its effective
+> timeout already expired before handler invocation. Commands default to `false`; queries and HTTP web handlers default
+> to `true`. Skipped requests publish `IgnoreMessageEvent` metrics instead of handler metrics.
+
 **Advanced Tip (Rare): Incremental Identifiers**
 
 If random IDs are not acceptable, implement incremental ID allocation as a dedicated query backed by persisted counter
@@ -334,6 +338,8 @@ fun onError(error: Throwable, @Trigger failedCommand: CreateOrder) {
 #### @HandleMetrics
 
 Used for monitoring metrics of all applications in a Fluxzero cluster.
+For built-in metric payloads such as `HandleMessageEvent`, `CompleteMessageEvent`, and `IgnoreMessageEvent`, see the
+[Metrics](metrics.md) manual.
 
 [//]: # (@formatter:off)
 ```kotlin

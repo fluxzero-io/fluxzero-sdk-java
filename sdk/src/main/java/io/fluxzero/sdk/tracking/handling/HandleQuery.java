@@ -53,6 +53,15 @@ public @interface HandleQuery {
     boolean passive() default false;
 
     /**
+     * If {@code true}, indexed request messages whose effective timeout has already expired may be skipped before this
+     * handler is invoked.
+     * <p>
+     * Defaults to {@code true} because stale query responses are usually no longer useful. Set to {@code false} for
+     * queries that should still be processed during replay or after the original sender timed out.
+     */
+    boolean skipExpiredRequests() default true;
+
+    /**
      * Restricts which payload types this handler may be invoked for.
      */
     Class<?>[] allowedClasses() default {};

@@ -40,7 +40,6 @@ import io.fluxzero.sdk.web.SocketEndpoint;
 import io.fluxzero.sdk.web.SocketEndpointHandler;
 import io.fluxzero.sdk.web.StaticFileHandler;
 import io.fluxzero.sdk.web.WebHandlerMatcher;
-import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
@@ -107,7 +106,6 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
  * @see SocketEndpointHandler
  * @see DefaultHandler
  */
-@AllArgsConstructor
 public class DefaultHandlerFactory implements HandlerFactory {
 
     private final MessageType messageType;
@@ -118,6 +116,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator;
     private final Function<Class<?>, HandlerRepository> handlerRepositorySupplier;
     private final RepositoryProvider repositoryProvider;
+    private final boolean trackingMetricsEnabled;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -126,23 +125,17 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
     public DefaultHandlerFactory(MessageType messageType, HandlerDecorator defaultDecorator,
                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
-                                 Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
-                                 RepositoryProvider repositoryProvider) {
-        this(messageType, defaultDecorator, parameterResolvers, MethodInvocationValidator.noOp(),
-             handlerRepositorySupplier, repositoryProvider);
-    }
-
-    public DefaultHandlerFactory(MessageType messageType, HandlerDecorator defaultDecorator,
-                                 List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                  MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator,
                                  Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
-                                 RepositoryProvider repositoryProvider) {
+                                 RepositoryProvider repositoryProvider,
+                                 boolean trackingMetricsEnabled) {
         this.messageType = messageType;
         this.defaultDecorator = defaultDecorator;
         this.parameterResolvers = parameterResolvers;
         this.methodInvocationValidator = methodInvocationValidator;
         this.handlerRepositorySupplier = handlerRepositorySupplier;
         this.repositoryProvider = repositoryProvider;
+        this.trackingMetricsEnabled = trackingMetricsEnabled;
         this.handlerAnnotation = getHandlerAnnotation(messageType);
         this.messageFilter = computeMessageFilter();
     }
@@ -160,6 +153,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .methodInvocationValidator(methodInvocationValidator).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
+                .map(new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation)::wrap)
                 .map(handlerDecorator::wrap);
     }
 

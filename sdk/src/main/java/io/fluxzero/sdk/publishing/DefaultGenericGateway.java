@@ -37,7 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +47,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
@@ -59,8 +57,6 @@ import static java.util.stream.Stream.ofNullable;
 @AllArgsConstructor
 @Slf4j
 public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> implements GenericGateway {
-    private static final String REQUEST_TIMEOUT_METADATA_KEY = "$fluxzero.requestTimeoutMillis";
-
     @Getter(AccessLevel.PRIVATE)
     private final Client client;
     private final GatewayClient gatewayClient;
@@ -136,17 +132,20 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return CompletableFuture.completedFuture(null);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public List<CompletableFuture<Message>> sendForMessages(Message... messages) {
-        return sendForMessages(null, messages);
+        List<PendingRequest> requests = new ArrayList<>(messages.length);
+        for (Message message : messages) {
+            requests.add(prepareRequest(message, requestTimeout(message).orElse(null)));
+        }
+        return completeRequests(requests);
     }
 
     @Override
     @SneakyThrows
     public <R> R sendAndWait(Message message) {
         Duration timeout = sendAndWaitTimeout(message);
-        CompletableFuture<R> future = sendForMessage(message, timeout).thenApply(Message::getPayload);
+        CompletableFuture<R> future = sendSingle(message, timeout).thenApply(Message::getPayload);
         try {
             return future.get();
         } catch (InterruptedException e) {
@@ -164,77 +163,82 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
     }
 
-    private CompletableFuture<Message> sendForMessage(Message message, Duration timeout) {
-        return sendForMessages(timeout, message).get(0);
+    @Override
+    public CompletableFuture<Message> sendForMessage(Message message, Duration timeout) {
+        return sendSingle(message, timeout == null ? requestTimeout(message).orElse(null) : timeout);
     }
 
-    @SuppressWarnings("unchecked")
-    private List<CompletableFuture<Message>> sendForMessages(Duration defaultTimeout, Message... messages) {
-        List<Object> results = new ArrayList<>(messages.length);
-        Map<SerializedMessage, Duration> requestTimeouts = new IdentityHashMap<>();
-        for (Message message : messages) {
-            Duration timeout = requestTimeout(message, defaultTimeout);
-            message = message.withMetadata(message.getMetadata().without(REQUEST_TIMEOUT_METADATA_KEY));
-            message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
-            if (message == null) {
-                results.add(emptyReturnMessage());
-                continue;
+    private CompletableFuture<Message> sendSingle(Message message, Duration timeout) {
+        PendingRequest request = prepareRequest(message, timeout);
+        return request.isExternal() ? sendRequest(request) : request.result();
+    }
+
+    private PendingRequest prepareRequest(Message message, Duration timeout) {
+        message = dispatchInterceptor.interceptDispatch(message, messageType, topic);
+        if (message == null) {
+            return PendingRequest.completed(emptyReturnMessage());
+        }
+        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
+        Optional<CompletableFuture<Object>> localResult
+                = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
+        if (localResult.isPresent()) {
+            CompletableFuture<Message> result = localResult.get().thenApply(responseMapper::map);
+            if (timeout != null && !timeout.isNegative()) {
+                result.orTimeout(timeout.toMillis(), MILLISECONDS);
             }
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
-            Optional<CompletableFuture<Object>> localResult
-                    = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
-            if (localResult.isPresent()) {
-                CompletableFuture<Message> c = localResult.get().thenApply(responseMapper::map);
-                if (timeout != null && !timeout.isNegative()) {
-                    c.orTimeout(timeout.toMillis(), MILLISECONDS);
-                }
-                String messageId = message.getMessageId();
-                callbacks.put(messageId, c);
-                results.add(c.whenComplete((m, e) -> callbacks.remove(messageId)));
-            } else {
-                SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                        message.serialize(serializer), message, messageType, topic);
-                if (serializedMessage == null) {
-                    results.add(emptyReturnMessage());
-                    continue;
-                }
-                results.add(serializedMessage);
-                requestTimeouts.put(serializedMessage, timeout);
+            return PendingRequest.completed(trackCallback(message.getMessageId(), result));
+        }
+        SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                message.serialize(serializer), message, messageType, topic);
+        return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())
+                : PendingRequest.external(serializedMessage, timeout);
+    }
+
+    private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {
+        List<PendingRequest> externalRequests = new ArrayList<>();
+        for (PendingRequest request : requests) {
+            if (request.isExternal()) {
+                externalRequests.add(request);
             }
         }
-        List<SerializedMessage> serializedMessages = results.stream().filter(r -> r instanceof SerializedMessage)
-                .map(m -> (SerializedMessage) m).collect(Collectors.toList());
-        List<CompletableFuture<Message>> externalResults = serializedMessages.isEmpty()
-                ? Collections.emptyList() : sendRequests(serializedMessages, requestTimeouts).stream()
-                .map(r -> r.thenCompose(m -> {
-                    Object result;
-                    try {
-                        result = serializer.deserialize(m);
-                    } catch (Exception e) {
-                        log.error("Failed to deserialize result with id {}", m.getMessageId(), e);
-                        return CompletableFuture.failedFuture(e);
-                    }
-                    if (result instanceof Throwable) {
-                        return CompletableFuture.failedFuture((Throwable) result);
-                    } else {
-                        Message message = new Message(result, m.getMetadata());
-                        if (messageType == MessageType.WEBREQUEST) {
-                            message = new WebResponse(message);
-                        }
-                        return CompletableFuture.completedFuture(message);
-                    }
-                })).toList();
+        Map<SerializedMessage, CompletableFuture<Message>> externalResults = new IdentityHashMap<>();
+        List<CompletableFuture<Message>> sentRequests = sendRequests(externalRequests);
+        for (int i = 0; i < externalRequests.size(); i++) {
+            externalResults.put(externalRequests.get(i).serializedMessage(), sentRequests.get(i));
+        }
+        List<CompletableFuture<Message>> results = new ArrayList<>(requests.size());
+        for (PendingRequest request : requests) {
+            results.add(request.isExternal() ? externalResults.get(request.serializedMessage()) : request.result());
+        }
+        return results;
+    }
 
-        return results.stream().map(r -> {
-            if (r instanceof CompletableFuture<?>) {
-                return (CompletableFuture<Message>) r;
-            } else {
-                SerializedMessage m = (SerializedMessage) r;
-                CompletableFuture<Message> future = externalResults.get(serializedMessages.indexOf(m));
-                callbacks.put(m.getMessageId(), future);
-                return future.whenComplete((v, e) -> callbacks.remove(m.getMessageId()));
-            }
-        }).collect(Collectors.toList());
+    private CompletableFuture<Message> sendRequest(PendingRequest request) {
+        SerializedMessage message = request.serializedMessage();
+        CompletableFuture<SerializedMessage> result = request.timeout() == null
+                ? requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m))
+                : requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m), request.timeout());
+        return trackCallback(message.getMessageId(), result.thenCompose(this::deserializeResponse));
+    }
+
+    private List<CompletableFuture<Message>> sendRequests(List<PendingRequest> requests) {
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+        Map<SerializedMessage, Duration> requestTimeouts = new IdentityHashMap<>();
+        List<SerializedMessage> serializedMessages = new ArrayList<>(requests.size());
+        for (PendingRequest request : requests) {
+            serializedMessages.add(request.serializedMessage());
+            requestTimeouts.put(request.serializedMessage(), request.timeout());
+        }
+        List<CompletableFuture<SerializedMessage>> results = sendRequests(serializedMessages, requestTimeouts);
+        List<CompletableFuture<Message>> mappedResults = new ArrayList<>(results.size());
+        for (int i = 0; i < results.size(); i++) {
+            SerializedMessage request = serializedMessages.get(i);
+            mappedResults.add(trackCallback(
+                    request.getMessageId(), results.get(i).thenCompose(this::deserializeResponse)));
+        }
+        return mappedResults;
     }
 
     private List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,
@@ -256,14 +260,16 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }).toList();
     }
 
-    private Duration requestTimeout(Message message, Duration defaultTimeout) {
-        String timeoutMillis = message.getMetadata().get(REQUEST_TIMEOUT_METADATA_KEY);
-        return timeoutMillis == null ? annotatedTimeout(message).orElse(defaultTimeout)
-                : Duration.ofMillis(Long.parseLong(timeoutMillis));
+    private Optional<Duration> requestTimeout(Message message) {
+        String timeoutMillis = message.getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY);
+        if (timeoutMillis != null) {
+            return Optional.of(Duration.ofMillis(Long.parseLong(timeoutMillis)));
+        }
+        return annotatedTimeout(message);
     }
 
     private Duration sendAndWaitTimeout(Message message) {
-        return annotatedTimeout(message).orElse(Duration.ofMinutes(1));
+        return requestTimeout(message).orElse(Duration.ofMinutes(1));
     }
 
     private Optional<Duration> annotatedTimeout(Message message) {
@@ -274,6 +280,29 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     private Throwable unwrap(Throwable error) {
         return error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
+    }
+
+    private CompletableFuture<Message> deserializeResponse(SerializedMessage m) {
+        Object result;
+        try {
+            result = serializer.deserialize(m);
+        } catch (Exception e) {
+            log.error("Failed to deserialize result with id {}", m.getMessageId(), e);
+            return CompletableFuture.failedFuture(e);
+        }
+        if (result instanceof Throwable) {
+            return CompletableFuture.failedFuture((Throwable) result);
+        }
+        Message message = new Message(result, m.getMetadata());
+        if (messageType == MessageType.WEBREQUEST) {
+            message = new WebResponse(message);
+        }
+        return CompletableFuture.completedFuture(message);
+    }
+
+    private CompletableFuture<Message> trackCallback(String messageId, CompletableFuture<Message> future) {
+        callbacks.put(messageId, future);
+        return future.whenComplete((m, e) -> callbacks.remove(messageId));
     }
 
     @Override
@@ -292,6 +321,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             c = c.thenApply(WebResponse::new);
         }
         return c;
+    }
+
+    private record PendingRequest(CompletableFuture<Message> result, SerializedMessage serializedMessage,
+                                  Duration timeout) {
+        static PendingRequest completed(CompletableFuture<Message> result) {
+            return new PendingRequest(result, null, null);
+        }
+
+        static PendingRequest external(SerializedMessage serializedMessage, Duration timeout) {
+            return new PendingRequest(null, serializedMessage, timeout);
+        }
+
+        boolean isExternal() {
+            return serializedMessage != null;
+        }
     }
 
     @Override
