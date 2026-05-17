@@ -216,7 +216,7 @@
       "annotationType" : "lombok.NonNull",
       "values" : {}
     } ],
-    "documentation" : " Maximum wait time for polling new messages.\n",
+    "documentation" : " Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or\n segment claim are available.\n",
     "constantValue" : null
   }, {
     "name" : "minIndex",

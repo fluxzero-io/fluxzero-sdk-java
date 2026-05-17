@@ -74,7 +74,7 @@
     "type" : "long",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Maximum time to wait for new messages, in milliseconds.\n",
+    "documentation" : " Maximum time to wait for new messages, in milliseconds. A value of {@code 0} returns immediately.\n",
     "constantValue" : null
   }, {
     "name" : "messageType",
