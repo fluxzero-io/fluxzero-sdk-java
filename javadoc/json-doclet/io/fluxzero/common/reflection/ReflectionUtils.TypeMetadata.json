@@ -74,6 +74,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultConstructor",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.defaultConstructor",
+    "type" : "java.util.Optional<java.lang.reflect.Constructor<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "fieldAnnotationCache",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.fieldAnnotationCache",
     "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.common.reflection.ReflectionUtils.AnnotatedMemberKey,java.util.Optional<? extends java.lang.annotation.Annotation>>",
@@ -544,6 +552,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultConstructor",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#defaultConstructor",
+    "returnType" : "java.util.Optional<java.lang.reflect.Constructor<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

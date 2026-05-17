@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking",
     "kind" : "class"
   }, {
+    "file" : "DefaultTracking.TopicTracker.json",
+    "name" : "DefaultTracking.TopicTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$TopicTracker",
+    "kind" : "class"
+  }, {
     "file" : "ErrorHandler.json",
     "name" : "ErrorHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ErrorHandler",

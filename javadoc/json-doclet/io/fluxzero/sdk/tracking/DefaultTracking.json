@@ -80,9 +80,17 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "startedConfigurations",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.startedConfigurations",
-    "type" : "java.util.Set<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+    "name" : "startedHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.startedHandlers",
+    "type" : "java.util.Map<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "startedTopics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.startedTopics",
+    "type" : "java.util.Map<io.fluxzero.sdk.tracking.ConsumerConfiguration,java.util.Map<java.lang.String,io.fluxzero.sdk.tracking.DefaultTracking.TopicTracker>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -278,6 +286,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registerConsumerHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#registerConsumerHandlers",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "releaseTrackingTopics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#releaseTrackingTopics",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topics",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "reportResult",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#reportResult",
     "returnType" : "void",
@@ -302,6 +357,37 @@
     }, {
       "name" : "config",
       "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "retainTrackingTopics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#retainTrackingTopics",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activeHandlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "addedHandlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -370,7 +456,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared\n trackers.\n <p>\n Throws a {@link TrackingException} if handlers can't be matched to consumers or if a consumer has already been\n started previously.\n\n @param fluxzero the owning {@link Fluxzero} instance\n @param handlers      the handler instances to assign and activate\n @return a {@link Registration} that can be used to stop all created trackers\n @throws TrackingException if no consumer is found for a handler or if tracking has already been started\n"
+    "documentation" : " Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared\n trackers.\n <p>\n Throws a {@link TrackingException} if handlers can't be matched to consumers.\n\n @param fluxzero the owning {@link Fluxzero} instance\n @param handlers      the handler instances to assign and activate\n @return a {@link Registration} that can be used to stop all created trackers\n @throws TrackingException if no consumer is found for a handler\n"
   }, {
     "name" : "startTracking",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#startTracking",
@@ -386,6 +472,11 @@
     }, {
       "name" : "handlers",
       "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -424,6 +515,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "trackingTopics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#trackingTopics",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "tryHandle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#tryHandle",
     "returnType" : "void",
@@ -454,8 +561,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "unregisterConsumerHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#unregisterConsumerHandlers",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topics",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "TopicTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$TopicTracker",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -334,6 +334,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "computeDefaultConstructor",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeDefaultConstructor",
+    "returnType" : "java.util.Optional<java.lang.reflect.Constructor<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computePackageAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computePackageAnnotations",
     "returnType" : "java.util.Collection<? extends java.lang.annotation.Annotation>",
@@ -1017,6 +1033,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getDefaultConstructor",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getDefaultConstructor",
+    "returnType" : "java.util.Optional<java.lang.reflect.Constructor<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the default constructor declared by the supplied type, if present.\n"
   }, {
     "name" : "getEnclosingClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getEnclosingClass",

@@ -307,6 +307,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createTargetSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#createTargetSupplier",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getHandlerAnnotation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#getHandlerAnnotation",
     "returnType" : "java.lang.Class<? extends java.lang.annotation.Annotation>",

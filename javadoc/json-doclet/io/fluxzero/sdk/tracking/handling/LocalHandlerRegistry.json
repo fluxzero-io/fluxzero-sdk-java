@@ -46,6 +46,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "registeredClassHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.registeredClassHandlers",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "selfHandlerFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.selfHandlerFilter",
     "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",

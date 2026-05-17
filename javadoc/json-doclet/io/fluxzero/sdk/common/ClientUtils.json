@@ -288,6 +288,22 @@
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#isSelfTracking",
     "returnType" : "boolean",
     "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the specified class, one of its interfaces, or its package is marked with {@link TrackSelf}.\n\n @param target the handler class\n @return {@code true} if marked for self-tracking, {@code false} otherwise\n"
+  }, {
+    "name" : "isSelfTracking",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#isSelfTracking",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
