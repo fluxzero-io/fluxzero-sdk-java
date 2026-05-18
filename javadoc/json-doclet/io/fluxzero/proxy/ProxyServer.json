@@ -13,6 +13,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.Registration" ],
   "fields" : [ {
+    "name" : "DEFAULT_IDLE_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_IDLE_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default connector idle timeout: 60 seconds\n",
+    "constantValue" : 60000
+  }, {
+    "name" : "DEFAULT_MAX_HEADER_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_HEADER_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default maximum request and response header size: 1 MiB\n",
+    "constantValue" : 1048576
+  }, {
     "name" : "DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
     "type" : "long",
@@ -20,6 +36,14 @@
     "annotations" : [ ],
     "documentation" : " Default maximum multipart request body size: 1 GiB\n",
     "constantValue" : 1073741824
+  }, {
+    "name" : "DEFAULT_MAX_PENDING_WEBSOCKET_SENDS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_PENDING_WEBSOCKET_SENDS",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default maximum queued outgoing websocket sends per session.\n",
+    "constantValue" : 1024
   }, {
     "name" : "DEFAULT_MAX_REQUEST_BODY_SIZE",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE",
@@ -29,9 +53,137 @@
     "documentation" : " Default maximum request body size: 256 MiB\n",
     "constantValue" : 268435456
   }, {
+    "name" : "DEFAULT_MAX_THREADS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_THREADS",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default Jetty maximum platform thread count.\n",
+    "constantValue" : 200
+  }, {
+    "name" : "DEFAULT_MIN_THREADS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MIN_THREADS",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default Jetty minimum platform thread count.\n",
+    "constantValue" : 8
+  }, {
+    "name" : "GRACEFUL_STOP_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.GRACEFUL_STOP_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 5000
+  }, {
+    "name" : "HEALTH_PAYLOAD",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.HEALTH_PAYLOAD",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "HEALTH_PAYLOAD_LENGTH",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.HEALTH_PAYLOAD_LENGTH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "IDLE_TIMEOUT_MILLIS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_IDLE_TIMEOUT_MILLIS"
+  }, {
+    "name" : "IMMEDIATE_STOP_TIMEOUT_MILLIS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.IMMEDIATE_STOP_TIMEOUT_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  }, {
+    "name" : "MAX_HEADER_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_HEADER_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_HEADER_SIZE"
+  }, {
+    "name" : "MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE"
+  }, {
+    "name" : "MAX_PENDING_WEBSOCKET_SENDS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_PENDING_WEBSOCKET_SENDS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_PENDING_WEBSOCKET_SENDS"
+  }, {
+    "name" : "MAX_REQUEST_BODY_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_REQUEST_BODY_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE"
+  }, {
+    "name" : "MAX_THREADS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_THREADS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_THREADS"
+  }, {
+    "name" : "MIN_THREADS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MIN_THREADS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MIN_THREADS"
+  }, {
+    "name" : "UNLIMITED_WEBSOCKET_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.UNLIMITED_WEBSOCKET_SIZE",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 0
+  }, {
+    "name" : "USE_VIRTUAL_THREADS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.USE_VIRTUAL_THREADS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_USE_VIRTUAL_THREADS"
+  }, {
     "name" : "cancelled",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.cancelled",
     "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gracefulShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.gracefulShutdown",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -58,7 +210,7 @@
   }, {
     "name" : "server",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.server",
-    "type" : "io.undertow.Undertow",
+    "type" : "org.eclipse.jetty.server.Server",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -85,7 +237,7 @@
       "annotations" : [ ]
     }, {
       "name" : "server",
-      "type" : "io.undertow.Undertow",
+      "type" : "org.eclipse.jetty.server.Server",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -96,6 +248,11 @@
     }, {
       "name" : "shutdownRegistration",
       "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gracefulShutdown",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -118,9 +275,84 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "configureContainer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#configureContainer",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "container",
+      "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "connectorIdleTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#connectorIdleTimeout",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createConfiguredClient",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createConfiguredClient",
     "returnType" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createHandler",
+    "returnType" : "org.eclipse.jetty.server.Handler",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "proxyHandler",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "healthEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createThreadPool",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createThreadPool",
+    "returnType" : "org.eclipse.jetty.util.thread.QueuedThreadPool",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConfiguredMaxPendingWebsocketSends",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredMaxPendingWebsocketSends",
+    "returnType" : "int",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -136,6 +368,66 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getIdleTimeoutMillis",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getIdleTimeoutMillis",
+    "returnType" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMaxThreads",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getMaxThreads",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMinThreads",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getMinThreads",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isUsingVirtualThreads",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#isUsingVirtualThreads",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logStarted",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#logStarted",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "proxyServer",
+      "type" : "io.fluxzero.proxy.ProxyServer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -192,7 +484,10 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
     "returnType" : "io.fluxzero.proxy.ProxyServer",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "port",
@@ -207,6 +502,11 @@
     }, {
       "name" : "shutdownRegistration",
       "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gracefulShutdown",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
