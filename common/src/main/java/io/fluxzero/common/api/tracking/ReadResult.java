@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.tracking;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -23,7 +23,7 @@ import lombok.Value;
  * Contains the retrieved {@link MessageBatch} and metadata such as request ID and timestamp.
  */
 @Value
-public class ReadResult implements RequestResult {
+public class ReadResult extends AbstractRequestResult {
 
     /**
      * The unique request ID corresponding to the {@link Read} request.

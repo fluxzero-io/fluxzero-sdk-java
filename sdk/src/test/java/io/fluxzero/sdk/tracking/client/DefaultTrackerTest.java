@@ -51,7 +51,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.after;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -95,10 +94,11 @@ class DefaultTrackerTest {
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
         CountDownLatch fetching = new CountDownLatch(1);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
 
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
             fetching.countDown();
-            Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+            releaseFetch.await();
             return null;
         });
 
@@ -107,9 +107,10 @@ class DefaultTrackerTest {
 
         try {
             assertTrue(fetching.await(1, TimeUnit.SECONDS));
-            verify(trackingClient, after(100).never()).getPosition("consumer");
+            verify(trackingClient, never()).getPosition("consumer");
         } finally {
             defaultTracker.cancel();
+            releaseFetch.countDown();
             trackerThread.join(TimeUnit.SECONDS.toMillis(1));
             assertFalse(trackerThread.isAlive());
         }
@@ -125,10 +126,11 @@ class DefaultTrackerTest {
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
         CountDownLatch fetching = new CountDownLatch(1);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
 
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
             fetching.countDown();
-            Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+            releaseFetch.await();
             return null;
         });
 
@@ -137,9 +139,10 @@ class DefaultTrackerTest {
 
         try {
             assertTrue(fetching.await(1, TimeUnit.SECONDS));
-            verify(trackingClient, after(100).never()).getPosition("consumer");
+            verify(trackingClient, never()).getPosition("consumer");
         } finally {
             defaultTracker.cancel();
+            releaseFetch.countDown();
             trackerThread.join(TimeUnit.SECONDS.toMillis(1));
             assertFalse(trackerThread.isAlive());
         }

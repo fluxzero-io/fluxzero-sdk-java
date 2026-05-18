@@ -28,7 +28,7 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-@HandleWeb(value = "", method = HttpRequestMethod.WS_CLOSE)
+@HandleWeb(value = "", method = HttpRequestMethod.WS_CLOSE, skipExpiredRequests = false)
 public @interface HandleSocketClose {
     /**
      * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
@@ -45,4 +45,5 @@ public @interface HandleSocketClose {
      * If {@code true}, disables this handler during discovery.
      */
     boolean disabled() default false;
+
 }

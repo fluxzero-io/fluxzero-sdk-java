@@ -20,6 +20,7 @@ import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -74,7 +75,7 @@ class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
     private final ProxyRequestHandler proxyRequestHandler =
             new ProxyRequestHandler(testFixture.getFluxzero().client());
-    private final ProxyServer proxyServer = ProxyServer.start(0, proxyRequestHandler);
+    private final ProxyServer proxyServer = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
     private final int proxyPort = proxyServer.getPort();
 
     private final HttpClient httpClient = HttpClient.newBuilder().build();
@@ -100,12 +101,50 @@ class ProxyServerTest {
             testFixture.registerHandlers(new Object() {
                         @HandleGet("/")
                         String hello(WebRequest request) {
+                            assertEquals(String.valueOf(ProxyRequestHandler.REQUEST_TIMEOUT.toMillis()),
+                                         request.getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY));
                             return "Hello World";
                         }
                     })
                     .whenApplying(fc -> httpClient.send(newRequest().GET().build(),
                                                         BodyHandlers.ofString()).body())
                     .expectResult("Hello World");
+        }
+
+        @Test
+        @ResourceLock(ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY)
+        void requestTimeoutCanBeConfigured() {
+            String previousValue = System.getProperty(ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            try {
+                System.setProperty(ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY, "17");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                            @HandleGet("/configured-timeout")
+                            String handle(WebRequest request) {
+                                assertEquals("17000",
+                                             request.getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY));
+                                return "configured";
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format(
+                                        "http://0.0.0.0:%s/configured-timeout", configuredPort)))
+                                        .GET().build(), BodyHandlers.ofString()).body())
+                        .expectResult("configured");
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                if (previousValue == null) {
+                    System.clearProperty(ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY);
+                } else {
+                    System.setProperty(ProxyRequestHandler.REQUEST_TIMEOUT_SECONDS_PROPERTY, previousValue);
+                }
+            }
         }
 
         @Test
@@ -302,15 +341,18 @@ class ProxyServerTest {
 
         @Test
         void closeSocketExternally() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
                         ws.sendClose(1000, "bla");
-                        Thread.sleep(100);
+                        assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
+                                   "Timed out waiting for the websocket close handler");
                     }))
                     .expectResult("1000")
                     .expectEvents("ws closed with 1000");
@@ -318,6 +360,7 @@ class ProxyServerTest {
 
         @Test
         void closeSocketFromApplication() {
+            CountDownLatch socketClosed = new CountDownLatch(1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketOpen("/")
                         void open(SocketSession session) {
@@ -328,9 +371,11 @@ class ProxyServerTest {
                         void close(Integer reason) {
                             log.info("ws closed with " + reason);
                             Fluxzero.publishEvent("ws closed with " + reason);
+                            socketClosed.countDown();
                         }
                     })
-                    .whenApplying(openSocketAnd(ws -> Thread.sleep(100)))
+                    .whenApplying(openSocketAnd(ws -> assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
+                                                                 "Timed out waiting for the websocket close handler")))
                     .expectResult("1001")
                     .expectEvents("ws closed with 1001");
         }

@@ -52,7 +52,7 @@ public class Read extends Request {
     int maxSize;
 
     /**
-     * Maximum time to wait for new messages, in milliseconds.
+     * Maximum time to wait for new messages, in milliseconds. A value of {@code 0} returns immediately.
      */
     long maxTimeout;
 

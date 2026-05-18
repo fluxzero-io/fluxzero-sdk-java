@@ -93,6 +93,22 @@ class WebsocketEndpointTest {
                    "Expected server shutdown to use the shorter websocket close timeout");
     }
 
+    @Test
+    void closeRequestUsesCloseNotificationTimeout() throws Exception {
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        when(requestHandler.sendRequest(any(), any(), any(Duration.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        WebsocketEndpoint endpoint = new WebsocketEndpoint(createClient(gatewayClient), requestHandler);
+        Session session = mock(Session.class);
+        prepareSession(endpoint, session);
+
+        endpoint.sendCloseRequest(session, new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "done"))
+                .get(1, TimeUnit.SECONDS);
+
+        verify(requestHandler).sendRequest(any(), any(), eq(WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT));
+    }
+
     private static void prepareSession(WebsocketEndpoint endpoint, Session session) throws Exception {
         when(session.getId()).thenReturn("session-1");
         when(session.isOpen()).thenReturn(true);

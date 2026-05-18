@@ -21,6 +21,7 @@ import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -97,7 +98,8 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                 }
                 return CompletableFuture.completedFuture(null);
             } catch (Exception e) {
-                throw new GatewayException("Failed to send response " + response.getPayloadClass(), e);
+                throw new GatewayException(FluxzeroErrors.responseDispatchFailed(
+                        response.getPayloadClass().getName(), target, requestId, e), e);
             }
         };
         return sendResponse(response, dispatcher);

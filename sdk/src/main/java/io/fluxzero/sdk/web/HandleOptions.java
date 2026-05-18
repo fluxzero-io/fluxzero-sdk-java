@@ -53,4 +53,12 @@ public @interface HandleOptions {
      * If {@code true}, the handler will not publish a response to the {@code WebResponse} log.
      */
     boolean passive() default false;
+
+    /**
+     * If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before
+     * this handler is invoked.
+     *
+     * @see HandleWeb#skipExpiredRequests()
+     */
+    boolean skipExpiredRequests() default true;
 }

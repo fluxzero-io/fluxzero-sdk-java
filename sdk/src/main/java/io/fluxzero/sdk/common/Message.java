@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -208,7 +209,8 @@ public class Message implements HasMessage {
     public Message addUser(User user) {
         return addMetadata(Fluxzero.getOptionally().map(Fluxzero::userProvider)
                                    .or(() -> Optional.ofNullable(UserProvider.defaultUserProvider))
-                                   .orElseThrow(() -> new IllegalStateException("User provider is not set"))
+                                   .orElseThrow(() -> new IllegalStateException(
+                                           FluxzeroErrors.userProviderMissing().format()))
                                    .addToMetadata(getMetadata(), user));
     }
 

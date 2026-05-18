@@ -40,6 +40,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -232,6 +233,13 @@ public class ReflectionUtils {
     }
 
     /**
+     * Returns the default constructor declared by the supplied type, if present.
+     */
+    public static Optional<Constructor<?>> getDefaultConstructor(Class<?> type) {
+        return getTypeMetadata(type).defaultConstructor();
+    }
+
+    /**
      * Returns all interfaces implemented by the supplied type, including interfaces inherited through superclasses and
      * parent interfaces.
      *
@@ -345,6 +353,14 @@ public class ReflectionUtils {
             Collections.addAll(result, current.getDeclaredFields());
         }
         return result;
+    }
+
+    private static Optional<Constructor<?>> computeDefaultConstructor(Class<?> type) {
+        try {
+            return Optional.of(type.getDeclaredConstructor());
+        } catch (NoSuchMethodException e) {
+            return Optional.empty();
+        }
     }
 
     public static List<? extends AccessibleObject> getAnnotatedProperties(Class<?> target,
@@ -700,7 +716,8 @@ public class ReflectionUtils {
     public static <T> T asInstance(Object classOrInstance) {
         if (ifClass(classOrInstance) instanceof Class<?> c) {
             try {
-                return (T) ensureAccessible(c.getDeclaredConstructor()).newInstance();
+                Constructor<?> defaultConstructor = getDefaultConstructor(c).orElseThrow(NoSuchMethodException::new);
+                return (T) ensureAccessible(defaultConstructor).newInstance();
             } catch (Exception e) {
                 throw new IllegalStateException(format(
                         "Failed to create an instance of class %s. Does it have an accessible default constructor?",
@@ -896,6 +913,7 @@ public class ReflectionUtils {
         private final Map<String, Field> fieldsByName;
         private final Map<String, Field> declaredFieldsByName;
         private final Map<String, PropertyDescriptor> propertyDescriptors;
+        private final Optional<Constructor<?>> defaultConstructor;
         private final Collection<? extends Annotation> typeAnnotations;
 
         private final ConcurrentHashMap<Class<? extends Annotation>, Optional<? extends Annotation>> typeAnnotationCache =
@@ -930,6 +948,7 @@ public class ReflectionUtils {
             this.type = type;
             this.methods = List.copyOf(computeAllMethods(type));
             this.fields = List.copyOf(computeAllFields(type));
+            this.defaultConstructor = computeDefaultConstructor(type);
             this.typeAnnotations = Stream.concat(rawAnnotations(type).stream(),
                                                  getAllInterfaces(type).stream()
                                                          .flatMap(iType -> rawAnnotations(iType).stream()))
@@ -966,6 +985,10 @@ public class ReflectionUtils {
 
         public List<Method> methods() {
             return methods;
+        }
+
+        public Optional<Constructor<?>> defaultConstructor() {
+            return defaultConstructor;
         }
 
         public Optional<Method> method(String name) {

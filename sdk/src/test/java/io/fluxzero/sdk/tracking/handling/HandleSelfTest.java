@@ -14,8 +14,11 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.Registration;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
@@ -27,6 +30,8 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HandleSelfTest {
 
@@ -141,6 +146,40 @@ class HandleSelfTest {
         testFixture.whenQuery(new SelfTracked("foo")).expectResult("bar");
     }
 
+    @Test
+    void registeringLocalSelfHandlerClassDoesNotHandleOtherMessages() {
+        record LocalSelfCommand(String input) {
+            @HandleCommand
+            void handleSelf() {
+                Fluxzero.publishEvent(input);
+            }
+        }
+        record OtherCommand() {
+        }
+
+        testFixture.registerHandlers(LocalSelfCommand.class, new Object() {
+            @HandleCommand
+            void handle(OtherCommand command) {
+                Fluxzero.publishEvent("other");
+            }
+        }).whenCommand(new OtherCommand()).expectOnlyEvents("other").expectNoErrors();
+    }
+
+    @Test
+    void registeringLocalSelfHandlerClassDoesNotHandleSelfTwice() {
+        record LocalSelfCommand(String input) {
+            @HandleCommand
+            void handleSelf() {
+                Fluxzero.publishEvent(input);
+            }
+        }
+
+        testFixture.registerHandlers(LocalSelfCommand.class)
+                .whenCommand(new LocalSelfCommand("foo"))
+                .expectOnlyEvents("foo")
+                .expectNoErrors();
+    }
+
     @Nested
     class AsyncTests {
 
@@ -239,6 +278,76 @@ class HandleSelfTest {
         void queryTrackedInterface() {
             testFixture.registerHandlers(SelfTrackedInterface.class)
                     .whenQuery(new SelfTrackedConcrete("foo")).expectResult("foo");
+        }
+
+        @Test
+        void queryTrackedWithoutRegistration() {
+            @TrackSelf
+            @Consumer(name = "AutomaticallySelfTracked")
+            record AutomaticallySelfTracked(String input) {
+                @HandleQuery
+                String handleSelf() {
+                    return Tracker.current()
+                            .map(Tracker::getName)
+                            .map(name -> name + ":" + input)
+                            .orElse("no tracker");
+                }
+            }
+
+            testFixture.whenQuery(new AutomaticallySelfTracked("foo"))
+                    .expectResult("AutomaticallySelfTracked:foo");
+        }
+
+        @Test
+        void multipleTrackedHandlersCanBeDiscoveredIncrementally() {
+            @TrackSelf
+            record FirstSelfTracked(String input) {
+                @HandleQuery
+                String handleSelf() {
+                    return "first:" + input;
+                }
+            }
+            @TrackSelf
+            record SecondSelfTracked(String input) {
+                @HandleQuery
+                String handleSelf() {
+                    return "second:" + input;
+                }
+            }
+
+            testFixture.whenQuery(new FirstSelfTracked("foo")).expectResult("first:foo")
+                    .andThen()
+                    .whenQuery(new SecondSelfTracked("bar")).expectResult("second:bar");
+        }
+
+        @Test
+        void cancellingEarlierRegistrationKeepsLaterSharedTrackerRunning() {
+            @TrackSelf
+            record FirstSelfTracked(String input) {
+                @HandleQuery
+                String handleSelf() {
+                    return "first:" + input;
+                }
+            }
+            @TrackSelf
+            record SecondSelfTracked(String input) {
+                @HandleQuery
+                String handleSelf() {
+                    return "second:" + input;
+                }
+            }
+
+            Fluxzero fluxzero = DefaultFluxzero.builder().build(LocalClient.newInstance(null));
+            Registration firstRegistration = fluxzero.registerHandlers(FirstSelfTracked.class);
+            Registration secondRegistration = fluxzero.registerHandlers(SecondSelfTracked.class);
+            try {
+                firstRegistration.cancel();
+                assertEquals("second:bar", fluxzero.queryGateway().sendAndWait(new SecondSelfTracked("bar")));
+            } finally {
+                firstRegistration.cancel();
+                secondRegistration.cancel();
+                fluxzero.close(true);
+            }
         }
     }
 }

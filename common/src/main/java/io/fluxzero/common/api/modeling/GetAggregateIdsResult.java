@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.modeling;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 import java.util.Map;
@@ -26,7 +26,7 @@ import java.util.Map;
  * This is particularly useful for routing messages or updates when only an entity reference is known.
  */
 @Value
-public class GetAggregateIdsResult implements RequestResult {
+public class GetAggregateIdsResult extends AbstractRequestResult {
     /**
      * Unique identifier linking this result to its originating request.
      */

@@ -40,4 +40,21 @@ public interface RequestResult extends JsonType {
      * The timestamp (in epoch milliseconds) when this result was generated.
      */
     long getTimestamp();
+
+    /**
+     * The timestamp (in epoch milliseconds) when the Fluxzero Runtime received the original request.
+     * <p>
+     * A value of {@code 0} means the runtime did not provide this timestamp.
+     */
+    default long getRequestReceivedTimestamp() {
+        return 0L;
+    }
+
+    /**
+     * Updates the timestamp at which the Fluxzero Runtime received the original request.
+     * <p>
+     * Implementations that do not store this metadata may ignore the update.
+     */
+    default void setRequestReceivedTimestamp(long requestReceivedTimestamp) {
+    }
 }

@@ -163,16 +163,6 @@ public class WebSocketClient extends AbstractClient {
         return new WebSocketSearchClient(searchUrl(clientConfig), this);
     }
 
-    @Override
-    public void shutDown() {
-        super.shutDown();
-        //Wait some time after closing all websocket sessions. It seems a Session.close() is not synchronous.
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException ignored) {
-        }
-    }
-
     /**
      * Configuration class for creating a {@link WebSocketClient}.
      * <p>

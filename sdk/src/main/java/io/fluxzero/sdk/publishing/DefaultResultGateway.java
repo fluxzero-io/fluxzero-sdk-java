@@ -20,6 +20,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
@@ -74,9 +75,10 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             serializedMessage.setRequestId(requestId);
             return getGatewayClient().append(guarantee, serializedMessage);
         } catch (Exception e) {
-            throw new GatewayException(String.format("Failed to send response %s",
-                                                     payload != null && ifClass(payload) == null
-                                                             ? payload.getClass() : Objects.toString(payload)), e);
+            String responseDescription = Objects.toString(payload != null && ifClass(payload) == null
+                    ? payload.getClass() : payload);
+            throw new GatewayException(FluxzeroErrors.responseDispatchFailed(
+                    responseDescription, target, requestId, e), e);
         }
     }
 

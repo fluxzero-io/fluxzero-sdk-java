@@ -23,6 +23,7 @@ import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
 import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 
@@ -30,6 +31,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -38,6 +41,7 @@ import java.util.function.Function;
 public class JettyWebsocketRouter {
     private static final long UNLIMITED_WEBSOCKET_SIZE = 0L;
     private final List<Route> routes = new ArrayList<>();
+    private final Set<WebsocketEndpoint> endpoints = ConcurrentHashMap.newKeySet();
 
     /**
      * Registers a WebSocket route.
@@ -48,12 +52,19 @@ public class JettyWebsocketRouter {
      */
     public JettyWebsocketRouter addRoute(String path,
                                          Function<ServerWebsocketSession, WebsocketEndpoint> endpointSupplier) {
-        routes.add(new Route(normalizePath(path), endpointSupplier));
+        routes.add(new Route(normalizePath(path), session -> {
+            WebsocketEndpoint endpoint = endpointSupplier.apply(session);
+            endpoints.add(endpoint);
+            return endpoint;
+        }));
         return this;
     }
 
     /**
      * Starts Jetty on the given port.
+     *
+     * <p>The server does not register Jetty's JVM shutdown hook. When the returned server is stopped, the router shuts
+     * down any endpoints it created.</p>
      *
      * @return the started Jetty server, owned by the caller
      */
@@ -63,7 +74,14 @@ public class JettyWebsocketRouter {
         connector.setHost("0.0.0.0");
         connector.setPort(port);
         server.addConnector(connector);
+        server.setStopAtShutdown(false);
         server.setStopTimeout(1000);
+        server.addEventListener(new LifeCycle.Listener() {
+            @Override
+            public void lifeCycleStopping(LifeCycle lifecycle) {
+                shutDownEndpoints();
+            }
+        });
         server.setHandler(createHandler(server));
         server.start();
         return server;
@@ -99,6 +117,11 @@ public class JettyWebsocketRouter {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private void shutDownEndpoints() {
+        endpoints.forEach(WebsocketEndpoint::shutDown);
+        endpoints.clear();
     }
 
     private record Route(String path, Function<ServerWebsocketSession, WebsocketEndpoint> endpointSupplier) {

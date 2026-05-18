@@ -24,6 +24,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -57,6 +58,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -114,7 +116,9 @@ public class DefaultTracking implements Tracking {
     private final Serializer serializer;
     private final HandlerFactory handlerFactory;
 
-    private final Set<ConsumerConfiguration> startedConfigurations = new HashSet<>();
+    private final Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> startedHandlers =
+            new LinkedHashMap<>();
+    private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
 
@@ -122,13 +126,12 @@ public class DefaultTracking implements Tracking {
      * Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared
      * trackers.
      * <p>
-     * Throws a {@link TrackingException} if handlers can't be matched to consumers or if a consumer has already been
-     * started previously.
+     * Throws a {@link TrackingException} if handlers can't be matched to consumers.
      *
      * @param fluxzero the owning {@link Fluxzero} instance
      * @param handlers      the handler instances to assign and activate
      * @return a {@link Registration} that can be used to stop all created trackers
-     * @throws TrackingException if no consumer is found for a handler or if tracking has already been started
+     * @throws TrackingException if no consumer is found for a handler
      */
     @SuppressWarnings("unchecked")
     @Override
@@ -156,19 +159,40 @@ public class DefaultTracking implements Tracking {
                                 Stream.of(new SimpleEntry<>(e.getKey(), converted));
                     }).collect(toMap(Entry::getKey, Entry::getValue));
 
-
-            if (!Collections.disjoint(consumers.keySet(), startedConfigurations)) {
-                throw new TrackingException("Failed to start tracking. "
-                                            + "Consumers for some handlers have already started tracking.");
-            }
-
-            startedConfigurations.addAll(consumers.keySet());
-            Registration registration =
-                    consumers.entrySet().stream().map(e -> startTracking(e.getKey(), e.getValue(), fc))
-                            .reduce(Registration::merge).orElse(Registration.noOp());
+            Registration registration = consumers.entrySet().stream()
+                    .map(e -> registerConsumerHandlers(e.getKey(), e.getValue(), fc))
+                    .reduce(Registration::merge).orElse(Registration.noOp());
             shutdownFunction.updateAndGet(r -> r.merge(registration));
             return registration;
         });
+    }
+
+    private Registration registerConsumerHandlers(ConsumerConfiguration configuration,
+                                                  List<Handler<DeserializingMessage>> handlers, Fluxzero fluxzero) {
+        var addedHandlers = List.copyOf(handlers);
+        List<Handler<DeserializingMessage>> activeHandlers =
+                startedHandlers.computeIfAbsent(configuration, ignored -> new CopyOnWriteArrayList<>());
+        activeHandlers.addAll(addedHandlers);
+        List<String> retainedTopics = retainTrackingTopics(configuration, activeHandlers, addedHandlers, fluxzero);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        return () -> {
+            if (cancelled.compareAndSet(false, true)) {
+                unregisterConsumerHandlers(configuration, addedHandlers, retainedTopics);
+            }
+        };
+    }
+
+    @Synchronized
+    private void unregisterConsumerHandlers(ConsumerConfiguration configuration,
+                                            List<Handler<DeserializingMessage>> handlers,
+                                            List<String> topics) {
+        Optional.ofNullable(startedHandlers.get(configuration)).ifPresent(activeHandlers -> {
+            activeHandlers.removeAll(handlers);
+            if (activeHandlers.isEmpty()) {
+                startedHandlers.remove(configuration);
+            }
+        });
+        releaseTrackingTopics(configuration, topics);
     }
 
     /**
@@ -192,7 +216,13 @@ public class DefaultTracking implements Tracking {
                     if (a.equals(b)) {
                         return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
                     }
-                    throw new IllegalStateException(format("Consumer name %s is already in use", a.getName()));
+                    throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                            "Consumer name is configured more than once",
+                            "Fluxzero found multiple different consumer configurations named `%s`.".formatted(
+                                    a.getName()),
+                            "Use unique consumer names, or make the repeated @Consumer configurations identical so "
+                            + "Fluxzero can merge their handler filters.",
+                            null, a.getName()));
                 }, LinkedHashMap::new));
         var result = configurations.values().stream().map(config -> {
             var matches =
@@ -205,7 +235,12 @@ public class DefaultTracking implements Tracking {
         unassignedHandlers.removeAll(
                 result.values().stream().flatMap(Collection::stream).distinct().toList());
         unassignedHandlers.forEach(h -> {
-            throw new TrackingException(format("Failed to find consumer for %s", h));
+            throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                    "No consumer configuration found for handler",
+                    "Fluxzero could not match handler `%s` to any configured consumer.".formatted(h),
+                    "Annotate the handler, class, or package with @Consumer, or add a ConsumerConfiguration whose "
+                    + "handlerFilter matches this handler.",
+                    h, null));
         });
         return result;
     }
@@ -238,20 +273,79 @@ public class DefaultTracking implements Tracking {
         };
     }
 
-    protected Registration startTracking(ConsumerConfiguration configuration,
-                                         List<Handler<DeserializingMessage>> handlers, Fluxzero fluxzero) {
+    protected List<String> retainTrackingTopics(ConsumerConfiguration configuration,
+                                                List<Handler<DeserializingMessage>> activeHandlers,
+                                                List<Handler<DeserializingMessage>> addedHandlers,
+                                                Fluxzero fluxzero) {
+        Set<String> topics = trackingTopics(addedHandlers);
+        Map<String, TopicTracker> activeTopics =
+                startedTopics.computeIfAbsent(configuration, ignored -> new LinkedHashMap<>());
+        List<String> retainedTopics = new ArrayList<>();
+        for (String topic : topics) {
+            activeTopics.computeIfAbsent(topic,
+                    t -> new TopicTracker(startTracking(configuration, activeHandlers, t, fluxzero))).retain();
+            retainedTopics.add(topic);
+        }
+        return retainedTopics;
+    }
+
+    private void releaseTrackingTopics(ConsumerConfiguration configuration, List<String> topics) {
+        Map<String, TopicTracker> activeTopics = startedTopics.get(configuration);
+        if (activeTopics == null) {
+            return;
+        }
+        for (String topic : topics) {
+            TopicTracker tracker = activeTopics.get(topic);
+            if (tracker != null && tracker.release()) {
+                activeTopics.remove(topic);
+            }
+        }
+        if (activeTopics.isEmpty()) {
+            startedTopics.remove(configuration);
+        }
+    }
+
+    protected Set<String> trackingTopics(List<Handler<DeserializingMessage>> handlers) {
         var topics = ClientUtils.getTopics(messageType, handlers.stream().<Class<?>>map(Handler::getTargetClass)
                 .filter(Objects::nonNull).toList());
-        if (topics.isEmpty()) {
-            return switch (messageType) {
-                case DOCUMENT, CUSTOM -> Registration.noOp();
-                default -> DefaultTracker.start(
-                        createConsumer(configuration, handlers), messageType, configuration, fluxzero);
-            };
+        if (!topics.isEmpty()) {
+            return new HashSet<>(topics);
         }
-        return topics.stream().map(topic -> DefaultTracker.start(
-                        createConsumer(configuration, handlers), messageType, topic, configuration, fluxzero))
-                .reduce(Registration::merge).orElseGet(Registration::noOp);
+        return switch (messageType) {
+            case DOCUMENT, CUSTOM -> Set.of();
+            default -> new HashSet<>(Collections.singleton(null));
+        };
+    }
+
+    protected Registration startTracking(ConsumerConfiguration configuration,
+                                         List<Handler<DeserializingMessage>> handlers, String topic,
+                                         Fluxzero fluxzero) {
+        return topic == null
+                ? DefaultTracker.start(createConsumer(configuration, handlers), messageType, configuration, fluxzero)
+                : DefaultTracker.start(createConsumer(configuration, handlers), messageType, topic, configuration,
+                                       fluxzero);
+    }
+
+    private static class TopicTracker {
+        private final Registration registration;
+        private int references;
+
+        private TopicTracker(Registration registration) {
+            this.registration = registration;
+        }
+
+        void retain() {
+            references++;
+        }
+
+        boolean release() {
+            references--;
+            if (references > 0) {
+                return false;
+            }
+            registration.cancel();
+            return true;
+        }
     }
 
     protected Consumer<List<SerializedMessage>> createConsumer(ConsumerConfiguration config,
@@ -353,8 +447,8 @@ public class DefaultTracking implements Tracking {
                 if (result instanceof Throwable) {
                     result = unwrapException((Throwable) result);
                     if (!(result instanceof FunctionalException)) {
-                        result = new TechnicalException(format("Handler %s failed to handle a %s",
-                                                               h.getMethod(), message), (Throwable) result);
+                        result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
+                                h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
                     }
                 }
                 SerializedMessage request = message.getSerializedObject();

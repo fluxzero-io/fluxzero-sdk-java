@@ -77,6 +77,15 @@ public @interface HandleWeb {
     boolean passive() default false;
 
     /**
+     * If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before
+     * this handler is invoked.
+     * <p>
+     * Defaults to {@code true} for HTTP handlers because stale responses are usually no longer useful. WebSocket
+     * lifecycle annotations opt out because those messages represent connection events rather than ordinary requests.
+     */
+    boolean skipExpiredRequests() default true;
+
+    /**
      * If {@code true}, {@code HEAD} requests may be routed to matching {@code GET} handlers when no explicit
      * {@code HEAD} handler is present. Only applies to {@code GET} mappings.
      */

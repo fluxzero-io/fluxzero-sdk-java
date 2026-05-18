@@ -91,6 +91,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     private final DispatchInterceptor dispatchInterceptor;
     @Getter
     private final List<Handler<DeserializingMessage>> localHandlers = new CopyOnWriteArrayList<>();
+    private final List<Class<?>> registeredClassHandlers = new CopyOnWriteArrayList<>();
 
     @Setter
     @Getter
@@ -114,8 +115,18 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         }
         Optional<Handler<DeserializingMessage>> handler = handlerFactory.createHandler(
                 target, handlerFilter, emptyList());
-        handler.ifPresent(localHandlers::add);
-        return () -> handler.ifPresent(localHandlers::remove);
+        handler.ifPresent(h -> {
+            localHandlers.add(h);
+            if (target instanceof Class<?> targetClass) {
+                registeredClassHandlers.add(targetClass);
+            }
+        });
+        return () -> handler.ifPresent(h -> {
+            localHandlers.remove(h);
+            if (target instanceof Class<?> targetClass) {
+                registeredClassHandlers.remove(targetClass);
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -192,6 +203,8 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             return localHandlers;
         }
         return message.apply(m -> selfHandlers.apply(m.getPayloadClass())
+                .filter(ignored -> registeredClassHandlers.stream()
+                        .noneMatch(handlerClass -> handlerClass.isAssignableFrom(m.getPayloadClass())))
                 .map(h -> Stream.concat(localHandlers.stream(), Stream.of(h)).toList()).orElse(localHandlers));
     }
 

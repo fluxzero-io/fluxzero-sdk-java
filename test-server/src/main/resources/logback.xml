@@ -21,6 +21,7 @@
     </appender>
 
     <logger name="io.fluxzero" level="info"/>
+    <logger name="org.eclipse.jetty" level="warn"/>
 
     <root level="warn">
         <appender-ref ref="STDOUT"/>

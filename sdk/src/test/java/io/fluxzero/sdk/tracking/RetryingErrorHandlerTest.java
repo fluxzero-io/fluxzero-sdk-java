@@ -43,6 +43,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 public class RetryingErrorHandlerTest {
 
+    private static final Duration RETRY_IMMEDIATELY = Duration.ZERO;
+
     private final MockException exception = new MockException();
     private final Callable<?> mockTask = mock(Callable.class);
 
@@ -53,34 +55,34 @@ public class RetryingErrorHandlerTest {
 
     @Test
     void testRetryCountCorrect() throws Exception {
-        RetryingErrorHandler subject = new RetryingErrorHandler(3, Duration.ofMillis(10), e -> true, false, true);
+        RetryingErrorHandler subject = new RetryingErrorHandler(3, RETRY_IMMEDIATELY, e -> true, false, true);
         subject.handleError(exception, "mock exception", mockTask);
         verify(mockTask, times(4)).call();
     }
 
     @Test
     void testThrowsExceptionIfDesired() {
-        RetryingErrorHandler subject = new RetryingErrorHandler(1, Duration.ofMillis(10), e -> true, true, true);
+        RetryingErrorHandler subject = new RetryingErrorHandler(1, RETRY_IMMEDIATELY, e -> true, true, true);
         assertThrows(MockException.class, () -> subject.handleError(exception, "mock exception", mockTask));
     }
 
     @Test
     void testDontRetryIfErrorFilterFails() {
-        RetryingErrorHandler subject = new RetryingErrorHandler(1, Duration.ofMillis(10), e -> false, false, true);
+        RetryingErrorHandler subject = new RetryingErrorHandler(1, RETRY_IMMEDIATELY, e -> false, false, true);
         subject.handleError(exception, "mock exception", mockTask);
         verifyNoInteractions(mockTask);
     }
 
     @Test
     void testThrowIfErrorFilterFails() {
-        RetryingErrorHandler subject = new RetryingErrorHandler(1, Duration.ofMillis(10), e -> false, true, true);
+        RetryingErrorHandler subject = new RetryingErrorHandler(1, RETRY_IMMEDIATELY, e -> false, true, true);
         assertThrows(MockException.class, () -> subject.handleError(exception, "mock exception", mockTask));
     }
 
     @Test
     void retryIsSuccessful() {
         RetryingErrorHandler subject = new RetryingErrorHandler(
-                10, Duration.ofMillis(10), e -> true, true, true);
+                10, RETRY_IMMEDIATELY, e -> true, true, true);
         assertEquals("success", subject.handleError(exception, "mock exception",
                                                     new Repairable("success", 5)));
     }
@@ -88,7 +90,7 @@ public class RetryingErrorHandlerTest {
     @Test
     void retryIsNotSuccessful() {
         RetryingErrorHandler subject = new RetryingErrorHandler(
-                3, Duration.ofMillis(10), e -> true, true, true);
+                3, RETRY_IMMEDIATELY, e -> true, true, true);
         assertThrows(MockException.class, () -> subject.handleError(exception, "mock exception",
                                                     new Repairable("success", 5)));
     }
@@ -96,7 +98,7 @@ public class RetryingErrorHandlerTest {
     @Test
     void returnsButDoesntThrowErrorIfUnsuccessfulAfterRetry() {
         RetryingErrorHandler subject = new RetryingErrorHandler(
-                3, Duration.ofMillis(10), e -> true, false, true);
+                3, RETRY_IMMEDIATELY, e -> true, false, true);
         assertTrue(subject.handleError(exception, "mock exception",
                                        new Repairable("success", 5)) instanceof MockException);
     }
@@ -110,7 +112,7 @@ public class RetryingErrorHandlerTest {
                 false,
                 true,
                 RetryConfiguration.builder()
-                        .delay(Duration.ofMillis(10))
+                        .delay(RETRY_IMMEDIATELY)
                         .maxRetries(3)
                         .successLogger(status -> {
                             successLogCalls.incrementAndGet();
@@ -133,7 +135,7 @@ public class RetryingErrorHandlerTest {
                 false,
                 true,
                 RetryConfiguration.builder()
-                        .delay(Duration.ofMillis(10))
+                        .delay(RETRY_IMMEDIATELY)
                         .maxRetries(3)
                         .successLogger(status -> {
                             successLogCalls.incrementAndGet();
@@ -202,7 +204,7 @@ public class RetryingErrorHandlerTest {
 
     static class CustomErrorHandler extends RetryingErrorHandler {
         public CustomErrorHandler() {
-            super(2, Duration.ofMillis(10), e -> true, false, true);
+            super(2, RETRY_IMMEDIATELY, e -> true, false, true);
         }
     }
 

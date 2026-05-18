@@ -34,6 +34,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -57,11 +58,13 @@ public class OpenApiReferenceDemoApp {
 
     public static void main(String[] args) throws InterruptedException {
         int fluxPort = getIntegerProperty("FLUX_PORT", 8888);
+        Server testServer;
         if (availablePort(fluxPort)) {
-            TestServer.start(fluxPort);
+            testServer = TestServer.startServer(fluxPort);
         } else {
             log.info("Fluxzero test server port {} is already in use; assuming a test server is already running",
                      fluxPort);
+            testServer = null;
         }
 
         String runtimeBaseUrl = "ws://localhost:" + fluxPort;
@@ -79,7 +82,7 @@ public class OpenApiReferenceDemoApp {
                                                                  .id("proxy-" + UUID.randomUUID())
                                                                  .name("$proxy-openapi-reference-demo")
                                                                  .build());
-        ProxyServer proxy = ProxyServer.start(proxyPort(), new ProxyRequestHandler(proxyClient));
+        ProxyServer proxy = ProxyServer.startHttpProxyOnly(proxyPort(), new ProxyRequestHandler(proxyClient));
 
         Fluxzero app = DefaultFluxzero.builder()
                 .disableShutdownHook()
@@ -93,6 +96,13 @@ public class OpenApiReferenceDemoApp {
                     handlers.cancel();
                     app.close(true);
                     proxy.cancel();
+                    if (testServer != null) {
+                        try {
+                            testServer.stop();
+                        } catch (Exception e) {
+                            log.warn("Failed to stop Fluxzero test server", e);
+                        }
+                    }
                 }));
 
         log.info("OpenAPI reference demo is running");
@@ -107,8 +117,9 @@ public class OpenApiReferenceDemoApp {
     }
 
     private static int proxyPort() {
-        int configuredPort = getIntegerProperty("PROXY_PORT", 8080);
-        if (containsProperty("PROXY_PORT") || availablePort(configuredPort)) {
+        int configuredPort = getIntegerProperty("FLUXZERO_PROXY_PORT", getIntegerProperty("PROXY_PORT", 8080));
+        if (containsProperty("FLUXZERO_PROXY_PORT") || containsProperty("PROXY_PORT")
+            || availablePort(configuredPort)) {
             return configuredPort;
         }
         log.info("Proxy port {} is already in use; using a random available port", configuredPort);

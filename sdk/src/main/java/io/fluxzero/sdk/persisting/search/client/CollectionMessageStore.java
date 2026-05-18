@@ -57,4 +57,9 @@ public class CollectionMessageStore implements MessageStore {
     public void setRetentionTime(Duration retentionPeriod) {
         searchClient.setRetentionTime(retentionPeriod);
     }
+
+    @Override
+    public void truncate() {
+        searchClient.truncateCollection(collection);
+    }
 }

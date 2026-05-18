@@ -28,6 +28,8 @@ import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.testserver.TestServer;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
@@ -52,12 +54,18 @@ import static org.mockito.Mockito.verify;
 @Isolated
 class FluxzeroLogbackAppenderTest {
     private static final int port = 9127;
+    private static Server server;
 
     private final Fluxzero fluxzero = TestFixture.create().spy().getFluxzero();
 
     @BeforeAll
     static void beforeAll() {
-        TestServer.start(port);
+        server = TestServer.startServer(port);
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        server.stop();
     }
 
     @BeforeEach
@@ -89,7 +97,7 @@ class FluxzeroLogbackAppenderTest {
     @Test
     void testConsoleErrorWithIgnoreMarker() {
         log.error(ClientUtils.ignoreMarker, "mock error");
-        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), after(250).never()).append(
+        verify(fluxzero.client().getGatewayClient(MessageType.ERROR), never()).append(
                 any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
                         ConsoleError.class.getName().equals(message.getData().getType())));
     }
@@ -101,7 +109,7 @@ class FluxzeroLogbackAppenderTest {
         Fluxzero.applicationInstance.set(null);
         try {
             log.error("mock error without fluxzero");
-            verify(fluxzero.client().getGatewayClient(MessageType.ERROR), after(250).never()).append(
+            verify(fluxzero.client().getGatewayClient(MessageType.ERROR), never()).append(
                     any(Guarantee.class), argThat((ArgumentMatcher<SerializedMessage>) message ->
                             ConsoleError.class.getName().equals(message.getData().getType())));
         } finally {

@@ -109,7 +109,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     int maxFetchSize = 1024;
 
     /**
-     * Maximum wait time for polling new messages.
+     * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
+     * segment claim are available.
      */
     @Default
     @NonNull

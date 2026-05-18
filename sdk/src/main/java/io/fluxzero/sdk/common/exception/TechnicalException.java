@@ -15,7 +15,9 @@
 
 package io.fluxzero.sdk.common.exception;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.Objects;
 
@@ -41,25 +43,65 @@ import java.util.Objects;
  */
 @JsonIgnoreProperties({"localizedMessage", "cause", "stackTrace", "suppressed"})
 public class TechnicalException extends RuntimeException {
+    private final FluxzeroErrorReport fluxzeroErrorReport;
 
     public TechnicalException() {
         super("An unexpected error occurred");
+        this.fluxzeroErrorReport = null;
     }
 
     public TechnicalException(String message) {
         super(message);
+        this.fluxzeroErrorReport = null;
     }
 
     public TechnicalException(String message, Throwable cause) {
         super(message, cause);
+        this.fluxzeroErrorReport = null;
     }
 
     public TechnicalException(Throwable cause) {
         super(cause);
+        this.fluxzeroErrorReport = null;
+    }
+
+    public TechnicalException(FluxzeroErrorReport fluxzeroErrorReport) {
+        super(fluxzeroErrorReport.formatSafely());
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
+    }
+
+    public TechnicalException(FluxzeroErrorReport fluxzeroErrorReport, Throwable cause) {
+        super(fluxzeroErrorReport.formatSafely(), cause);
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
     }
 
     public TechnicalException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
+        this.fluxzeroErrorReport = null;
+    }
+
+    /**
+     * Returns the structured Fluxzero report backing this exception, if this exception was created from one.
+     */
+    @JsonIgnore
+    public FluxzeroErrorReport getFluxzeroErrorReport() {
+        return fluxzeroErrorReport;
+    }
+
+    /**
+     * Returns the stable Fluxzero error code, if available.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getErrorCode() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getErrorCode();
+    }
+
+    /**
+     * Returns the documentation URL for the error code, if available.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getDocumentationUrl() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getDocumentationUrl();
     }
 
     @Override

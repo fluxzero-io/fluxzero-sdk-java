@@ -46,9 +46,9 @@ import java.lang.annotation.Target;
  * detected and registered as handlers when they fall within the application's component-scan scope. They are not
  * exposed as regular injectable Spring beans. Type-level conditional annotations are still respected, including
  * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnProperty} and
- * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}. When not using Spring, or when testing
- * using an asynchronous
- * {@code TestFixture}, you must register the class manually.
+ * {@link io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty}. When not using Spring, you must register
+ * the class manually. The asynchronous {@code TestFixture} can discover self-tracking payloads as messages are
+ * dispatched during a test.
  * </p>
  *
  * @see Consumer on how to configure message consumption in an isolated consumer.

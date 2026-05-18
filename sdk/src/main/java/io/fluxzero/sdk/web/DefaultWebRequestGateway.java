@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
@@ -25,12 +27,11 @@ import lombok.SneakyThrows;
 import lombok.With;
 import lombok.experimental.Delegate;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Default implementation of the {@link WebRequestGateway} interface that delegates requests to a configured
@@ -57,28 +58,36 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
-        WebRequest webRequest = request.addMetadata("settings", settings);
-        CompletableFuture<WebResponse> result = (CompletableFuture) delegate.sendForMessage(webRequest);
+        WebRequest webRequest = addSettings(request, settings);
+        Duration timeout = responseTimeout(settings);
+        CompletableFuture<WebResponse> result = (CompletableFuture) sendForMessage(webRequest, timeout);
         return result.thenApply(response -> stripHeadPayload(webRequest, response));
     }
 
     @Override
     @SneakyThrows
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public WebResponse sendAndWait(WebRequest request, WebRequestSettings settings) {
         try {
-            request = request.addMetadata("settings", settings);
-            return stripHeadPayload(request, (WebResponse) delegate.sendForMessage(request)
-                    .get(settings.getTimeout().toMillis() + 5_000L, MILLISECONDS));
-        } catch (java.util.concurrent.TimeoutException e) {
-            throw new TimeoutException(format("Request %s (url %s) has timed out", request.getMessageId(),
-                                              WebRequest.getUrl(request.getMetadata())));
+            Duration timeout = responseTimeout(settings);
+            request = addSettings(request, settings);
+            CompletableFuture<WebResponse> result = (CompletableFuture) sendForMessage(request, timeout);
+            WebResponse response = result.get();
+            return stripHeadPayload(request, response);
         } catch (InterruptedException e) {
             currentThread().interrupt();
-            throw new GatewayException(
-                    format("Thread interrupted while waiting for result of %s (url %s)",
-                           request.getMessageId(), WebRequest.getUrl(request.getMetadata())), e);
+            throw new GatewayException(FluxzeroErrors.threadInterrupted(
+                    "the web response", request.getMessageId(),
+                    request.getMethod() + " " + WebRequest.getUrl(request.getMetadata())), e);
         } catch (ExecutionException e) {
-            throw e.getCause();
+            Throwable cause = e.getCause();
+            if (cause instanceof java.util.concurrent.TimeoutException) {
+                throw new TimeoutException(FluxzeroErrors.requestTimedOut(
+                        "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
+                        request.getMessageId(), null, MessageType.WEBRESPONSE.name(),
+                        settings.getTimeout().plusMillis(5_000L)));
+            }
+            throw cause;
         }
     }
 
@@ -97,5 +106,17 @@ public class DefaultWebRequestGateway implements WebRequestGateway {
             return response;
         }
         return response.withPayload(null);
+    }
+
+    private CompletableFuture<?> sendForMessage(WebRequest request, Duration timeout) {
+        return delegate.sendForMessage(request, timeout);
+    }
+
+    private WebRequest addSettings(WebRequest request, WebRequestSettings settings) {
+        return request.withMetadata(request.getMetadata().with("settings", settings));
+    }
+
+    private Duration responseTimeout(WebRequestSettings settings) {
+        return settings.getTimeout().plusMillis(5_000L);
     }
 }

@@ -24,9 +24,11 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
@@ -47,6 +49,8 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
+import io.fluxzero.sdk.configuration.spring.ConditionalOnProperty;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
@@ -88,6 +92,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -108,6 +113,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.CUSTOM;
+import static io.fluxzero.common.MessageType.DOCUMENT;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.MessageType.SCHEDULE;
@@ -125,7 +131,6 @@ import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.empty;
 
@@ -347,6 +352,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
+    private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
     private static final ThreadLocal<List<TestFixture>> activeFixtures = ThreadLocal.withInitial(ArrayList::new);
     private static final Executor shutdownExecutor =
             newWorkerPool("TestFixture-shutdown", 64);
@@ -378,6 +384,7 @@ public class TestFixture implements Given<TestFixture>, When {
         fluxzeroBuilder.replacePropertySource(s -> new SimplePropertySource(testProperties).andThen(s));
         this.interceptor = new GivenWhenThenInterceptor(this);
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
+        client = trackRemoteDocumentUpdates(client);
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
@@ -432,6 +439,7 @@ public class TestFixture implements Given<TestFixture>, When {
         var currentClient = currentFixture.fluxzero.client().unwrap();
         var newClient = currentClient instanceof LocalClient
                 ? LocalClient.newInstance(null) : currentClient;
+        newClient = trackRemoteDocumentUpdates(newClient);
         newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
         this.fluxzero = spying
                 ? new SpyingFluxzero(fluxzeroBuilder.build(new SpyingClient(newClient)))
@@ -445,6 +453,10 @@ public class TestFixture implements Given<TestFixture>, When {
     /*
         Modifications
      */
+
+    private Client trackRemoteDocumentUpdates(Client client) {
+        return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
+    }
 
     /**
      * Sets the maximum time to wait for a response to a request in the {@code given} and {@code when} phase.
@@ -555,14 +567,10 @@ public class TestFixture implements Given<TestFixture>, When {
             if (handlers.isEmpty()) {
                 return;
             }
-            handlers.stream().collect(toMap(o -> ifClass(o) instanceof Class<?> c ? c : o instanceof Handler<?> h
-                                                    ? h.getTargetClass() : o.getClass(),
-                                            Function.identity(), (a, b) -> {
-                        log.warn(
-                                "Handler of type {} is registered more than once. Please make sure this is intentional.",
-                                a.getClass());
-                        return a;
-                    }));
+            warnIfDuplicateHandlers(handlers);
+            handlers.stream().map(this::handlerType)
+                    .filter(ClientUtils::isSelfTracking)
+                    .forEach(registeredTrackSelfHandlers::add);
             if (!fixture.synchronous) {
                 fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
                 return;
@@ -575,6 +583,25 @@ public class TestFixture implements Given<TestFixture>, When {
                     .reduce(Registration::merge).orElse(Registration.noOp()));
             fixture.registration = fixture.registration.merge(registration);
         });
+    }
+
+    private void warnIfDuplicateHandlers(List<?> handlers) {
+        Map<Class<?>, Object> uniqueHandlers = new HashMap<>();
+        Set<Class<?>> duplicateHandlerTypes = new HashSet<>();
+        for (Object handler : handlers) {
+            Class<?> handlerType = handlerType(handler);
+            if (uniqueHandlers.putIfAbsent(handlerType, handler) != null) {
+                duplicateHandlerTypes.add(handlerType);
+            }
+        }
+        duplicateHandlerTypes.forEach(handlerType -> log.warn(
+                "Handler of type {} is registered more than once. Please make sure this is intentional.",
+                handlerType));
+    }
+
+    private Class<?> handlerType(Object handler) {
+        return ifClass(handler) instanceof Class<?> handlerClass ? handlerClass : handler instanceof Handler<?> h
+                ? h.getTargetClass() : handler.getClass();
     }
 
     protected Stream<HasLocalHandlers> localHandlerRegistries(Fluxzero fluxzero) {
@@ -1270,6 +1297,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return this;
     }
 
+    ImmutableFixtureResult getFixtureResult() {
+        return ImmutableFixtureResult.from(fixtureResult);
+    }
+
+    void registerWebParameter(String name, String value) {
+        fixtureResult.getKnownWebParams().put(name, value);
+    }
+
     protected void resetMocks() {
         if (spying) {
             ((SpyingClient) fluxzero.client()).resetMocks();
@@ -1385,8 +1420,40 @@ public class TestFixture implements Given<TestFixture>, When {
     protected <M extends Message> M trace(Object object) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
+        registerAutomaticTrackSelfHandler(result);
         fixtureResult.setTracedMessage(result);
         return result;
+    }
+
+    protected void registerAutomaticTrackSelfHandler(Message message) {
+        if (synchronous || message == null || message.getPayload() == null) {
+            return;
+        }
+        Class<?> payloadClass = message.getPayloadClass();
+        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
+            && registeredTrackSelfHandlers.stream()
+                .noneMatch(handlerType -> handlerType.isAssignableFrom(payloadClass))
+            && registeredTrackSelfHandlers.add(payloadClass)) {
+            registration = registration.merge(fluxzero.registerHandlers(payloadClass));
+        }
+    }
+
+    private boolean matchesTrackSelfConditions(Class<?> payloadClass) {
+        ConditionalOnProperty conditionalOnProperty =
+                ReflectionUtils.getTypeAnnotation(payloadClass, ConditionalOnProperty.class);
+        if (conditionalOnProperty != null) {
+            String value = fluxzero.propertySource().get(conditionalOnProperty.value());
+            if (value == null || !value.matches(conditionalOnProperty.pattern())) {
+                return false;
+            }
+        }
+        ConditionalOnMissingProperty conditionalOnMissingProperty =
+                ReflectionUtils.getTypeAnnotation(payloadClass, ConditionalOnMissingProperty.class);
+        if (conditionalOnMissingProperty != null) {
+            String value = fluxzero.propertySource().get(conditionalOnMissingProperty.value());
+            return value == null || value.isEmpty();
+        }
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -1499,6 +1566,8 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+            testFixture.registerAutomaticTrackSelfHandler(message);
+
             if (testFixture.fixtureResult.isCollectingResults()) {
                 interceptedMessageIds.add(message.getMessageId());
             }
@@ -1546,9 +1615,39 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
 
+        public void monitorDocumentDispatch(SerializedDocument document) {
+            try {
+                SerializedMessage message = new SerializedMessage(
+                        document.getDocument(), Metadata.of("$start", document.getTimestamp(), "$end",
+                                                            document.getEnd()),
+                        document.getId(), document.getTimestamp());
+                monitorDispatch(testFixture.fluxzero.serializer().deserializeMessage(message, DOCUMENT).toMessage(),
+                                DOCUMENT, document.getCollection(), testFixture.fluxzero.client().namespace());
+            } catch (Exception e) {
+                log.warn("Failed to monitor an indexed document. This may cause your test to fail.", e);
+            }
+        }
+
+        public void cancelDocumentDispatch(List<SerializedDocument> documents) {
+            Map<String, Set<String>> messageIdsByTopic = new HashMap<>();
+            documents.forEach(document -> messageIdsByTopic
+                    .computeIfAbsent(document.getCollection(), ignored -> new CopyOnWriteArraySet<>())
+                    .add(document.getId()));
+            synchronized (testFixture.consumers) {
+                testFixture.consumers.forEach((consumer, messages) -> {
+                    if (consumer.getMessageType() == DOCUMENT) {
+                        ofNullable(messageIdsByTopic.get(consumer.getTopic()))
+                                .ifPresent(messageIds -> messages.removeIf(
+                                        message -> messageIds.contains(message.getMessageId())));
+                    }
+                });
+                testFixture.checkConsumers();
+            }
+        }
+
         protected Boolean captureMessage(Message message) {
             return testFixture.fixtureResult.isCollectingResults()
-                   && ofNullable(testFixture.getFixtureResult().getTracedMessage())
+                   && ofNullable(testFixture.fixtureResult.getTracedMessage())
                            .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true);
         }
 

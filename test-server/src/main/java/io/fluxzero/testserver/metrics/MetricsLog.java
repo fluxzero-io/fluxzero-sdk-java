@@ -17,12 +17,14 @@ package io.fluxzero.testserver.metrics;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.Metadata;
 
+import java.util.concurrent.CompletableFuture;
+
 public interface MetricsLog {
 
-    default void registerMetrics(JsonType event) {
-        registerMetrics(event, Metadata.empty());
+    default CompletableFuture<Void> registerMetrics(JsonType event) {
+        return registerMetrics(event, Metadata.empty());
     }
 
-    void registerMetrics(JsonType event, Metadata metadata);
+    CompletableFuture<Void> registerMetrics(JsonType event, Metadata metadata);
 
 }

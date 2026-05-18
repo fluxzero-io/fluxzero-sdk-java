@@ -10,10 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
@@ -26,30 +28,9 @@ import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import jakarta.validation.GroupSequence;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import jakarta.validation.constraintvalidation.SupportedValidationTarget;
 import jakarta.validation.constraintvalidation.ValidationTarget;
-import jakarta.validation.constraints.AssertFalse;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Negative;
-import jakarta.validation.constraints.NegativeOrZero;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Null;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.PastOrPresent;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
 import jakarta.validation.groups.ConvertGroup;
 import jakarta.validation.groups.Default;
 import lombok.Builder;
@@ -66,6 +47,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
 import static java.lang.annotation.ElementType.FIELD;
@@ -108,6 +90,11 @@ class DefaultValidatorTest {
 
         assertEquals(6, e.getViolations().size());
         assertTrue(e.getViolations().stream().anyMatch(v -> v.equals("member.aBoolean must be true")));
+        assertTrue(e.getViolations().contains("custom message"));
+        assertTrue(e.getViolationSummaries().contains(
+                new ValidationException.ViolationSummary("aCustomString", "custom message")));
+        assertTrue(e.getViolationSummaries().contains(
+                new ValidationException.ViolationSummary("member.aBoolean", "must be true")));
         assertEquals("""
                              aBoolean must be true
                              aList element must not be blank
@@ -128,6 +115,33 @@ class DefaultValidatorTest {
                 assertThrows(ValidationException.class, () -> subject.assertValid(object, Group.class));
         assertEquals(1, e.getViolations().size());
         assertEquals("aNumberWithGroupConstraint must be greater than or equal to 5", e.getMessage());
+    }
+
+    @Test
+    void validationExceptionFailedConstraintsRoundTripAsStrings() throws Exception {
+        ValidationException exception = new ValidationException(
+                "custom message", Set.of("custom message"),
+                List.of(new ValidationException.ViolationSummary("aCustomString", "custom message")));
+
+        ValidationException restored = JacksonSerializer.defaultObjectMapper.readValue(
+                JacksonSerializer.defaultObjectMapper.writeValueAsString(exception), ValidationException.class);
+
+        assertEquals(exception.getViolations(), restored.getViolations());
+        assertEquals(exception.getViolationSummaries(), restored.getViolationSummaries());
+    }
+
+    @Test
+    void validationExceptionWithoutViolationSummariesDeserializesWithEmptySummaries() throws Exception {
+        ValidationException restored = JacksonSerializer.defaultObjectMapper.readValue(
+                """
+                        {
+                          "message": "custom message",
+                          "violations": ["custom message"]
+                        }
+                        """, ValidationException.class);
+
+        assertEquals(Set.of("custom message"), restored.getViolations());
+        assertEquals(List.of(), restored.getViolationSummaries());
     }
 
     @Test

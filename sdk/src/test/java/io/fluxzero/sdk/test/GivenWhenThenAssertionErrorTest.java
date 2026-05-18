@@ -16,6 +16,7 @@ package io.fluxzero.sdk.test;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +45,17 @@ class GivenWhenThenAssertionErrorTest {
             assertTrue(error.getMessage().contains("Actual:"));
             assertTrue(error.getMessage().contains("[0] actual"));
         });
+    }
+
+    @Test
+    void snapshotsExpectedAndActualAtConstruction() {
+        List<String> actual = new ArrayList<>(List.of("actual"));
+        GivenWhenThenAssertionError error = new GivenWhenThenAssertionError(
+                "Published messages did not match", List.of("expected"), actual);
+
+        actual.add("late");
+
+        assertEquals(List.of("actual"), error.getActual().getValue());
     }
 
     private static void withMavenProperty(String value, Runnable action) {

@@ -28,7 +28,7 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-@HandleWeb(value = "", method = HttpRequestMethod.WS_PONG)
+@HandleWeb(value = "", method = HttpRequestMethod.WS_PONG, skipExpiredRequests = false)
 public @interface HandleSocketPong {
     /**
      * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
@@ -50,4 +50,5 @@ public @interface HandleSocketPong {
      * If {@code true}, the handler will not publish a response to the {@code WebResponse} log.
      */
     boolean passive() default false;
+
 }

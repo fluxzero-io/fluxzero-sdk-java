@@ -180,7 +180,7 @@ public interface Tracker extends Comparable<Tracker> {
      * @return {@code true} if this tracker has missed its deadline.
      */
     default boolean hasMissedDeadline() {
-        return isMissedDeadline(getDeadline());
+        return maxTimeout() <= 0L || isMissedDeadline(getDeadline());
     }
 
     /**

@@ -55,6 +55,14 @@ public @interface HandleGet {
     boolean passive() default false;
 
     /**
+     * If {@code true}, indexed web request messages whose effective timeout has already expired may be skipped before
+     * this handler is invoked.
+     *
+     * @see HandleWeb#skipExpiredRequests()
+     */
+    boolean skipExpiredRequests() default true;
+
+    /**
      * If {@code true}, {@code HEAD} requests may be routed to this {@code GET} handler when no explicit
      * {@code HEAD} handler is present.
      */

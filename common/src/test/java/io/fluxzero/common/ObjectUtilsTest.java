@@ -76,7 +76,7 @@ class ObjectUtilsTest {
     @Test
     void memoizeComputesConcurrentCacheMissOnce() throws Exception {
         CountDownLatch firstInvocationStarted = new CountDownLatch(1);
-        CountDownLatch secondInvocationStarted = new CountDownLatch(1);
+        CountDownLatch secondTaskStarted = new CountDownLatch(1);
         CountDownLatch releaseFirstInvocation = new CountDownLatch(1);
         AtomicInteger invocations = new AtomicInteger();
         MemoizingFunction<String, String> memoizingFunction = memoize(key -> {
@@ -84,8 +84,6 @@ class ObjectUtilsTest {
             if (call == 1) {
                 firstInvocationStarted.countDown();
                 assertTrue(await(releaseFirstInvocation, 5, TimeUnit.SECONDS));
-            } else {
-                secondInvocationStarted.countDown();
             }
             return "value";
         });
@@ -94,9 +92,14 @@ class ObjectUtilsTest {
             Future<String> first = executor.submit(() -> memoizingFunction.apply("foo"));
             assertTrue(await(firstInvocationStarted, 5, TimeUnit.SECONDS));
 
-            Future<String> second = executor.submit(() -> memoizingFunction.apply("foo"));
+            Future<String> second = executor.submit(() -> {
+                secondTaskStarted.countDown();
+                return memoizingFunction.apply("foo");
+            });
 
-            assertFalse(await(secondInvocationStarted, 250, TimeUnit.MILLISECONDS));
+            assertTrue(await(secondTaskStarted, 5, TimeUnit.SECONDS));
+            assertFalse(second.isDone());
+            assertEquals(1, invocations.get());
             releaseFirstInvocation.countDown();
 
             assertEquals("value", first.get(5, TimeUnit.SECONDS));

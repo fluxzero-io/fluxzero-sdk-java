@@ -19,6 +19,10 @@ import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
+import io.fluxzero.common.api.publishing.Truncate;
+import io.fluxzero.common.tracking.DefaultTrackingStrategy;
+import io.fluxzero.common.tracking.InMemoryPositionStore;
+import io.fluxzero.common.tracking.MessageLogMaintenance;
 import io.fluxzero.common.tracking.MessageStore;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,23 +36,50 @@ import static io.fluxzero.common.MessageType.METRICS;
 public class ProducerEndpoint extends WebsocketEndpoint {
 
     private final MessageStore store;
+    private final MessageLogMaintenance maintenance;
     private final MessageType messageType;
     private final String topic;
 
     public ProducerEndpoint(MessageStore store) {
-        this(store, null, null);
+        this(newMaintenance(store), null, null);
     }
 
     public ProducerEndpoint(MessageStore store, MessageType messageType, String topic) {
-        this.store = store;
+        this(newMaintenance(store), messageType, topic);
+    }
+
+    /**
+     * Creates a producer endpoint backed by the shared maintenance components for one message log.
+     *
+     * @param maintenance the shared message log maintenance components
+     * @param messageType the message type exposed by this endpoint
+     * @param topic       the topic exposed by this endpoint, or {@code null} for non-topic message types
+     */
+    public ProducerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic) {
+        this.store = maintenance.getMessageStore();
+        this.maintenance = maintenance;
         this.messageType = messageType;
         this.topic = topic;
     }
 
     public ProducerEndpoint(MessageStore store, MessageType messageType, String topic,
                             CommandIdempotencyStore commandIdempotencyStore) {
+        this(newMaintenance(store), messageType, topic, commandIdempotencyStore);
+    }
+
+    /**
+     * Creates a producer endpoint backed by the shared maintenance components for one message log.
+     *
+     * @param maintenance             the shared message log maintenance components
+     * @param messageType             the message type exposed by this endpoint
+     * @param topic                   the topic exposed by this endpoint, or {@code null} for non-topic message types
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     */
+    public ProducerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic,
+                            CommandIdempotencyStore commandIdempotencyStore) {
         super(commandIdempotencyStore);
-        this.store = store;
+        this.store = maintenance.getMessageStore();
+        this.maintenance = maintenance;
         this.messageType = messageType;
         this.topic = topic;
     }
@@ -62,6 +93,15 @@ public class ProducerEndpoint extends WebsocketEndpoint {
     void handle(SetRetentionTime request) {
         store.setRetentionTime(Optional.ofNullable(
                 request.getRetentionTimeInSeconds()).map(Duration::ofSeconds).orElse(null));
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(Truncate request) {
+        return maintenance.truncate();
+    }
+
+    private static MessageLogMaintenance newMaintenance(MessageStore store) {
+        return new MessageLogMaintenance(store, new InMemoryPositionStore(), new DefaultTrackingStrategy(store));
     }
 
     @Override

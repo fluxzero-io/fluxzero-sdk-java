@@ -20,15 +20,17 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.sdk.persisting.caching.DefaultCache.SoftCacheReference;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.expiry;
 import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
@@ -42,7 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultCacheTest {
 
+    private static final Duration EVENTUALLY_TIMEOUT = Duration.ofSeconds(2);
+
     private DefaultCache subject = new DefaultCache(2, DirectExecutorService.newInstance(), null);
+
+    @AfterEach
+    void tearDown() {
+        subject.close();
+    }
 
     @Test
     void testPutAndGet() {
@@ -179,7 +188,7 @@ class DefaultCacheTest {
 
     @Nested
     class EvictionListenerTests {
-        List<CacheEvictionEvent> evictionEvents = new ArrayList<>();
+        List<CacheEvictionEvent> evictionEvents = new CopyOnWriteArrayList<>();
 
         @BeforeEach
         void setUp() {
@@ -211,31 +220,49 @@ class DefaultCacheTest {
             assertEquals(new CacheEvictionEvent("k1", size), evictionEvents.getFirst());
         }
 
-        @SneakyThrows
         @Test
         void simulatedMemoryEviction() {
             subject.put("a", new Object());
             SoftCacheReference ref = (SoftCacheReference) subject.getValueMap().get("a");
             ref.clear();
             ref.enqueue();
-            Thread.sleep(10);
-            assertEquals(1, evictionEvents.size());
-            assertEquals(new CacheEvictionEvent("a", memoryPressure), evictionEvents.getFirst());
-            assertTrue(subject.isEmpty());
+
+            assertEventually(() -> {
+                assertEquals(1, evictionEvents.size());
+                assertEquals(new CacheEvictionEvent("a", memoryPressure), evictionEvents.getFirst());
+                assertTrue(subject.isEmpty());
+            });
         }
 
-        @SneakyThrows
         @Test
         void expiryEviction() {
             var testFixture = TestFixture.create();
+            subject.close();
             subject = new DefaultCache(2, DirectExecutorService.newInstance(), Duration.ofSeconds(10), Duration.ofMillis(1), false);
             setUp();
             subject.put("a", new Object());
             assertNotNull(subject.get("a"));
             testFixture.atFixedTime(testFixture.getCurrentTime().plusSeconds(11));
-            Thread.sleep(50);
-            assertTrue(subject.isEmpty());
-            assertEquals(new CacheEvictionEvent("a", expiry), evictionEvents.getFirst());
+            assertEventually(() -> {
+                assertTrue(subject.isEmpty());
+                assertEquals(new CacheEvictionEvent("a", expiry), evictionEvents.getFirst());
+            });
         }
+    }
+
+    @SneakyThrows
+    private static void assertEventually(Executable assertion) {
+        AssertionError lastError = null;
+        long deadline = System.nanoTime() + EVENTUALLY_TIMEOUT.toNanos();
+        do {
+            try {
+                assertion.execute();
+                return;
+            } catch (AssertionError e) {
+                lastError = e;
+                Thread.sleep(10);
+            }
+        } while (System.nanoTime() < deadline);
+        throw lastError;
     }
 }

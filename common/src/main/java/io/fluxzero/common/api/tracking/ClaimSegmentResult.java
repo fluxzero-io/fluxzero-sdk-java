@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.tracking;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -28,7 +28,7 @@ import lombok.Value;
  * @see io.fluxzero.common.api.tracking.Position
  */
 @Value
-public class ClaimSegmentResult implements RequestResult {
+public class ClaimSegmentResult extends AbstractRequestResult {
 
     /**
      * The ID of the original {@link io.fluxzero.common.api.tracking.ClaimSegment} request.

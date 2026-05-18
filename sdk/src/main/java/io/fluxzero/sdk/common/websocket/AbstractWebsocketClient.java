@@ -391,9 +391,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 log().warn("Could not find outstanding read request for id {}", result.getRequestId());
             } else {
                 try {
+                    long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
                     Metadata metadata = metricsMetadata()
                             .with("requestId", webSocketRequest.request.getRequestId(),
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
+                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp,
+                                  "requestReceivedTimestamp",
+                                  requestReceivedTimestamp > 0 ? requestReceivedTimestamp : null,
+                                  "responseTimestamp", result.getTimestamp(),
+                                  "serverMsDuration", requestReceivedTimestamp > 0
+                                                      ? result.getTimestamp() - requestReceivedTimestamp : null)
                             .with(webSocketRequest.correlationData)
                             .with("batchId", batchId)
                             .with("sessionId", sessionId)
@@ -508,7 +515,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void retryOutstandingRequests(String sessionId) {
         if (!closed.get() && !requests.isEmpty()) {
             try {
-                sleep(1_000);
+                long retryDelayMillis = retryOutstandingRequestsDelay().toMillis();
+                if (retryDelayMillis > 0) {
+                    sleep(retryDelayMillis);
+                }
             } catch (InterruptedException e) {
                 currentThread().interrupt();
                 throw new IllegalStateException("Thread interrupted while retrying outstanding requests (session: %s)"
@@ -523,6 +533,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                         });
             }
         }
+    }
+
+    /**
+     * Delay before outstanding requests from a closed session are resent on a replacement session.
+     */
+    protected Duration retryOutstandingRequestsDelay() {
+        return Duration.ofSeconds(1);
     }
 
     @Override

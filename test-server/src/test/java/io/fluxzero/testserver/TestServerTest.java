@@ -19,6 +19,7 @@ import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchDocumentsResult;
 import io.fluxzero.common.search.Facet;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.TestFixture;
@@ -33,6 +34,9 @@ import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,17 +47,34 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @ExtendWith(SpringExtension.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @ContextConfiguration(classes = {FluxzeroTestConfig.class, TestServerTest.FooConfig.class, TestServerTest.BarConfig.class})
 @Slf4j
 class TestServerTest {
 
-    private static final int port = 9123;
+    private static Server server;
+    private static int port;
+    private static volatile CountDownLatch scheduleHandled = new CountDownLatch(0);
 
     @BeforeAll
     static void beforeAll() {
-        TestServer.start(port);
+        startServerIfNecessary();
+    }
+
+    @AfterAll
+    static void afterAll() throws Exception {
+        if (server != null) {
+            server.stop();
+            server = null;
+            port = 0;
+        }
     }
 
     @Autowired
@@ -120,10 +141,7 @@ class TestServerTest {
                 Fluxzero.search("mock").fetchAll();
             }
         }
-        testFixture.registerHandlers(new Handler()).whenExecuting(fc -> {
-                    fc.eventGateway().publish("test");
-                    Thread.sleep(100);
-                })
+        testFixture.registerHandlers(new Handler()).whenEvent("test")
                 .expectNoMetricsLike(SearchDocumentsResult.Metric.class)
                 .expectNoMetricsLike(SearchDocuments.class)
                 .<ProcessBatchEvent>expectMetric(e -> consumerName.equals(e.getConsumer()));
@@ -131,11 +149,17 @@ class TestServerTest {
 
     @Test
     void handleDocument() {
-        testFixture.whenExecuting(fc -> {
-                    Fluxzero.index("testDoc", "test").get();
-                    Thread.sleep(100);
-                })
-                .expectEvents("testDoc");
+        String document = "testDoc-" + UUID.randomUUID();
+        testFixture.whenExecuting(fc -> Fluxzero.index(document, "test").get())
+                .expectEvents(document);
+    }
+
+    @Test
+    void handleDocumentIgnoresSkippedIndexIfNotExists() {
+        String documentId = "testDoc-" + UUID.randomUUID();
+        testFixture.given(fc -> fc.documentStore().index("existing", documentId, "test").get())
+                .whenExecuting(fc -> fc.documentStore().indexIfNotExists("ignored", documentId, "test").get())
+                .expectNoEventsLike("ignored");
     }
 
     @Test
@@ -146,12 +170,39 @@ class TestServerTest {
 
     @Test
     void handleSchedule() {
+        CountDownLatch handled = new CountDownLatch(1);
+        scheduleHandled = handled;
+        String schedule = "foo-" + UUID.randomUUID();
         testFixture
                 .whenExecuting(fc -> {
-                    Fluxzero.schedule("foo", Fluxzero.currentTime().minusSeconds(1));
-                    Thread.sleep(500);
+                    Fluxzero.schedule(schedule, schedule, Fluxzero.currentTime().minusSeconds(1));
+                    assertTrue(handled.await(2, TimeUnit.SECONDS), "Expected schedule handler to run");
                 })
-                .expectEvents("foo");
+                .expectEvents(schedule);
+    }
+
+    private static synchronized void startServerIfNecessary() {
+        if (server == null) {
+            server = TestServer.startServer(0);
+            port = localPort(server);
+        }
+    }
+
+    private static int port() {
+        startServerIfNecessary();
+        return port;
+    }
+
+    private static int localPort(Server server) {
+        for (var connector : server.getConnectors()) {
+            if (connector instanceof ServerConnector serverConnector) {
+                int localPort = serverConnector.getLocalPort();
+                if (localPort > 0) {
+                    return localPort;
+                }
+            }
+        }
+        throw new IllegalStateException("Started test server has no bound local port");
     }
 
     @Configuration
@@ -159,10 +210,15 @@ class TestServerTest {
         @Bean
         public WebSocketClient.ClientConfig webSocketClientProperties() {
             return WebSocketClient.ClientConfig.builder()
-                    .runtimeBaseUrl("ws://localhost:" + port)
-                    .namespace("clienttest")
+                    .runtimeBaseUrl("ws://localhost:" + port())
+                    .namespace("clienttest-" + UUID.randomUUID())
                     .name("GivenWhenThenSpringCustom Client Test")
                     .build();
+        }
+
+        @Bean
+        public Client webSocketClient(WebSocketClient.ClientConfig clientConfig) {
+            return WebSocketClient.newInstance(clientConfig);
         }
 
         @Bean
@@ -211,6 +267,7 @@ class TestServerTest {
         @HandleSchedule
         public void handle(String schedule) {
             Fluxzero.publishEvent(schedule);
+            scheduleHandled.countDown();
         }
     }
 
@@ -244,4 +301,3 @@ class TestServerTest {
     }
 
 }
-

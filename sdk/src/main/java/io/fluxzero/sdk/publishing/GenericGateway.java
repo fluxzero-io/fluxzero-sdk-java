@@ -28,14 +28,10 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.sdk.common.Message.asMessage;
-import static java.lang.String.format;
-import static java.lang.Thread.currentThread;
 import static java.util.Arrays.stream;
 
 /**
@@ -170,6 +166,20 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     }
 
     /**
+     * Sends a single request message with the given effective timeout.
+     * <p>
+     * The effective timeout is used for the returned future and is propagated as request metadata so tracking handlers
+     * can skip stale indexed requests before invocation. If {@code timeout} is {@code null}, the gateway falls back to
+     * timeout metadata already present on the message, then {@link Timeout @Timeout} on the payload class, and finally
+     * the request handler default. A negative timeout disables timeout handling for this request.
+     *
+     * @param message the message to send
+     * @param timeout the timeout for this request; {@code null} uses the gateway/request handler defaults
+     * @return a future that completes with the response message
+     */
+    CompletableFuture<Message> sendForMessage(Message message, Duration timeout);
+
+    /**
      * Sends multiple messages and returns a list of futures with their payload responses.
      */
     default <R> List<CompletableFuture<R>> send(Object... messages) {
@@ -216,27 +226,7 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      * <p>
      * Timeout can be customized using {@link Timeout @Timeout} on the payload class.
      */
-    @SneakyThrows
-    default <R> R sendAndWait(Message message) {
-        CompletableFuture<R> future = send(message);
-        try {
-            Timeout timeout = message.getPayload().getClass().getAnnotation(Timeout.class);
-            if (timeout != null) {
-                return future.get(timeout.value(), timeout.timeUnit());
-            }
-            return future.get(1, TimeUnit.MINUTES);
-        } catch (java.util.concurrent.TimeoutException e) {
-            throw new TimeoutException(format("Request %s (type %s) has timed out", message.getMessageId(),
-                                              message.getPayloadClass()));
-        } catch (InterruptedException e) {
-            currentThread().interrupt();
-            throw new GatewayException(
-                    format("Thread interrupted while waiting for result of %s (type %s)",
-                           message.getMessageId(), message.getPayloadClass()), e);
-        } catch (ExecutionException e) {
-            throw e.getCause();
-        }
-    }
+    <R> R sendAndWait(Message message);
 
     /**
      * Set a new retention duration for the underlying gateway's message log.
@@ -263,7 +253,25 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
 
     /**
+     * Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.
+     *
+     * @return a {@link CompletableFuture} that completes once the log is truncated
+     */
+    default CompletableFuture<Void> truncate() {
+        return truncate(Guarantee.STORED);
+    }
+
+    /**
+     * Truncates this gateway's message log and clears associated tracking positions.
+     *
+     * @param guarantee the delivery guarantee to apply to the truncate operation
+     * @return a {@link CompletableFuture} that completes once the log is truncated
+     */
+    CompletableFuture<Void> truncate(Guarantee guarantee);
+
+    /**
      * Closes this gateway and releases any underlying resources.
      */
     void close();
+
 }

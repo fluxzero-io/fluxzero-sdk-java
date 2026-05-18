@@ -19,8 +19,10 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -35,7 +37,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -48,6 +49,8 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
+import static java.util.Optional.ofNullable;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Default implementation of the {@link RequestHandler} interface.
@@ -192,9 +195,6 @@ public class DefaultRequestHandler implements RequestHandler {
         if (timeout == null) {
             timeout = this.timeout;
         }
-        if (!timeout.isNegative()) {
-            result = result.orTimeout(timeout.getSeconds(), TimeUnit.SECONDS);
-        }
         if (intermediateCallback == null) {
             List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
             intermediateCallback = intermediates::add;
@@ -208,6 +208,18 @@ public class DefaultRequestHandler implements RequestHandler {
                         Stream.of(data.getValue())).toArray(byte[][]::new));
                 return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
             });
+        }
+        Metadata metadata = ofNullable(request.getMetadata()).orElseGet(Metadata::empty);
+        if (timeout.isNegative()) {
+            request.setMetadata(metadata.without(REQUEST_TIMEOUT_METADATA_KEY));
+        } else {
+            request.setMetadata(metadata.with(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis()));
+            Duration effectiveTimeout = timeout;
+            CompletableFuture<SerializedMessage> timeoutResult = result;
+            CompletableFuture.delayedExecutor(effectiveTimeout.toMillis(), MILLISECONDS).execute(() ->
+                    timeoutResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
+                            "message", request.getData().getType(), request.getMessageId(), requestId,
+                            resultType.name(), effectiveTimeout)));
         }
         result.whenComplete((m, e) -> callbacks.remove(requestId));
         callbacks.put(requestId, new ResponseCallback(intermediateCallback, result));

@@ -20,18 +20,16 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Annotation to be placed on requests (i.e. queries and commands). Configures the time before such request will time
- * out when sent using sendAndWait-like methods.
+ * out when sent using request/response methods such as {@code send} and {@code sendAndWait}.
  * <p>
- * Note that non-blocking requests sent using send-methods that return a {@link CompletableFuture} will *not* time out
- * automatically. If a timeout is desired on non-blocking requests this needs to be manually configured, e.g. via
- * {@link CompletableFuture#orTimeout(long, TimeUnit)}.
+ * If no timeout is configured here, blocking {@code sendAndWait} calls use their standard one-minute timeout while
+ * non-blocking {@code send} calls use the gateway's default request handling behavior.
  */
 @Documented
 @Target(ElementType.TYPE)

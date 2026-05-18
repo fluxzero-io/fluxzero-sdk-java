@@ -170,6 +170,48 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void sendsEmptyBatchImmediatelyWhenReadHasZeroMaxTimeout() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
+            List<MessageBatch> received = new CopyOnWriteArrayList<>();
+            subject.getBatch(tracker("consumer", "tracker", received::add)
+                                     .withDeadline(System.currentTimeMillis() + 6000L)
+                                     .withMaxTimeout(0L), mockPositionStore());
+
+            assertEquals(1, received.size());
+            assertTrue(received.getFirst().isEmpty());
+            assertTrue(received.getFirst().isCaughtUp());
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, received.getFirst().getSegment());
+            assertEquals(0, scheduler.scheduledTaskCount());
+        }
+    }
+
+    @Test
+    void sendsEmptyClaimImmediatelyWhenZeroMaxTimeoutAndNoSegmentIsAvailable() {
+        TestScheduler scheduler = new TestScheduler();
+        TestStrategy subject = new TestStrategy(mockSource(), scheduler);
+        PositionStore positionStore = mockPositionStore();
+        List<MessageBatch> firstBatches = new CopyOnWriteArrayList<>();
+        List<MessageBatch> secondBatches = new CopyOnWriteArrayList<>();
+        TestTracker first = tracker("consumer", "first", firstBatches::add);
+        TestTracker second = tracker("consumer", "second", secondBatches::add)
+                .withDeadline(System.currentTimeMillis() + 6000L)
+                .withMaxTimeout(0L);
+        try(subject) {
+            subject.claimSegment(first, positionStore);
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, firstBatches.getFirst().getSegment());
+
+            subject.claimSegment(second, positionStore);
+
+            assertEquals(1, secondBatches.size());
+            assertTrue(secondBatches.getFirst().isEmpty());
+            assertTrue(secondBatches.getFirst().isCaughtUp());
+            assertArrayEquals(new int[]{0, 0}, secondBatches.getFirst().getSegment());
+            assertEquals(0, scheduler.scheduledTaskCount());
+        }
+    }
+
+    @Test
     void storesPositionWhenFreshMessagesAreFilteredOut() {
         TestScheduler scheduler = new TestScheduler();
         long freshIndex = System.currentTimeMillis() << 16;
@@ -416,6 +458,10 @@ class DefaultTrackingStrategyTest {
             idle.get(5, TimeUnit.SECONDS);
         }
 
+        int scheduledTaskCount() {
+            return scheduledTasks.size();
+        }
+
         private static void run(ThrowingRunnable task) {
             try {
                 task.run();
@@ -454,6 +500,11 @@ class DefaultTrackingStrategyTest {
         }
 
         TestTracker withDeadline(long deadline) {
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+                                   maxTimeout, lastTrackerIndex);
+        }
+
+        TestTracker withMaxTimeout(long maxTimeout) {
             return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
                                    maxTimeout, lastTrackerIndex);
         }

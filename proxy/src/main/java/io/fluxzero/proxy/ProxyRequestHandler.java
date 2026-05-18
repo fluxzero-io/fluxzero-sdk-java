@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.undertow.servlet.Servlets.deployment;
 import static java.lang.String.format;
@@ -72,7 +73,9 @@ import static java.util.Optional.ofNullable;
 public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
 
     public static final String CORS_DOMAINS_PROPERTY = "FLUXZERO_CORS_DOMAINS";
+    public static final String REQUEST_TIMEOUT_SECONDS_PROPERTY = "FLUXZERO_PROXY_REQUEST_TIMEOUT_SECONDS";
     static final Duration SERVER_SHUTDOWN_CLOSE_TIMEOUT = Duration.ofSeconds(1);
+    static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(200);
 
     @Getter
     private final Client client;
@@ -96,8 +99,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {
         this.client = client;
         requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
-        requestHandler = new DefaultRequestHandler(client, MessageType.WEBRESPONSE, Duration.ofSeconds(200),
-                                                   format("%s_%s", client.name(), "$proxy-request-handler"));
+        requestHandler = new DefaultRequestHandler(
+                client, MessageType.WEBRESPONSE,
+                Duration.ofSeconds(getLongProperty(REQUEST_TIMEOUT_SECONDS_PROPERTY, REQUEST_TIMEOUT.toSeconds())),
+                format("%s_%s", client.name(), "$proxy-request-handler"));
         websocketEndpoint = new WebsocketEndpoint(client, requestHandler);
         websocketHandler = createWebsocketHandler();
         this.namespaceSelector = namespaceSelector;

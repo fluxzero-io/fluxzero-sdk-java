@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -27,7 +27,7 @@ import lombok.Value;
  * @see SearchHistogram
  */
 @Value
-public class GetSearchHistogramResult implements RequestResult {
+public class GetSearchHistogramResult extends AbstractRequestResult {
 
     /**
      * The unique identifier of the original histogram request.

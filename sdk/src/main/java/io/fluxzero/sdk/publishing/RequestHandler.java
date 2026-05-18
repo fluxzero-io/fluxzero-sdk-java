@@ -55,6 +55,13 @@ import java.util.function.Consumer;
  * and deregistration when {@link #close()} is invoked.
  */
 public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseable {
+    /**
+     * Metadata key containing the effective request timeout in milliseconds.
+     * <p>
+     * Request handler implementations set this metadata while dispatching timed requests. Tracking handlers use it to
+     * determine whether an indexed request has already expired before invoking the handler.
+     */
+    String REQUEST_TIMEOUT_METADATA_KEY = "$requestTimeout";
 
     /**
      * Sends a single request and returns a future that completes when the corresponding response is received.
@@ -73,10 +80,14 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
 
     /**
      * Sends a single request with a custom timeout and returns a future for the corresponding response.
+     * <p>
+     * A non-negative timeout is also written to {@link #REQUEST_TIMEOUT_METADATA_KEY} so downstream request handlers can
+     * recognize stale requests during tracking. A {@code null} timeout falls back to this handler's configured default.
      *
      * @param request       The request message to be sent.
      * @param requestSender A callback used to dispatch the request.
-     * @param timeout       The timeout for this request. A negative value indicates no timeout.
+     * @param timeout       The timeout for this request; {@code null} uses the handler default and a negative value
+     *                      disables the timeout.
      * @return A {@link CompletableFuture} that completes with the response or fails on timeout.
      */
     CompletableFuture<SerializedMessage> sendRequest(SerializedMessage request,
@@ -98,10 +109,15 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
 
     /**
      * Sends multiple requests with a custom timeout and returns a list of futures for their responses.
+     * <p>
+     * A non-negative timeout is also written to {@link #REQUEST_TIMEOUT_METADATA_KEY} on each request so downstream
+     * request handlers can recognize stale requests during tracking. A {@code null} timeout falls back to this handler's
+     * configured default.
      *
      * @param requests      The requests to send.
      * @param requestSender A callback used to dispatch the requests.
-     * @param timeout       The timeout to apply per request. A negative value disables the timeout.
+     * @param timeout       The timeout to apply per request; {@code null} uses the handler default and a negative value
+     *                      disables the timeout.
      * @return A list of {@link CompletableFuture} instances, one for each request.
      */
     List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,

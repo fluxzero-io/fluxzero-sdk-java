@@ -336,6 +336,13 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
     }
 
     /**
+     * Prepares a fluent bulk update builder for the specified collection.
+     */
+    default BulkUpdateBuilder bulkUpdate(@NonNull Object collection) {
+        return new DefaultBulkUpdateBuilder(this, collection);
+    }
+
+    /**
      * Applies a batch of document updates, using given {@link Guarantee}.
      */
     CompletableFuture<Void> bulkUpdate(Collection<? extends BulkUpdate> updates, Guarantee guarantee);

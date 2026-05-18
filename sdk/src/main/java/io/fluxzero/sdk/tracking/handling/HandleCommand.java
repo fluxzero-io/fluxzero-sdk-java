@@ -53,6 +53,15 @@ public @interface HandleCommand {
     boolean passive() default false;
 
     /**
+     * If {@code true}, indexed request messages whose effective timeout has already expired may be skipped before this
+     * handler is invoked.
+     * <p>
+     * Defaults to {@code false} so a sender-side timeout does not change command execution semantics. Enable this only
+     * for commands that are safe to drop when they are stale.
+     */
+    boolean skipExpiredRequests() default false;
+
+    /**
      * Restricts which payload types this handler may be invoked for.
      */
     Class<?>[] allowedClasses() default {};

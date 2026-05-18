@@ -77,6 +77,14 @@ public interface GatewayClient extends AutoCloseable, Monitored<List<SerializedM
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
 
     /**
+     * Truncates the underlying gateway's message log and clears its tracking positions.
+     *
+     * @param guarantee the delivery guarantee to apply to the truncate operation
+     * @return a {@link CompletableFuture} that completes once the log is truncated
+     */
+    CompletableFuture<Void> truncate(Guarantee guarantee);
+
+    /**
      * Closes this gateway client, releasing any associated resources (e.g. network connections or background tasks).
      */
     @Override

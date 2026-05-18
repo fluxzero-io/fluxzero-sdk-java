@@ -14,12 +14,38 @@
 
 package io.fluxzero.sdk.publishing;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.fluxzero.sdk.common.exception.FluxzeroErrorReport;
+
 import java.beans.ConstructorProperties;
 
 public class GatewayException extends RuntimeException {
+    private final FluxzeroErrorReport fluxzeroErrorReport;
+
     @ConstructorProperties({"message", "cause"})
     public GatewayException(String message, Throwable cause) {
         super(message, cause);
+        this.fluxzeroErrorReport = null;
+    }
+
+    public GatewayException(FluxzeroErrorReport fluxzeroErrorReport, Throwable cause) {
+        super(fluxzeroErrorReport.formatSafely(), cause);
+        this.fluxzeroErrorReport = fluxzeroErrorReport;
+    }
+
+    @JsonIgnore
+    public FluxzeroErrorReport getFluxzeroErrorReport() {
+        return fluxzeroErrorReport;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getErrorCode() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getErrorCode();
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getDocumentationUrl() {
+        return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getDocumentationUrl();
     }
 }
-

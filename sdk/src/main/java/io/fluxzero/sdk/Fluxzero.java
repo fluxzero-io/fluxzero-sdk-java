@@ -31,6 +31,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.UuidFactory;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -47,6 +48,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.search.BulkUpdateBuilder;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.IndexOperation;
 import io.fluxzero.sdk.persisting.search.Search;
@@ -151,7 +153,8 @@ public interface Fluxzero extends AutoCloseable {
     static Fluxzero get() {
         return Optional.ofNullable(instance.get())
                 .orElseGet(() -> Optional.ofNullable(applicationInstance.get())
-                        .orElseThrow(() -> new IllegalStateException("Fluxzero instance not set")));
+                        .orElseThrow(() -> new IllegalStateException(
+                                FluxzeroErrors.fluxzeroInstanceMissing().format())));
     }
 
     /**
@@ -1021,6 +1024,17 @@ public interface Fluxzero extends AutoCloseable {
                                              Function<? super T, Instant> timestampFunction,
                                              Function<? super T, Instant> endFunction) {
         return get().documentStore().index(objects, collection, idFunction, timestampFunction, endFunction);
+    }
+
+    /**
+     * Prepare a fluent bulk update for the given document collection.
+     * <p>
+     * Example usage: {@code Fluxzero.bulkUpdate("my_collection").index(doc1).delete(doc2Id).execute();}
+     *
+     * @see DocumentStore#bulkUpdate(Object)
+     */
+    static BulkUpdateBuilder bulkUpdate(Object collection) {
+        return get().documentStore().bulkUpdate(collection);
     }
 
     /**

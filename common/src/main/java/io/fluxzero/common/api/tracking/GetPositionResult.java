@@ -14,7 +14,7 @@
 
 package io.fluxzero.common.api.tracking;
 
-import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
 /**
@@ -37,7 +37,7 @@ import lombok.Value;
  * @see StorePosition
  */
 @Value
-public class GetPositionResult implements RequestResult {
+public class GetPositionResult extends AbstractRequestResult {
 
     /**
      * The unique identifier of the original {@link GetPosition} request.
