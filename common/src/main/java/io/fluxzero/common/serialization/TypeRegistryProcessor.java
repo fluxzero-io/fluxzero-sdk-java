@@ -14,7 +14,6 @@
 
 package io.fluxzero.common.serialization;
 
-import com.google.auto.service.AutoService;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -22,7 +21,6 @@ import lombok.Value;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
@@ -51,7 +49,6 @@ import static java.util.stream.Stream.concat;
 import static javax.tools.StandardLocation.CLASS_OUTPUT;
 
 @SupportedAnnotationTypes(TypeRegistryProcessor.ANNOTATION)
-@AutoService(Processor.class)
 public class TypeRegistryProcessor extends AbstractProcessor {
     static final String ANNOTATION = "io.fluxzero.common.serialization.RegisterType";
     public static final String TYPES_FILE = "META-INF/" + TypeRegistry.class.getName();

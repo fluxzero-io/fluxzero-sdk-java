@@ -15,7 +15,6 @@
 
 package io.fluxzero.common.application;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -134,7 +133,7 @@ public interface PropertySource {
      * @param template the template containing substitutions
      * @return the fully substituted string
      */
-    default String substituteProperties(@Nullable String template) {
+    default String substituteProperties(String template) {
         if (template == null) {
             return null;
         }

@@ -14,14 +14,12 @@
 
 package io.fluxzero.sdk.web;
 
-import com.google.auto.service.AutoService;
 import io.fluxzero.common.reflection.ParameterRegistry;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
@@ -78,7 +76,6 @@ import java.util.Set;
  *
  * <h2>Usage</h2>
  * <ul>
- *   <li>Automatically registered via {@code @AutoService(Processor.class)}</li>
  *   <li>Triggered by any of the supported parameter annotations</li>
  *   <li>Works in combination with {@link ParameterRegistry}</li>
  * </ul>
@@ -92,7 +89,6 @@ import java.util.Set;
         "io.fluxzero.sdk.web.HeaderParam",
         "io.fluxzero.sdk.web.FormParam",
         "io.fluxzero.sdk.web.BodyParam"})
-@AutoService(Processor.class)
 public class WebParameterProcessor extends AbstractProcessor {
 
     private Filer filer;

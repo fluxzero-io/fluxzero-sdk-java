@@ -105,10 +105,6 @@
                             <artifactId>lombok</artifactId>
                         </path>
                         <path>
-                            <groupId>com.google.auto.service</groupId>
-                            <artifactId>auto-service</artifactId>
-                        </path>
-                        <path>
                             <groupId>io.fluxzero</groupId>
                             <artifactId>common</artifactId>
                             <version>${project.version}</version>
