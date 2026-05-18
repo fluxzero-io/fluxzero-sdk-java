@@ -18,14 +18,20 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
-import jakarta.websocket.CloseReason;
-import jakarta.websocket.Session;
+import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,12 +53,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class WebsocketEndpointTest {
+class ProxyWebsocketEndpointTest {
 
     @Test
     void shutdownWaitsForCloseRequestToFinish() throws Exception {
         TestEndpoint endpoint = new TestEndpoint();
-        Session session = mock(Session.class);
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
         prepareSession(endpoint, session);
 
         addOpenSession(endpoint, session);
@@ -75,8 +82,8 @@ class WebsocketEndpointTest {
         GatewayClient gatewayClient = mock(GatewayClient.class);
         when(gatewayClient.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
         RequestHandler requestHandler = mock(RequestHandler.class);
-        WebsocketEndpoint endpoint = new WebsocketEndpoint(createClient(gatewayClient), requestHandler);
-        Session session = mock(Session.class);
+        ProxyWebsocketEndpoint endpoint = new ProxyWebsocketEndpoint(createClient(gatewayClient), requestHandler);
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
         prepareSession(endpoint, session);
 
         addOpenSession(endpoint, session);
@@ -99,45 +106,80 @@ class WebsocketEndpointTest {
         RequestHandler requestHandler = mock(RequestHandler.class);
         when(requestHandler.sendRequest(any(), any(), any(Duration.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        WebsocketEndpoint endpoint = new WebsocketEndpoint(createClient(gatewayClient), requestHandler);
-        Session session = mock(Session.class);
+        ProxyWebsocketEndpoint endpoint = new ProxyWebsocketEndpoint(createClient(gatewayClient), requestHandler);
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
         prepareSession(endpoint, session);
 
-        endpoint.sendCloseRequest(session, new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "done"))
+        endpoint.sendCloseRequest(session, new WebsocketCloseReason(WebsocketCloseReason.NORMAL_CLOSURE, "done"))
                 .get(1, TimeUnit.SECONDS);
 
-        verify(requestHandler).sendRequest(any(), any(), eq(WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT));
+        verify(requestHandler).sendRequest(any(), any(), eq(ProxyWebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT));
     }
 
-    private static void prepareSession(WebsocketEndpoint endpoint, Session session) throws Exception {
+    @Test
+    void sendBacklogFailurePublishesBackpressureMetric() throws Exception {
+        GatewayClient requestGateway = mock(GatewayClient.class);
+        GatewayClient metricsGateway = mock(GatewayClient.class);
+        when(metricsGateway.append(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        ProxyWebsocketEndpoint endpoint = new ProxyWebsocketEndpoint(
+                createClient(requestGateway, metricsGateway, "tenant-a"), mock(RequestHandler.class));
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        prepareSession(endpoint, session);
+        when(session.sendText(any())).thenReturn(CompletableFuture.failedFuture(
+                new WebsocketSendBacklogExceededException("session-1", "client-1", "tracker-1", "tenant-a", 2, 2)));
+
+        addOpenSession(endpoint, session);
+        SerializedMessage result = new SerializedMessage(
+                new Data<>("slow".getBytes(StandardCharsets.UTF_8), String.class.getName(), 0),
+                Metadata.of(WebRequest.sessionIdKey, "session-1"), "message-1", 1L);
+
+        endpoint.handleResultMessages(List.of(result));
+
+        ArgumentCaptor<SerializedMessage> metric = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(metricsGateway).append(eq(Guarantee.NONE), metric.capture());
+        assertEquals(ProxyWebsocketBackpressureEvent.class.getName(), metric.getValue().getData().getType());
+        ProxyWebsocketBackpressureEvent event = new JacksonSerializer()
+                .deserialize(metric.getValue().getData(), ProxyWebsocketBackpressureEvent.class);
+        assertEquals("session-1", event.sessionId());
+        assertEquals("client-1", event.clientId());
+        assertEquals("tracker-1", event.trackerId());
+        assertEquals("tenant-a", event.namespace());
+        assertEquals(2, event.pendingSends());
+        assertEquals(2, event.maxPendingSends());
+        assertEquals("session-1", metric.getValue().getMetadata().get("sessionId"));
+        assertEquals("client-1", metric.getValue().getMetadata().get("clientId"));
+        assertEquals("tenant-a", metric.getValue().getMetadata().get("namespace"));
+    }
+
+    private static void prepareSession(ProxyWebsocketEndpoint endpoint, ProxyWebsocketSession session) throws Exception {
         when(session.getId()).thenReturn("session-1");
         when(session.isOpen()).thenReturn(true);
         when(session.getRequestParameterMap()).thenReturn(Map.of(
-                WebsocketEndpoint.clientIdKey, List.of("client-1"),
-                WebsocketEndpoint.trackerIdKey, List.of("tracker-1")));
+                ProxyWebsocketEndpoint.clientIdKey, List.of("client-1"),
+                ProxyWebsocketEndpoint.trackerIdKey, List.of("tracker-1")));
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
         doAnswer(invocation -> {
-            var reason = invocation.getArgument(0, CloseReason.class);
+            var reason = invocation.getArgument(0, WebsocketCloseReason.class);
             CompletableFuture.runAsync(() -> endpoint.onClose(session, reason));
-            return null;
-        }).when(session).close(any(CloseReason.class));
+            return CompletableFuture.completedFuture(null);
+        }).when(session).close(any(WebsocketCloseReason.class));
     }
 
     @SuppressWarnings("unchecked")
-    private static void addOpenSession(WebsocketEndpoint endpoint, Session session) throws Exception {
-        Field field = WebsocketEndpoint.class.getDeclaredField("openSessions");
+    private static void addOpenSession(ProxyWebsocketEndpoint endpoint, ProxyWebsocketSession session) throws Exception {
+        Field field = ProxyWebsocketEndpoint.class.getDeclaredField("openSessions");
         field.setAccessible(true);
-        ((Map<String, Session>) field.get(endpoint)).put(session.getId(), session);
+        ((Map<String, ProxyWebsocketSession>) field.get(endpoint)).put(session.getId(), session);
     }
 
-    private static void setStarted(WebsocketEndpoint endpoint, boolean value) throws Exception {
-        Field field = WebsocketEndpoint.class.getDeclaredField("started");
+    private static void setStarted(ProxyWebsocketEndpoint endpoint, boolean value) throws Exception {
+        Field field = ProxyWebsocketEndpoint.class.getDeclaredField("started");
         field.setAccessible(true);
         ((AtomicBoolean) field.get(endpoint)).set(value);
     }
 
-    private static void setRegistration(WebsocketEndpoint endpoint, Registration registration) throws Exception {
-        Field field = WebsocketEndpoint.class.getDeclaredField("registration");
+    private static void setRegistration(ProxyWebsocketEndpoint endpoint, Registration registration) throws Exception {
+        Field field = ProxyWebsocketEndpoint.class.getDeclaredField("registration");
         field.setAccessible(true);
         field.set(endpoint, registration);
     }
@@ -147,12 +189,18 @@ class WebsocketEndpointTest {
     }
 
     private static Client createClient(GatewayClient gatewayClient) {
+        return createClient(gatewayClient, mock(GatewayClient.class), null);
+    }
+
+    private static Client createClient(GatewayClient gatewayClient, GatewayClient metricsGateway, String namespace) {
         Client client = mock(Client.class, CALLS_REAL_METHODS);
         when(client.getGatewayClient(MessageType.WEBREQUEST, null)).thenReturn(gatewayClient);
+        when(client.getGatewayClient(MessageType.METRICS, null)).thenReturn(metricsGateway);
+        when(client.namespace()).thenReturn(namespace);
         return client;
     }
 
-    private static class TestEndpoint extends WebsocketEndpoint {
+    private static class TestEndpoint extends ProxyWebsocketEndpoint {
         private final CountDownLatch closeRequestStarted = new CountDownLatch(1);
         private final CountDownLatch allowCloseRequestToFinish = new CountDownLatch(1);
         private final CountDownLatch closeRequestFinished = new CountDownLatch(1);
@@ -162,7 +210,8 @@ class WebsocketEndpointTest {
         }
 
         @Override
-        protected CompletableFuture<?> sendCloseRequest(Session session, CloseReason closeReason) {
+        protected CompletableFuture<?> sendCloseRequest(ProxyWebsocketSession session,
+                                                        WebsocketCloseReason closeReason) {
             closeRequestStarted.countDown();
             try {
                 assertTrue(allowCloseRequestToFinish.await(1, TimeUnit.SECONDS),

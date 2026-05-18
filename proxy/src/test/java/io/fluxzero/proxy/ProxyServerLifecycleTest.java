@@ -21,13 +21,16 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
+import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.testserver.TestServer;
 import org.eclipse.jetty.server.Server;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
 
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ProxyServerLifecycleTest {
 
     @Test
+    @Timeout(15)
     void startWithoutArgumentsStartsHttpAndForwardProxyUsingConfiguredProperties() throws Exception {
         Server testServer = null;
         ProxyServer proxyServer = null;
@@ -78,6 +82,9 @@ class ProxyServerLifecycleTest {
             WebResponse response = requester.webRequestGateway().sendAndWait(WebRequest.builder()
                                                                                        .url(healthUrl)
                                                                                        .method(GET)
+                                                                                       .build(),
+                                                                               WebRequestSettings.builder()
+                                                                                       .timeout(Duration.ofSeconds(5))
                                                                                        .build());
             assertEquals(200, response.getStatus());
             assertEquals("Healthy", new String(response.<byte[]>getPayload(), StandardCharsets.UTF_8));

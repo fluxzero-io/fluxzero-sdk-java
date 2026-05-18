@@ -27,26 +27,15 @@ import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.sdk.web.WebUtils;
-import io.undertow.Undertow;
-import io.undertow.server.DefaultByteBufferPool;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.servlet.Servlets;
-import io.undertow.servlet.api.DeploymentManager;
-import io.undertow.servlet.api.FilterInfo;
-import io.undertow.util.HttpString;
-import io.undertow.util.Protocols;
-import io.undertow.websockets.jsr.WebSocketDeploymentInfo;
-import jakarta.servlet.DispatcherType;
-import jakarta.websocket.HandshakeResponse;
-import jakarta.websocket.server.HandshakeRequest;
-import jakarta.websocket.server.ServerEndpointConfig;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.xnio.OptionMap;
-import org.xnio.Options;
-import org.xnio.Xnio;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.io.Content;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Response;
+import org.eclipse.jetty.util.Callback;
+import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
 
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
@@ -54,10 +43,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -65,12 +56,11 @@ import java.util.stream.Collectors;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
-import static io.undertow.servlet.Servlets.deployment;
 import static java.lang.String.format;
 import static java.util.Optional.ofNullable;
 
 @Slf4j
-public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> implements HttpHandler {
+public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler> {
 
     public static final String CORS_DOMAINS_PROPERTY = "FLUXZERO_CORS_DOMAINS";
     public static final String REQUEST_TIMEOUT_SECONDS_PROPERTY = "FLUXZERO_PROXY_REQUEST_TIMEOUT_SECONDS";
@@ -83,14 +73,28 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private final ProxySerializer serializer = new ProxySerializer();
     private final GatewayClient requestGateway;
     private final RequestHandler requestHandler;
-    private final WebsocketEndpoint websocketEndpoint;
-    private final HttpHandler websocketHandler;
+    private final ProxyWebsocketEndpoint proxyWebsocketEndpoint;
     private final NamespaceSelector namespaceSelector;
 
     private final AtomicBoolean closed = new AtomicBoolean();
+    private volatile long maxRequestBodySize = ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE;
+    private volatile long maxMultipartRequestBodySize = ProxyServer.DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE;
+    private volatile int maxPendingWebsocketSends = ProxyServer.DEFAULT_MAX_PENDING_WEBSOCKET_SENDS;
+    private volatile ServerWebSocketContainer websocketContainer;
     @Getter(lazy = true)
-    private final Set<String> allowedCorsDomains = mapProperty(CORS_DOMAINS_PROPERTY, p -> Arrays.stream(p.split(",")).map(String::trim)
-            .filter(d -> !d.isEmpty()).collect(Collectors.toSet()), Set::of);
+    private final Set<String> allowedCorsDomains = mapProperty(CORS_DOMAINS_PROPERTY, p -> Arrays.stream(p.split(","))
+            .map(String::trim).filter(d -> !d.isEmpty()).collect(Collectors.toSet()), Set::of);
+
+    private static final Set<String> HOP_BY_HOP_RESPONSE_HEADERS = Set.of(
+            "Connection",
+            "Keep-Alive",
+            "Proxy-Authenticate",
+            "Proxy-Authorization",
+            "Proxy-Connection",
+            "TE",
+            "Trailer",
+            "Transfer-Encoding",
+            "Upgrade");
 
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
@@ -103,58 +107,92 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 client, MessageType.WEBRESPONSE,
                 Duration.ofSeconds(getLongProperty(REQUEST_TIMEOUT_SECONDS_PROPERTY, REQUEST_TIMEOUT.toSeconds())),
                 format("%s_%s", client.name(), "$proxy-request-handler"));
-        websocketEndpoint = new WebsocketEndpoint(client, requestHandler);
-        websocketHandler = createWebsocketHandler();
+        proxyWebsocketEndpoint = new ProxyWebsocketEndpoint(client, requestHandler);
         this.namespaceSelector = namespaceSelector;
     }
 
     @Override
     protected ProxyRequestHandler createForNamespace(String namespace) {
-        return Objects.equals(client.namespace(), namespace)
-                ? this : new ProxyRequestHandler(client.forNamespace(namespace), namespaceSelector);
+        if (Objects.equals(client.namespace(), namespace)) {
+            return this;
+        }
+        ProxyRequestHandler namespacedHandler = new ProxyRequestHandler(client.forNamespace(namespace), namespaceSelector);
+        namespacedHandler.setMaxRequestBodySize(maxRequestBodySize);
+        namespacedHandler.setMaxMultipartRequestBodySize(maxMultipartRequestBodySize);
+        namespacedHandler.setMaxPendingWebsocketSends(maxPendingWebsocketSends);
+        namespacedHandler.setWebsocketContainer(websocketContainer);
+        return namespacedHandler;
     }
 
-    @Override
-    @SneakyThrows
-    public void handleRequest(HttpServerExchange exchange) {
+    void setMaxRequestBodySize(long maxRequestBodySize) {
+        this.maxRequestBodySize = maxRequestBodySize;
+    }
+
+    void setMaxMultipartRequestBodySize(long maxMultipartRequestBodySize) {
+        this.maxMultipartRequestBodySize = maxMultipartRequestBodySize;
+    }
+
+    void setMaxPendingWebsocketSends(int maxPendingWebsocketSends) {
+        this.maxPendingWebsocketSends = maxPendingWebsocketSends;
+    }
+
+    void setWebsocketContainer(ServerWebSocketContainer websocketContainer) {
+        this.websocketContainer = websocketContainer;
+    }
+
+    public boolean handle(Request request, Response response, Callback callback) {
+        JettyExchange exchange = new JettyExchange(request, response, callback,
+                                                  maxRequestBodySize, maxMultipartRequestBodySize,
+                                                  maxPendingWebsocketSends, client.namespace());
         if (closed.get()) {
-            throw new IllegalStateException("Request handler has been shut down and is not accepting new requests");
+            sendServiceUnavailable(exchange);
+            return true;
         }
-        if (exchange.isInIoThread()) {
-            exchange.dispatch(this);
-            return;
+        try {
+            if (handleCorsPreflight(exchange)) {
+                return true;
+            }
+            Content.Source.asByteArrayAsync(request, exchange.maxRequestBodySizeAsInt())
+                    .whenComplete((payload, error) -> {
+                        try {
+                            if (error != null) {
+                                Throwable readFailure = unwrapException(error);
+                                if (isRequestBodyTooLarge(readFailure)) {
+                                    log.debug("Rejected request body larger than {} bytes",
+                                              exchange.maxRequestBodySize());
+                                    sendPayloadTooLarge(exchange);
+                                } else {
+                                    log.error("Failed to read incoming message", readFailure);
+                                    sendServerError(exchange);
+                                }
+                                return;
+                            }
+                            sendWebRequest(exchange, createWebRequest(exchange, payload));
+                        } catch (Throwable e) {
+                            log.error("Failed to create request", e);
+                            sendServerError(exchange);
+                        }
+                    });
+        } catch (Throwable e) {
+            log.error("Failed to handle incoming request", e);
+            sendServerError(exchange);
         }
-        if (handleCorsPreflight(exchange)) {
-            return;
-        }
-        exchange.getRequestReceiver().receiveFullBytes(
-                (se, payload) -> se.dispatch(() -> {
-                    try {
-                        sendWebRequest(se, createWebRequest(se, payload));
-                    } catch (Throwable e) {
-                        log.error("Failed to create request", e);
-                        sendServerError(se);
-                    }
-                }),
-                (se, error) -> se.dispatch(() -> {
-                    log.error("Failed to read incoming message", error);
-                    sendServerError(se);
-                }));
+        return true;
     }
 
-    protected WebRequest createWebRequest(HttpServerExchange se, byte[] payload) {
+    protected WebRequest createWebRequest(JettyExchange exchange, byte[] payload) {
         var builder = WebRequest.builder()
-                .url(se.getRelativePath() + (se.getQueryString().isBlank() ? "" : ("?" + se.getQueryString())))
-                .method(se.getRequestMethod().toString()).payload(payload)
+                .url(exchange.getPathQuery())
+                .method(exchange.getMethod()).payload(payload)
                 .acceptGzipEncoding(false);
-        se.getRequestHeaders().forEach(
-                header -> header.forEach(value -> builder.header(header.getHeaderName().toString(), value)));
-        return tryUpgrade(builder.build(), se);
+        exchange.getRequestHeaders().forEach(
+                header -> builder.header(header.getName(), header.getValue()));
+        return tryUpgrade(builder.build());
     }
 
-    protected WebRequest tryUpgrade(WebRequest webRequest, HttpServerExchange se) {
+    protected WebRequest tryUpgrade(WebRequest webRequest) {
         if (HttpRequestMethod.GET.equals(webRequest.getMethod())
-            && "Upgrade".equalsIgnoreCase(webRequest.getHeader("Connection"))
+            && headerContainsToken(webRequest.getHeader("Connection"), "Upgrade")
             && "websocket".equalsIgnoreCase(webRequest.getHeader("Upgrade"))) {
             var requestBuilder = webRequest.toBuilder();
             var protocols = getWebsocketProtocols(webRequest.getHeaders("Sec-WebSocket-Protocol"));
@@ -164,15 +202,21 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                         var name = URLDecoder.decode(protocols.get(i), StandardCharsets.UTF_8);
                         var value = URLDecoder.decode(protocols.get(i + 1), StandardCharsets.UTF_8);
                         requestBuilder.header(name, value);
-                        se.getRequestHeaders().put(new HttpString(name), value);
                     } catch (Throwable e) {
-                        log.warn("Failed to convert a protocol to a ");
+                        log.warn("Failed to convert websocket subprotocol pair to request headers", e);
                     }
                 }
             }
             return requestBuilder.method(HttpRequestMethod.WS_HANDSHAKE).build();
         }
         return webRequest;
+    }
+
+    private static boolean headerContainsToken(String headerValue, String token) {
+        if (headerValue == null) {
+            return false;
+        }
+        return Arrays.stream(headerValue.split(",")).map(String::trim).anyMatch(token::equalsIgnoreCase);
     }
 
     static List<String> getWebsocketProtocols(List<String> headerValue) {
@@ -183,31 +227,29 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 protocolHeader -> Arrays.stream(protocolHeader.split(",")).map(String::trim)).toList();
     }
 
-    protected boolean handleCorsPreflight(HttpServerExchange se) {
-        if ("options".equalsIgnoreCase(se.getRequestMethod().toString())
-            && se.getRequestHeaders().contains("Access-Control-Request-Method")
-            && applyCorsHeaders(se)) {
-            ofNullable(se.getRequestHeaders().getFirst("Access-Control-Request-Headers"))
-                    .ifPresent(h -> se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Headers"), h));
-            ofNullable(se.getRequestHeaders().getFirst("Access-Control-Request-Method"))
-                    .ifPresent(h -> se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Methods"), h));
-            se.getResponseHeaders().put(new HttpString("Access-Control-Max-Age"),
-                                        String.valueOf(Duration.ofDays(1).toSeconds()));
-            se.getResponseHeaders().put(new HttpString("Vary"),
-                                        "Origin, Access-Control-Request-Method, Access-Control-Request-Headers");
-            se.setStatusCode(204);
-            se.endExchange();
+    protected boolean handleCorsPreflight(JettyExchange exchange) {
+        if ("options".equalsIgnoreCase(exchange.getMethod())
+            && exchange.hasRequestHeader("Access-Control-Request-Method")
+            && applyCorsHeaders(exchange)) {
+            ofNullable(exchange.getRequestHeader("Access-Control-Request-Headers"))
+                    .ifPresent(h -> exchange.putResponseHeader("Access-Control-Allow-Headers", h));
+            ofNullable(exchange.getRequestHeader("Access-Control-Request-Method"))
+                    .ifPresent(h -> exchange.putResponseHeader("Access-Control-Allow-Methods", h));
+            exchange.putResponseHeader("Access-Control-Max-Age", String.valueOf(Duration.ofDays(1).toSeconds()));
+            exchange.putResponseHeader("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers");
+            exchange.setStatus(204);
+            exchange.writeAndComplete(new byte[0]);
             return true;
         }
         return false;
     }
 
-    protected boolean applyCorsHeaders(HttpServerExchange se) {
-        String origin = se.getRequestHeaders().getFirst("Origin");
+    protected boolean applyCorsHeaders(JettyExchange exchange) {
+        String origin = exchange.getRequestHeader("Origin");
         if (corsOrigin(origin)) {
-            se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), origin);
-            if (!se.getResponseHeaders().contains("Access-Control-Allow-Credentials")) {
-                se.getResponseHeaders().put(new HttpString("Access-Control-Allow-Credentials"), "true");
+            exchange.putResponseHeader("Access-Control-Allow-Origin", origin);
+            if (!exchange.hasResponseHeader("Access-Control-Allow-Credentials")) {
+                exchange.putResponseHeader("Access-Control-Allow-Credentials", "true");
             }
             return true;
         }
@@ -246,111 +288,159 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         return false;
     }
 
-    protected void sendWebRequest(HttpServerExchange se, WebRequest webRequest) {
+    protected void sendWebRequest(JettyExchange exchange, WebRequest webRequest) {
         String namespace;
         try {
             namespace = namespaceSelector.select(webRequest);
         } catch (SecurityException e) {
-            se.setStatusCode(401);
-            se.getResponseSender().send(e.getMessage());
+            exchange.setStatus(401);
+            exchange.writeAndComplete(e.getMessage().getBytes(StandardCharsets.UTF_8));
             return;
         }
         if (namespace != null) {
-            forNamespace(namespace).doSendWebRequest(se, webRequest);
+            forNamespace(namespace).doSendWebRequest(exchange, webRequest);
             return;
         }
-        doSendWebRequest(se, webRequest);
+        doSendWebRequest(exchange, webRequest);
     }
 
-    protected void doSendWebRequest(HttpServerExchange se, WebRequest webRequest) {
+    protected void doSendWebRequest(JettyExchange exchange, WebRequest webRequest) {
         SerializedMessage requestMessage = webRequest.serialize(serializer);
         requestHandler.sendRequest(
                         requestMessage, m -> requestGateway.append(Guarantee.SENT, m),
-                        intermediateResponse -> handleResponse(intermediateResponse, webRequest, se))
+                        intermediateResponse -> handleResponse(intermediateResponse, webRequest, exchange))
                 .whenComplete((r, e) -> {
                     try {
                         e = unwrapException(e);
                         if (e == null) {
-                            handleResponse(r, webRequest, se);
+                            handleResponse(r, webRequest, exchange);
                         } else if (e instanceof TimeoutException) {
                             log.warn("Request {} timed out (messageId: {}). This is possibly due to a missing handler.",
                                      webRequest, webRequest.getMessageId(), e);
-                            sendGatewayTimeout(se);
+                            sendGatewayTimeout(exchange);
                         } else {
                             log.error("Failed to complete {} (messageId: {})",
                                       webRequest, webRequest.getMessageId(), e);
-                            sendServerError(se);
+                            sendServerError(exchange);
                         }
                     } catch (Throwable t) {
                         log.error("Failed to process response {} to request {}", e == null ? r : e, webRequest, t);
-                        sendServerError(se);
+                        sendServerError(exchange);
                     }
                 });
     }
 
     @SuppressWarnings("resource")
     @SneakyThrows
-    protected void handleResponse(SerializedMessage responseMessage, WebRequest webRequest, HttpServerExchange se) {
+    protected void handleResponse(SerializedMessage responseMessage, WebRequest webRequest, JettyExchange exchange) {
         int statusCode = WebResponse.getStatusCode(responseMessage.getMetadata());
         if (statusCode < 300 && HttpRequestMethod.WS_HANDSHAKE.equals(webRequest.getMethod())) {
-            se.addQueryParam("_clientId", responseMessage.getMetadata().get("clientId"));
-            se.addQueryParam("_trackerId", responseMessage.getMetadata().get("trackerId"));
-            websocketHandler.handleRequest(se);
+            exchange.upgrade(proxyWebsocketEndpoint, createWebsocketRequestParameters(responseMessage, webRequest),
+                             websocketContainer);
             return;
         }
+        prepareForSending(responseMessage, exchange, statusCode);
         if (responseMessage.chunked()) {
-            if (!se.isBlocking()) {
-                prepareForSending(responseMessage, se, statusCode).startBlocking();
-            }
-            var out = se.getOutputStream();
-            out.write(responseMessage.getData().getValue());
-            if (responseMessage.lastChunk()) {
-                out.close();
-            }
+            exchange.write(responseMessage.getData().getValue(), responseMessage.lastChunk());
         } else {
-            sendResponse(responseMessage, prepareForSending(responseMessage, se, statusCode));
+            sendResponse(responseMessage, exchange);
         }
     }
 
-    protected HttpServerExchange prepareForSending(SerializedMessage responseMessage, HttpServerExchange se,
-                                                   int statusCode) {
-        se.setStatusCode(statusCode);
-        applyCorsHeaders(se);
-        boolean http2 = se.getProtocol().compareTo(Protocols.HTTP_1_1) > 0;
+    private static Map<String, List<String>> createWebsocketRequestParameters(SerializedMessage responseMessage,
+                                                                              WebRequest webRequest) {
+        Map<String, List<String>> parameters = new LinkedHashMap<>();
+        putParameter(parameters, ProxyWebsocketEndpoint.clientIdKey, responseMessage.getMetadata().get("clientId"));
+        putParameter(parameters, ProxyWebsocketEndpoint.trackerIdKey, responseMessage.getMetadata().get("trackerId"));
+        webRequest.getMetadata().getEntries().forEach(
+                (key, value) -> putParameter(parameters, ProxyWebsocketEndpoint.metadataPrefix + key, value));
+        return Collections.unmodifiableMap(parameters);
+    }
+
+    private static void putParameter(Map<String, List<String>> parameters, String name, Object value) {
+        if (value != null) {
+            parameters.put(name, List.of(String.valueOf(value)));
+        }
+    }
+
+    protected void prepareForSending(SerializedMessage responseMessage, JettyExchange exchange, int statusCode) {
+        exchange.prepare(statusCode);
+        applyCorsHeaders(exchange);
         Map<String, List<String>> headers = WebUtils.getHeaders(responseMessage.getMetadata());
-        if (responseMessage.chunked()) {
+        if (responseMessage.chunked() || statusMustNotHaveResponseBody(statusCode)) {
             headers.remove("Content-Length");
             headers.remove("Accept-Ranges");
         }
-        headers.forEach(
-                (key, value) -> {
-                    if (http2 || !key.startsWith(":")) {
-                        se.getResponseHeaders().addAll(new HttpString(key), value);
-                    }
-                });
-        if (!se.getResponseHeaders().contains("Content-Type")) {
+        headers.forEach((key, value) -> {
+            if (isForwardableResponseHeader(key)) {
+                exchange.addResponseHeader(key, value);
+            }
+        });
+        if (!exchange.hasResponseHeader("Content-Type")) {
             ofNullable(responseMessage.getData().getFormat()).ifPresent(
-                    format -> se.getResponseHeaders().add(new HttpString("Content-Type"), format));
+                    format -> exchange.addResponseHeader("Content-Type", format));
         }
-        return se;
+        if (!responseMessage.chunked()
+            && !statusMustNotHaveResponseBody(statusCode)
+            && !exchange.hasResponseHeader("Content-Length")) {
+            exchange.putResponseHeader("Content-Length",
+                                       String.valueOf(responseMessage.getData().getValue().length));
+        }
     }
 
-    protected void sendResponse(SerializedMessage responseMessage, HttpServerExchange se) {
-        se.getResponseSender().send(ByteBuffer.wrap(responseMessage.getData().getValue()));
+    protected void sendResponse(SerializedMessage responseMessage, JettyExchange exchange) {
+        exchange.writeAndComplete(responseMessage.getData().getValue());
     }
 
-    protected void sendServerError(HttpServerExchange se) {
+    private static boolean statusMustNotHaveResponseBody(int statusCode) {
+        return statusCode >= 100 && statusCode < 200
+               || statusCode == HttpStatus.NO_CONTENT_204
+               || statusCode == HttpStatus.NOT_MODIFIED_304;
+    }
+
+    private static boolean isRequestBodyTooLarge(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        return error instanceof IllegalStateException
+               && message != null
+               && message.contains("Max size")
+               && message.contains("exceeded");
+    }
+
+    private static boolean isForwardableResponseHeader(String name) {
+        return name != null && !name.isBlank()
+               && !name.startsWith(":")
+               && HOP_BY_HOP_RESPONSE_HEADERS.stream().noneMatch(name::equalsIgnoreCase);
+    }
+
+    protected void sendServerError(JettyExchange exchange) {
         try {
-            se.setStatusCode(500);
-            se.getResponseSender().send("Request could not be handled due to a server side error");
+            if (!exchange.isCommitted()) {
+                exchange.setStatus(500);
+                exchange.writeAndComplete("Request could not be handled due to a server side error"
+                                                  .getBytes(StandardCharsets.UTF_8));
+            } else {
+                exchange.fail(new IllegalStateException("Request could not be handled due to a server side error"));
+            }
         } catch (Throwable t) {
             log.error("Failed to send server error response", t);
+            exchange.fail(t);
         }
     }
 
-    protected void sendGatewayTimeout(HttpServerExchange se) {
-        se.setStatusCode(504);
-        se.getResponseSender().send("Did not receive a response in time");
+    protected void sendGatewayTimeout(JettyExchange exchange) {
+        exchange.setStatus(504);
+        exchange.writeAndComplete("Did not receive a response in time".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void sendPayloadTooLarge(JettyExchange exchange) {
+        exchange.setStatus(HttpStatus.PAYLOAD_TOO_LARGE_413);
+        exchange.writeAndComplete("Request body is too large".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void sendServiceUnavailable(JettyExchange exchange) {
+        exchange.setStatus(HttpStatus.SERVICE_UNAVAILABLE_503);
+        exchange.writeAndComplete("Request handler has been shut down and is not accepting new requests"
+                                          .getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
@@ -360,52 +450,176 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     void close(boolean gracefulWebsocketShutdown) {
         if (closed.compareAndSet(false, true)) {
-            websocketEndpoint.shutDown(gracefulWebsocketShutdown
-                                               ? WebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT
-                                               : SERVER_SHUTDOWN_CLOSE_TIMEOUT,
-                                       gracefulWebsocketShutdown,
-                                       gracefulWebsocketShutdown);
+            proxyWebsocketEndpoint.shutDown(gracefulWebsocketShutdown
+                                                    ? ProxyWebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT
+                                                    : SERVER_SHUTDOWN_CLOSE_TIMEOUT,
+                                            gracefulWebsocketShutdown,
+                                            gracefulWebsocketShutdown);
             requestHandler.close();
             requestGateway.close();
             super.close();
         }
     }
 
-    @SneakyThrows
-    protected HttpHandler createWebsocketHandler() {
-        DeploymentManager deploymentManager = Servlets.defaultContainer().addDeployment(
-                deployment().setContextPath("/**").addServletContextAttribute(
-                                WebSocketDeploymentInfo.ATTRIBUTE_NAME,
-                                new WebSocketDeploymentInfo()
-                                        .setBuffers(new DefaultByteBufferPool(false, 1024, 100, 12))
-                                        .setWorker(Xnio.getInstance().createWorker(
-                                                OptionMap.create(Options.THREAD_DAEMON, true)))
-                                        .addEndpoint(ServerEndpointConfig.Builder
-                                                             .create(WebsocketEndpoint.class, "/**")
-                                                             .configurator(new ServerEndpointConfig.Configurator() {
-                                                                 @Override
-                                                                 public <T> T getEndpointInstance(Class<T> endpointClass) {
-                                                                     return endpointClass.cast(websocketEndpoint);
-                                                                 }
+    protected static class JettyExchange {
+        private final Request request;
+        private final Response response;
+        private final Callback callback;
+        private final long maxRequestBodySize;
+        private final long maxMultipartRequestBodySize;
+        private final int maxPendingWebsocketSends;
+        private final String namespace;
+        private final AtomicBoolean completed = new AtomicBoolean();
+        private final Object writeLock = new Object();
+        private CompletableFuture<Void> writeChain = CompletableFuture.completedFuture(null);
+        private boolean prepared;
+        private boolean noResponseBody;
 
-                                                                 @Override
-                                                                 public void modifyHandshake(ServerEndpointConfig sec,
-                                                                                             HandshakeRequest request,
-                                                                                             HandshakeResponse response) {
-                                                                     super.modifyHandshake(sec, request, response);
-                                                                     var protocols = getWebsocketProtocols(request.getHeaders()
-                                                                                                                   .get("Sec-WebSocket-Protocol"));
-                                                                     if (!protocols.isEmpty()) {
-                                                                         response.getHeaders().put("Sec-WebSocket-Protocol",
-                                                                                                   List.of(protocols.getFirst()));
-                                                                     }
-                                                                 }
-                                                             }).build()))
-                        .setDeploymentName("websocket")
-                        .addFilter(new FilterInfo("websocketFilter", WebsocketFilter.class))
-                        .addFilterUrlMapping("websocketFilter", "*", DispatcherType.REQUEST)
-                        .setClassLoader(Undertow.class.getClassLoader()));
-        deploymentManager.deploy();
-        return deploymentManager.start();
+        JettyExchange(Request request, Response response, Callback callback,
+                      long maxRequestBodySize, long maxMultipartRequestBodySize, int maxPendingWebsocketSends,
+                      String namespace) {
+            this.request = request;
+            this.response = response;
+            this.callback = callback;
+            this.maxRequestBodySize = maxRequestBodySize;
+            this.maxMultipartRequestBodySize = maxMultipartRequestBodySize;
+            this.maxPendingWebsocketSends = maxPendingWebsocketSends;
+            this.namespace = namespace;
+        }
+
+        String getMethod() {
+            return request.getMethod();
+        }
+
+        String getPathQuery() {
+            String pathQuery = request.getHttpURI().getPathQuery();
+            return pathQuery == null || pathQuery.isBlank() ? "/" : pathQuery;
+        }
+
+        org.eclipse.jetty.http.HttpFields getRequestHeaders() {
+            return request.getHeaders();
+        }
+
+        String getRequestHeader(String name) {
+            return request.getHeaders().get(name);
+        }
+
+        boolean hasRequestHeader(String name) {
+            return request.getHeaders().contains(name);
+        }
+
+        boolean hasResponseHeader(String name) {
+            return response.getHeaders().contains(name);
+        }
+
+        void addResponseHeader(String name, List<String> values) {
+            values.forEach(value -> response.getHeaders().add(name, value));
+        }
+
+        void addResponseHeader(String name, String value) {
+            response.getHeaders().add(name, value);
+        }
+
+        void putResponseHeader(String name, String value) {
+            response.getHeaders().put(name, value);
+        }
+
+        void setStatus(int statusCode) {
+            response.setStatus(statusCode);
+            if (statusMustNotHaveResponseBody(statusCode)) {
+                noResponseBody = true;
+            }
+        }
+
+        void prepare(int statusCode) {
+            if (!prepared) {
+                prepared = true;
+                response.setStatus(statusCode);
+                if (statusMustNotHaveResponseBody(statusCode)) {
+                    noResponseBody = true;
+                }
+            }
+        }
+
+        boolean isCommitted() {
+            return response.isCommitted();
+        }
+
+        void writeAndComplete(byte[] payload) {
+            write(payload, true);
+        }
+
+        void write(byte[] payload, boolean last) {
+            CompletableFuture<Void> write;
+            synchronized (writeLock) {
+                write = writeChain.thenCompose(ignored -> writeNow(payload, last));
+                writeChain = write;
+            }
+            write.whenComplete((ignored, error) -> {
+                if (error != null) {
+                    fail(error);
+                } else if (last) {
+                    complete();
+                }
+            });
+        }
+
+        void upgrade(ProxyWebsocketEndpoint endpoint, Map<String, List<String>> requestParameters,
+                     ServerWebSocketContainer container) {
+            if (container == null) {
+                fail(new IllegalStateException("Websocket container is not available"));
+                return;
+            }
+            boolean upgraded = container.upgrade((request, response, callback) -> {
+                var protocols = request.getSubProtocols();
+                if (!protocols.isEmpty()) {
+                    response.setAcceptedSubProtocol(protocols.getFirst());
+                }
+                return new JettyProxyWebsocketAdapter(endpoint, requestParameters, maxPendingWebsocketSends,
+                                                      namespace);
+            }, request, response, callback);
+            if (!upgraded) {
+                setStatus(HttpStatus.BAD_REQUEST_400);
+                writeAndComplete("Could not upgrade request to websocket".getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        int maxRequestBodySizeAsInt() {
+            long maxSize = maxRequestBodySize();
+            if (maxSize > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return (int) maxSize;
+        }
+
+        long maxRequestBodySize() {
+            String contentType = getRequestHeader("Content-Type");
+            if (contentType != null && contentType.regionMatches(true, 0, "multipart/", 0, "multipart/".length())) {
+                return maxMultipartRequestBodySize;
+            }
+            return maxRequestBodySize;
+        }
+
+        private CompletableFuture<Void> writeNow(byte[] payload, boolean last) {
+            try {
+                CompletableFuture<Void> write = new CompletableFuture<>();
+                response.write(last, noResponseBody ? null : ByteBuffer.wrap(payload), Callback.from(write));
+                return write;
+            } catch (Throwable e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        }
+
+        private void complete() {
+            if (completed.compareAndSet(false, true)) {
+                callback.succeeded();
+            }
+        }
+
+        private void fail(Throwable error) {
+            if (completed.compareAndSet(false, true)) {
+                callback.failed(error);
+            }
+        }
     }
 }

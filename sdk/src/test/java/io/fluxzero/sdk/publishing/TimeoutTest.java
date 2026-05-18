@@ -17,6 +17,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
@@ -28,11 +29,17 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -154,6 +161,71 @@ class TimeoutTest {
         }
     }
 
+    @Test
+    void defaultRequestHandlerProcessesChunkedResponsesInOrder() throws Exception {
+        class UnhandledRequest { }
+
+        TestFixture fixture = TestFixture.create();
+        ExecutorService responseExecutor = Executors.newFixedThreadPool(2);
+        DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(1),
+                "chunk-order-test", responseExecutor);
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                Metadata.empty(), "message-id", System.currentTimeMillis());
+        CountDownLatch intermediateStarted = new CountDownLatch(1);
+        CountDownLatch releaseIntermediate = new CountDownLatch(1);
+        CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(1),
+                                                                                    response -> {
+                                                                                        intermediateStarted.countDown();
+                                                                                        await(releaseIntermediate);
+                                                                                    });
+        SerializedMessage intermediate = chunk("intermediate", false, request.getRequestId());
+        SerializedMessage finalChunk = chunk("final", true, request.getRequestId());
+        try {
+            requestHandler.handleResults(List.of(intermediate, finalChunk));
+
+            assertTrue(intermediateStarted.await(1, TimeUnit.SECONDS));
+            Thread.sleep(50);
+            assertFalse(future.isDone());
+
+            releaseIntermediate.countDown();
+            assertEquals("final", new String(future.get(1, TimeUnit.SECONDS).getData().getValue()));
+        } finally {
+            releaseIntermediate.countDown();
+            future.cancel(true);
+            requestHandler.close();
+            responseExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    void defaultRequestHandlerAggregatesChunkedResponsesWithoutIntermediateCallback() throws Exception {
+        class UnhandledRequest { }
+
+        TestFixture fixture = TestFixture.create();
+        ExecutorService responseExecutor = Executors.newSingleThreadExecutor();
+        DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(1),
+                "chunk-aggregate-test", responseExecutor);
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                Metadata.empty(), "message-id", System.currentTimeMillis());
+        CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(1),
+                                                                                    null);
+        try {
+            requestHandler.handleResults(List.of(
+                    chunk("intermediate", false, request.getRequestId()),
+                    chunk("final", true, request.getRequestId())));
+
+            assertEquals("intermediatefinal", new String(future.get(1, TimeUnit.SECONDS).getData().getValue()));
+        } finally {
+            future.cancel(true);
+            requestHandler.close();
+            responseExecutor.shutdownNow();
+        }
+    }
+
     private static Map<?, ?> gatewayCallbacks(Object gateway) {
         return getField(getField(gateway, "delegate"), "callbacks");
     }
@@ -177,6 +249,24 @@ class TimeoutTest {
             }
         }
         throw new IllegalArgumentException("No field '%s' on %s".formatted(name, target.getClass().getName()));
+    }
+
+    private static SerializedMessage chunk(String payload, boolean finalChunk, Integer requestId) {
+        SerializedMessage message = new SerializedMessage(
+                new Data<>(payload.getBytes(), null, 0),
+                Metadata.empty().with(HasMetadata.FINAL_CHUNK, String.valueOf(finalChunk)),
+                payload + "-message-id", System.currentTimeMillis());
+        message.setRequestId(requestId);
+        return message;
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(1, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
     }
 
     private static void assertEmptyEventually(Map<?, ?> callbacks) {

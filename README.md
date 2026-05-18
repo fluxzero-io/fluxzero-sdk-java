@@ -5455,7 +5455,6 @@ compatible with recent versions.
 | `org.mockito:mockito-core`                   | test  |
 | `org.jooq:joor`                              | test  |
 | `org.hamcrest:hamcrest-library`              | test  |
-| `org.jboss.resteasy:resteasy-undertow`       | test  |
 
 ---
 

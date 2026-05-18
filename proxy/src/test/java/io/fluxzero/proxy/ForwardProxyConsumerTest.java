@@ -24,6 +24,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
@@ -59,7 +60,8 @@ class ForwardProxyConsumerTest {
     @BeforeEach
     @SneakyThrows
     void setUp() {
-        registration = new ForwardProxyConsumer(testFixture.getFluxzero().client(), CONSUMER_NAME, null).start();
+        registration = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, IndexUtils.indexForCurrentTime(), true).start();
         HttpServer server = HttpServer.create(
                 new InetSocketAddress("localhost", 0), 0);
         serverContext = server.createContext("/");

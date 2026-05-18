@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -191,7 +192,8 @@ public class DefaultRequestHandler implements RequestHandler {
     protected CompletableFuture<SerializedMessage> prepareRequest(SerializedMessage request, Duration timeout,
                                                                   Consumer<SerializedMessage> intermediateCallback) {
         int requestId = nextId.getAndIncrement();
-        CompletableFuture<SerializedMessage> result = new CompletableFuture<>();
+        CompletableFuture<SerializedMessage> rawResult = new CompletableFuture<>();
+        CompletableFuture<SerializedMessage> result = rawResult;
         if (timeout == null) {
             timeout = this.timeout;
         }
@@ -215,14 +217,13 @@ public class DefaultRequestHandler implements RequestHandler {
         } else {
             request.setMetadata(metadata.with(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis()));
             Duration effectiveTimeout = timeout;
-            CompletableFuture<SerializedMessage> timeoutResult = result;
             CompletableFuture.delayedExecutor(effectiveTimeout.toMillis(), MILLISECONDS).execute(() ->
-                    timeoutResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
+                    rawResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
                             "message", request.getData().getType(), request.getMessageId(), requestId,
                             resultType.name(), effectiveTimeout)));
         }
         result.whenComplete((m, e) -> callbacks.remove(requestId));
-        callbacks.put(requestId, new ResponseCallback(intermediateCallback, result));
+        callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
         request.setRequestId(requestId);
         request.setSource(client.id());
         return result;
@@ -250,13 +251,7 @@ public class DefaultRequestHandler implements RequestHandler {
                          response.getRequestId());
                 return;
             }
-            responseExecutor.execute(() -> {
-                if (response.lastChunk()) {
-                    callback.finalCallback().complete(response);
-                } else {
-                    callback.intermediateCallback().accept(response);
-                }
-            });
+            callback.enqueue(response, responseExecutor);
         });
     }
 
@@ -270,15 +265,37 @@ public class DefaultRequestHandler implements RequestHandler {
         responseExecutor.shutdown();
     }
 
-    /**
-     * Encapsulates a callback mechanism to handle both intermediate and final responses when processing requests.
-     *
-     * @param intermediateCallback A {@code Consumer} that processes intermediate {@code SerializedMessage} responses as
-     *                             they are received.
-     * @param finalCallback        A {@code CompletableFuture} that represents the final {@code SerializedMessage}
-     *                             response.
-     */
-    protected record ResponseCallback(Consumer<SerializedMessage> intermediateCallback,
-                                      CompletableFuture<SerializedMessage> finalCallback) {
+    protected static class ResponseCallback {
+        private final Consumer<SerializedMessage> intermediateCallback;
+        private final CompletableFuture<SerializedMessage> finalCallback;
+        private CompletableFuture<Void> processingChain = CompletableFuture.completedFuture(null);
+
+        ResponseCallback(Consumer<SerializedMessage> intermediateCallback,
+                         CompletableFuture<SerializedMessage> finalCallback) {
+            this.intermediateCallback = intermediateCallback;
+            this.finalCallback = finalCallback;
+        }
+
+        synchronized void enqueue(SerializedMessage response, Executor executor) {
+            processingChain = processingChain.exceptionally(e -> null)
+                    .thenRunAsync(() -> process(response), executor);
+        }
+
+        CompletableFuture<SerializedMessage> finalCallback() {
+            return finalCallback;
+        }
+
+        private void process(SerializedMessage response) {
+            try {
+                if (response.lastChunk()) {
+                    finalCallback.complete(response);
+                } else {
+                    intermediateCallback.accept(response);
+                }
+            } catch (Throwable e) {
+                finalCallback.completeExceptionally(e);
+                throw e;
+            }
+        }
     }
 }
