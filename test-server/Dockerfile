@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/java25-debian13:nonroot@sha256:c0d379ff54ea6d61f3f35736e8fdc66c91fb96f645a86a6ba2530a45d95b8841
+FROM gcr.io/distroless/java25-debian13:nonroot@sha256:8fd23b8538af756c885851a1676b4e16559f92d394d8e308b2d5e7c7ebf9179d
 
 COPY target/fluxzero-test-server.jar .
 
