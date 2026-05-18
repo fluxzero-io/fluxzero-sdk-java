@@ -24,6 +24,7 @@ import io.fluxzero.common.RetryStatus;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
@@ -236,6 +237,28 @@ class AbstractWebsocketClientTest {
         } finally {
             client.close();
         }
+    }
+
+    @Test
+    void serverDurationIsZeroForReplayedResponseThatPredatesRetriedRequest() {
+        RequestResult result = new RequestTimingResult(42L, 1_000L, 2_000L);
+        Metadata metadata = AbstractWebsocketClient.responseTimingMetadata(result);
+
+        assertEquals(0L, AbstractWebsocketClient.serverMsDuration(result));
+        assertTrue(AbstractWebsocketClient.isReplayedResponse(result));
+        assertEquals("0", metadata.get("serverMsDuration"));
+        assertEquals("true", metadata.get(AbstractWebsocketClient.REPLAYED_RESPONSE_METADATA_KEY));
+    }
+
+    @Test
+    void serverDurationIsCalculatedFromServerRequestAndResponseTimestamps() {
+        RequestResult result = new RequestTimingResult(42L, 2_250L, 2_000L);
+        Metadata metadata = AbstractWebsocketClient.responseTimingMetadata(result);
+
+        assertEquals(250L, AbstractWebsocketClient.serverMsDuration(result));
+        assertFalse(AbstractWebsocketClient.isReplayedResponse(result));
+        assertEquals("250", metadata.get("serverMsDuration"));
+        assertFalse(metadata.containsKey(AbstractWebsocketClient.REPLAYED_RESPONSE_METADATA_KEY));
     }
 
     @Test
@@ -492,6 +515,24 @@ class AbstractWebsocketClientTest {
 
         void publishTestMetric(Append append) {
             tryPublishMetrics(append, Metadata.empty());
+        }
+    }
+
+    private record RequestTimingResult(long requestId, long timestamp,
+                                       long requestReceivedTimestamp) implements RequestResult {
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public long getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public long getRequestReceivedTimestamp() {
+            return requestReceivedTimestamp;
         }
     }
 
