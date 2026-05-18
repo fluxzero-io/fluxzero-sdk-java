@@ -1,15 +1,38 @@
 name: Repair Main CI
 
 on:
-  workflow_run:
-    workflows: [Deploy]
-    types: [completed]
-    branches: [main]
+  workflow_call:
+    inputs:
+      run_id:
+        description: "GitHub Actions run id to repair"
+        required: true
+        type: string
+      run_url:
+        description: "GitHub Actions run URL to repair"
+        required: true
+        type: string
+      head_sha:
+        description: "Head SHA of the failing main build"
+        required: true
+        type: string
+      head_branch:
+        description: "Head branch of the failing build"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       run_id:
         description: "GitHub Actions run id to repair"
         required: true
+      run_url:
+        description: "GitHub Actions run URL to repair"
+        required: false
+      head_sha:
+        description: "Head SHA of the failing main build"
+        required: false
+      head_branch:
+        description: "Head branch of the failing build"
+        required: false
 
 permissions:
   actions: read
@@ -17,17 +40,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: repair-main-ci-${{ github.event.workflow_run.id || inputs.run_id }}
+  group: repair-main-ci-${{ inputs.run_id }}
   cancel-in-progress: false
 
 jobs:
   repair:
     name: Reproduce and repair
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.head_branch == 'main' &&
-       (github.event.workflow_run.conclusion == 'failure' ||
-        github.event.workflow_run.conclusion == 'timed_out'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -36,8 +54,10 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CODEX_MODEL: gpt-5.5
       CODEX_REASONING_EFFORT: xhigh
-      FAILED_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-      FAILED_RUN_URL: ${{ github.event.workflow_run.html_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
+      FAILED_RUN_ID: ${{ inputs.run_id }}
+      FAILED_RUN_URL: ${{ inputs.run_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
+      FAILED_RUN_HEAD_SHA: ${{ inputs.head_sha || '' }}
+      FAILED_RUN_HEAD_BRANCH: ${{ inputs.head_branch || '' }}
 
     steps:
       - name: Check out main
@@ -50,15 +70,23 @@ jobs:
         id: failed_run
         run: |
           set -euo pipefail
-          mapfile -t run_fields < <(gh run view "$FAILED_RUN_ID" \
-            --json conclusion,headBranch,headSha,url,workflowName \
-            --jq '[.conclusion, .headBranch, .headSha, .url, .workflowName] | .[]')
+          if [ -n "${FAILED_RUN_HEAD_SHA:-}" ] && [ -n "${FAILED_RUN_HEAD_BRANCH:-}" ]; then
+            conclusion=""
+            head_branch="$FAILED_RUN_HEAD_BRANCH"
+            head_sha="$FAILED_RUN_HEAD_SHA"
+            url="$FAILED_RUN_URL"
+            workflow_name="Deploy"
+          else
+            mapfile -t run_fields < <(gh run view "$FAILED_RUN_ID" \
+              --json conclusion,headBranch,headSha,url,workflowName \
+              --jq '[.conclusion, .headBranch, .headSha, .url, .workflowName] | .[] // ""')
 
-          conclusion="${run_fields[0]}"
-          head_branch="${run_fields[1]}"
-          head_sha="${run_fields[2]}"
-          url="${run_fields[3]}"
-          workflow_name="${run_fields[4]}"
+            conclusion="${run_fields[0]}"
+            head_branch="${run_fields[1]}"
+            head_sha="${run_fields[2]}"
+            url="${run_fields[3]}"
+            workflow_name="${run_fields[4]}"
+          fi
 
           if [ "$workflow_name" != "Deploy" ]; then
             echo "::error::Run $FAILED_RUN_ID belongs to workflow '$workflow_name', expected 'Deploy'."
@@ -70,13 +98,15 @@ jobs:
             exit 1
           fi
 
-          case "$conclusion" in
-            failure|timed_out) ;;
-            *)
-              echo "::error::Run $FAILED_RUN_ID concluded with '$conclusion', expected 'failure' or 'timed_out'."
-              exit 1
-              ;;
-          esac
+          if [ -z "${FAILED_RUN_HEAD_SHA:-}" ]; then
+            case "$conclusion" in
+              failure|timed_out) ;;
+              *)
+                echo "::error::Run $FAILED_RUN_ID concluded with '$conclusion', expected 'failure' or 'timed_out'."
+                exit 1
+                ;;
+            esac
+          fi
 
           short_sha="${head_sha:0:12}"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
