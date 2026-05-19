@@ -29,6 +29,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ErrorHandler;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -83,6 +84,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -567,6 +569,25 @@ public class HandleWebTest {
 
         }
 
+        @Test
+        void testHandlerErrorDescribesWebRequest() {
+            AtomicReference<String> errorMessage = new AtomicReference<>();
+            ErrorHandler errorHandler = (error, message, retry) -> {
+                errorMessage.set(message);
+                return error;
+            };
+
+            TestFixture.createAsync(DefaultFluxzero.builder().configureDefaultConsumer(
+                                    MessageType.WEBREQUEST,
+                                    c -> c.toBuilder().errorHandler(errorHandler).build()),
+                               new Handler())
+                    .whenGet("/users/abc")
+                    .expectWebResponse(r -> r.getStatus() == 403)
+                    .expectThat(fc -> assertEquals(
+                            "Handler \"Handler\" failed to handle a web request GET /users/abc",
+                            errorMessage.get()));
+        }
+
         private class Handler {
             @Path("/getViaPath")
             @HandleWeb(method = GET)
@@ -577,6 +598,11 @@ public class HandleWebTest {
             @HandleGet("/get")
             String get() {
                 return "get";
+            }
+
+            @HandleGet("/users/{id}")
+            String getUserById() {
+                throw new MockException("error");
             }
 
             @HandleGet("/trailingSlash/")
@@ -1729,6 +1755,16 @@ public class HandleWebTest {
                         .withProductionUserProvider()
                         .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
                         .expectExceptionalResult(UnauthenticatedException.class);
+            }
+
+            @Test
+            void testAutoHandshakeAuthFailureNamesHandshakePathAndHandlerReason() {
+                TestFixture.create(new SecuredHandshakeHandler())
+                        .withProductionUserProvider()
+                        .whenWebRequest(WebRequest.builder().method(WS_HANDSHAKE).url("/secured/open").build())
+                        .expectExceptionalResult((UnauthenticatedException e) ->
+                                ("Websocket handshake for /secured/open failed because "
+                                 + "SecuredHandshakeHandler#open requires authentication").equals(e.getMessage()));
             }
 
             @Test

@@ -28,6 +28,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.common.ObjectUtils.rethrow;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_CLOSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
@@ -166,14 +167,21 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                             return assertAuthorized(i.getTargetClass(), i.getMethod(), user)
                                     ? Optional.of(i) : Optional.empty();
                         } catch (Throwable e) {
+                            Throwable error = mapAuthorizationFailure(e, m);
                             return Optional.of(new HandlerInvoker.DelegatingHandlerInvoker(i) {
                                 @Override
                                 public Object invoke(BiFunction<Object, Object, Object> resultCombiner) {
-                                    throw e;
+                                    throw rethrow(error);
                                 }
                             });
                         }
                     });
+        }
+
+        protected Throwable mapAuthorizationFailure(Throwable failure, DeserializingMessage message) {
+            return message.getContext(AuthorizationFailureMapper.class)
+                    .map(mapper -> mapper.mapAuthorizationFailure(failure))
+                    .orElse(failure);
         }
 
         @Override

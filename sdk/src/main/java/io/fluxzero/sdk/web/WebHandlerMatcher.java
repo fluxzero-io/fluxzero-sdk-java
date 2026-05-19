@@ -23,6 +23,7 @@ import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.MessageDescription;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 
 import java.lang.reflect.Executable;
@@ -38,6 +39,8 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.HEAD;
 import static io.fluxzero.sdk.web.HttpRequestMethod.OPTIONS;
+import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
+import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static io.fluxzero.sdk.web.DefaultWebRequestContext.getWebRequestContext;
 import static io.fluxzero.sdk.web.WebUtils.getWebPatterns;
 import static java.util.Arrays.stream;
@@ -167,6 +170,7 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             return Optional.empty();
         }
         DefaultWebRequestContext context = getWebRequestContext(message);
+        putWebRequestDescription(message, context);
         Optional<WebRouteMatcher.Match<WebMethodMatcher>> match =
                 routes.match(context.getMethod(), context.getOrigin(), context.getRequestPath());
         if (match.isEmpty() && HEAD.equals(context.getMethod())) {
@@ -191,6 +195,29 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
             return automaticOptionsMatcher(context);
         }
         return Optional.empty();
+    }
+
+    static void putWebRequestDescription(DeserializingMessage message, DefaultWebRequestContext context) {
+        message.putContext(MessageDescription.class, new MessageDescription(describeWebRequest(context)));
+    }
+
+    static String describeWebRequest(DefaultWebRequestContext context) {
+        String method = context.getMethod();
+        String target = requestTarget(context);
+        if (WS_HANDSHAKE.equals(method)) {
+            return "websocket handshake " + target;
+        }
+        if (isWebsocket(method)) {
+            return "websocket request %s %s".formatted(method, target);
+        }
+        return "web request %s %s".formatted(method, target);
+    }
+
+    private static String requestTarget(DefaultWebRequestContext context) {
+        String query = context.getUri().getRawQuery();
+        return query == null || query.isBlank()
+                ? context.getRequestPath()
+                : context.getRequestPath() + "?" + query;
     }
 
     private Optional<WebRouteHandler> automaticOptionsMatcher(DefaultWebRequestContext context) {

@@ -39,6 +39,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.websocket.api.exceptions.WebSocketTimeoutException;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -127,7 +128,23 @@ public class ProxyWebsocketEndpoint {
                       session == null ? "<unknown>" : session.getId());
             return;
         }
+        if (isIdleTimeout(error)) {
+            log.warn("Websocket session {} closed after reaching the idle timeout. "
+                     + "The client did not send websocket traffic or pings before the proxy timeout elapsed.",
+                     session == null ? "<unknown>" : session.getId());
+            return;
+        }
         log.warn("Error in session {}", session == null ? "<unknown>" : session.getId(), error);
+    }
+
+    private boolean isIdleTimeout(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof WebSocketTimeoutException
+                && String.valueOf(cause.getMessage()).toLowerCase().contains("idle timeout")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected CompletableFuture<?> sendRequest(ProxyWebsocketSession session, String method, byte[] payload) {

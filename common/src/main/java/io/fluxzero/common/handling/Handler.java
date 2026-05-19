@@ -120,5 +120,10 @@ public interface Handler<M> {
         public Class<?> getTargetClass() {
             return delegate.getTargetClass();
         }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
     }
 }

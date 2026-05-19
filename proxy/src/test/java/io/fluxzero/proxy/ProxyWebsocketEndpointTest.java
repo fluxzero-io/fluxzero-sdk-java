@@ -15,6 +15,10 @@
 
 package io.fluxzero.proxy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
@@ -27,8 +31,10 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.web.WebRequest;
+import org.eclipse.jetty.websocket.api.exceptions.WebSocketTimeoutException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -38,11 +44,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,6 +62,31 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProxyWebsocketEndpointTest {
+
+    @Test
+    void idleTimeoutLogsWarningWithoutStackTrace() {
+        ProxyWebsocketEndpoint endpoint = new ProxyWebsocketEndpoint(createClient(), mock(RequestHandler.class));
+        ProxyWebsocketSession session = mock(ProxyWebsocketSession.class);
+        when(session.getId()).thenReturn("session-1");
+        Logger logger = (Logger) LoggerFactory.getLogger(ProxyWebsocketEndpoint.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            endpoint.onError(session, new WebSocketTimeoutException(
+                    "Connection Idle Timeout", new TimeoutException("Idle timeout expired: 60000/60000 ms")));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertEquals(1, appender.list.size());
+        ILoggingEvent event = appender.list.getFirst();
+        assertEquals(Level.WARN, event.getLevel());
+        assertTrue(event.getFormattedMessage().contains("idle timeout"));
+        assertNull(event.getThrowableProxy());
+    }
 
     @Test
     void shutdownWaitsForCloseRequestToFinish() throws Exception {
