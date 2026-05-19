@@ -83,6 +83,11 @@ public class FixtureResult {
     @NonFinal
     FixtureResult previousResult;
 
+    /**
+     * Diagnostic trace of messages and handler invocations observed while executing this fixture phase.
+     */
+    FixtureTrace trace = new FixtureTrace();
+
     public void setPreviousResult(FixtureResult previousResult) {
         this.previousResult = previousResult;
         if (previousResult != null) {

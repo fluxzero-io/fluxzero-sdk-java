@@ -759,7 +759,7 @@ class ProxyServerTest {
                             return "text " + message.length();
                         }
                     })
-                    .whenApplying(openSocketAnd(webSocket -> webSocket.sendText(payload, true).join()))
+                    .whenApplying(openSocketAnd(webSocket -> await(webSocket.sendText(payload, true))))
                     .expectResult("text " + payload.length());
         }
 
@@ -777,7 +777,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(openSocketAnd(webSocket -> webSocket.sendBinary(
-                            ByteBuffer.wrap(payload), true).join()))
+                            ByteBuffer.wrap(payload), true).get(5, TimeUnit.SECONDS)))
                     .expectResult("binary " + payload.length + ":7:9");
         }
 
@@ -790,7 +790,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(openSocketAnd(webSocket -> webSocket.sendText("Flux", false)
-                            .thenCompose(ignored -> webSocket.sendText("zero", true)).join()))
+                            .thenCompose(ignored -> webSocket.sendText("zero", true)).get(5, TimeUnit.SECONDS)))
                     .expectResult("Hello Fluxzero");
         }
 
@@ -865,7 +865,7 @@ class ProxyServerTest {
                                     .get(5, TimeUnit.SECONDS);
                             return pong.get(5, TimeUnit.SECONDS);
                         } finally {
-                            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "").join();
+                            await(webSocket.sendClose(WebSocket.NORMAL_CLOSURE, ""));
                             assertTrue(closed.await(5, TimeUnit.SECONDS),
                                        "Timed out waiting for the websocket close handler");
                         }
@@ -949,7 +949,7 @@ class ProxyServerTest {
                         }
                     })
                     .whenApplying(openSocketAnd(ws -> {
-                        ws.sendClose(1000, "bla");
+                        await(ws.sendClose(1000, "bla"));
                         assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
                                    "Timed out waiting for the websocket close handler");
                     }))
@@ -1014,6 +1014,10 @@ class ProxyServerTest {
             }
         }
 
+        private <T> T await(CompletableFuture<T> future) throws Exception {
+            return future.get(5, TimeUnit.SECONDS);
+        }
+
         private ThrowingFunction<Fluxzero, ?> openSocketAndWait(String... protocols) {
             return openSocketAnd(ws -> {
             }, protocols);
@@ -1066,7 +1070,7 @@ class ProxyServerTest {
                     callback.complete(Integer.toString(statusCode));
                     return null;
                 }
-            }).get();
+            }).get(5, TimeUnit.SECONDS);
         }
 
         private URI baseUri() {
