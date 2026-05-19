@@ -187,7 +187,7 @@ jobs:
 
       - name: Install Node.js
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
 
