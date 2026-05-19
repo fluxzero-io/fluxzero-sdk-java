@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthenticatingInterceptor$RefreshedUser",
     "kind" : "record"
   }, {
+    "file" : "AuthorizationFailureMapper.json",
+    "name" : "AuthorizationFailureMapper",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailureMapper",
+    "kind" : "interface"
+  }, {
     "file" : "CurrentUserParameterResolver.json",
     "name" : "CurrentUserParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.CurrentUserParameterResolver",

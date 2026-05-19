@@ -293,6 +293,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isIdleTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#isIdleTimeout",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "onBinary",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onBinary",
     "returnType" : "void",
