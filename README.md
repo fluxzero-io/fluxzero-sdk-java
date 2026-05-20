@@ -3272,10 +3272,8 @@ To define a nested structure, annotate the collection or field with `@Member`:
 @Builder(toBuilder = true)
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
-                          boolean accountClosed) {
-
-    @Member
-    List<Authorization> authorizations;
+                          boolean accountClosed,
+                          @Member List<Authorization> authorizations) {
 }
 ```
 
@@ -3336,8 +3334,8 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 > - Apply the update to the child entity
 > - And return a **new instance of the parent** (if it's immutable), with the updated child state included
 >
-> This allows you to use immutable models (e.g. Java records or classes with Lombok’s `@Value`) without extra
-> boilerplate.
+> Java records are rebuilt through their canonical constructor, so `@Member` record components do not need `@With`.
+> Custom immutable classes can still use explicit withers or builders where needed.
 
 ---
 
@@ -3815,6 +3813,11 @@ String pspReference;
 ### State Update Semantics
 
 - If the handler method returns a new instance of its class, it replaces the previous version in the store
+- If it returns a collection, every returned instance of the same stateful type is stored
+- Returning an empty collection deletes the current instance
+- If a returned collection does not include the current instance ID, the current instance is deleted
+- Returning a same-type instance with a different `@EntityId` replaces the current instance
+- Returning `null` from a handler-compatible return type deletes the current handler
 - If it returns `void` or a value of another type, state is left unchanged
 - This allows safe utility returns (like `Duration` for `@HandleSchedule`)
 
@@ -3826,6 +3829,46 @@ Duration on(CheckStatus schedule) {
     return Duration.ofMinutes(5);
 }
 ```
+
+### Stateful Members
+
+`@Stateful` handlers may contain `@Member` objects. A member can declare its own `@Handle...` methods and
+`@Association` properties; Fluxzero loads the parent stateful, invokes matching members, and stores the updated parent.
+
+```java
+
+@Stateful
+public record Customer(@EntityId @Association String customerId,
+                       @Member List<Payment> payments) {
+}
+
+public record Payment(@Association String paymentId, int captureCount) {
+    @HandleEvent
+    static Payment start(PaymentStarted event, Customer customer) {
+        return new Payment(event.paymentId(), 0);
+    }
+
+    @HandleEvent
+    Payment capture(PaymentCaptured event, Customer customer) {
+        return new Payment(paymentId, captureCount + 1);
+    }
+
+    @HandleEvent
+    Payment cancel(PaymentCancelled event) {
+        return null;
+    }
+}
+```
+
+- A message with only the child association, such as `paymentId`, can target the matching member inside the parent.
+- Static member handlers can create a child when the message can be associated with a parent; use
+  `@Association(always = true)` only when fan-out is intentional.
+- Returning a member instance creates or replaces that member; returning a collection adds/replaces multiple members.
+- Returning `null` from a member-compatible instance method deletes that member.
+- If the parent and a member both handle the same message, the parent mutation is applied first.
+- Multiple members may match one message, both within one parent and across parents.
+- For map-backed members, newly added members use `@EntityId` or `@Member(idProperty = "...")` as the map key.
+- Java records are rebuilt through their canonical constructor, so `@Member` record components do not need `@With`.
 
 ### Batch Commit Control
 

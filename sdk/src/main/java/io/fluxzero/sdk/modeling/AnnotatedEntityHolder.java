@@ -26,16 +26,21 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -209,34 +214,123 @@ public class AnnotatedEntityHolder {
                                              && m.getName().toLowerCase().contains(propertyName.toLowerCase())) :
                 witherCandidates.filter(m -> Objects.equals(member.wither(), m.getName()));
         Optional<BiFunction<Object, Object, Object>> wither =
-                witherCandidates.findFirst().map(m -> (o, h) -> call(() -> m.invoke(o, h)));
-        return wither.orElseGet(() -> {
-            AtomicBoolean warningIssued = new AtomicBoolean();
-            MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
-                    .map(DefaultMemberInvoker::asInvoker).orElse(null);
-            Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
-            return (o, h) -> {
-                if (warningIssued.get()) {
-                    return o;
-                }
-                if (field == null) {
-                    if (warningIssued.compareAndSet(false, true)) {
-                        log.warn("No update function found for @Member {}. {}",
-                                 location, updateFunctionAdvice(ownerType, propertyName));
-                    }
-                } else {
-                    try {
-                        o = ownerCloner.apply(o);
-                        field.invoke(o, h);
-                    } catch (Exception e) {
-                        if (warningIssued.compareAndSet(false, true)) {
-                            log.warn("Not able to update @Member {}. {}", location,
-                                     updateFunctionAdvice(ownerType, propertyName), e);
+                witherCandidates.findFirst()
+                        .map(ReflectionUtils::ensureAccessible)
+                        .map(m -> (o, h) -> call(() -> m.invoke(o, h)));
+        return wither
+                .or(() -> computeRecordWither(ownerType, propertyName))
+                .or(() -> computeCopyMethodWither(ownerType, propertyName))
+                .orElseGet(() -> {
+                    AtomicBoolean warningIssued = new AtomicBoolean();
+                    MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
+                            .map(DefaultMemberInvoker::asInvoker).orElse(null);
+                    Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
+                    return (o, h) -> {
+                        if (warningIssued.get()) {
+                            return o;
                         }
+                        if (field == null) {
+                            if (warningIssued.compareAndSet(false, true)) {
+                                log.warn("No update function found for @Member {}. {}",
+                                         location, updateFunctionAdvice(ownerType, propertyName));
+                            }
+                        } else {
+                            try {
+                                o = ownerCloner.apply(o);
+                                field.invoke(o, h);
+                            } catch (Exception e) {
+                                if (warningIssued.compareAndSet(false, true)) {
+                                    log.warn("Not able to update @Member {}. {}", location,
+                                             updateFunctionAdvice(ownerType, propertyName), e);
+                                }
+                            }
+                        }
+                        return o;
+                    };
+                });
+    }
+
+    private static Optional<BiFunction<Object, Object, Object>> computeCopyMethodWither(Class<?> ownerType,
+                                                                                        String propertyName) {
+        List<Field> fields = Arrays.stream(ownerType.getDeclaredFields())
+                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                .filter(field -> !field.isSynthetic())
+                .map(ReflectionUtils::ensureAccessible)
+                .toList();
+        int memberIndex = -1;
+        for (int i = 0; i < fields.size(); i++) {
+            if (Objects.equals(fields.get(i).getName(), propertyName)) {
+                memberIndex = i;
+                break;
+            }
+        }
+        if (memberIndex < 0) {
+            return Optional.empty();
+        }
+        int updateIndex = memberIndex;
+        return ReflectionUtils.getAllMethods(ownerType).stream()
+                .filter(method -> "copy".equals(method.getName()))
+                .filter(method -> ownerType.isAssignableFrom(method.getReturnType()))
+                .filter(method -> matchesCopyParameters(method, fields))
+                .findFirst()
+                .map(ReflectionUtils::ensureAccessible)
+                .map(method -> (owner, holder) -> call(() -> {
+                    Object[] args = new Object[fields.size()];
+                    for (int i = 0; i < fields.size(); i++) {
+                        args[i] = i == updateIndex ? holder : fields.get(i).get(owner);
                     }
+                    return method.invoke(owner, args);
+                }));
+    }
+
+    private static boolean matchesCopyParameters(Method method, List<Field> fields) {
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        if (parameterTypes.length != fields.size()) {
+            return false;
+        }
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Class<?> fieldType = fields.get(i).getType();
+            Class<?> parameterType = parameterTypes[i];
+            if (fieldType.isPrimitive() || parameterType.isPrimitive()) {
+                if (!fieldType.equals(parameterType)) {
+                    return false;
                 }
-                return o;
-            };
+            } else if (!parameterType.isAssignableFrom(fieldType) && !fieldType.isAssignableFrom(parameterType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Optional<BiFunction<Object, Object, Object>> computeRecordWither(Class<?> ownerType,
+                                                                                    String propertyName) {
+        if (!ownerType.isRecord()) {
+            return Optional.empty();
+        }
+        RecordComponent[] components = ownerType.getRecordComponents();
+        int memberIndex = -1;
+        Class<?>[] constructorTypes = new Class<?>[components.length];
+        Method[] accessors = new Method[components.length];
+        for (int i = 0; i < components.length; i++) {
+            constructorTypes[i] = components[i].getType();
+            accessors[i] = ReflectionUtils.ensureAccessible(components[i].getAccessor());
+            if (Objects.equals(components[i].getName(), propertyName)) {
+                memberIndex = i;
+            }
+        }
+        if (memberIndex < 0) {
+            return Optional.empty();
+        }
+        int updateIndex = memberIndex;
+        return call(() -> {
+            var constructor = ReflectionUtils.ensureAccessible(ownerType.getDeclaredConstructor(constructorTypes));
+            return Optional.<BiFunction<Object, Object, Object>>of((owner, holder) -> call(() -> {
+                Object[] args = new Object[components.length];
+                for (int i = 0; i < components.length; i++) {
+                    args[i] = i == updateIndex ? holder : accessors[i].invoke(owner);
+                }
+                return constructor.newInstance(args);
+            }));
         });
     }
 
@@ -252,8 +346,9 @@ public class AnnotatedEntityHolder {
 
     private static String updateFunctionAdvice(Class<?> ownerType, String propertyName) {
         if (ownerType.isRecord()) {
-            return "Records require an explicit wither such as with%s(...) or @Member(wither = \"...\") to update the parent entity automatically."
-                    .formatted(Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1));
+            return "Record component '%s' could not be updated through the canonical constructor. Add an explicit wither such as with%s(...) or @Member(wither = \"...\")."
+                    .formatted(propertyName,
+                               Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1));
         }
         return "Please add a wither or setter method.";
     }
@@ -284,6 +379,7 @@ public class AnnotatedEntityHolder {
                     result.add(entity);
                 }
             }
+            validateUniqueEntityIds(result);
             result.add(emptyEntity);
             return result;
         }
@@ -302,6 +398,18 @@ public class AnnotatedEntityHolder {
         }
         ImmutableEntity<?> entity = createEntity(holderValue, idProvider, parent);
         return entity == null ? List.of(emptyEntity) : List.of(entity, emptyEntity);
+    }
+
+    private void validateUniqueEntityIds(List<ImmutableEntity<?>> entities) {
+        Set<Object> ids = new HashSet<>();
+        for (ImmutableEntity<?> entity : entities) {
+            Object id = entity.id();
+            if (id != null && !ids.add(id)) {
+                throw new IllegalStateException(
+                        ("Duplicate @Member entity id '%s' found in %s. Each non-null @EntityId value must be unique "
+                         + "within one member collection.").formatted(id, location));
+            }
+        }
     }
 
     public ImmutableEntity<?> getEntityByRoute(Entity<?> parent, String routeValue) {
@@ -470,10 +578,19 @@ public class AnnotatedEntityHolder {
             if (map == null) {
                 map = new LinkedHashMap<>();
             }
+            Object previousId = before.id();
             Object id = Optional.ofNullable(after.id()).orElseGet(() -> idProvider.apply(after.get()).value());
             if (after.get() == null) {
                 map.remove(id);
             } else {
+                if (id == null) {
+                    throw new IllegalStateException(
+                            "Cannot add @Member map value without a member id. Add @EntityId to the member type "
+                            + "or configure @Member(idProperty = \"...\") on " + location + ".");
+                }
+                if (previousId != null && !Objects.equals(previousId, id)) {
+                    map.remove(previousId);
+                }
                 map.put(id, after.get());
             }
             holder = map;

@@ -76,7 +76,7 @@ public record Project(
     @EntityId ProjectId projectId,
     ProjectDetails details,
     @Alias(prefix = "owner-") UserId ownerId,
-    @With @Member List<Task> tasks
+    @Member List<Task> tasks
 ) {}
 ```
 [//]: # (@formatter:on)
@@ -87,8 +87,8 @@ public record Project(
 
 Nested components within an aggregate.
 
-- **Records**: Use `@With` on member fields to allow the SDK to perform automatic state updates (returning new record
-  copies).
+- **Records**: Member record components can be updated automatically through the canonical constructor; `@With` is only
+  needed for custom update behavior or non-record immutable classes that need an explicit wither.
 - **Routing**: The `@EntityId` property must be present in the command payload for automatic routing. Use
   `@Member(idProperty = "otherProperty")` if names differ.
 
@@ -119,17 +119,17 @@ public record Task(
 @Aggregate
 public record A(
     @EntityId AId aId,
-    @With @Member List<B> bs
+    @Member List<B> bs
 ) {}
 
 public record B(
     @EntityId BId bId,
-    @With @Member List<C> cs
+    @Member List<C> cs
 ) {}
 
 public record C(
     @EntityId CId cId,
-    @With @Member List<D> ds
+    @Member List<D> ds
 ) {}
 
 public record D(
@@ -212,7 +212,8 @@ public record AddTask(ProjectId projectId, TaskId taskId, TaskDetails details) {
 ```
 
 You can apply updates directly to child/member entities (like `Task`) without manually rebuilding the parent. For
-`@Member` fields marked with `@With`, Fluxzero immutably updates the parent aggregate and inserts/replaces the child.
+record components marked with `@Member`, Fluxzero immutably rebuilds the parent aggregate through the canonical
+constructor and inserts/replaces the child.
 
 One update can also define multiple `@Apply` methods for different levels in the hierarchy. This is useful when a
 single message should change both a member entity and the aggregate root.

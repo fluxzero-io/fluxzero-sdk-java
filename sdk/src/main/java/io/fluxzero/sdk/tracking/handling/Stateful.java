@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.persisting.search.Searchable;
 
 import java.lang.annotation.Documented;
@@ -122,6 +123,30 @@ import java.lang.annotation.Target;
  * <p>
  * In this example, returning a {@code Duration} controls the rescheduling behavior, but it does not affect the stored
  * state of the {@code PaymentProcess} handler.
+ *
+ * <h3>Stateful members</h3>
+ * A stateful handler may contain {@link Member @Member} objects that handle messages themselves. Member handlers are
+ * routed using associations declared on the member type, while persistence still happens at the parent stateful
+ * handler:
+ *
+ * <pre>{@code
+ * @Stateful
+ * record Customer(@EntityId @Association String customerId,
+ *                 @Member List<Payment> payments) {
+ * }
+ *
+ * record Payment(@Association String paymentId) {
+ *     @HandleEvent
+ *     Payment on(PaymentCaptured event, Customer customer) {
+ *         return this;
+ *     }
+ * }
+ * }</pre>
+ *
+ * In this example, a message with only {@code paymentId} can load the matching {@code Customer}, invoke the matching
+ * {@code Payment}, and store the updated {@code Customer}. The parent may be injected into the member handler for
+ * contextual decisions. If multiple members match, all matching members are invoked, including multiple children in the
+ * same parent or children spread across different parents.
  *
  * <h2>Search Indexing</h2>
  * Like aggregates, {@code @Stateful} handlers are also {@link Searchable} and can be indexed automatically:

@@ -883,7 +883,7 @@ public class DefaultFluxzero implements Fluxzero {
                             new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
                                                       runtimeParameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,
-                                                      repositorySupplier, !disableTrackingMetrics))));
+                                                      repositorySupplier, !disableTrackingMetrics, this.serializer))));
 
             //misc
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client,
@@ -1030,13 +1030,13 @@ public class DefaultFluxzero implements Fluxzero {
                     messageType, handlerDecorators.get(messageType), parameterResolvers,
                     methodInvocationValidator(messageType),
                     handlerRepositorySupplier, repositoryProvider,
-                    !disableTrackingMetrics), dispatchInterceptors.get(messageType));
+                    !disableTrackingMetrics, this.serializer), dispatchInterceptors.get(messageType));
             if (messageType == EVENT) {
                 return result.andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
                         NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,
                         methodInvocationValidator(NOTIFICATION),
                         handlerRepositorySupplier, repositoryProvider,
-                        !disableTrackingMetrics), dispatchInterceptors.get(EVENT)));
+                        !disableTrackingMetrics, this.serializer), dispatchInterceptors.get(EVENT)));
             }
             return result;
         }

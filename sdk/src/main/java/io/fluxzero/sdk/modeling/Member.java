@@ -23,11 +23,13 @@ import java.lang.annotation.Target;
 
 /**
  * Indicates that the annotated field or getter represents a nested entity or collection of entities within an
- * aggregate.
+ * aggregate or stateful handler.
  * <p>
  * Entities marked with {@code @Member} participate in aggregate routing, event sourcing, and update application. When
  * an update targets a nested entity, Fluxzero will use this annotation to traverse the aggregate structure and locate
- * the correct entity (or entities) to apply the update to.
+ * the correct entity (or entities) to apply the update to. In {@code @Stateful} handlers, member objects may also
+ * declare {@code @Handle...} methods and their own {@code @Association} properties; updates are written back by
+ * storing the parent stateful handler.
  *
  * <p>
  * This annotation supports modeling complex aggregates composed of multiple entities, for example:
@@ -72,9 +74,10 @@ import java.lang.annotation.Target;
  * and one product is updated, Fluxzero will replace the {@code products} list with a new list containing the updated
  * entity.
  * <p>
- * For record owners, Fluxzero cannot fall back to mutating the member field directly. A record that contains a
- * {@code @Member} should therefore expose an explicit wither such as {@code withProducts(...)} or configure
- * {@link #wither()} so Fluxzero knows how to create the updated parent instance.
+ * For record owners, Fluxzero rebuilds the owner through the canonical constructor when the member is a record
+ * component. For Kotlin data classes, Fluxzero can use the generated {@code copy(...)} method. A type can still expose
+ * an explicit wither such as {@code withProducts(...)} or configure {@link #wither()} when custom update behavior is
+ * needed.
  * <pre>{@code
  * public record Project(@EntityId String id, @Member List<Task> tasks) {
  *     public Project withTasks(List<Task> tasks) {
@@ -100,8 +103,10 @@ import java.lang.annotation.Target;
  * Supported container types:
  * <ul>
  *     <li>Single nested entities (e.g., {@code Product product})</li>
- *     <li>Collections of entities (e.g., {@code List<Product>})</li>
- *     <li>Maps of entities keyed by their identifier</li>
+ *     <li>Collections of entities (e.g., {@code List<Product>}). Non-null {@link EntityId} values must be unique
+ *     within one member collection.</li>
+ *     <li>Maps of entities keyed by their identifier. Newly added map members use {@link EntityId} or
+ *     {@link #idProperty()} as the map key.</li>
  * </ul>
  *
  * @see io.fluxzero.sdk.modeling.EntityId

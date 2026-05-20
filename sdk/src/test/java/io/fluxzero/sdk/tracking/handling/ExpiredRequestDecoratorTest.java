@@ -137,7 +137,7 @@ class ExpiredRequestDecoratorTest {
                                                          boolean trackingMetricsEnabled) {
         return new DefaultHandlerFactory(messageType, HandlerDecorator.noOp, List.of(),
                                          MethodInvocationValidator.noOp(), c -> null, null,
-                                         trackingMetricsEnabled)
+                                         trackingMetricsEnabled, null)
                 .createHandler(target, (c, e) -> true, List.of()).orElseThrow();
     }
 

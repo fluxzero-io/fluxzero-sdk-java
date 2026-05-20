@@ -82,7 +82,9 @@ public class CrossVersionHotPathBenchmark {
             matcher,
             repository,
             parameterResolvers,
-            e -> ReflectionUtils.getMethodAnnotation(e, HandleCommand.class).orElse(null));
+            e -> ReflectionUtils.getMethodAnnotation(e, HandleCommand.class).orElse(null),
+            null,
+            serializer);
     private static final DeserializingMessage commandMessage = new DeserializingMessage(
             new Message(new UpdateOrder("order-1", "customer-1")),
             MessageType.COMMAND,
