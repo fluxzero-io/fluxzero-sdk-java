@@ -14,11 +14,15 @@
 
 package io.fluxzero.common.application;
 
+import java.util.Locale;
+
 /**
  * A {@link PropertySource} that resolves property values from system environment variables.
  * <p>
- * This source accesses environment variables via {@link System#getenv(String)} and can be used to inject configuration
- * values directly from the host operating system or container runtime.
+ * This source accesses environment variables via {@link System#getenv(String)} and can be used to inject
+ * configuration values directly from the host operating system or container runtime. Besides exact environment
+ * variable names, it also resolves property-style names to conventional environment variable names; for example
+ * {@code fluxzero.api.token} resolves to {@code FLUXZERO_API_TOKEN}.
  *
  * <p>This is typically used to override configuration in deployment environments without modifying
  * application-specific property files.
@@ -43,13 +47,54 @@ public enum EnvironmentVariablesSource implements PropertySource {
     INSTANCE;
 
     /**
-     * Retrieves the value of the given property name from the system environment.
+     * Retrieves the value of the given property name from the system environment. Exact environment variable names have
+     * priority over their normalized variants.
      *
-     * @param name the name of the environment variable
+     * @param name the name of the environment variable or property-style key
      * @return the value, or {@code null} if the variable is not defined
      */
     @Override
     public String get(String name) {
-        return System.getenv(name);
+        String result = System.getenv(name);
+        if (result != null) {
+            return result;
+        }
+        String environmentVariableName = toEnvironmentVariableName(name);
+        return environmentVariableName.equals(name) ? null : System.getenv(environmentVariableName);
+    }
+
+    static String toEnvironmentVariableName(String name) {
+        StringBuilder result = new StringBuilder();
+        char previous = 0;
+        for (int i = 0; i < name.length(); i++) {
+            char current = name.charAt(i);
+            char next = i + 1 < name.length() ? name.charAt(i + 1) : 0;
+            if (!Character.isLetterOrDigit(current)) {
+                appendSeparator(result);
+            } else {
+                if (shouldSeparateCamelCase(previous, current, next)) {
+                    appendSeparator(result);
+                }
+                result.append(Character.toUpperCase(current));
+            }
+            previous = current;
+        }
+        int length = result.length();
+        if (length > 0 && result.charAt(length - 1) == '_') {
+            result.deleteCharAt(length - 1);
+        }
+        return result.toString().toUpperCase(Locale.ROOT);
+    }
+
+    private static boolean shouldSeparateCamelCase(char previous, char current, char next) {
+        return Character.isUpperCase(current)
+               && (Character.isLowerCase(previous) || Character.isDigit(previous)
+                   || (Character.isUpperCase(previous) && Character.isLowerCase(next)));
+    }
+
+    private static void appendSeparator(StringBuilder result) {
+        if (!result.isEmpty() && result.charAt(result.length() - 1) != '_') {
+            result.append('_');
+        }
     }
 }
