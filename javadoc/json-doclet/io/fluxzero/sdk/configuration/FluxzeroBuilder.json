@@ -184,7 +184,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Update the default consumer configuration for the specified message type.\n"
+    "documentation" : " Update the default consumer configuration for the specified message type.\n <p>\n When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE}, this configuration is\n used as the template for the generated per-handler consumers.\n"
   }, {
     "name" : "disableAdhocDispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor",
