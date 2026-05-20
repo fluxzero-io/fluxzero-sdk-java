@@ -390,6 +390,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     protected class StatefulEntryState {
         private final String originalId;
         private final Object originalValue;
+        private final List<StatefulMemberMutation> memberMutations = new ArrayList<>();
         private String id;
         private Object value;
         private ImmutableEntity<?> root;
@@ -453,11 +454,78 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             id = null;
             value = null;
             root = null;
+            memberMutations.clear();
             deleted = true;
+        }
+
+        void stageMemberMutation(StatefulMember member, Entity<?> target, Entity<?> before, Entity<?> after) {
+            memberMutations.add(new StatefulMemberMutation(member, target, before, after));
+        }
+
+        void flushMemberMutations(DeserializingMessage message) {
+            while (!memberMutations.isEmpty()) {
+                StatefulMemberMutation first = memberMutations.removeFirst();
+                List<StatefulMemberMutation> group = new ArrayList<>();
+                group.add(first);
+                for (int i = 0; i < memberMutations.size();) {
+                    StatefulMemberMutation mutation = memberMutations.get(i);
+                    if (sameMemberOwner(first, mutation)) {
+                        group.add(mutation);
+                        memberMutations.remove(i);
+                    } else {
+                        i++;
+                    }
+                }
+                applyMemberMutations(first.member(), first.target().parent(), group, message);
+            }
+        }
+
+        private boolean sameMemberOwner(StatefulMemberMutation first, StatefulMemberMutation second) {
+            return first.member() == second.member()
+                   && first.member().sameParent(first.target().parent(), second.target().parent());
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private void applyMemberMutations(StatefulMember member, Entity<?> previousOwner,
+                                          List<StatefulMemberMutation> mutations,
+                                          DeserializingMessage message) {
+            Entity<?> owner = member.currentOwner(root(), previousOwner).orElse(previousOwner);
+            if (owner == null || owner.get() == null) {
+                return;
+            }
+            Object updatedOwner = member.holder.updateOwner(owner.get(), entityUpdates(mutations));
+            Entity<?> updatedEntity = ((Entity) owner).update(ignored -> updatedOwner);
+            Entity<?> updatedRoot = updatedEntity.root();
+            Object updatedParent = updatedRoot.get();
+            Object newId = computeId(updatedParent, entry(), message);
+            store(newId, updatedParent, updatedRoot);
+        }
+
+        private List<AnnotatedEntityHolder.EntityUpdate> entityUpdates(List<StatefulMemberMutation> mutations) {
+            List<AnnotatedEntityHolder.EntityUpdate> result = new ArrayList<>();
+            Map<StatefulMemberTargetKey, Integer> indexes = new LinkedHashMap<>();
+            for (StatefulMemberMutation mutation : mutations) {
+                AnnotatedEntityHolder.EntityUpdate update =
+                        new AnnotatedEntityHolder.EntityUpdate(mutation.before(), mutation.after());
+                if (mutation.before().isPresent()) {
+                    StatefulMemberTargetKey key = new StatefulMemberTargetKey(
+                            mutation.before().type(), mutation.before().id(), mutation.before().get());
+                    Integer index = indexes.get(key);
+                    if (index != null) {
+                        AnnotatedEntityHolder.EntityUpdate previous = result.get(index);
+                        result.set(index, new AnnotatedEntityHolder.EntityUpdate(previous.before(), mutation.after()));
+                        continue;
+                    }
+                    indexes.put(key, result.size());
+                }
+                result.add(update);
+            }
+            return result;
         }
 
         @SneakyThrows
         void flush() {
+            flushMemberMutations(null);
             if (deleted) {
                 if (originalId != null) {
                     repository.delete(originalId).get();
@@ -506,6 +574,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     result = invoked ? combiner.apply(result, memberResult) : memberResult;
                     invoked = true;
                 }
+                state.flushMemberMutations(message);
             }
             state.flush();
             return result;
@@ -568,6 +637,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         boolean isRelevant() {
             return alwaysAssociate || !matchingMethods.isEmpty() || !associations.isEmpty();
         }
+    }
+
+    protected record StatefulMemberMutation(StatefulMember member, Entity<?> target,
+                                            Entity<?> before, Entity<?> after) {
+    }
+
+    protected record StatefulMemberTargetKey(Class<?> type, Object id, Object value) {
     }
 
     protected class StatefulMember {
@@ -664,12 +740,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                     .toList();
         }
 
-        Optional<Entity<?>> currentTarget(Entity<?> root, Entity<?> target) {
+        Optional<Entity<?>> currentOwner(Entity<?> root, Entity<?> previousOwner) {
+            if (previousOwner == null) {
+                return Optional.empty();
+            }
             for (Entity<?> owner : owners(root)) {
-                for (Entity<?> entity : holder.getEntities(owner)) {
-                    if (sameTarget(entity, target)) {
-                        return Optional.of(entity);
-                    }
+                if (sameTarget(owner, previousOwner)) {
+                    return Optional.of(owner);
                 }
             }
             return Optional.empty();
@@ -692,20 +769,6 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return sameTarget(first, second);
         }
 
-        Optional<Entity<?>> emptyTargetFor(Entity<?> root, Entity<?> previousTarget) {
-            Entity<?> previousParent = previousTarget.parent();
-            for (Entity<?> owner : owners(root)) {
-                if (previousParent != null && !sameTarget(owner, previousParent)) {
-                    continue;
-                }
-                for (Entity<?> entity : holder.getEntities(owner)) {
-                    if (entity.isEmpty()) {
-                        return Optional.of(entity);
-                    }
-                }
-            }
-            return Optional.empty();
-        }
     }
 
     protected class StatefulMemberInvoker extends HandlerInvoker.DelegatingHandlerInvoker {
@@ -737,11 +800,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                 if (values.isEmpty()) {
                     deleteTarget();
                 } else {
+                    Entity<?> addTarget = target;
                     if (target.isPresent()) {
                         deleteTarget();
+                        addTarget = emptyTarget(target);
                     }
-                    values.forEach(value -> storeTarget(member.emptyTargetFor(state.root(), target).orElse(target),
-                                                        value));
+                    Entity<?> finalAddTarget = addTarget;
+                    values.forEach(value -> storeTarget(finalAddTarget, value));
                 }
             } else if (result == null) {
                 if (shouldDeleteTarget()) {
@@ -771,26 +836,17 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
         @SneakyThrows
         private void storeTarget(Entity<?> target, Object value) {
-            Entity<?> updatedRoot = updateRoot(target, value);
-            Object updatedParent = updatedRoot.get();
-            Object newId = computeId(updatedParent, state.entry(), message);
-            state.store(newId, updatedParent, updatedRoot);
-        }
-
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        private Entity<?> updateRoot(Entity<?> target, Object value) {
-            ImmutableEntity before = (ImmutableEntity) member.currentTarget(state.root(), target).orElse(target);
+            ImmutableEntity before = (ImmutableEntity) target;
             ImmutableEntity after = (ImmutableEntity) before.toBuilder()
                     .value(value)
                     .id(computeMemberId(target, value))
                     .build();
-            Entity<?> parent = before.parent();
-            if (parent == null) {
-                return after;
-            }
-            Entity updatedParent = ((Entity) parent).update(
-                    owner -> before.holder().updateOwner(owner, before, after));
-            return updatedParent.root();
+            state.stageMemberMutation(member, target, before, after);
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private Entity<?> emptyTarget(Entity<?> target) {
+            return (Entity<?>) ((ImmutableEntity) target).toBuilder().id(null).value(null).build();
         }
 
         private Object computeMemberId(Entity<?> target, Object value) {

@@ -549,6 +549,25 @@ public class AnnotatedEntityHolder {
      */
     @SneakyThrows
     public Object updateOwner(Object owner, Entity<?> before, Entity<?> after) {
+        return updateOwner(owner, List.of(new EntityUpdate(before, after)));
+    }
+
+    /**
+     * Updates the parent object with multiple child entity changes for the same holder in one pass. Collection and map
+     * holders are cloned once, all updates are applied in order, and the owner wither is invoked once.
+     *
+     * @param owner   the parent object containing the member field
+     * @param updates ordered entity updates to apply to this holder
+     * @return a new updated parent object, or the original if mutation fails
+     */
+    @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public Object updateOwner(Object owner, Collection<EntityUpdate> updates) {
+        List<EntityUpdate> updateList = updates instanceof List<?> ? (List<EntityUpdate>) updates
+                : new ArrayList<>(updates);
+        if (updateList.isEmpty()) {
+            return owner;
+        }
         Object holder = ReflectionUtils.getValue(location, owner);
         if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
@@ -557,20 +576,26 @@ public class AnnotatedEntityHolder {
             }
             if (collection instanceof List<?>) {
                 List<Object> list = (List<Object>) collection;
-                int index = list.indexOf(before.get());
-                if (index < 0) {
-                    list.add(after.get());
-                } else {
-                    if (after.get() == null) {
+                for (EntityUpdate update : updateList) {
+                    int index = list.indexOf(update.before().get());
+                    if (index < 0) {
+                        if (update.after().get() != null) {
+                            list.add(update.after().get());
+                        }
+                    } else if (update.after().get() == null) {
                         list.remove(index);
                     } else {
-                        list.set(index, after.get());
+                        list.set(index, update.after().get());
                     }
                 }
                 holder = list;
             } else {
-                collection.remove(before.get());
-                collection.add(after.get());
+                for (EntityUpdate update : updateList) {
+                    collection.remove(update.before().get());
+                    if (update.after().get() != null) {
+                        collection.add(update.after().get());
+                    }
+                }
                 holder = collection;
             }
         } else if (mapHolder) {
@@ -578,27 +603,37 @@ public class AnnotatedEntityHolder {
             if (map == null) {
                 map = new LinkedHashMap<>();
             }
-            Object previousId = before.id();
-            Object id = Optional.ofNullable(after.id()).orElseGet(() -> idProvider.apply(after.get()).value());
-            if (after.get() == null) {
-                map.remove(id);
-            } else {
-                if (id == null) {
-                    throw new IllegalStateException(
-                            "Cannot add @Member map value without a member id. Add @EntityId to the member type "
-                            + "or configure @Member(idProperty = \"...\") on " + location + ".");
+            for (EntityUpdate update : updateList) {
+                Object previousId = update.before().id();
+                if (update.after().get() == null) {
+                    Object id = Optional.ofNullable(update.after().id()).orElse(previousId);
+                    map.remove(id);
+                } else {
+                    Object id = Optional.ofNullable(update.after().id())
+                            .orElseGet(() -> idProvider.apply(update.after().get()).value());
+                    if (id == null) {
+                        throw new IllegalStateException(
+                                "Cannot add @Member map value without a member id. Add @EntityId to the member type "
+                                + "or configure @Member(idProperty = \"...\") on " + location + ".");
+                    }
+                    if (previousId != null && !Objects.equals(previousId, id)) {
+                        map.remove(previousId);
+                    }
+                    map.put(id, update.after().get());
                 }
-                if (previousId != null && !Objects.equals(previousId, id)) {
-                    map.remove(previousId);
-                }
-                map.put(id, after.get());
             }
             holder = map;
         } else {
-            holder = after.get();
+            holder = updateList.getLast().after().get();
         }
         Object result = wither.apply(owner, holder);
         return result == null ? owner : result;
+    }
+
+    /**
+     * A single child entity replacement within an {@link AnnotatedEntityHolder}.
+     */
+    public record EntityUpdate(Entity<?> before, Entity<?> after) {
     }
 
     @Value
