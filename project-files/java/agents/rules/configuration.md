@@ -134,7 +134,7 @@ Example patterns:
 
 ```java
 FluxzeroBuilder builder = DefaultFluxzero.builder()
-    // 1) Tune the default command consumer
+    // 1) Tune the default command consumer/template
     .configureDefaultConsumer(MessageType.COMMAND, c -> c.toBuilder()
         .name("commands-default")
         .threads(4)

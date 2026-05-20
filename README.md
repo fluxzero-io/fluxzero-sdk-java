@@ -475,7 +475,31 @@ Fluxzero handles message dispatch asynchronously by default. When a message such
 
 ### Default Consumer Behavior
 
-By default, handlers join the **default consumer** for a given message type. For example:
+Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` are assigned according to the
+configured unconfigured-handler consumer mode. If no mode is configured explicitly, `fluxzero.defaults.version`
+selects the default behavior.
+
+For defaults versions `2026.05.20` and newer, the default behavior is `perHandler`:
+
+```properties
+fluxzero.defaults.version=2026.05.20
+```
+
+With this defaults version, Fluxzero creates an isolated default consumer per handler class. The generated consumer uses
+the default consumer configuration for the message type as its template and is named after the application and handler
+class, for example `my-app_MyHandler`.
+
+Existing applications without `fluxzero.defaults.version`, or with an older defaults version, keep the compatibility
+default: unconfigured handlers join the shared application default consumer for the message type. You can choose either
+behavior explicitly:
+
+```properties
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
+# or
+fluxzero.tracking.unconfiguredHandlerConsumerMode=defaultAppConsumer
+```
+
+For example:
 
 ```java
 class MyHandler {
@@ -486,7 +510,9 @@ class MyHandler {
 }
 ```
 
-This handler joins the default **command consumer** automatically.
+With `perHandler`, this handler gets its own generated command consumer. With `defaultAppConsumer`, it joins the shared
+default command consumer. A matching custom `ConsumerConfiguration` or explicit `@Consumer` remains more specific and
+takes precedence.
 
 ### Custom Consumers with @Consumer
 
@@ -5161,8 +5187,9 @@ public class MyCustomizer implements FluxzeroCustomizer {
 
 #### Consumer and Tracking Configuration
 
-- `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer behavior
-  per message type.
+- `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer template
+  per message type. In `perHandler` mode this template is copied for generated handler consumers; in
+  `defaultAppConsumer` mode it is the shared fallback consumer.
 - `addConsumerConfiguration(...)` to register additional consumers for selected message types.
 - `forwardWebRequestsToLocalServer(...)` to redirect incoming `@HandleWeb` calls to an existing local HTTP
   server.

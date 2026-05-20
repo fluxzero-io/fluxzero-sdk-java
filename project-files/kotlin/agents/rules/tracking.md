@@ -40,6 +40,13 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
 > Multiple handlers can share the same `@Consumer(name=...)`. This means they will share the same tracker
 > threads and be processed in strict order if they share segments.
 
+Handlers without an explicit `@Consumer` or matching builder-level `ConsumerConfiguration` use the
+unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class
+its own generated default consumer. `defaultAppConsumer` assigns those handlers to the shared application default
+consumer. When the mode is absent, `perHandler` is the default behavior for
+`fluxzero.defaults.version >= 2026.05.20`; older or missing defaults versions keep `defaultAppConsumer` for
+compatibility.
+
 ```kotlin
 @Component
 @Consumer(name = "order-tracking", threads = 4)

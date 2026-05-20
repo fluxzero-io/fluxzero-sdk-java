@@ -136,8 +136,8 @@ This multi-consumer same-command setup is an advanced pattern and is discouraged
 
 ### Application Name
 
-- The app name scopes defaults, especially the default consumer naming.
-- Different app names prevent default-consumer clashes between app types.
+- The app name scopes generated default consumer names.
+- Different app names prevent generated default-consumer clashes between app types.
 
 ### Consumer Name
 
@@ -145,10 +145,15 @@ This multi-consumer same-command setup is an advanced pattern and is discouraged
 - Consumer selection priority:
   1. Explicit `@Consumer` on handler/class/package (most specific).
   2. Consumer configuration via `FluxzeroBuilder` predicates.
-  3. Application default consumer (fallback).
+  3. Unconfigured-handler fallback, selected by `fluxzero.tracking.unconfiguredHandlerConsumerMode` or
+     `fluxzero.defaults.version`.
 - If multiple `FluxzeroBuilder` consumer predicates match, the first-registered configuration wins.
 
-Builder-based consumer configs are less specific than `@Consumer`, but more specific than the app default.
+In `perHandler` mode, Fluxzero creates a generated default consumer per handler class using the message type's default
+consumer configuration as a template. In `defaultAppConsumer` mode, unconfigured handlers share the application default
+consumer for that message type. If the mode is not set explicitly, `perHandler` is the default behavior for
+`fluxzero.defaults.version >= 2026.05.20`; older or missing defaults versions keep `defaultAppConsumer`. Builder-based
+consumer configs are less specific than `@Consumer`, but more specific than either fallback.
 This enables:
 
 - Grouping multiple handlers into one consumer via a handler fitness predicate.
