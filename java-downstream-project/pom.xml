@@ -33,7 +33,7 @@
         <junit.version>6.1.0</junit.version>
         <maven.compiler.version>3.15.0</maven.compiler.version>
         <maven.deploy.version>3.1.4</maven.deploy.version>
-        <maven.enforcer.version>3.6.2</maven.enforcer.version>
+        <maven.enforcer.version>3.6.3</maven.enforcer.version>
         <maven.install.version>3.1.4</maven.install.version>
         <maven.surefire.version>3.5.5</maven.surefire.version>
     </properties>
