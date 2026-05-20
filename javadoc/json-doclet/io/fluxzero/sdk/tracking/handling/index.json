@@ -270,10 +270,55 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler",
     "kind" : "class"
   }, {
+    "file" : "StatefulHandler.StatefulEntryInvoker.json",
+    "name" : "StatefulHandler.StatefulEntryInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulEntryInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulEntryState.json",
+    "name" : "StatefulHandler.StatefulEntryState",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulEntryState",
+    "kind" : "class"
+  }, {
     "file" : "StatefulHandler.StatefulHandlerInvoker.json",
     "name" : "StatefulHandler.StatefulHandlerInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
     "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulMember.json",
+    "name" : "StatefulHandler.StatefulMember",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMember",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberCandidate.json",
+    "name" : "StatefulHandler.StatefulMemberCandidate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberCandidate",
+    "kind" : "record"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberInvoker.json",
+    "name" : "StatefulHandler.StatefulMemberInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberMessage.json",
+    "name" : "StatefulHandler.StatefulMemberMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberMessage",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberMutation.json",
+    "name" : "StatefulHandler.StatefulMemberMutation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberMutation",
+    "kind" : "record"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberParameterResolver.json",
+    "name" : "StatefulHandler.StatefulMemberParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "StatefulHandler.StatefulMemberTargetKey.json",
+    "name" : "StatefulHandler.StatefulMemberTargetKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberTargetKey",
+    "kind" : "record"
   }, {
     "file" : "TimestampParameterResolver.json",
     "name" : "TimestampParameterResolver",
