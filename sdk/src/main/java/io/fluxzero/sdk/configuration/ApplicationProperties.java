@@ -65,6 +65,11 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+    /**
+     * Selects the versioned Fluxzero default behavior profile for applications that do not configure each default
+     * explicitly.
+     */
+    public static final String DEFAULTS_VERSION_PROPERTY = "fluxzero.defaults.version";
 
     /**
      * Returns the raw string property for the given key, or {@code null} if not found.

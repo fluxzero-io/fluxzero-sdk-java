@@ -51,8 +51,9 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
  * {@code ConsumerConfiguration} is used to fine-tune the behavior of message consumers beyond what is possible with the
  * {@link Consumer} annotation. It supports handler filtering, tracking concurrency, custom interceptors, and more.
  *
- * <p><strong>Usage:</strong> Consumers can be declared programmatically using this configuration object, or generated
- * automatically from {@code @Consumer} annotations on handler classes or packages.
+ * <p><strong>Usage:</strong> Consumers can be declared programmatically using this configuration object, generated
+ * automatically from {@code @Consumer} annotations on handler classes or packages, or derived from the default
+ * consumer template for handlers without an explicit consumer.
  *
  * @see Consumer
  * @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration
@@ -60,6 +61,24 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
 @Value
 @Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
+    /**
+     * Chooses how unconfigured tracking handlers are assigned to default consumers.
+     * <p>
+     * Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,
+     * Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.
+     */
+    public static final String UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY =
+            "fluxzero.tracking.unconfiguredHandlerConsumerMode";
+
+    /**
+     * Creates an isolated default consumer per unconfigured handler class.
+     */
+    public static final String PER_HANDLER_CONSUMER_MODE = "perHandler";
+
+    /**
+     * Assigns unconfigured handlers to the shared default application consumer for their message type.
+     */
+    public static final String DEFAULT_APP_CONSUMER_MODE = "defaultAppConsumer";
 
     /**
      * Unique name for the consumer. Used for tracking and identifying its state.
@@ -199,14 +218,12 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     /**
      * Optional minimum index to start processing messages from.
      */
-    @Default
-    Long minIndex = null;
+    Long minIndex;
 
     /**
      * Optional exclusive upper limit for message index (messages with this index or higher will be skipped).
      */
-    @Default
-    Long maxIndexExclusive = null;
+    Long maxIndexExclusive;
 
     /**
      * Whether this consumer remains exclusive for shared handlers before {@link #getMinIndex()}.

@@ -131,6 +131,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -628,10 +629,15 @@ public class DefaultFluxzero implements Fluxzero {
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> HandlerDecorator.noOp));
-            Map<MessageType, List<ConsumerConfiguration>> consumerConfigurations =
-                    new HashMap<>(this.customConsumerConfigurations);
-            this.defaultConsumerConfigurations.forEach((type, config) -> consumerConfigurations.get(type).add(
-                    config.toBuilder().name(String.format("%s_%s", client.name(), config.getName())).build()));
+            Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
+                    this.customConsumerConfigurations.entrySet().stream()
+                            .collect(toMap(Entry::getKey, e -> new ArrayList<>(e.getValue())));
+            Map<MessageType, List<ConsumerConfiguration>> defaultConsumerConfigurations =
+                    this.defaultConsumerConfigurations.entrySet().stream().collect(toMap(
+                            Entry::getKey,
+                            e -> List.of(e.getValue().toBuilder()
+                                                  .name(String.format("%s_%s", client.name(), e.getValue().getName()))
+                                                  .build())));
             Map<MessageType, List<BatchInterceptor>> internalBatchInterceptors = new HashMap<>();
 
             KeyValueStore keyValueStore = new DefaultKeyValueStore(client.getKeyValueClient(), serializer);
@@ -878,8 +884,8 @@ public class DefaultFluxzero implements Fluxzero {
             //tracking
             Map<MessageType, Tracking> trackingMap = stream(MessageType.values())
                     .collect(toMap(identity(), m -> new DefaultTracking(
-                            m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
-                            this.serializer,
+                            m, m == WEBREQUEST ? webResponseGateway : resultGateway,
+                            customConsumerConfigurations.get(m), defaultConsumerConfigurations.get(m), this.serializer,
                             new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
                                                       runtimeParameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,

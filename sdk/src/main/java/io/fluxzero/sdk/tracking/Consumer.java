@@ -38,7 +38,8 @@ import static java.time.temporal.ChronoUnit.SECONDS;
  * message logs. It can be applied at the class or package level to group handlers together. Handlers that do not
  * explicitly declare a {@code Consumer} are assigned according to the application's configuration, as defined via
  * {@link FluxzeroBuilder#addConsumerConfiguration(ConsumerConfiguration, MessageType...)} )}. If no specific
- * configuration is provided, the handler will be assigned to the application's default consumer.
+ * configuration is provided, the default assignment is selected by
+ * {@link ConsumerConfiguration#UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY} or by the active Fluxzero defaults version.
  * </p>
  *
  * <p>

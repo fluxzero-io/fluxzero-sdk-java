@@ -24,9 +24,11 @@ class EnvironmentVariablesSourceTest {
     void propertyNamesAreConvertedToEnvironmentVariableNames() {
         assertEquals("FLUXZERO_API_TOKEN", EnvironmentVariablesSource.toEnvironmentVariableName(
                 "fluxzero.api.token"));
-        assertEquals("FLUXZERO_TRACKING_USE_DEFAULT_APP_CONSUMER_FOR_UNCONFIGURED_HANDLERS",
+        assertEquals("FLUXZERO_TRACKING_UNCONFIGURED_HANDLER_CONSUMER_MODE",
                      EnvironmentVariablesSource.toEnvironmentVariableName(
-                             "fluxzero.tracking.useDefaultAppConsumerForUnconfiguredHandlers"));
+                             "fluxzero.tracking.unconfiguredHandlerConsumerMode"));
+        assertEquals("FLUXZERO_DEFAULTS_VERSION", EnvironmentVariablesSource.toEnvironmentVariableName(
+                "fluxzero.defaults.version"));
         assertEquals("FLUXZERO_ASSERT_APPLY_COMPATIBILITY", EnvironmentVariablesSource.toEnvironmentVariableName(
                 "fluxzero.assert.apply-compatibility"));
     }

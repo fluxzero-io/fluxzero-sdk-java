@@ -57,6 +57,9 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
     /**
      * Update the default consumer configuration for the specified message type.
+     * <p>
+     * When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE}, this configuration is
+     * used as the template for the generated per-handler consumers.
      */
     FluxzeroBuilder configureDefaultConsumer(MessageType messageType,
                                              UnaryOperator<ConsumerConfiguration> updateFunction);
