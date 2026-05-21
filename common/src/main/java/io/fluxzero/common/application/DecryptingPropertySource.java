@@ -35,8 +35,11 @@ import static io.fluxzero.common.ObjectUtils.memoize;
  * <p>Decryption is only applied to values identified as encrypted via {@link Encryption#isEncrypted(String)}.
  * Values that are not encrypted are returned as-is.
  *
- * <p>The encryption strategy is determined using the {@code ENCRYPTION_KEY} environment variable or system property.
- * If no key is found, a no-op fallback is used, meaning decryption will be skipped.
+ * <p>The encryption strategy is determined through the default Fluxzero property source using the
+ * {@code ENCRYPTION_KEY} or {@code encryption_key} property. This includes environment variables, system properties,
+ * configured additional locations, application property files, and Fluxzero defaults according to
+ * {@link DefaultPropertySource} precedence. If no key is found, a no-op fallback is used, meaning decryption will be
+ * skipped.
  *
  * <p>To enable encrypted property support in a Fluxzero application, ensure the appropriate key is present, e.g.:
  * <pre>{@code
@@ -60,8 +63,8 @@ public class DecryptingPropertySource implements PropertySource {
 
     /**
      * Constructs a {@code DecryptingPropertySource} with the specified delegate property source.
-     * By default, the encryption key is fetched from the default property source using the keys
-     * "ENCRYPTION_KEY" or "encryption_key".
+     * By default, the encryption key is fetched from the {@link DefaultPropertySource} using the keys
+     * {@code ENCRYPTION_KEY} or {@code encryption_key}.
      *
      * @param delegate the property source to wrap and decrypt values from
      */
