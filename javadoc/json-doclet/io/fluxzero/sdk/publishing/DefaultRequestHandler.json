@@ -371,8 +371,8 @@
   "nestedTypes" : [ {
     "name" : "ResponseCallback",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback",
-    "kind" : "record",
-    "modifiers" : [ "final", "protected", "static" ],
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
     "annotations" : [ ]
   } ]
 }

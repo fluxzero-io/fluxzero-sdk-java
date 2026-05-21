@@ -231,6 +231,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "describeWebRequest",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#describeWebRequest",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -283,6 +299,43 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putWebRequestDescription",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#putWebRequestDescription",
+    "returnType" : "void",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestTarget",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#requestTarget",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

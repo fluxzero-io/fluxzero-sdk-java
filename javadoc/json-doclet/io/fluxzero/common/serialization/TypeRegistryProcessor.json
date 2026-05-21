@@ -9,11 +9,6 @@
     "values" : {
       "value" : "\"io.fluxzero.common.serialization.RegisterType\""
     }
-  }, {
-    "annotationType" : "com.google.auto.service.AutoService",
-    "values" : {
-      "value" : "javax.annotation.processing.Processor.class"
-    }
   } ],
   "documentation" : null,
   "typeParameters" : [ ],

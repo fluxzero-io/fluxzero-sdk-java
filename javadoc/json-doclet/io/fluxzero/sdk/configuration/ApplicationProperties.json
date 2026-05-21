@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "DEFAULTS_VERSION_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULTS_VERSION_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Selects the versioned Fluxzero default behavior profile for applications that do not configure each default\n explicitly.\n",
+    "constantValue" : "fluxzero.defaults.version"
+  } ],
   "constructors" : [ {
     "name" : "ApplicationProperties",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#ApplicationProperties",

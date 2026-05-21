@@ -33,14 +33,27 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "state",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics.state",
+    "type" : "io.fluxzero.testserver.TestServer.ServerState",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "RuntimeLifecycleMetrics",
     "qualifiedName" : "io.fluxzero.testserver.TestServer$RuntimeLifecycleMetrics#RuntimeLifecycleMetrics",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "state",
+      "type" : "io.fluxzero.testserver.TestServer.ServerState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

@@ -90,6 +90,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "staticFileHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.staticFileHandlers",
     "type" : "java.util.Set<io.fluxzero.sdk.web.StaticFileHandler>",
@@ -153,6 +161,11 @@
     }, {
       "name" : "trackingMetricsEnabled",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -260,6 +273,27 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#createHandlerMatcher",
     "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
     "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createHandlerMatcher",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#createHandlerMatcher",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "protected" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
@@ -275,6 +309,11 @@
     }, {
       "name" : "config",
       "type" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -307,6 +346,32 @@
     "parameters" : [ {
       "name" : "messageType",
       "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasMemberHandlerMethods",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#hasMemberHandlerMethods",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerConfiguration",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visitedTypes",
+      "type" : "java.util.Set<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

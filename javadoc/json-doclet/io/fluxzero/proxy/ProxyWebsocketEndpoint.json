@@ -1,0 +1,664 @@
+{
+  "name" : "ProxyWebsocketEndpoint",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "CLOSE_NOTIFICATION_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "awaitCloseAcknowledgements",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.awaitCloseAcknowledgements",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "clientIdKey",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.clientIdKey",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "_clientId"
+  }, {
+    "name" : "closeNotificationTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.closeNotificationTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metadataPrefix",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.metadataPrefix",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "_metadata:"
+  }, {
+    "name" : "metricsSerializer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.metricsSerializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "openSessions",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.openSessions",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.proxy.ProxyWebsocketSession>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingCloseNotifications",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.pendingCloseNotifications",
+    "type" : "java.util.Map<java.lang.String,java.util.concurrent.CompletableFuture<java.lang.Void>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registration",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.registration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestGateway",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.requestGateway",
+    "type" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.requestHandler",
+    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "started",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.started",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackerIdKey",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.trackerIdKey",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "_trackerId"
+  } ],
+  "constructors" : [ {
+    "name" : "ProxyWebsocketEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#ProxyWebsocketEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestHandler",
+      "type" : "io.fluxzero.sdk.publishing.RequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "closeSession",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#closeSession",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeCloseNotification",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#completeCloseNotification",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#createRequest",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ensureStarted",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#ensureStarted",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#getContext",
+    "returnType" : "io.fluxzero.proxy.ProxyWebsocketEndpoint.SessionContext",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleDisconnects",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#handleDisconnects",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resultMessages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleResultMessages",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#handleResultMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resultMessages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleSendFailure",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#handleSendFailure",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isIdleTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#isIdleTimeout",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onBinary",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onBinary",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onClose",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onClose",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onError",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onError",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onOpen",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onOpen",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onPong",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onPong",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onText",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onText",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publishBackpressureMetric",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#publishBackpressureMetric",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "io.fluxzero.proxy.WebsocketSendBacklogExceededException",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendClose",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#sendClose",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendCloseRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#sendCloseRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closeReason",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendMessage",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#sendMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#sendPing",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "m",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.proxy.ProxyWebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "warnOnTimeout",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeNotificationTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "awaitCloseAcknowledgements",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "warnOnTimeout",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unwrapCloseFailure",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#unwrapCloseFailure",
+    "returnType" : "java.lang.RuntimeException",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exception",
+      "type" : "java.util.concurrent.ExecutionException",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "SessionContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$SessionContext",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder",
+      "values" : {}
+    } ]
+  } ]
+}

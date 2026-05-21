@@ -14,11 +14,35 @@
       "toBuilder" : "true"
     }
   } ],
-  "documentation" : " Configuration class that defines how a message consumer behaves during message tracking and handler invocation.\n <p>\n {@code ConsumerConfiguration} is used to fine-tune the behavior of message consumers beyond what is possible with the\n {@link Consumer} annotation. It supports handler filtering, tracking concurrency, custom interceptors, and more.\n\n <p><strong>Usage:</strong> Consumers can be declared programmatically using this configuration object, or generated\n automatically from {@code @Consumer} annotations on handler classes or packages.\n\n @see Consumer\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration\n",
+  "documentation" : " Configuration class that defines how a message consumer behaves during message tracking and handler invocation.\n <p>\n {@code ConsumerConfiguration} is used to fine-tune the behavior of message consumers beyond what is possible with the\n {@link Consumer} annotation. It supports handler filtering, tracking concurrency, custom interceptors, and more.\n\n <p><strong>Usage:</strong> Consumers can be declared programmatically using this configuration object, generated\n automatically from {@code @Consumer} annotations on handler classes or packages, or derived from the default\n consumer template for handlers without an explicit consumer.\n\n @see Consumer\n @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.configuration.Substitutable<io.fluxzero.sdk.tracking.ConsumerConfiguration>" ],
   "fields" : [ {
+    "name" : "DEFAULT_APP_CONSUMER_MODE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Assigns unconfigured handlers to the shared default application consumer for their message type.\n",
+    "constantValue" : "defaultAppConsumer"
+  }, {
+    "name" : "PER_HANDLER_CONSUMER_MODE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Creates an isolated default consumer per unconfigured handler class.\n",
+    "constantValue" : "perHandler"
+  }, {
+    "name" : "UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Chooses how unconfigured tracking handlers are assigned to default consumers.\n <p>\n Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,\n Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.\n",
+    "constantValue" : "fluxzero.tracking.unconfiguredHandlerConsumerMode"
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.batchInterceptors",
     "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
@@ -198,10 +222,7 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxIndexExclusive",
     "type" : "java.lang.Long",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : " Optional exclusive upper limit for message index (messages with this index or higher will be skipped).\n",
     "constantValue" : null
   }, {
@@ -223,10 +244,7 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.minIndex",
     "type" : "java.lang.Long",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : " Optional minimum index to start processing messages from.\n",
     "constantValue" : null
   }, {
