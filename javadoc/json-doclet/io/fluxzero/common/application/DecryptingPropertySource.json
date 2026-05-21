@@ -8,7 +8,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " A {@link PropertySource} decorator that transparently decrypts encrypted property values.\n\n <p>This implementation wraps a delegate {@link PropertySource} and attempts to decrypt any retrieved\n property value using a configured {@link Encryption} strategy.\n\n <p>Decryption is only applied to values identified as encrypted via {@link Encryption#isEncrypted(String)}.\n Values that are not encrypted are returned as-is.\n\n <p>The encryption strategy is determined using the {@code ENCRYPTION_KEY} environment variable or system property.\n If no key is found, a no-op fallback is used, meaning decryption will be skipped.\n\n <p>To enable encrypted property support in a Fluxzero application, ensure the appropriate key is present, e.g.:\n <pre>{@code\n   export ENCRYPTION_KEY=ChaCha20|mYbAse64ENcodedKeY==\n }</pre>\n\n @see Encryption\n @see DefaultEncryption\n",
+  "documentation" : " A {@link PropertySource} decorator that transparently decrypts encrypted property values.\n\n <p>This implementation wraps a delegate {@link PropertySource} and attempts to decrypt any retrieved\n property value using a configured {@link Encryption} strategy.\n\n <p>Decryption is only applied to values identified as encrypted via {@link Encryption#isEncrypted(String)}.\n Values that are not encrypted are returned as-is.\n\n <p>The encryption strategy is determined through the default Fluxzero property source using the\n {@code ENCRYPTION_KEY} or {@code encryption_key} property. This includes environment variables, system properties,\n configured additional locations, application property files, and Fluxzero defaults according to\n {@link DefaultPropertySource} precedence. If no key is found, a no-op fallback is used, meaning decryption will be\n skipped.\n\n <p>To enable encrypted property support in a Fluxzero application, ensure the appropriate key is present, e.g.:\n <pre>{@code\n   export ENCRYPTION_KEY=ChaCha20|mYbAse64ENcodedKeY==\n }</pre>\n\n @see Encryption\n @see DefaultEncryption\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
@@ -54,7 +54,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a {@code DecryptingPropertySource} with the specified delegate property source.\n By default, the encryption key is fetched from the default property source using the keys\n \"ENCRYPTION_KEY\" or \"encryption_key\".\n\n @param delegate the property source to wrap and decrypt values from\n"
+    "documentation" : " Constructs a {@code DecryptingPropertySource} with the specified delegate property source.\n By default, the encryption key is fetched from the {@link DefaultPropertySource} using the keys\n {@code ENCRYPTION_KEY} or {@code encryption_key}.\n\n @param delegate the property source to wrap and decrypt values from\n"
   }, {
     "name" : "DecryptingPropertySource",
     "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#DecryptingPropertySource",
