@@ -22,6 +22,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.*;
@@ -187,6 +188,21 @@ public class ResultValidator<R> implements Then<R> {
     @Override
     public Then<R> expectNoCommandsLike(Object... commands) {
         return expectNo(asMessages(commands), this.commands, MessageType.COMMAND);
+    }
+
+    @Override
+    public Then<R> expectScheduledCommands(Object... commands) {
+        return expectScheduledCommandMessages(asMessages(commands), scheduledCommands(this.newSchedules));
+    }
+
+    @Override
+    public Then<R> expectOnlyScheduledCommands(Object... commands) {
+        return expectOnlyScheduledCommandMessages(asMessages(commands), scheduledCommands(this.newSchedules));
+    }
+
+    @Override
+    public Then<R> expectNoScheduledCommandsLike(Object... commands) {
+        return expectNo(asMessages(commands), scheduledCommands(this.newSchedules), MessageType.SCHEDULE);
     }
 
     @Override
@@ -368,8 +384,11 @@ public class ResultValidator<R> implements Then<R> {
     @SafeVarargs
     @Override
     public final <T> Then<R> expectResultContaining(T... results) {
+        if (this.result instanceof Map<?, ?> map) {
+            return expectMapContaining(List.of(results), map);
+        }
         if (!(this.result instanceof Collection<?>)) {
-            throw new GivenWhenThenAssertionError("Result is not a collection", List.of(results), this.result);
+            throw new GivenWhenThenAssertionError("Result is not a collection or map", List.of(results), this.result);
         }
         return expect(List.of(results), (Collection<?>) this.result);
     }
@@ -636,6 +655,69 @@ public class ResultValidator<R> implements Then<R> {
                                                           Collection<? extends Schedule> actual) {
         ResultValidator<R> result = expectScheduledMessages(expected, actual);
         return result.expectOnly(expected, actual, MessageType.SCHEDULE);
+    }
+
+    protected ResultValidator<R> expectMapContaining(Collection<?> expected, Map<?, ?> actual) {
+        return fluxzero.apply(fc -> {
+            List<Object> missed = new ArrayList<>();
+            for (Object expectedItem : expected) {
+                if (expectedItem instanceof Map<?, ?> expectedMap) {
+                    expectedMap.entrySet().stream()
+                            .filter(expectedEntry -> !containsEntry(actual, expectedEntry))
+                            .forEach(missed::add);
+                } else if (expectedItem instanceof Map.Entry<?, ?> expectedEntry) {
+                    if (!containsEntry(actual, expectedEntry)) {
+                        missed.add(expectedEntry);
+                    }
+                } else if (actual.values().stream().noneMatch(actualValue -> matches(expectedItem, actualValue))) {
+                    missed.add(expectedItem);
+                }
+            }
+            if (!missed.isEmpty()) {
+                throw new GivenWhenThenAssertionError(
+                        "Result map did not contain expected values or entries", expected, actual);
+            }
+            return this;
+        });
+    }
+
+    protected boolean containsEntry(Map<?, ?> actual, Map.Entry<?, ?> expectedEntry) {
+        return actual.entrySet().stream().anyMatch(
+                actualEntry -> matches(expectedEntry.getKey(), actualEntry.getKey())
+                               && matches(expectedEntry.getValue(), actualEntry.getValue()));
+    }
+
+    protected ResultValidator<R> expectScheduledCommandMessages(Collection<?> expected,
+                                                                Collection<? extends Schedule> actual) {
+        return fluxzero.apply(fc -> {
+            if (!expected.isEmpty() && actual.isEmpty()) {
+                recordMissedExpected(MessageType.SCHEDULE, null, expected, actual);
+                throw new GivenWhenThenAssertionError("No commands were scheduled");
+            }
+            return expectScheduledMessages(expected, actual);
+        });
+    }
+
+    protected ResultValidator<R> expectOnlyScheduledCommandMessages(Collection<?> expected,
+                                                                    Collection<? extends Schedule> actual) {
+        ResultValidator<R> result = expectScheduledCommandMessages(expected, actual);
+        return result.expectOnly(expected, actual, MessageType.SCHEDULE);
+    }
+
+    protected List<Schedule> scheduledCommands(Collection<? extends Schedule> schedules) {
+        return schedules.stream()
+                .filter(schedule -> schedule.getPayload() instanceof ScheduledCommand)
+                .map(this::scheduledCommand)
+                .collect(toList());
+    }
+
+    protected Schedule scheduledCommand(Schedule schedule) {
+        ScheduledCommand scheduledCommand = (ScheduledCommand) schedule.getPayload();
+        Message command = fluxzero.serializer()
+                .deserializeMessage(scheduledCommand.getCommand(), MessageType.COMMAND)
+                .toMessage();
+        return new Schedule(command.getPayload(), command.getMetadata(), command.getMessageId(),
+                            command.getTimestamp(), schedule.getScheduleId(), schedule.getDeadline());
     }
 
     protected void recordMissedExpected(MessageType messageType, String topic, Collection<?> expected,

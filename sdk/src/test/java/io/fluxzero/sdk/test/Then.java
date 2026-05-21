@@ -49,14 +49,21 @@ import static java.lang.String.format;
  * <p>
  * This interface provides fluent, expressive assertions that support a wide range of matchers:
  * <ul>
- *     <li>Plain objects (compared via {@link java.util.Objects#equals})</li>
- *     <li>{@link java.util.function.Predicate} and Hamcrest matchers</li>
- *     <li>{@link Class} instances (type matching)</li>
- *     <li>Strings ending in {@code .json}, which are interpreted as resource files to load and compare</li>
+ *     <li>Plain objects, matched with deep equality against the actual value or message payload</li>
+ *     <li>{@link java.util.function.Predicate} and Hamcrest matchers, applied to the payload first and then to the
+ *     full message when the actual value is a {@link Message}</li>
+ *     <li>{@link Class} instances, matched against the actual value or message payload type</li>
+ *     <li>For result and message-style expectations, strings ending in {@code .json}, which are interpreted as
+ *     resource files to load and compare</li>
  * </ul>
  * <p>
  * Resource-based comparisons support rich object declarations with {@code @class} and {@code @extends} for type resolution
  * and inheritance. See {@link io.fluxzero.common.serialization.JsonUtils} for details.
+ * <p>
+ * For message assertions, passing a {@link Message} checks that the actual message contains all expected metadata
+ * entries and has a matching payload; additional metadata on the actual message is allowed. Passing a plain object
+ * checks only the payload. {@link WebRequest} expectations also compare the HTTP method, and {@link Schedule}
+ * expectations also compare the deadline. Schedule identifiers are not compared unless you use a predicate.
  * <p>
  * Method groups include:
  * <ul>
@@ -83,12 +90,12 @@ public interface Then<R> {
      * <p>
      * Events can be specified as:
      * <ul>
-     *   <li>{@link Message} instances — compared with metadata</li>
-     *   <li>POJOs — compared by payload only</li>
-     *   <li>{@link Predicate}, Hamcrest matchers, or {@link Class} — matched against published payloads</li>
+     *   <li>{@link Message} instances — matched by payload and expected metadata entries</li>
+     *   <li>Plain objects — matched by payload only</li>
+     *   <li>{@link Predicate}, Hamcrest matchers, or {@link Class} — matched against published payloads, with
+     *   predicates and matchers also able to inspect the full {@link Message}</li>
      *   <li>{@code .json} file paths — deserialized and matched via {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
-     * Matching is performed using equals or matcher logic depending on the type.
      */
     Then<R> expectEvents(Object... events);
 
@@ -142,9 +149,10 @@ public interface Then<R> {
      * <p>
      * Supported values for each command include:
      * <ul>
-     *   <li>{@link Message} instances — matched including metadata</li>
+     *   <li>{@link Message} instances — matched by payload and expected metadata entries</li>
      *   <li>Plain objects — matched by payload only</li>
-     *   <li>{@link Predicate}, Hamcrest matchers, or {@link Class} — type or condition-based matching</li>
+     *   <li>{@link Predicate}, Hamcrest matchers, or {@link Class} — type or condition-based matching against the
+     *   payload, with predicates and matchers also able to inspect the full {@link Message}</li>
      *   <li>Paths ending in {@code .json} — matched by deserializing a JSON resource file</li>
      * </ul>
      * See {@link io.fluxzero.common.serialization.JsonUtils} for details about JSON file resolution and inheritance.
@@ -191,6 +199,68 @@ public interface Then<R> {
     default Then<R> expectNoCommands() {
         return expectOnlyCommands();
     }
+
+    /**
+     * Asserts that one or more commands were scheduled during the {@code when} phase.
+     * <p>
+     * Only commands scheduled through {@link io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand(Schedule)}
+     * or the corresponding {@link Fluxzero#scheduleCommand(Schedule)} helpers are considered; regular schedules
+     * created with {@code schedule(...)} are ignored.
+     * <p>
+     * Supported values for each command include:
+     * <ul>
+     *   <li>{@link Schedule} instances — matched against the original command payload and metadata, and the scheduled
+     *   deadline. The generated schedule identifier is not compared.</li>
+     *   <li>{@link Message} instances — matched against the original command payload and metadata.</li>
+     *   <li>Plain objects — matched against the original command payload only.</li>
+     *   <li>{@link Predicate}, Hamcrest matchers, or {@link Class} — matched against the original command payload;
+     *   predicates and matchers may also inspect the reconstructed {@link Schedule}.</li>
+     *   <li>Paths ending in {@code .json} — matched by deserializing a JSON resource file.</li>
+     * </ul>
+     * Use a predicate when you need to assert schedule-specific details such as the schedule identifier.
+     */
+    Then<R> expectScheduledCommands(Object... commands);
+
+    /**
+     * Shorthand for asserting that a command was scheduled during the {@code when} phase.
+     *
+     * @see #expectScheduledCommands(Object...)
+     */
+    default Then<R> expectScheduledCommand(Object command) {
+        return expectScheduledCommands(command);
+    }
+
+    /**
+     * Shorthand for asserting that at least one scheduled command matches the given predicate.
+     *
+     * @param predicate matcher to apply to scheduled command payloads or reconstructed schedules
+     */
+    default <T> Then<R> expectScheduledCommand(ThrowingPredicate<T> predicate) {
+        return expectScheduledCommands(predicate.asPredicate());
+    }
+
+    /**
+     * Asserts that only the specified commands were scheduled during the {@code when} phase.
+     *
+     * @see #expectScheduledCommands(Object...)
+     */
+    Then<R> expectOnlyScheduledCommands(Object... commands);
+
+    /**
+     * Asserts that none of the specified commands were scheduled during the {@code when} phase.
+     *
+     * @see #expectScheduledCommands(Object...)
+     */
+    Then<R> expectNoScheduledCommandsLike(Object... commands);
+
+    /**
+     * Asserts that no scheduled command matches the given predicate.
+     *
+     * @param predicate matcher to apply to scheduled command payloads or reconstructed schedules
+     */
+    default <T> Then<R> expectNoScheduledCommandLike(ThrowingPredicate<T> predicate) {
+        return expectNoScheduledCommandsLike(predicate.asPredicate());
+    }
     
     /*
         Custom Topics
@@ -199,11 +269,12 @@ public interface Then<R> {
     /**
      * Asserts that one or more messages were published to the specified custom {@code topic}.
      * <p>
-     * Each request may be:
+     * Each message may be:
      * <ul>
-     *   <li>A {@link Message} — matched including metadata</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used to match payloads dynamically</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries</li>
+     *   <li>A plain object — matched by payload only</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used to match payloads dynamically, with
+     *   predicates and matchers also able to inspect the full {@link Message}</li>
      *   <li>A {@code .json} resource path — loaded and deserialized via {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
      *
@@ -213,11 +284,11 @@ public interface Then<R> {
     Then<R> expectCustom(String topic, Object... requests);
 
     /**
-     * Asserts that a message was published to the specified custom {@code topic} and that it matches the given
+     * Asserts that a message was published to the specified custom {@code topic} and matches the given
      * predicate.
      *
      * @param topic     the topic to check
-     * @param predicate a predicate to apply to published payloads
+     * @param predicate a predicate to apply to published payloads or messages
      */
     default <T> Then<R> expectCustom(String topic, ThrowingPredicate<T> predicate) {
         return expectCustom(topic, predicate.asPredicate());
@@ -234,7 +305,7 @@ public interface Then<R> {
     Then<R> expectOnlyCustom(String topic, Object... requests);
 
     /**
-     * Asserts that none of the given requests were published to the specified custom {@code topic}.
+     * Asserts that none of the given messages were published to the specified custom {@code topic}.
      *
      * @param topic    the topic to check
      * @param requests the messages that must not appear on the topic
@@ -242,7 +313,7 @@ public interface Then<R> {
     Then<R> expectNoCustomLike(String topic, Object... requests);
 
     /**
-     * Asserts that no request was published to the specified custom {@code topic} that matches the given predicate.
+     * Asserts that no message was published to the specified custom {@code topic} that matches the given predicate.
      *
      * @param topic     the topic to check
      * @param predicate predicate applied to messages (or their payloads) on the topic
@@ -271,9 +342,10 @@ public interface Then<R> {
      * <p>
      * Each query can be:
      * <ul>
-     *   <li>A {@link Message} — matched including metadata</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for type or condition matching</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries</li>
+     *   <li>A plain object — matched by payload only</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for type or condition matching against the
+     *   payload, with predicates and matchers also able to inspect the full {@link Message}</li>
      *   <li>A {@code .json} file path — matched via deserialized JSON resource using {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
      *
@@ -333,9 +405,11 @@ public interface Then<R> {
      * <p>
      * Each request can be:
      * <ul>
-     *   <li>A {@link WebRequest} or {@link Message} — matched including metadata</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for dynamic matching</li>
+     *   <li>A {@link WebRequest} — matched by method, payload, and expected metadata entries</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries</li>
+     *   <li>A plain object — matched by payload only</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for dynamic matching against the payload, with
+     *   predicates and matchers also able to inspect the full {@link WebRequest}</li>
      *   <li>A {@code .json} resource path — deserialized and matched using {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
      *
@@ -346,7 +420,7 @@ public interface Then<R> {
     /**
      * Shorthand for asserting that at least one published web request matches the given predicate.
      *
-     * @param predicate predicate to apply to web request payloads
+     * @param predicate predicate to apply to web requests
      */
     default Then<R> expectWebRequest(ThrowingPredicate<WebRequest> predicate) {
         return expectWebRequests(predicate.asPredicate());
@@ -393,9 +467,11 @@ public interface Then<R> {
      * <p>
      * Each web response can be:
      * <ul>
-     *   <li>A {@link WebResponse} or {@link Message} — matched including metadata</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used to match dynamically</li>
+     *   <li>A {@link WebResponse} or {@link Message} — matched by payload and expected metadata entries</li>
+     *   <li>A plain object — matched by payload only. If the response payload is serialized as another type, the
+     *   fixture attempts to read it as the expected object's type before comparing.</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used to match dynamically against the payload,
+     *   with predicates and matchers also able to inspect the full {@link WebResponse}</li>
      *   <li>A {@code .json} resource path — deserialized via {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
      *
@@ -453,11 +529,15 @@ public interface Then<R> {
      * <p>
      * Each schedule can be:
      * <ul>
-     *   <li>A {@link Schedule} or {@link Message} — matched by payload and (if applicable) deadline</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for flexible payload matching</li>
+     *   <li>A {@link Schedule} — matched by payload, expected metadata entries, and deadline. The schedule identifier
+     *   is not compared.</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries.</li>
+     *   <li>A plain object — matched by payload only.</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — for flexible payload matching, with predicates
+     *   and matchers also able to inspect the full {@link Schedule}.</li>
      *   <li>A {@code .json} file — loaded and deserialized using {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
+     * Use a predicate when you need to assert schedule-specific details such as the schedule identifier.
      */
     Then<R> expectNewSchedules(Object... schedules);
 
@@ -505,7 +585,8 @@ public interface Then<R> {
     /**
      * Asserts that the given schedules are currently still active.
      * <p>
-     * This checks the system's internal state after the {@code when} phase.
+     * This checks the scheduling client's internal state after the {@code when} phase. It accepts the same matcher
+     * forms as {@link #expectNewSchedules(Object...)}.
      */
     Then<R> expectSchedules(Object... schedules);
 
@@ -520,16 +601,20 @@ public interface Then<R> {
 
     /**
      * Asserts that only the given schedules are currently active.
+     *
+     * @see #expectSchedules(Object...)
      */
     Then<R> expectOnlySchedules(Object... schedules);
 
     /**
      * Asserts that none of the specified schedules are currently active.
+     *
+     * @see #expectSchedules(Object...)
      */
     Then<R> expectNoSchedulesLike(Object... schedules);
 
     /**
-     * Asserts that no schedule was published that matches the given predicate.
+     * Asserts that no active schedule matches the given predicate.
      *
      * @param predicate matcher to apply to schedules
      */
@@ -555,16 +640,21 @@ public interface Then<R> {
      * <p>
      * The expected value may be:
      * <ul>
-     *   <li>A POJO — matched using {@link Objects#equals(Object, Object)}</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used for dynamic or type-based checks</li>
+     *   <li>A plain object — matched using deep equality. If the actual result is a {@link Message}, the plain object
+     *   is matched against the message payload.</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries when the actual result is also a
+     *   message.</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — used for dynamic or type-based checks. For
+     *   message results, predicates and matchers are tried against the payload and then the full message.</li>
      *   <li>A path to a {@code .json} resource — deserialized and matched using {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
+     * If the behavior completed exceptionally, this assertion fails with that exception as the unexpected result.
      */
     Then<R> expectResult(Object result);
 
     /**
-     * Asserts that the result is an instance of the specified class. Also casts the result to that class in the
-     * returned {@code Then} step.
+     * Asserts that the result is an instance of the specified class and narrows the returned {@code Then} step to that
+     * type. If the result is a {@link Message}, the payload may satisfy the type check.
      */
     default <R2 extends R> Then<R2> expectResult(@NonNull Class<? extends R2> resultClass) {
         return this.expectResult(r -> r instanceof Class<?> ? r.equals(resultClass) : resultClass.isInstance(r),
@@ -581,7 +671,8 @@ public interface Then<R> {
     /**
      * Executes an imperative check against the result using a verifier function.
      * <p>
-     * If the verifier throws an exception, the test fails.
+     * If the result is a {@link Message}, the verifier is tried against the payload and then the full message, matching
+     * {@link #expectResult(ThrowingPredicate)} behavior. If the verifier throws an exception, the test fails.
      */
     default <R2 extends R> Then<R2> verifyResult(ThrowingConsumer<R2> verifier) {
         return expectResult(r -> {
@@ -599,23 +690,25 @@ public interface Then<R> {
 
     /**
      * Asserts that the result matches the given predicate and provides a descriptive label for failures.
+     * <p>
+     * If the result is a {@link Message}, the predicate is tried against the payload and then the full message.
      */
     <R2 extends R> Then<R2> expectResult(ThrowingPredicate<R2> predicate, String description);
 
     /**
-     * Asserts that the result is a {@link Message} that matches the given predicate.
+     * Asserts that the result itself is a {@link Message} that matches the given predicate.
      */
     default <M extends Message> Then<R> expectResultMessage(ThrowingPredicate<M> messagePredicate) {
         return expectResultMessage(messagePredicate, "Predicate matcher");
     }
 
     /**
-     * Asserts that the result is a {@link Message} and matches the given predicate and label.
+     * Asserts that the result itself is a {@link Message} and matches the given predicate and label.
      */
     <M extends Message> Then<R> expectResultMessage(ThrowingPredicate<M> messagePredicate, String description);
 
     /**
-     * Asserts that the result is a {@link WebResponse} that matches the given predicate.
+     * Asserts that the result itself is a {@link WebResponse} that matches the given predicate.
      */
     default Then<R> expectWebResult(ThrowingPredicate<WebResponse> messagePredicate) {
         return expectResultMessage(messagePredicate, "Predicate matcher");
@@ -649,7 +742,7 @@ public interface Then<R> {
     }
 
     /**
-     * Asserts that no result was produced (i.e. {@code null}).
+     * Asserts that no result payload was produced (i.e. {@code null}).
      */
     default Then<R> expectNoResult() {
         return expectResult((Object) null);
@@ -658,18 +751,29 @@ public interface Then<R> {
     /**
      * Asserts that the result is not equal to the given value.
      * <p>
-     * Useful for exclusion-based testing or negative assertions.
+     * Supports the same matcher forms as {@link #expectResult(Object)}.
      */
     Then<R> expectNoResultLike(Object result);
 
     /**
      * Asserts that the result is a {@link Collection} or {@link Map} and contains values matching the given inputs.
+     * <p>
+     * Collection results are matched against their elements. Map results support:
+     * <ul>
+     *   <li>Plain objects, {@link Predicate predicates}, Hamcrest matchers, and {@link Class} instances matched
+     *   against map values.</li>
+     *   <li>{@link java.util.Map.Entry} instances matched against map entries by key and value.</li>
+     *   <li>{@link Map} instances treated as an expected subset of entries.</li>
+     * </ul>
      */
     @SuppressWarnings("unchecked")
     <T> Then<R> expectResultContaining(T... results);
 
     /**
      * Transforms the result using the provided {@code resultMapper} function for continued assertions.
+     * <p>
+     * If the result implements {@link HasMessage}, the mapper is first tried with the message-like result itself. If
+     * that fails because of an incompatible cast, the mapper is retried with the payload.
      */
     <MR> Then<MR> mapResult(ThrowingFunction<? super R, ? extends MR> resultMapper);
 
@@ -703,7 +807,8 @@ public interface Then<R> {
     /**
      * Returns the result produced during the {@code when}-phase of the test fixture, cast to the specified type.
      * <p>
-     * If the result implements {@link HasMessage}, the payload of the underlying message is returned instead.
+     * If the result itself is assignable to {@code resultClass}, the result is returned. Otherwise, if the result
+     * implements {@link HasMessage}, the payload of the underlying message is cast to {@code resultClass}.
      * <p>
      * This provides access to the actual return value of the command, query, or other operation executed during
      * the test scenario.
@@ -718,7 +823,7 @@ public interface Then<R> {
      * Assigns the result of the {@code when}-phase to a named web parameter for use in subsequent requests.
      * <p>
      * This enables referencing the result (e.g. an ID returned from a POST operation) in later calls using path or
-     * query parameter placeholders such as {@code {orderId}}.
+     * URL placeholders such as {@code {orderId}}.
      * <p>
      * If no explicit name is assigned using this method, Fluxzero will implicitly bind the result to a single unnamed
      * parameter if only one is needed. For example:
@@ -769,9 +874,8 @@ public interface Then<R> {
      * Supported formats for the expected exception:
      * <ul>
      *   <li>A {@link Class} — checks if the exception is an instance of the class</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher — applied to the exception</li>
-     *   <li>A {@code .json} path — deserialized and matched using {@link io.fluxzero.common.serialization.JsonUtils}</li>
-     *   <li>Any object — compared via {@link Objects#equals(Object, Object)}</li>
+     *   <li>A {@link Predicate} or Hamcrest matcher — applied to the exception</li>
+     *   <li>Any object — compared with deep equality</li>
      * </ul>
      */
     Then<R> expectExceptionalResult(Object expectedException);
@@ -861,8 +965,7 @@ public interface Then<R> {
      * You may pass:
      * <ul>
      *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class}</li>
-     *   <li>A {@code .json} resource string</li>
-     *   <li>Any object for {@link Objects#equals} comparison</li>
+     *   <li>Any object for deep equality comparison</li>
      * </ul>
      */
     Then<R> expectError(Object expectedError);
@@ -933,9 +1036,10 @@ public interface Then<R> {
      * <p>
      * Each metric can be:
      * <ul>
-     *   <li>A {@link Message} — matched including metadata</li>
-     *   <li>A POJO — matched by payload only</li>
-     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class}</li>
+     *   <li>A {@link Message} — matched by payload and expected metadata entries</li>
+     *   <li>A plain object — matched by payload only</li>
+     *   <li>A {@link Predicate}, Hamcrest matcher, or {@link Class} — matched against the payload, with predicates
+     *   and matchers also able to inspect the full {@link Message}</li>
      *   <li>A {@code .json} path — deserialized using {@link io.fluxzero.common.serialization.JsonUtils}</li>
      * </ul>
      */

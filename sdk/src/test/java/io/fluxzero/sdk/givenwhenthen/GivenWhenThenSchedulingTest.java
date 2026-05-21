@@ -496,6 +496,30 @@ class GivenWhenThenSchedulingTest {
     }
 
     @Test
+    void testExpectScheduledCommand() {
+        Instant deadline = subject.getCurrentTime().plusSeconds(10);
+        Message command = new Message("command").addMetadata("a", "b");
+        subject.whenCommand(new YieldsScheduledCommand(command, "testId", deadline))
+                .expectOnlyScheduledCommands(command)
+                .expectScheduledCommand(new Schedule(command.getPayload(), command.getMetadata(), "testId", deadline));
+    }
+
+    @Test
+    void testExpectScheduledCommand_async() {
+        Instant deadline = Instant.now().plusSeconds(10);
+        TestFixture.createAsync(new CommandHandler())
+                .whenCommand(new YieldsScheduledCommand("command", "testId", deadline))
+                .expectScheduledCommand("command");
+    }
+
+    @Test
+    void testExpectNoScheduledCommandLike() {
+        Instant deadline = subject.getCurrentTime().plusSeconds(10);
+        subject.whenCommand(new YieldsScheduledCommand("command", "testId", deadline))
+                .expectNoScheduledCommandsLike("otherCommand");
+    }
+
+    @Test
     void testExpectScheduleAnyTime() {
         YieldsSchedule command = new YieldsSchedule();
         subject.whenCommand(command).expectOnlyNewSchedules(command.getSchedule());
@@ -765,6 +789,11 @@ class GivenWhenThenSchedulingTest {
         }
 
         @HandleCommand
+        void handle(YieldsScheduledCommand command) {
+            Fluxzero.scheduleCommand(command.getCommand(), command.getScheduleId(), command.getDeadline());
+        }
+
+        @HandleCommand
         void handle(String simpleCommand) {
         }
     }
@@ -1013,6 +1042,13 @@ class GivenWhenThenSchedulingTest {
             this(new Schedule("schedule", UUID.randomUUID().toString(),
                               subject.getCurrentTime().plusSeconds(10)));
         }
+    }
+
+    @Value
+    static class YieldsScheduledCommand {
+        Object command;
+        String scheduleId;
+        Instant deadline;
     }
 
     @Value
