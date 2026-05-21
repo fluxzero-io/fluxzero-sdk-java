@@ -28,6 +28,22 @@
     "varArgs" : false,
     "documentation" : " Creates a composite registry that invokes both this and the given registry.\n <p>\n Results are merged via {@code thenCombine()} if both registries handle the message.\n\n @param next the registry to invoke second\n @return a combined registry\n"
   }, {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this registry has a local handler that can process the given message.\n\n @param message the message to inspect\n @return {@code true} if a local handler can handle the message, {@code false} otherwise\n"
+  }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handle",
     "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",

@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "clockChangeRegistration",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.clockChangeRegistration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultDelay",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler.defaultDelay",
     "type" : "int",
@@ -181,6 +189,41 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pollingEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delay",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "clock",
       "type" : "java.time.Clock",
       "varArgs" : false,
@@ -243,6 +286,36 @@
     }, {
       "name" : "workerPool",
       "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryTaskScheduler",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#InMemoryTaskScheduler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threadName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "workerPool",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pollingEnabled",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -332,6 +405,28 @@
     "name" : "executeExpiredTasksAsync",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasksAsync",
     "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeExpiredTasksOnce",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasksOnce",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getScheduledDeadlines",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#getScheduledDeadlines",
+    "returnType" : "java.util.List<java.time.Instant>",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

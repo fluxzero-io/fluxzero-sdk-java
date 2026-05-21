@@ -50,27 +50,6 @@
     "varArgs" : false,
     "documentation" : " Look up an existing schedule.\n\n @param scheduleId the ID of the schedule\n @return the schedule if found\n"
   }, {
-    "name" : "nextDeadline",
-    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#nextDeadline",
-    "returnType" : "java.time.Instant",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "cronSchedule",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "timeZone",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
     "returnType" : "void",

@@ -91,6 +91,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getLocalHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getLocalHandlers",
     "returnType" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
@@ -105,7 +124,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the full list of handlers that should be used to process the given message.\n <p>\n This may include a self-handler if the message is a request type.\n"
+    "documentation" : " Returns the full list of handlers that should be used to process the given message.\n <p>\n This may include a self-handler if the message is a request or schedule type.\n"
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#handle",

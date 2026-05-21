@@ -10,6 +10,14 @@
   "superClass" : "io.fluxzero.sdk.configuration.client.AbstractClient",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.clock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultClient",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient.defaultClient",
     "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
@@ -118,6 +126,11 @@
     }, {
       "name" : "defaultClient",
       "type" : "io.fluxzero.sdk.configuration.client.LocalClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -303,6 +316,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setClock",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#setClock",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clock",
+      "type" : "java.time.@lombok.NonNull Clock",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Links the local scheduling store to the Fluxzero clock.\n <p>\n This is called by the Fluxzero builder so local schedules and test-time shifts observe the same time source as the\n rest of the SDK.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

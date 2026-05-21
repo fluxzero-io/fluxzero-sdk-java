@@ -50,6 +50,11 @@
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler",
     "kind" : "class"
   }, {
+    "file" : "DefaultMessageScheduler.LocalScheduleTask.json",
+    "name" : "DefaultMessageScheduler.LocalScheduleTask",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$LocalScheduleTask",
+    "kind" : "class"
+  }, {
     "file" : "MessageScheduler.json",
     "name" : "MessageScheduler",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler",

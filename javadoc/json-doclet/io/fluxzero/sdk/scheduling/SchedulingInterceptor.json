@@ -12,15 +12,7 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor", "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
-  "fields" : [ {
-    "name" : "cronExpression",
-    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor.cronExpression",
-    "type" : "java.util.function.Function<java.lang.String,java.util.Optional<io.fluxzero.sdk.scheduling.CronExpression>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  } ],
+  "fields" : [ ],
   "constructors" : [ {
     "name" : "SchedulingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#SchedulingInterceptor",

@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "clockChangeRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.clockChangeRegistration",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "minScheduleIndex",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.minScheduleIndex",
     "type" : "java.util.concurrent.atomic.AtomicLong",
@@ -56,6 +64,26 @@
     "parameters" : [ {
       "name" : "messageExpiration",
       "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryScheduleStore",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#InMemoryScheduleStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -148,6 +176,31 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clockChanged",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#clockChanged",
+    "returnType" : "void",
+    "modifiers" : [ "protected", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#close",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

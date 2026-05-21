@@ -8,7 +8,7 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " Default implementation of the {@link MessageScheduler} interface.\n <p>\n This implementation uses a {@link SchedulingClient} to schedule and cancel scheduled messages,\n and implements the {@link HasLocalHandlers} interface to allow for local handling of scheduled messages,\n used by {@code TestFixtures}.\n",
+  "documentation" : " Default implementation of the {@link MessageScheduler} interface.\n <p>\n This implementation uses a {@link SchedulingClient} to schedule and cancel scheduled messages. When a schedule has a\n matching local handler, a {@link TaskScheduler} task wakes up at the deadline and invokes the local handler in-process.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.scheduling.MessageScheduler>",
   "interfaces" : [ "io.fluxzero.sdk.scheduling.MessageScheduler", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
@@ -40,6 +40,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "localHandlerRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.localHandlerRegistration",
+    "type" : "java.lang.ThreadLocal<java.lang.Boolean>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "localHandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.localHandlerRegistry",
     "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
@@ -48,6 +56,14 @@
       "annotationType" : "lombok.experimental.Delegate",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "localScheduleTasks",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.localScheduleTasks",
+    "type" : "java.util.concurrent.ConcurrentMap<java.lang.String,io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -71,6 +87,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "taskScheduler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.taskScheduler",
+    "type" : "io.fluxzero.common.TaskScheduler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultMessageScheduler",
@@ -84,6 +108,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cancelLocalDelivery",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#cancelLocalDelivery",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancelSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#cancelSchedule",
     "returnType" : "void",
@@ -125,6 +165,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializingMessage",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#deserializingMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#getSchedule",
     "returnType" : "java.util.Optional<io.fluxzero.sdk.scheduling.Schedule>",
@@ -147,6 +203,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "handleLocalSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#handleLocalSchedule",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleLocally",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#handleLocally",
     "returnType" : "void",
@@ -158,6 +230,128 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerLocalHandler",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerLocalHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "registration",
+      "type" : "java.util.function.Supplier<io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runIfExpired",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#runIfExpired",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sameSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#sameSchedule",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sameScheduledMessage",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#sameScheduledMessage",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
       "type" : "io.fluxzero.sdk.scheduling.Schedule",
       "varArgs" : false,
       "annotations" : [ ]
@@ -223,8 +417,56 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "scheduleLocalDelivery",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#scheduleLocalDelivery",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifAbsent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldScheduleLocalDelivery",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#shouldScheduleLocalDelivery",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "LocalScheduleTask",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$LocalScheduleTask",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -13,6 +13,14 @@
   "superClass" : "java.time.Clock",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "changeListeners",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock.changeListeners",
+    "type" : "java.util.List<java.lang.Runnable>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.common.DelegatingClock.delegate",
     "type" : "java.util.concurrent.atomic.AtomicReference<java.time.Clock>",
@@ -61,6 +69,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "onChange",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#onChange",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.lang.@lombok.NonNull Runnable",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a listener that is invoked whenever the backing clock changes.\n\n @param listener callback to invoke after {@link #setDelegate(Clock)}\n @return registration that removes the listener\n"
+  }, {
     "name" : "setDelegate",
     "qualifiedName" : "io.fluxzero.common.DelegatingClock#setDelegate",
     "returnType" : "void",
@@ -78,7 +105,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the backing clock and notifies registered change listeners after the new clock is visible.\n"
   }, {
     "name" : "withZone",
     "qualifiedName" : "io.fluxzero.common.DelegatingClock#withZone",

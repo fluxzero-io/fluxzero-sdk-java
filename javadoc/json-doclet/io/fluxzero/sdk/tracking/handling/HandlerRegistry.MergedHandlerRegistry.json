@@ -41,6 +41,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$MergedHandlerRegistry#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$MergedHandlerRegistry#handle",
     "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",

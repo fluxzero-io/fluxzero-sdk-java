@@ -1763,6 +1763,22 @@
     "varArgs" : false,
     "documentation" : " Registers given handlers and initiates message tracking.\n\n @see #registerHandlers(Object...) for more info\n"
   }, {
+    "name" : "registerScheduleLocalHandler",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#registerScheduleLocalHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resultGateway",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#resultGateway",
     "returnType" : "io.fluxzero.sdk.publishing.ResultGateway",
