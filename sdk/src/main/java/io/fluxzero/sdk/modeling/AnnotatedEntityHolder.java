@@ -33,14 +33,12 @@ import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -379,7 +377,6 @@ public class AnnotatedEntityHolder {
                     result.add(entity);
                 }
             }
-            validateUniqueEntityIds(result);
             result.add(emptyEntity);
             return result;
         }
@@ -398,18 +395,6 @@ public class AnnotatedEntityHolder {
         }
         ImmutableEntity<?> entity = createEntity(holderValue, idProvider, parent);
         return entity == null ? List.of(emptyEntity) : List.of(entity, emptyEntity);
-    }
-
-    private void validateUniqueEntityIds(List<ImmutableEntity<?>> entities) {
-        Set<Object> ids = new HashSet<>();
-        for (ImmutableEntity<?> entity : entities) {
-            Object id = entity.id();
-            if (id != null && !ids.add(id)) {
-                throw new IllegalStateException(
-                        ("Duplicate @Member entity id '%s' found in %s. Each non-null @EntityId value must be unique "
-                         + "within one member collection.").formatted(id, location));
-            }
-        }
     }
 
     public ImmutableEntity<?> getEntityByRoute(Entity<?> parent, String routeValue) {
@@ -577,7 +562,7 @@ public class AnnotatedEntityHolder {
             if (collection instanceof List<?>) {
                 List<Object> list = (List<Object>) collection;
                 for (EntityUpdate update : updateList) {
-                    int index = list.indexOf(update.before().get());
+                    int index = indexOf(list, update);
                     if (index < 0) {
                         if (update.after().get() != null) {
                             list.add(update.after().get());
@@ -591,8 +576,14 @@ public class AnnotatedEntityHolder {
                 holder = list;
             } else {
                 for (EntityUpdate update : updateList) {
-                    collection.remove(update.before().get());
+                    if (!collection.remove(update.before().get()) && update.before().id() != null) {
+                        removeEntityId(collection, update.before().id());
+                    }
                     if (update.after().get() != null) {
+                        Object id = Optional.ofNullable(update.after().id()).orElse(update.before().id());
+                        if (id != null) {
+                            removeEntityId(collection, id);
+                        }
                         collection.add(update.after().get());
                     }
                 }
@@ -628,6 +619,33 @@ public class AnnotatedEntityHolder {
         }
         Object result = wither.apply(owner, holder);
         return result == null ? owner : result;
+    }
+
+    private int indexOf(List<Object> list, EntityUpdate update) {
+        Object before = update.before().get();
+        int index = before == null ? -1 : list.indexOf(before);
+        if (index < 0) {
+            Object id = update.after().get() == null
+                    ? update.before().id() : Optional.ofNullable(update.after().id()).orElse(update.before().id());
+            if (id != null) {
+                index = indexOfEntityId(list, id);
+            }
+        }
+        return index;
+    }
+
+    private int indexOfEntityId(List<Object> list, Object id) {
+        for (int i = 0; i < list.size(); i++) {
+            Object candidate = list.get(i);
+            if (candidate != null && Objects.equals(idProvider.apply(candidate).value(), id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void removeEntityId(Collection<Object> collection, Object id) {
+        collection.removeIf(candidate -> candidate != null && Objects.equals(idProvider.apply(candidate).value(), id));
     }
 
     /**

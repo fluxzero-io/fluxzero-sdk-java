@@ -1278,7 +1278,7 @@ public class AggregateEntitiesTest {
             }
 
             @Test
-            void duplicateNonNullEntityIdsInOneListAreRejected() {
+            void duplicateNonNullEntityIdsInOneListCanStillBeTraversed() {
                 TestFixture.create()
                         .whenApplying(fc -> loadAggregate("duplicate-list", DuplicateListAggregate.class)
                                 .update(s -> new DuplicateListAggregate(
@@ -1286,8 +1286,37 @@ public class AggregateEntitiesTest {
                                         List.of(new DuplicateListChild("child"),
                                                 new DuplicateListChild("child"))))
                                 .allEntities()
-                                .toList())
-                        .expectExceptionalResult(IllegalStateException.class);
+                                .filter(entity -> Objects.equals(entity.id(), "child"))
+                                .count())
+                        .expectResult(2L);
+            }
+
+            @Test
+            void applyingSameListChildTwiceReplacesExistingChild() {
+                testFixture.whenApplying(fc -> fc.aggregateRepository().asEntity(Aggregate.builder().build())
+                                .apply(new AddListChild("list2"), new AddListChild("list2"))
+                                .get().getList().stream()
+                                .filter(child -> Objects.equals(child.listChildId(), "list2"))
+                                .count())
+                        .expectResult(1L);
+            }
+
+            @Test
+            void eventSourcingSameListChildTwiceReplacesExistingChild() {
+                testFixture.whenApplying(fc -> {
+                            boolean wasLoading = Entity.isLoading();
+                            try {
+                                Entity.loading.set(true);
+                                return fc.aggregateRepository().asEntity(Aggregate.builder().build())
+                                        .apply(new AddListChild("list2"), new AddListChild("list2"))
+                                        .get().getList().stream()
+                                        .filter(child -> Objects.equals(child.listChildId(), "list2"))
+                                        .count();
+                            } finally {
+                                Entity.loading.set(wasLoading);
+                            }
+                        })
+                        .expectResult(1L);
             }
 
             @Value

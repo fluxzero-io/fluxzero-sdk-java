@@ -1017,14 +1017,14 @@ public class StatefulHandlerTest {
         }
 
         @Test
-        void duplicateNonNullEntityIdsInStatefulMemberListAreRejected() {
+        void duplicateNonNullEntityIdsInStatefulMemberListDoNotBreakLoading() {
             TestFixture.create(DuplicateStatefulMemberCustomer.class)
                     .givenStateful(new DuplicateStatefulMemberCustomer(
                             "customer-1",
                             List.of(new DuplicateStatefulMemberPayment("payment-1"),
                                     new DuplicateStatefulMemberPayment("payment-1"))))
                     .whenEvent(new DuplicateStatefulMemberCaptured("payment-1"))
-                    .expectExceptionalResult(IllegalStateException.class);
+                    .expectNoErrors();
         }
 
         @Stateful
