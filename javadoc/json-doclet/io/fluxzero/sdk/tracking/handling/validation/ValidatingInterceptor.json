@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " A {@link HandlerInterceptor} that validates the payload of messages before they are handled.\n",
+  "documentation" : " A {@link HandlerInterceptor} that validates the payload of messages before they are handled. When the supplied\n validator supports contextual method constraints, the current message context can be used to resolve constrained\n method parameters.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],

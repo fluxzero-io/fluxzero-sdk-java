@@ -1454,7 +1454,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Replaces the validator used by payload and web parameter validation.\n\n @param replaceFunction function that receives the current validator and returns the replacement\n @return this builder\n"
+    "documentation" : " Replaces the validator used by payload validation, web parameter validation, and {@code ValidationUtils}\n convenience methods executed in this Fluxzero instance's context.\n\n @param replaceFunction function that receives the current validator and returns the replacement\n @return this builder\n"
   }, {
     "name" : "replaceWebResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#replaceWebResponseMapper",

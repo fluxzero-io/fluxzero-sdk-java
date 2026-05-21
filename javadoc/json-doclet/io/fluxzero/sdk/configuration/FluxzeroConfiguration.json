@@ -265,6 +265,17 @@
     "varArgs" : false,
     "documentation" : "Returns the provider used to determine the current authenticated or active user. "
   }, {
+    "name" : "validator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#validator",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the validator used for payload, web parameter, and programmatic validation through\n {@link ValidationUtils}. The default implementation falls back to the SDK validator when no custom validator is\n configured.\n"
+  }, {
     "name" : "webResponseMapper",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#webResponseMapper",
     "returnType" : "io.fluxzero.sdk.web.WebResponseMapper",

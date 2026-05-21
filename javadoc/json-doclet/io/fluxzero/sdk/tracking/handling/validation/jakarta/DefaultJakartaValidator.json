@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Default reflection based Jakarta Validation implementation used by the SDK.\n <p>\n This class lives in the Jakarta implementation package; the public SDK entry point remains\n {@link io.fluxzero.sdk.tracking.handling.validation.DefaultValidator}.\n",
+  "documentation" : " Default reflection based Jakarta Validation implementation used by the SDK.\n <p>\n This class lives in the Jakarta implementation package; the public SDK entry point remains\n {@link io.fluxzero.sdk.tracking.handling.validation.DefaultValidator}.\n <p>\n When validation runs while a {@link DeserializingMessage} is current, constrained payload methods may declare\n parameters resolved by the active Fluxzero {@link ParameterResolver ParameterResolvers}. Methods whose parameters\n cannot be resolved are ignored for that validation run.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.handling.validation.Validator" ],
@@ -164,7 +164,41 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Validates a bean instance using Jakarta validation annotations.\n\n @param object the object to validate\n @param groups optional validation groups\n @param <T>    object type\n @return an optional validation exception when constraints fail\n"
+    "documentation" : " Validates a bean instance using Jakarta validation annotations. If a message is currently being handled, method\n constraints with parameters are invoked with arguments resolved from the active Fluxzero configuration.\n\n @param object the object to validate\n @param groups optional validation groups\n @param <T>    object type\n @return an optional validation exception when constraints fail\n"
+  }, {
+    "name" : "checkValidityInternal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#checkValidityInternal",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.validation.ValidationException>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<? extends io.fluxzero.common.handling.ParameterResolver<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
   }, {
     "name" : "format",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator#format",
