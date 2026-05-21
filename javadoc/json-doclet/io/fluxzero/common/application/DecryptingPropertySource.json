@@ -54,7 +54,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a {@code DecryptingPropertySource} using a delegate and automatically resolves the encryption key from\n system or environment variables.\n <p>It looks for the {@code ENCRYPTION_KEY} or {@code encryption_key} in the following order:\n <ul>\n   <li>Environment variable {@code ENCRYPTION_KEY}</li>\n   <li>Environment variable {@code encryption_key}</li>\n   <li>System property {@code ENCRYPTION_KEY}</li>\n   <li>System property {@code encryption_key}</li>\n </ul>\n\n <p>If no key is found, a no-op encryption fallback is used.\n\n @param delegate the property source to wrap\n"
+    "documentation" : " Constructs a {@code DecryptingPropertySource} with the specified delegate property source.\n By default, the encryption key is fetched from the default property source using the keys\n \"ENCRYPTION_KEY\" or \"encryption_key\".\n\n @param delegate the property source to wrap and decrypt values from\n"
   }, {
     "name" : "DecryptingPropertySource",
     "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#DecryptingPropertySource",
