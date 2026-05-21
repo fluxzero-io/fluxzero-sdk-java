@@ -33,6 +33,8 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
+import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
+import io.fluxzero.sdk.tracking.handling.validation.Validator;
 import io.fluxzero.sdk.web.ForwardingWebConsumer;
 import io.fluxzero.sdk.web.WebResponseMapper;
 
@@ -88,6 +90,15 @@ public interface FluxzeroConfiguration {
 
     /** Returns the assembled parameter resolvers used for injecting handler method arguments. */
     List<ParameterResolver<? super DeserializingMessage>> parameterResolvers();
+
+    /**
+     * Returns the validator used for payload, web parameter, and programmatic validation through
+     * {@link ValidationUtils}. The default implementation falls back to the SDK validator when no custom validator is
+     * configured.
+     */
+    default Validator validator() {
+        return ValidationUtils.defaultValidator;
+    }
 
     /** Ordered dispatch interceptors grouped per message type. */
     Map<MessageType, List<DispatchInterceptor>> dispatchInterceptors();

@@ -134,9 +134,11 @@
                         <configuration>
                             <includes>
                                 <include>**/test/**</include>
-                                <include>**/benchmark/**</include>
                                 <include>**/META-INF/**</include>
                             </includes>
+                            <excludes>
+                                <exclude>**/fluxzero.properties</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

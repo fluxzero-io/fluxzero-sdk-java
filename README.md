@@ -1027,6 +1027,8 @@ This includes support for:
   custom value extractors
 - validation groups, group sequences, group conversion, and custom constraint validators
 - executable parameter and return-value validation
+- contextual method constraints such as `@AssertTrue` methods that inject parameters via Fluxzero's configured
+  `ParameterResolver`s
 - Constraint violations in command/query/webrequest payloads
 
 The supported profile is aimed at SDK usage, not at being a drop-in provider for every Jakarta Validation TCK edge
@@ -1043,6 +1045,24 @@ public record CreateUser(@NotBlank String userId,
 }
 ```
 
+Constraint methods on a payload may also request contextual parameters that the SDK's default validator can inject while
+a message is being handled. It uses the same resolver set as handler method injection, so values such as `User`,
+`Message`, `DeserializingMessage`, `Metadata`, and custom resolver values can be used without reaching for thread-local
+helpers.
+
+```java
+public record CreateUser(@NotBlank String userId) {
+    @AssertTrue(message = "Only admins may create admin users")
+    boolean allowedBy(User user, Message message) {
+        return !userId.startsWith("admin-") || user != null && user.hasRole("admin");
+    }
+}
+```
+
+If a constrained method declares parameters that cannot be resolved in the current validation context, Fluxzero skips
+that method for that validation run. Keep required structural checks on fields or no-argument constraint methods when a
+rule must also apply outside message handling.
+
 You can disable this validation entirely by calling:
 
 [//]: # (@formatter:off)
@@ -1051,8 +1071,10 @@ DefaultFluxzero.builder().disablePayloadValidation();
 ```
 [//]: # (@formatter:on)
 
-Of course, it is also easy to provide your own validation if desired. For how to do that, please refer to the section
-on `HandlerInterceptors`.
+Of course, it is also easy to provide your own validation if desired. Use `replaceValidator(...)` on the
+`FluxzeroBuilder` to replace the configured validator. Convenience methods on `ValidationUtils` delegate to the
+validator of the current `Fluxzero` instance when one is bound, and otherwise fall back to
+`ValidationUtils.defaultValidator`.
 
 > 💡 **Tip**: Fluxzero automatically correlates errors with the triggering message (e.g.: command or event).
 >
@@ -5261,6 +5283,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 #### Parameter Injection and Handler Behavior
 
 - `addParameterResolver(...)` registers a `ParameterResolver` to inject custom arguments into handler methods.
+- `replaceValidator(...)` replaces the validator used by payload validation, web parameter validation, and
+  `ValidationUtils` convenience methods.
 - `replaceDefaultResponseMapper(...)` and `replaceWebResponseMapper(...)` to change how handler return values are mapped
   into responses.
 

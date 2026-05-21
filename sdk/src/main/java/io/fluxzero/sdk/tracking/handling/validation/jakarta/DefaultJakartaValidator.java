@@ -15,7 +15,10 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import io.fluxzero.sdk.tracking.handling.validation.Validator;
 import jakarta.annotation.Nullable;
@@ -47,6 +50,10 @@ import static java.util.stream.Collectors.toCollection;
  * <p>
  * This class lives in the Jakarta implementation package; the public SDK entry point remains
  * {@link io.fluxzero.sdk.tracking.handling.validation.DefaultValidator}.
+ * <p>
+ * When validation runs while a {@link DeserializingMessage} is current, constrained payload methods may declare
+ * parameters resolved by the active Fluxzero {@link ParameterResolver ParameterResolvers}. Methods whose parameters
+ * cannot be resolved are ignored for that validation run.
  */
 public class DefaultJakartaValidator implements Validator {
     private final ValidationSettings settings;
@@ -82,7 +89,8 @@ public class DefaultJakartaValidator implements Validator {
     }
 
     /**
-     * Validates a bean instance using Jakarta validation annotations.
+     * Validates a bean instance using Jakarta validation annotations. If a message is currently being handled, method
+     * constraints with parameters are invoked with arguments resolved from the active Fluxzero configuration.
      *
      * @param object the object to validate
      * @param groups optional validation groups
@@ -91,15 +99,30 @@ public class DefaultJakartaValidator implements Validator {
      */
     @Override
     public <T> Optional<ValidationException> checkValidity(T object, Class<?>... groups) {
+        DeserializingMessage currentMessage = DeserializingMessage.getCurrent();
+        List<ParameterResolver<? super DeserializingMessage>> parameterResolvers = currentMessage == null ? List.of()
+                : Fluxzero.getOptionally()
+                        .map(Fluxzero::configuration)
+                        .map(configuration -> configuration.parameterResolvers())
+                        .orElse(List.of());
+        return checkValidityInternal(object, currentMessage, parameterResolvers, groups);
+    }
+
+    private <T> Optional<ValidationException> checkValidityInternal(
+            T object, @Nullable Object parameterContext,
+            List<? extends ParameterResolver<?>> parameterResolvers, Class<?>... groups) {
         if (object == null) {
             return Optional.empty();
         }
         Class<?>[] effectiveGroups = ValidationAnnotationUtils.normalizeGroups(groups);
-        ValidationRun run = new ValidationRun(object, effectiveGroups.length > 1, settings);
+        ValidationRun run = new ValidationRun(
+                object, effectiveGroups.length > 1, settings, parameterContext, parameterResolvers);
         try {
             run.validateBean(object, effectiveGroups, ValidationPath.root());
         } catch (RuntimeException e) {
-            ValidationRun fieldRun = new ValidationRun(object, effectiveGroups.length > 1, settings, true, true);
+            ValidationRun fieldRun = new ValidationRun(
+                    object, effectiveGroups.length > 1, settings, true, true,
+                    parameterContext, parameterResolvers);
             fieldRun.validateBean(object, effectiveGroups, ValidationPath.root());
             if (fieldRun.hasViolations()) {
                 return Optional.of(newValidationException(fieldRun.violations()));
@@ -109,7 +132,9 @@ public class DefaultJakartaValidator implements Validator {
         if (run.hasViolations() && run.skippedMethodsAfterFieldViolations()) {
             Set<ConstraintViolation<?>> violations = new LinkedHashSet<>(run.violations());
             try {
-                ValidationRun fullRun = new ValidationRun(object, effectiveGroups.length > 1, settings, false, false);
+                ValidationRun fullRun = new ValidationRun(
+                        object, effectiveGroups.length > 1, settings, false, false,
+                        parameterContext, parameterResolvers);
                 fullRun.validateBean(object, effectiveGroups, ValidationPath.root());
                 violations.addAll(fullRun.violations());
             } catch (Exception ignored) {

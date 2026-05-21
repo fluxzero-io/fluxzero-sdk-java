@@ -19,13 +19,19 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.authentication.FixedUserProvider;
+import io.fluxzero.sdk.tracking.handling.authentication.MockUser;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.WebRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
@@ -65,6 +71,37 @@ class ValidatingInterceptorTest {
     @Test
     void testValidateWith_valid2() {
         testFixture.whenCommand(new CommandWithGroupValidation(null, "bar"))
+                .expectSuccessfulResult();
+    }
+
+    @Test
+    void validatesPayloadMethodConstraintWithInjectedUser() {
+        TestFixture.create(
+                        DefaultFluxzero.builder().registerUserProvider(
+                                new FixedUserProvider(new MockUser("admin"))),
+                        new MockHandler())
+                .whenCommand(new UserAwareCommand("admin"))
+                .expectSuccessfulResult();
+
+        TestFixture.create(
+                        DefaultFluxzero.builder().registerUserProvider(
+                                new FixedUserProvider(new MockUser("viewer"))),
+                        new MockHandler())
+                .whenCommand(new UserAwareCommand("admin"))
+                .expectExceptionalResult(ValidationException.class);
+    }
+
+    @Test
+    void validatesPayloadMethodConstraintWithInjectedMessage() {
+        TestFixture.create(new MockHandler())
+                .whenCommand(new MessageAwareCommand())
+                .expectSuccessfulResult();
+    }
+
+    @Test
+    void skipsPayloadMethodConstraintWhenParameterCannotBeResolved() {
+        TestFixture.create(new MockHandler())
+                .whenCommand(new UnresolvedParameterCommand())
                 .expectSuccessfulResult();
     }
 
@@ -130,6 +167,30 @@ class ValidatingInterceptorTest {
     private interface GroupA {
     }
 
+    private record UserAwareCommand(String requiredRole) {
+        @AssertTrue(message = "user must have required role")
+        boolean userHasRequiredRole(User user) {
+            return user != null && user.hasRole(requiredRole);
+        }
+    }
+
+    private record MessageAwareCommand() {
+        @AssertTrue(message = "message should be available")
+        boolean messageHasPayloadClass(Message message) {
+            return message != null && message.getPayloadClass() == MessageAwareCommand.class;
+        }
+    }
+
+    private record UnresolvedParameterCommand() {
+        @AssertTrue(message = "unresolved method should be skipped")
+        boolean cannotResolve(UnresolvedContext context) {
+            return false;
+        }
+    }
+
+    private interface UnresolvedContext {
+    }
+
     private record ReturnValueCommand() {
     }
 
@@ -156,37 +217,37 @@ class ValidatingInterceptorTest {
 
     private static class ReturnValueHandler {
         @HandleCommand
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handle(ReturnValueCommand command) {
             return new ReturnValue(null);
         }
 
         @HandleCommand(passive = true)
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handle(PassiveReturnValueCommand command) {
             return new ReturnValue(null);
         }
 
         @HandleQuery
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handle(ReturnValueQuery query) {
             return new ReturnValue(null);
         }
 
         @HandleCustom("return-validation")
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handle(ReturnValueCustom message) {
             return new ReturnValue(null);
         }
 
         @HandleGet("/return-validation")
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handleWeb() {
             return new ReturnValue(null);
         }
 
         @HandleEvent
-        @jakarta.validation.Valid
+        @Valid
         ReturnValue handle(ReturnValueEvent event) {
             return new ReturnValue(null);
         }

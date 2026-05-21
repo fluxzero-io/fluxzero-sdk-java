@@ -15,6 +15,9 @@
 
 package io.fluxzero.sdk.tracking.handling.validation.jakarta;
 
+import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.PreparedParameterResolver;
+import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import jakarta.validation.ClockProvider;
 import jakarta.validation.ConstraintViolation;
@@ -22,21 +25,28 @@ import jakarta.validation.ConstraintViolation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 final class ValidationRun {
+    static final Object UNRESOLVED_PARAMETERS = new Object();
+
     private final Object rootBean;
     private final Class<?> rootBeanClass;
     private final ValidationSettings settings;
     private final boolean fieldOnly;
     private final boolean skipMethodsAfterFieldViolations;
     private final boolean beanPropertyMethodNamesOnly;
+    private final Object parameterContext;
+    private final List<ParameterResolver<Object>> parameterResolvers;
     private final List<DefaultValidationMetadata.DefaultConstraintViolation<?>> violations = new ArrayList<>();
     private final Set<Object> validationStack = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<ProcessedConstraint> processedConstraints = new HashSet<>();
@@ -62,20 +72,42 @@ final class ValidationRun {
         this(rootBean, deduplicateConstraints, settings, false, true);
     }
 
+    ValidationRun(Object rootBean, boolean deduplicateConstraints, ValidationSettings settings,
+                  Object parameterContext, List<? extends ParameterResolver<?>> parameterResolvers) {
+        this(rootBean, deduplicateConstraints, settings, false, true, parameterContext, parameterResolvers);
+    }
+
     ValidationRun(Object rootBean, boolean deduplicateConstraints, ValidationSettings settings, boolean fieldOnly,
                   boolean skipMethodsAfterFieldViolations) {
+        this(rootBean, deduplicateConstraints, settings, fieldOnly, skipMethodsAfterFieldViolations, null, List.of());
+    }
+
+    ValidationRun(Object rootBean, boolean deduplicateConstraints, ValidationSettings settings, boolean fieldOnly,
+                  boolean skipMethodsAfterFieldViolations, Object parameterContext,
+                  List<? extends ParameterResolver<?>> parameterResolvers) {
         this(rootBean, rootBean == null ? Object.class : rootBean.getClass(), deduplicateConstraints, settings,
-             fieldOnly, skipMethodsAfterFieldViolations);
+             fieldOnly, skipMethodsAfterFieldViolations, parameterContext, parameterResolvers);
     }
 
     ValidationRun(Object rootBean, Class<?> rootBeanClass, boolean deduplicateConstraints, ValidationSettings settings,
                   boolean fieldOnly, boolean skipMethodsAfterFieldViolations) {
+        this(rootBean, rootBeanClass, deduplicateConstraints, settings, fieldOnly, skipMethodsAfterFieldViolations,
+             null, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    ValidationRun(Object rootBean, Class<?> rootBeanClass, boolean deduplicateConstraints, ValidationSettings settings,
+                  boolean fieldOnly, boolean skipMethodsAfterFieldViolations, Object parameterContext,
+                  List<? extends ParameterResolver<?>> parameterResolvers) {
         this.rootBean = rootBean;
         this.rootBeanClass = rootBeanClass;
         this.settings = settings;
         this.fieldOnly = fieldOnly;
         this.skipMethodsAfterFieldViolations = skipMethodsAfterFieldViolations;
         this.beanPropertyMethodNamesOnly = settings.beanPropertyMethodNamesOnly();
+        this.parameterContext = parameterContext;
+        this.parameterResolvers = (List<ParameterResolver<Object>>) (List<?>) (
+                parameterResolvers == null ? List.of() : parameterResolvers);
         this.deduplicateConstraints = deduplicateConstraints;
     }
 
@@ -208,6 +240,79 @@ final class ValidationRun {
                     : context.violationTemplates()) {
                 addViolation(meta, value, contextViolation.path(), contextViolation.template());
             }
+        }
+    }
+
+    Object invoke(Method method, MemberInvoker invoker, Object owner) {
+        Optional<Object[]> arguments = resolveParameters(method);
+        if (arguments.isEmpty()) {
+            return UNRESOLVED_PARAMETERS;
+        }
+        Object[] args = arguments.get();
+        return invoker.invoke(owner, args.length, i -> args[i]);
+    }
+
+    private Optional<Object[]> resolveParameters(Method method) {
+        Parameter[] parameters = method.getParameters();
+        if (parameters.length == 0) {
+            return Optional.of(new Object[0]);
+        }
+        if (parameterResolvers.isEmpty()) {
+            return Optional.empty();
+        }
+        Object[] result = new Object[parameters.length];
+        for (int i = 0; i < parameters.length; i++) {
+            Optional<Function<Object, Object>> resolver = resolveParameter(method, parameters[i]);
+            if (resolver.isEmpty()) {
+                return Optional.empty();
+            }
+            result[i] = resolver.get().apply(parameterContext);
+        }
+        return Optional.of(result);
+    }
+
+    private Optional<Function<Object, Object>> resolveParameter(Method method, Parameter parameter) {
+        for (ParameterResolver<Object> resolver : parameterResolvers) {
+            if (!mayApply(resolver, method)) {
+                continue;
+            }
+            if (resolver instanceof PreparedParameterResolver<?>) {
+                @SuppressWarnings("unchecked")
+                PreparedParameterResolver<Object> preparedResolver = (PreparedParameterResolver<Object>) resolver;
+                Function<Object, Object> prepared = preparedResolver.resolveIfPossible(
+                        parameter, null, parameterContext);
+                if (prepared != null) {
+                    return Optional.of(prepared);
+                }
+                if (matches(resolver, parameter)) {
+                    return Optional.empty();
+                }
+            } else if (matches(resolver, parameter)) {
+                if (!resolver.test(parameterContext, parameter)) {
+                    return Optional.empty();
+                }
+                Function<Object, Object> function = resolver.resolve(parameter, null);
+                if (function != null) {
+                    return Optional.of(function);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean mayApply(ParameterResolver<Object> resolver, Method method) {
+        try {
+            return resolver.mayApply(method, method.getDeclaringClass());
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private boolean matches(ParameterResolver<Object> resolver, Parameter parameter) {
+        try {
+            return resolver.matches(parameter, null, parameterContext);
+        } catch (ClassCastException | NullPointerException e) {
+            return false;
         }
     }
 

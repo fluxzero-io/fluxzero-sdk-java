@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole;
 import io.fluxzero.sdk.tracking.handling.authentication.ForbidsUser;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
@@ -57,8 +58,9 @@ import static java.util.stream.Stream.concat;
  * <p>
  * The {@code ValidationUtils} class supports two primary responsibilities:
  * <ol>
- *     <li><strong>Object validation</strong>: Validates message payloads using a {@link Validator}, optionally
- *     applying validation groups specified via {@link ValidateWith} annotations.</li>
+ *     <li><strong>Object validation</strong>: Validates message payloads using the {@link Validator} configured on the
+ *     current {@link Fluxzero} instance, falling back to {@link #defaultValidator}, and optionally applying validation
+ *     groups specified via {@link ValidateWith} annotations.</li>
  *     <li><strong>Authorization enforcement</strong>: Performs role-based access checks based on annotations such as
  *     {@link RequiresAnyRole}, {@link ForbidsAnyRole}, and {@link NoUserRequired} declared on classes, methods, or packages.</li>
  * </ol>
@@ -66,7 +68,10 @@ import static java.util.stream.Stream.concat;
  * <h2>Validation</h2>
  * <p>
  * Validation is typically executed automatically by the {@link ValidatingInterceptor} before invoking handler methods.
- * The default validator implementation is loaded via {@link java.util.ServiceLoader} (e.g. {@code DefaultValidator}).
+ * Programmatic convenience methods such as {@link #assertValid(Object, Class[])} use the validator configured on the
+ * current {@code Fluxzero} instance when one is bound to the current execution. Outside a Fluxzero context, the default
+ * validator implementation is used. That default is loaded via {@link java.util.ServiceLoader} (e.g.
+ * {@code DefaultValidator}).
  * <p>
  * Methods like {@link #assertValid(Object, Class[])} and {@link #checkValidity(Object, Validator, Class[])}
  * support recursive validation of collections and custom validation groups.
@@ -113,18 +118,19 @@ public class ValidationUtils {
      */
 
     /**
-     * Checks whether the provided object is valid, using the default {@link Validator} and validation groups.
+     * Checks whether the provided object is valid, using the current Fluxzero {@link Validator} and validation groups.
      *
      * @param object the object to validate
      * @param groups optional validation groups
      * @return an {@link Optional} containing a {@link ValidationException} if validation fails, or empty if valid
      */
     public static Optional<ValidationException> checkValidity(Object object, Class<?>... groups) {
-        return checkValidity(object, defaultValidator, groups);
+        return checkValidity(object, currentValidator(), groups);
     }
 
     /**
-     * Validates the object using the default validator and returns structured constraint violations with property paths.
+     * Validates the object using the current Fluxzero validator and returns structured constraint violations with
+     * property paths.
      * <p>
      * This method is intended for tests, diagnostics, and integrations that need structured validation
      * output instead of the formatted messages stored in {@link ValidationException}.
@@ -135,33 +141,35 @@ public class ValidationUtils {
      * @return structured constraint violations
      */
     public static <T> Set<ConstraintViolation<T>> getConstraintViolations(T object, Class<?>... groups) {
-        return getConstraintViolations(object, defaultValidator, groups);
+        return getConstraintViolations(object, currentValidator(), groups);
     }
 
     /**
-     * Validates each element in the collection using the default validator and returns structured constraint violations.
+     * Validates each element in the collection using the current Fluxzero validator and returns structured constraint
+     * violations.
      *
      * @param objects the objects to validate
      * @param groups  optional validation groups
      * @return structured constraint violations for the collection elements
      */
     public static Set<ConstraintViolation<?>> getConstraintViolations(Collection<?> objects, Class<?>... groups) {
-        return getConstraintViolations(objects, defaultValidator, groups);
+        return getConstraintViolations(objects, currentValidator(), groups);
     }
 
     /**
-     * Returns {@code true} if the given object is valid using the default {@link Validator} and validation groups.
+     * Returns {@code true} if the given object is valid using the current Fluxzero {@link Validator} and validation
+     * groups.
      *
      * @param object the object to validate
      * @param groups optional validation groups
      * @return {@code true} if valid, {@code false} otherwise
      */
     public static boolean isValid(Object object, Class<?>... groups) {
-        return isValid(object, defaultValidator, groups);
+        return isValid(object, currentValidator(), groups);
     }
 
     /**
-     * Asserts that the given object is valid, using the default {@link Validator}.
+     * Asserts that the given object is valid, using the current Fluxzero {@link Validator}.
      * <p>
      * Throws a {@link ValidationException} if the object fails validation.
      *
@@ -170,7 +178,7 @@ public class ValidationUtils {
      * @throws ValidationException if validation fails
      */
     public static void assertValid(Object object, Class<?>... groups) {
-        assertValid(object, defaultValidator, groups);
+        assertValid(object, currentValidator(), groups);
     }
 
     /**
@@ -275,7 +283,7 @@ public class ValidationUtils {
      * @param arguments  resolved argument values in declaration order
      */
     public static void assertValidParameters(@Nullable Object target, Executable executable, Object[] arguments) {
-        defaultValidator.assertValidParameters(target, executable, arguments);
+        currentValidator().assertValidParameters(target, executable, arguments);
     }
 
     /**
@@ -287,7 +295,18 @@ public class ValidationUtils {
      */
     public static void assertValidReturnValue(
             @Nullable Object target, Executable executable, @Nullable Object returnValue) {
-        defaultValidator.assertValidReturnValue(target, executable, returnValue);
+        currentValidator().assertValidReturnValue(target, executable, returnValue);
+    }
+
+    /**
+     * Returns the validator configured on the current {@link Fluxzero} instance, falling back to the SDK default when no
+     * configured validator can be found.
+     */
+    private static Validator currentValidator() {
+        return Fluxzero.getOptionally()
+                .map(Fluxzero::configuration)
+                .map(configuration -> Optional.ofNullable(configuration.validator()).orElse(defaultValidator))
+                .orElse(defaultValidator);
     }
 
     private static Class<?>[] getValidationGroups(Object object, Class<?>[] customGroups) {

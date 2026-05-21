@@ -14,7 +14,14 @@
 
 package io.fluxzero.sdk.benchmark;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TimingUtils;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.tracking.handling.validation.DefaultValidator;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -51,6 +58,11 @@ public class ValidationBenchmark {
             : new FlatPayload("", 1, new Details("", false), List.of(new Details("", false)));
     private static final Object[] validArguments = new Object[]{"order-1", validPayload};
     private static final Object[] invalidArguments = new Object[]{"", invalidPayload};
+    private static final ContextPayload contextPayload = new ContextPayload();
+    private static final MessageAwarePayload messageAwarePayload = new MessageAwarePayload();
+    private static final DeserializingMessage contextMessage = message(contextPayload);
+    private static final DeserializingMessage messageAwareContext = message(messageAwarePayload);
+    private static Fluxzero fluxzero;
     private static final Method handleMethod;
     private static volatile Object blackhole;
 
@@ -65,18 +77,30 @@ public class ValidationBenchmark {
     }
 
     public static void main(String[] args) {
-        System.out.printf("Benchmark config: iterations=%d, warmup=%d, threads=%d, nested=%s%n",
-                          ITERATIONS, WARM_UP, THREADS, NESTED);
-        for (int i = 0; i < WARM_UP; i++) {
-            benchmarkValidPayload();
-            benchmarkInvalidPayload();
-            benchmarkValidParameters();
-            benchmarkInvalidParameters();
+        try {
+            System.out.printf("Benchmark config: iterations=%d, warmup=%d, threads=%d, nested=%s%n",
+                              ITERATIONS, WARM_UP, THREADS, NESTED);
+            for (int i = 0; i < WARM_UP; i++) {
+                benchmarkValidPayload();
+                benchmarkInvalidPayload();
+                benchmarkValidParameters();
+                benchmarkInvalidParameters();
+            }
+            run("validation valid payload", ValidationBenchmark::benchmarkValidPayload);
+            run("validation invalid payload", ValidationBenchmark::benchmarkInvalidPayload);
+            run("validation valid parameters", ValidationBenchmark::benchmarkValidParameters);
+            run("validation invalid parameters", ValidationBenchmark::benchmarkInvalidParameters);
+            for (int i = 0; i < WARM_UP; i++) {
+                benchmarkContextPayload();
+                benchmarkMessageAwarePayload();
+            }
+            run("validation context payload", ValidationBenchmark::benchmarkContextPayload);
+            run("validation message-aware payload", ValidationBenchmark::benchmarkMessageAwarePayload);
+        } finally {
+            if (fluxzero != null) {
+                fluxzero.close(true);
+            }
         }
-        run("validation valid payload", ValidationBenchmark::benchmarkValidPayload);
-        run("validation invalid payload", ValidationBenchmark::benchmarkInvalidPayload);
-        run("validation valid parameters", ValidationBenchmark::benchmarkValidParameters);
-        run("validation invalid parameters", ValidationBenchmark::benchmarkInvalidParameters);
     }
 
     private static void run(String name, Runnable scenario) {
@@ -102,6 +126,23 @@ public class ValidationBenchmark {
 
     private static void benchmarkInvalidParameters() {
         runIterations(handler -> validator.checkParameterValidity(handler, handleMethod, invalidArguments));
+    }
+
+    private static void benchmarkContextPayload() {
+        runIterations(handler -> fluxzero().apply(
+                fc -> contextMessage.apply(message -> validator.checkValidity(contextPayload))));
+    }
+
+    private static void benchmarkMessageAwarePayload() {
+        runIterations(handler -> fluxzero().apply(
+                fc -> messageAwareContext.apply(message -> validator.checkValidity(messageAwarePayload))));
+    }
+
+    private static Fluxzero fluxzero() {
+        if (fluxzero == null) {
+            fluxzero = DefaultFluxzero.builder().build(LocalClient.newInstance(null));
+        }
+        return fluxzero;
     }
 
     private static void runIterations(ValidationOperation operation) {
@@ -162,6 +203,24 @@ public class ValidationBenchmark {
     }
 
     private record Details(@NotBlank String name, @AssertTrue boolean active) {
+    }
+
+    private static class ContextPayload {
+        @AssertTrue
+        boolean isValid() {
+            return true;
+        }
+    }
+
+    private static class MessageAwarePayload {
+        @AssertTrue
+        boolean isValid(DeserializingMessage message) {
+            return message != null && message.getPayloadClass() == MessageAwarePayload.class;
+        }
+    }
+
+    private static DeserializingMessage message(Object payload) {
+        return new DeserializingMessage(new Message(payload, Metadata.empty()), MessageType.COMMAND, null);
     }
 
     private static class Handler {

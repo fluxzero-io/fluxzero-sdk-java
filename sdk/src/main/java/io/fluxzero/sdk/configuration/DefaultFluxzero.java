@@ -354,7 +354,8 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         /**
-         * Replaces the validator used by payload and web parameter validation.
+         * Replaces the validator used by payload validation, web parameter validation, and {@code ValidationUtils}
+         * convenience methods executed in this Fluxzero instance's context.
          *
          * @param replaceFunction function that receives the current validator and returns the replacement
          * @return this builder

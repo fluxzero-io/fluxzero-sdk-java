@@ -117,7 +117,7 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
             }
         }
         for (Method method : ReflectionUtils.getAllMethods(type)) {
-            if (isBeanPropertyMethodCandidate(method) && MemberMetadata.methodHasValidation(method)) {
+            if (isConstrainedMethodCandidate(method) && MemberMetadata.methodHasValidation(method)) {
                 MemberMetadata metadata = MemberMetadata.method(method);
                 if (!metadata.duplicates(fieldMembers.get(metadata.propertyName()))) {
                     result.add(metadata);
@@ -127,9 +127,8 @@ record BeanValidationMetadata(Class<?> type, List<ConstraintMeta> classConstrain
         return List.copyOf(result);
     }
 
-    private static boolean isBeanPropertyMethodCandidate(Method method) {
-        return method.getParameterCount() == 0
-               && ReflectionUtils.hasReturnType(method)
+    private static boolean isConstrainedMethodCandidate(Method method) {
+        return ReflectionUtils.hasReturnType(method)
                && !Modifier.isStatic(method.getModifiers())
                && !method.getDeclaringClass().isAssignableFrom(method.getReturnType());
     }
@@ -289,6 +288,9 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
     }
 
     private static boolean hasBeanPropertyName(Method method) {
+        if (method.getParameterCount() != 0) {
+            return false;
+        }
         String name = method.getName();
         return hasPrefixedPropertyName(name, "get")
                || (isBooleanType(method.getReturnType())
@@ -338,7 +340,11 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
             return;
         }
-        validateValue(run, owner, invoker.invoke(owner), group, parentPath, true);
+        Object value = getValue(run, owner);
+        if (value == ValidationRun.UNRESOLVED_PARAMETERS) {
+            return;
+        }
+        validateValue(run, owner, value, group, parentPath, true);
     }
 
     void validate(ValidationRun run, Object owner, Class<?>[] groups, ValidationPath parentPath, boolean cascade) {
@@ -348,7 +354,19 @@ record MemberMetadata(String propertyName, AnnotatedElement member, MemberInvoke
         if (method && run.beanPropertyMethodNamesOnly() && !beanPropertyMethodName) {
             return;
         }
-        validateValue(run, owner, invoker.invoke(owner), groups, parentPath, cascade);
+        Object value = getValue(run, owner);
+        if (value == ValidationRun.UNRESOLVED_PARAMETERS) {
+            return;
+        }
+        validateValue(run, owner, value, groups, parentPath, cascade);
+    }
+
+    private Object getValue(ValidationRun run, Object owner) {
+        if (!method) {
+            return invoker.invoke(owner);
+        }
+        Method targetMethod = (Method) member;
+        return targetMethod.getParameterCount() == 0 ? invoker.invoke(owner) : run.invoke(targetMethod, invoker, owner);
     }
 
     void validateValue(ValidationRun run, @Nullable Object owner, Object value, Class<?>[] groups,
