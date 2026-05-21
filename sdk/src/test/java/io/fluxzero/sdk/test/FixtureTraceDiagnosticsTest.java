@@ -16,7 +16,9 @@ package io.fluxzero.sdk.test;
 
 import ch.qos.logback.classic.Level;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.publishing.DefaultGenericGateway;
@@ -157,6 +159,24 @@ class FixtureTraceDiagnosticsTest {
         String trace = traceFrom(error);
         assertTrue(trace.contains("METRICS ReviewMetric"));
         assertTrue(trace.contains("EVENT MetricHandledEvent"));
+    }
+
+    @Test
+    void traceCollectionLimitDoesNotCrowdOutLaterPhases() {
+        FixtureTrace trace = new FixtureTrace();
+
+        trace.startPhase("given");
+        for (int i = 0; i < 600; i++) {
+            trace.monitorDispatch(new Message("given-" + i), MessageType.COMMAND, null, null);
+        }
+
+        trace.startPhase("when");
+        trace.monitorDispatch(new Message(new ReviewWhenCommand()), MessageType.COMMAND, null, null);
+
+        String body = trace.renderBody();
+        assertTrue(body.contains("given"));
+        assertTrue(body.contains("trace collection truncated"));
+        assertTrue(body.contains("when\n- COMMAND ReviewWhenCommand"));
     }
 
     @Test

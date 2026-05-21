@@ -25,10 +25,13 @@ import io.fluxzero.sdk.web.WebResponse;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -36,13 +39,16 @@ import java.util.function.Predicate;
  */
 final class FixtureTrace {
     private static final int MAX_RENDERED_NODES = 120;
+    private static final int MAX_RECORDED_NODES_PER_PHASE = MAX_RENDERED_NODES * 4;
 
     private final Map<String, TraceNode> messageNodes = new LinkedHashMap<>();
-    private final List<TraceNode> roots = new ArrayList<>();
+    private final Set<TraceNode> roots = new LinkedHashSet<>();
+    private final Map<String, Integer> recordedNodesByPhase = new HashMap<>();
     private final List<String> missedMessages = new ArrayList<>();
     private final List<String> unexpectedMessages = new ArrayList<>();
     private final ThreadLocal<TraceNode> activeParent = new ThreadLocal<>();
     private final EnumSet<MessageType> visibleInfrastructureTypes = EnumSet.noneOf(MessageType.class);
+    private boolean recordingTruncated;
     private String phase = "setup";
 
     synchronized void startPhase(String phase) {
@@ -66,7 +72,7 @@ final class FixtureTrace {
     }
 
     void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-        if (message == null) {
+        if (message == null || isCurrentPhaseFull()) {
             return;
         }
         TraceNode parent = activeParent.get();
@@ -77,14 +83,21 @@ final class FixtureTrace {
     }
 
     HandlerScope beginHandling(DeserializingMessage message, HandlerInvoker invoker) {
+        if (isCurrentPhaseFull()) {
+            return HandlerScope.noop();
+        }
         TraceNode previous = activeParent.get();
         TraceNode handlerNode;
         synchronized (this) {
             TraceNode messageNode = messageNode(message.toMessage(), message.getMessageType(), message.getTopic(),
                                                 null);
+            if (messageNode == null || !canRecordCurrentPhase()) {
+                return HandlerScope.noop();
+            }
             attach(previous, messageNode);
             handlerNode = TraceNode.handler(phase, describeHandler(invoker), message.getMessageId(),
                                             Tracker.current().map(Tracker::getName).orElse(null));
+            recordNode(handlerNode);
             attach(messageNode, handlerNode);
         }
         activeParent.set(handlerNode);
@@ -95,8 +108,11 @@ final class FixtureTrace {
         TraceNode previous = activeParent.get();
         TraceNode node;
         synchronized (this) {
+            if (!canRecordCurrentPhase()) {
+                return TraceScope.noop();
+            }
             node = TraceNode.time(phase, description);
-            roots.add(node);
+            recordNode(node);
             attach(previous, node);
         }
         activeParent.set(node);
@@ -107,8 +123,11 @@ final class FixtureTrace {
         TraceNode previous = activeParent.get();
         TraceNode node;
         synchronized (this) {
+            if (!canRecordCurrentPhase()) {
+                return ActionScope.noop();
+            }
             node = TraceNode.action(phase, description);
-            roots.add(node);
+            recordNode(node);
             attach(previous, node);
         }
         activeParent.set(node);
@@ -142,37 +161,74 @@ final class FixtureTrace {
         RenderState state = new RenderState();
         String currentPhase = null;
         for (TraceNode root : visibleRoots) {
-            if (state.renderedNodes >= MAX_RENDERED_NODES) {
-                break;
-            }
             if (!Objects.equals(currentPhase, root.phase)) {
+                if (state.truncated) {
+                    appendRenderedTruncation(builder);
+                }
                 if (currentPhase != null) {
                     builder.append(System.lineSeparator());
                 }
                 currentPhase = root.phase;
                 builder.append(currentPhase);
+                state = new RenderState();
+            }
+            if (state.renderedNodes >= MAX_RENDERED_NODES) {
+                state.truncated = true;
+                continue;
             }
             renderNode(builder, root, "", state);
         }
         if (state.truncated) {
-            builder.append(System.lineSeparator()).append("... trace truncated after ")
-                    .append(MAX_RENDERED_NODES).append(" entries");
+            appendRenderedTruncation(builder);
+        } else if (recordingTruncated) {
+            builder.append(System.lineSeparator()).append("... trace collection truncated after ")
+                    .append(MAX_RECORDED_NODES_PER_PHASE).append(" recorded entries per phase");
         }
         renderDiagnosticMessages(builder, "missed:", missedMessages);
         renderDiagnosticMessages(builder, "unexpected:", unexpectedMessages);
         return builder.toString();
     }
 
+    private static void appendRenderedTruncation(StringBuilder builder) {
+        builder.append(System.lineSeparator()).append("... trace truncated after ")
+                .append(MAX_RENDERED_NODES).append(" entries");
+    }
+
     private TraceNode messageNode(Message message, MessageType messageType, String topic, String namespace) {
-        return messageNodes.computeIfAbsent(message.getMessageId(), ignored -> {
-            TraceNode node = TraceNode.message(phase, messageType, topic, namespace, message);
-            roots.add(node);
-            return node;
-        }).withNamespace(namespace);
+        TraceNode existing = messageNodes.get(message.getMessageId());
+        if (existing != null) {
+            return existing.withNamespace(namespace);
+        }
+        if (!canRecordCurrentPhase()) {
+            return null;
+        }
+        TraceNode node = TraceNode.message(phase, messageType, topic, namespace, message);
+        messageNodes.put(message.getMessageId(), node);
+        recordNode(node);
+        return node.withNamespace(namespace);
+    }
+
+    private boolean isCurrentPhaseFull() {
+        synchronized (this) {
+            return !canRecordCurrentPhase();
+        }
+    }
+
+    private boolean canRecordCurrentPhase() {
+        if (recordedNodesByPhase.getOrDefault(phase, 0) < MAX_RECORDED_NODES_PER_PHASE) {
+            return true;
+        }
+        recordingTruncated = true;
+        return false;
+    }
+
+    private void recordNode(TraceNode node) {
+        recordedNodesByPhase.merge(phase, 1, Integer::sum);
+        roots.add(node);
     }
 
     private void attach(TraceNode parent, TraceNode node) {
-        if (parent == null || parent == node || node.parent != null || isAncestor(node, parent)) {
+        if (parent == null || node == null || parent == node || node.parent != null || isAncestor(node, parent)) {
             return;
         }
         roots.remove(node);
@@ -366,7 +422,14 @@ final class FixtureTrace {
             this.previous = previous;
         }
 
+        private static HandlerScope noop() {
+            return new HandlerScope(null, null, null);
+        }
+
         void close(Object result, Throwable error) {
+            if (trace == null) {
+                return;
+            }
             trace.finishHandling(handlerNode, result, error);
             trace.restoreActiveHandler(previous);
         }
@@ -386,8 +449,15 @@ final class FixtureTrace {
             this.previous = previous;
         }
 
+        private static TraceScope noop() {
+            return new TraceScope(null, null);
+        }
+
         @Override
         public void close() {
+            if (trace == null) {
+                return;
+            }
             trace.restoreActiveHandler(previous);
         }
     }
@@ -403,7 +473,14 @@ final class FixtureTrace {
             this.previous = previous;
         }
 
+        private static ActionScope noop() {
+            return new ActionScope(null, null, null);
+        }
+
         void close(Object result, Throwable error) {
+            if (trace == null) {
+                return;
+            }
             trace.finishAction(actionNode, result, error);
             trace.restoreActiveHandler(previous);
         }
