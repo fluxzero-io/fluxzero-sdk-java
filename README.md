@@ -483,6 +483,8 @@ For defaults versions `2026.05.20` and newer, the default behavior is `perHandle
 
 ```properties
 fluxzero.defaults.version=2026.05.20
+# equivalent explicit setting:
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
 ```
 
 With this defaults version, Fluxzero creates an isolated default consumer per handler class. The generated consumer uses
@@ -513,6 +515,10 @@ class MyHandler {
 With `perHandler`, this handler gets its own generated command consumer. With `defaultAppConsumer`, it joins the shared
 default command consumer. A matching custom `ConsumerConfiguration` or explicit `@Consumer` remains more specific and
 takes precedence.
+
+The practical difference is that `perHandler` gives each unconfigured handler its own tracking position and error
+isolation. With `defaultAppConsumer`, unconfigured handlers for the same message type move together through one shared
+consumer, which preserves the original compatibility behavior for existing applications.
 
 ### Custom Consumers with @Consumer
 
@@ -1399,6 +1405,12 @@ the schedule in the current application, which makes `@HandleSchedule`/`@Periodi
     - You may specify a fallback delay via `delayAfterError`.
     - Throw `CancelPeriodic` from the handler to stop the schedule completely.
 - To prevent startup activation, use `@Periodic(autoStart = false)`.
+- `initialDelay = -1` means no explicit initial delay. With compatibility defaults, Fluxzero treats that implicit value
+  as `0` to preserve immediate autostart. With `fluxzero.defaults.version >= 2026.05.21` or
+  `fluxzero.scheduling.periodic.useDefaultInitialDelay=true`, fixed-delay schedules first run after `delay` and cron
+  schedules first run at the next cron match. For example, `@Periodic(delay = 60_000)` first runs after 60 seconds,
+  while `@Periodic(cron = "*/5 * * * *")` first runs at the next five-minute boundary. Set `initialDelay = 0` when the
+  first run should be immediate.
 - The schedule ID defaults to the class name, but can be customized with `scheduleId`.
 
 Here's an example of robust polling with error fallback:
@@ -4853,6 +4865,28 @@ String name = ApplicationProperties.getProperty("app.name", "DefaultApp");
 boolean enabled = ApplicationProperties.getBooleanProperty("feature.toggle", true);
 int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
 ```
+
+### Versioned Defaults
+
+`fluxzero.defaults.version` lets new applications opt into newer SDK defaults while existing applications keep
+compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
+earlier versions, and each behavior can still be overridden with its dedicated property.
+
+| Defaults version | Equivalent property | What changes |
+| --- | --- | --- |
+| `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
+| `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+
+For example:
+
+```properties
+fluxzero.defaults.version=2026.05.21
+```
+
+This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
+explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
+`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
+and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
 
 ### Encrypted Values
 

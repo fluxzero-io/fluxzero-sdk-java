@@ -38,7 +38,7 @@ public class GivenWhenThenCorrelationTest {
         testFixture.whenCommand(new CreateModel())
                 .expectEvents((Predicate<Message>) e -> {
                     Metadata m = e.getMetadata();
-                    return m.get("$consumer").equals(m.get("$clientName") + "_COMMAND")
+                    return m.get("$consumer").equals(m.get("$clientName") + "_" + Handler.class.getSimpleName())
                            && m.get("$handler").equals(Handler.class.getSimpleName())
                            && parseLong(m.get("$correlationId")) == parseLong(m.get("$traceId"))
                            && m.get("$trigger").equals(CreateModel.class.getName());
@@ -50,7 +50,7 @@ public class GivenWhenThenCorrelationTest {
         testFixture.whenCommand(new CreateModelInTwoSteps())
                 .expectEvents((Predicate<Message>) e -> {
                     Metadata m = e.getMetadata();
-                    return m.get("$consumer").equals(m.get("$clientName") + "_COMMAND")
+                    return m.get("$consumer").equals(m.get("$clientName") + "_" + Handler.class.getSimpleName())
                            && parseLong(m.get("$correlationId")) > parseLong(m.get("$traceId"))
                            && m.get("$trigger").equals(CreateModel.class.getName());
                 });

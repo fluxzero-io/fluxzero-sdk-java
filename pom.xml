@@ -183,6 +183,7 @@
                         </includes>
                         <systemPropertyVariables>
                             <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
+                            <fluxzero.defaults.version>2026.05.21</fluxzero.defaults.version>
                         </systemPropertyVariables>
                         <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
                         <properties>

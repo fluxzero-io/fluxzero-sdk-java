@@ -131,8 +131,11 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
-    void sharedDefaultConsumerIsCompatibilityDefault() {
+    void sharedDefaultConsumerIsLegacyDefaultsBehavior() {
         TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                "2026.05.19")).andThen(existing))
                                         .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
                                 new Handler())
 
@@ -229,7 +232,8 @@ public class ConsumerConfigurationTest {
                 .whenCommand(new Command())
                 .expectThat(fc -> {
                     assertEquals(1, ConditionalExclusiveHandler.invocations.size());
-                    assertTrue(ConditionalExclusiveHandler.invocations.getFirst().endsWith("default"));
+                    assertTrue(ConditionalExclusiveHandler.invocations.getFirst()
+                                       .endsWith("_ConditionalExclusiveHandler"));
                 });
     }
 

@@ -22,7 +22,6 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -32,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
@@ -40,12 +38,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
-import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
-import static io.fluxzero.sdk.scheduling.CronExpression.parseCronExpression;
 import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 import static io.fluxzero.sdk.tracking.IndexUtils.millisFromIndex;
 import static java.lang.String.format;
@@ -83,11 +79,6 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterceptor {
-
-    private final Function<String, Optional<CronExpression>> cronExpression = memoize(pattern -> {
-        pattern = ApplicationProperties.substituteProperties(pattern);
-        return Periodic.DISABLED.equals(pattern) ? Optional.empty() : Optional.of(parseCronExpression(pattern));
-    });
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
@@ -139,18 +130,11 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     }
 
     protected Instant firstDeadline(Periodic periodic, Instant now) {
-        if (periodic.initialDelay() >= 0) {
-            return now.plusMillis(periodic.timeUnit().toMillis(periodic.initialDelay()));
-        }
-        return nextDeadline(periodic, now);
+        return PeriodicSchedulingDefaults.firstDeadline(periodic, now);
     }
 
     protected Instant nextDeadline(Periodic periodic, Instant now) {
-        if (periodic.cron().isBlank()) {
-            return now.plusMillis(periodic.timeUnit().toMillis(periodic.delay()));
-        }
-        return cronExpression.apply(periodic.cron())
-                .map(e -> e.nextTimeAfter(now.atZone(ZoneId.of(periodic.timeZone()))).toInstant()).orElse(null);
+        return PeriodicSchedulingDefaults.nextDeadline(periodic, now);
     }
 
     @Override
@@ -174,7 +158,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                 Periodic periodic = ofNullable(invoker.getMethod()).map(method -> method.getAnnotation(Periodic.class))
                         .or(() -> ofNullable(getTypeAnnotation(schedule.getPayloadClass(), Periodic.class)))
                         .orElse(null);
-                if (periodic != null && !periodic.cron().isBlank() && cronExpression.apply(periodic.cron()).isEmpty()) {
+                if (periodic != null && PeriodicSchedulingDefaults.isDisabledCron(periodic)) {
                     log.warn("Periodic scheduling is disabled for {}. Ignoring schedule {}.",
                              schedule.getPayloadClass(), schedule.getMessageId());
                     return null; //schedule is disabled. Don't invoke handler anymore.

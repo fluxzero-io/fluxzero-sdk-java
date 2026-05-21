@@ -107,6 +107,13 @@ public @interface Periodic {
     String DISABLED = "-";
 
     /**
+     * Feature flag that enables the new implicit initial-delay behavior without changing
+     * {@link io.fluxzero.sdk.configuration.ApplicationProperties#DEFAULTS_VERSION_PROPERTY}. When set to {@code true},
+     * {@link #initialDelay()} values below {@code 0} mean that no explicit initial delay was configured.
+     */
+    String USE_DEFAULT_INITIAL_DELAY_PROPERTY = "fluxzero.scheduling.periodic.useDefaultInitialDelay";
+
+    /**
      * Define a unix-like cron expression. If a cron value is specified the {@link #delay()} in milliseconds is
      * ignored.
      * <p>
@@ -170,9 +177,15 @@ public @interface Periodic {
     TimeUnit timeUnit() default MILLISECONDS;
 
     /**
-     * Returns the initial schedule delay. Only relevant when {@link #autoStart()} is true. If initialDelay is negative,
-     * the initial schedule will fire after the default delay (configured either via {@link #cron()} or
-     * {@link #delay()}). A value of {@code 0} schedules the first invocation immediately.
+     * Returns the initial schedule delay. Relevant when {@link #autoStart()} is true or when a schedule is started via
+     * {@link MessageScheduler#schedulePeriodic(Object)}. A value of {@code 0} schedules the first invocation
+     * immediately. Positive values delay the first invocation by the configured amount.
+     * <p>
+     * The default {@code -1} means that no explicit initial delay was configured. With compatibility defaults, Fluxzero
+     * treats this implicit value as {@code 0} to preserve the previous immediate autostart behavior. With the new
+     * defaults behavior, enabled via {@link #USE_DEFAULT_INITIAL_DELAY_PROPERTY} or
+     * {@link io.fluxzero.sdk.configuration.ApplicationProperties#DEFAULTS_VERSION_PROPERTY}, fixed-delay schedules
+     * start after {@link #delay()} and cron schedules start at the next cron fire time.
      */
-    long initialDelay() default 0;
+    long initialDelay() default -1;
 }

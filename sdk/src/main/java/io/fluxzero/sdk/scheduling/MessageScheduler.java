@@ -28,12 +28,10 @@ import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.sdk.Fluxzero.currentTime;
-import static org.apache.commons.lang3.StringUtils.isBlank;
 
 /**
  * Interface for scheduling deferred or periodic execution of messages in the Fluxzero Runtime.
@@ -109,13 +107,13 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
         if (periodic == null) {
             throw new IllegalArgumentException(FluxzeroErrors.periodicScheduleAnnotationMissing(payloadType).format());
         }
-        Instant nextDeadline = Optional.ofNullable(nextDeadline(periodic.cron(), periodic.timeZone())).orElseGet(
-                () -> Fluxzero.currentTime().plusMillis(periodic.timeUnit().toMillis(
-                        periodic.initialDelay() < 0 ? periodic.delay() : periodic.initialDelay())));
         String effectiveScheduleId = Optional.ofNullable(scheduleId).map(Object::toString)
                 .or(() -> Optional.of(periodic.scheduleId()).filter(s -> !s.isBlank()))
                 .orElseGet(() -> value instanceof HasMessage m ? m.getPayload().toString() : value.toString());
-        schedule(value, effectiveScheduleId, nextDeadline);
+        Instant firstDeadline = PeriodicSchedulingDefaults.schedulePeriodicDeadline(periodic, Fluxzero.currentTime());
+        if (firstDeadline != null) {
+            schedule(value, effectiveScheduleId, firstDeadline);
+        }
         return effectiveScheduleId;
     }
 
@@ -369,11 +367,4 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      */
     Optional<Schedule> getSchedule(@NonNull Object scheduleId);
 
-    private static Instant nextDeadline(String cronSchedule, String timeZone) {
-        if (isBlank(cronSchedule)) {
-            return null;
-        }
-        return CronExpression.parseCronExpression(cronSchedule).nextTimeAfter(
-                Fluxzero.currentTime().atZone(ZoneId.of(timeZone))).toInstant();
-    }
 }
