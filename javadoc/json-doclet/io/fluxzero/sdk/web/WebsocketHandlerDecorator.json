@@ -199,27 +199,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "mapHandshakeAuthorizationFailure",
-    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#mapHandshakeAuthorizationFailure",
-    "returnType" : "java.lang.Throwable",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "failure",
-      "type" : "java.lang.Throwable",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "context",
-      "type" : "io.fluxzero.sdk.web.DefaultWebRequestContext",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#matches",
     "returnType" : "boolean",
@@ -343,27 +322,6 @@
     "parameters" : [ {
       "name" : "handler",
       "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "withCause",
-    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#withCause",
-    "returnType" : "T",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "T" ],
-    "parameters" : [ {
-      "name" : "result",
-      "type" : "T",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "cause",
-      "type" : "java.lang.Throwable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

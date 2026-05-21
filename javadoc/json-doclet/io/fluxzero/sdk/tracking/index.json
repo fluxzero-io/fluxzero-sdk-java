@@ -35,11 +35,6 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$TopicTracker",
     "kind" : "class"
   }, {
-    "file" : "DefaultTracking.UnconfiguredHandlerConsumerMode.json",
-    "name" : "DefaultTracking.UnconfiguredHandlerConsumerMode",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$UnconfiguredHandlerConsumerMode",
-    "kind" : "enum"
-  }, {
     "file" : "ErrorHandler.json",
     "name" : "ErrorHandler",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ErrorHandler",

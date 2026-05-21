@@ -8,6 +8,9 @@
     "annotationType" : "lombok.Getter",
     "values" : {}
   }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
     "annotationType" : "lombok.experimental.FieldDefaults",
     "values" : {
       "level" : "PRIVATE",
@@ -22,14 +25,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
   "fields" : [ {
-    "name" : "entityHelper",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.entityHelper",
-    "type" : "io.fluxzero.sdk.modeling.EntityHelper",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "handlerAssociations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.handlerAssociations",
     "type" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations",
@@ -41,14 +36,6 @@
     "name" : "handlerMatcher",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.handlerMatcher",
     "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "memberHandlerMatcherFactory",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.memberHandlerMatcherFactory",
-    "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
@@ -73,22 +60,6 @@
     "name" : "repository",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.repository",
     "type" : "io.fluxzero.sdk.modeling.HandlerRepository",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "serializer",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.serializer",
-    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "statefulMembers",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler.statefulMembers",
-    "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.StatefulMember>",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : null,
@@ -123,6 +94,31 @@
       "type" : "io.fluxzero.sdk.modeling.HandlerRepository",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "StatefulHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#StatefulHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.modeling.HandlerRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
       "name" : "parameterResolvers",
       "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
@@ -131,16 +127,6 @@
     }, {
       "name" : "methodAnnotationProvider",
       "type" : "java.util.function.Function<java.lang.reflect.Executable,? extends java.lang.annotation.Annotation>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "memberHandlerMatcherFactory",
-      "type" : "java.util.function.BiFunction<java.lang.Class<?>,java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "serializer",
-      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -186,69 +172,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeId",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#computeId",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "handler",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "currentEntry",
-      "type" : "io.fluxzero.sdk.common.Entry<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "message",
-      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "defaultSerializer",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#defaultSerializer",
-    "returnType" : "io.fluxzero.sdk.common.serialization.Serializer",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "discoverStatefulMembers",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#discoverStatefulMembers",
-    "returnType" : "java.util.List<io.fluxzero.sdk.tracking.handling.StatefulHandler.StatefulMember>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "ownerPath",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "visitedTypes",
-      "type" : "java.util.Set<java.lang.Class<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -261,90 +184,6 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "matchesParent",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#matchesParent",
-    "returnType" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parent",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "associations",
-      "type" : "java.util.Map<java.lang.Object,java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "memberParameterResolvers",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#memberParameterResolvers",
-    "returnType" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "memberType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "mergeAssociations",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#mergeAssociations",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "target",
-      "type" : "java.util.Map<java.lang.Object,java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "source",
-      "type" : "java.util.Map<java.lang.Object,java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "rootEntity",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler#rootEntity",
-    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
-    "modifiers" : [ "private" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\",\"rawtypes\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entry",
-      "type" : "io.fluxzero.sdk.common.Entry<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -369,64 +208,10 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "StatefulEntryInvoker",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulEntryInvoker",
-    "kind" : "class",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulEntryState",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulEntryState",
-    "kind" : "class",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ]
-  }, {
     "name" : "StatefulHandlerInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
     "kind" : "class",
     "modifiers" : [ "protected" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMember",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMember",
-    "kind" : "class",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberCandidate",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberCandidate",
-    "kind" : "record",
-    "modifiers" : [ "final", "protected", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberInvoker",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberInvoker",
-    "kind" : "class",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberMessage",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberMessage",
-    "kind" : "class",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberMutation",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberMutation",
-    "kind" : "record",
-    "modifiers" : [ "final", "protected", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberParameterResolver",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberParameterResolver",
-    "kind" : "class",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "StatefulMemberTargetKey",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMemberTargetKey",
-    "kind" : "record",
-    "modifiers" : [ "final", "protected", "static" ],
     "annotations" : [ ]
   } ]
 }

@@ -14,6 +14,11 @@
     "values" : {
       "value" : "\"fluxzero.openapi.enabled\",\"fluxzero.openapi.output\",\"fluxzero.openapi.specVersion\",\"fluxzero.openapi.title\",\"fluxzero.openapi.version\",\"fluxzero.openapi.description\",\"fluxzero.openapi.servers\",\"org.gradle.annotation.processing.aggregating\""
     }
+  }, {
+    "annotationType" : "com.google.auto.service.AutoService",
+    "values" : {
+      "value" : "javax.annotation.processing.Processor.class"
+    }
   } ],
   "documentation" : " Generates an OpenAPI document from Fluxzero web handler annotations during Java compilation.\n <p>\n The processor is intentionally lightweight: it only inspects source elements in the current javac round, never scans\n the runtime classpath, and writes a single resource when at least one documented HTTP endpoint is found.\n </p>\n\n <h2>Compiler Options</h2>\n <ul>\n     <li>{@value #ENABLED_OPTION}: set to {@code false} to disable generation.</li>\n     <li>{@value #OUTPUT_OPTION}: generated resource path, defaults to {@value #DEFAULT_OUTPUT}.</li>\n     <li>{@value #OPENAPI_VERSION_OPTION}: OpenAPI document version, defaults to {@code 3.0.1}.</li>\n     <li>{@value #TITLE_OPTION}: OpenAPI {@code info.title}, defaults to {@code Fluxzero API}.</li>\n     <li>{@value #VERSION_OPTION}: OpenAPI {@code info.version}, defaults to {@code 0.0.0}.</li>\n     <li>{@value #DESCRIPTION_OPTION}: optional OpenAPI {@code info.description}.</li>\n     <li>{@value #SERVERS_OPTION}: comma-separated server URLs.</li>\n </ul>\n\n @see ApiDoc\n @see ApiDocInfo\n @see ApiDocComponent\n @see ApiDocResponse\n @see ApiDocExclude\n @see OpenApiRenderer\n",
   "typeParameters" : [ ],

@@ -10,11 +10,6 @@
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer",
     "kind" : "class"
   }, {
-    "file" : "JettyProxyWebsocketAdapter.json",
-    "name" : "JettyProxyWebsocketAdapter",
-    "qualifiedName" : "io.fluxzero.proxy.JettyProxyWebsocketAdapter",
-    "kind" : "class"
-  }, {
     "file" : "JwtVerifier.json",
     "name" : "JwtVerifier",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier",
@@ -35,11 +30,6 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",
     "kind" : "class"
   }, {
-    "file" : "ProxyRequestHandler.JettyExchange.json",
-    "name" : "ProxyRequestHandler.JettyExchange",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
-    "kind" : "class"
-  }, {
     "file" : "ProxySerializer.json",
     "name" : "ProxySerializer",
     "qualifiedName" : "io.fluxzero.proxy.ProxySerializer",
@@ -50,20 +40,20 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer",
     "kind" : "class"
   }, {
-    "file" : "ProxyWebsocketBackpressureEvent.json",
-    "name" : "ProxyWebsocketBackpressureEvent",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketBackpressureEvent",
-    "kind" : "record"
-  }, {
-    "file" : "ProxyWebsocketEndpoint.json",
-    "name" : "ProxyWebsocketEndpoint",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint",
+    "file" : "WebsocketEndpoint.json",
+    "name" : "WebsocketEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint",
     "kind" : "class"
   }, {
-    "file" : "ProxyWebsocketEndpoint.SessionContext.json",
-    "name" : "ProxyWebsocketEndpoint.SessionContext",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$SessionContext",
+    "file" : "WebsocketEndpoint.SessionContext.json",
+    "name" : "WebsocketEndpoint.SessionContext",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketEndpoint$SessionContext",
     "kind" : "record"
+  }, {
+    "file" : "WebsocketFilter.json",
+    "name" : "WebsocketFilter",
+    "qualifiedName" : "io.fluxzero.proxy.WebsocketFilter",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

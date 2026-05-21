@@ -210,27 +210,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeCopyMethodWither",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeCopyMethodWither",
-    "returnType" : "java.util.Optional<java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "propertyName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "computeOwnerCloner",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeOwnerCloner",
     "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
@@ -245,27 +224,6 @@
     }, {
       "name" : "serializer",
       "type" : "io.fluxzero.sdk.common.serialization.Serializer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "computeRecordWither",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeRecordWither",
-    "returnType" : "java.util.Optional<java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "ownerType",
-      "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "propertyName",
-      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -486,27 +444,6 @@
     "varArgs" : false,
     "documentation" : " Retrieves or creates a cached {@code AnnotatedEntityHolder} at the given member location.\n\n @param ownerType    the class that owns the annotated member\n @param location     the accessible field or method annotated with @Member\n @param entityHelper the helper used to apply/validate/apply logic to nested entities\n @param serializer   the serializer used for cloning values during updates\n @return a cached or new instance of {@code AnnotatedEntityHolder}\n"
   }, {
-    "name" : "matchesCopyParameters",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#matchesCopyParameters",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "method",
-      "type" : "java.lang.reflect.Method",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "fields",
-      "type" : "java.util.List<java.lang.reflect.Field>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "restoreLoadingEntityCache",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#restoreLoadingEntityCache",
     "returnType" : "void",
@@ -641,61 +578,10 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Updates the parent object with the new state of a child entity. Uses a wither method if available; otherwise\n attempts a reflective update through cloning and direct field access. If the entity has been removed (value has\n become {@code null}), the entity is removed from the owner object if possible.\n <p>\n Note that this method typically returns a new clone of the owner object containing the updated child entity\n value.\n\n @param owner  the parent object containing the member field\n @param before the old entity (before update)\n @param after  the new entity (after update)\n @return a new updated parent object, or the original if mutation fails\n"
-  }, {
-    "name" : "updateOwner",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#updateOwner",
-    "returnType" : "java.lang.Object",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    }, {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "owner",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "updates",
-      "type" : "java.util.Collection<io.fluxzero.sdk.modeling.AnnotatedEntityHolder.EntityUpdate>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Updates the parent object with multiple child entity changes for the same holder in one pass. Collection and map\n holders are cloned once, all updates are applied in order, and the owner wither is invoked once.\n\n @param owner   the parent object containing the member field\n @param updates ordered entity updates to apply to this holder\n @return a new updated parent object, or the original if mutation fails\n"
-  }, {
-    "name" : "validateUniqueEntityIds",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#validateUniqueEntityIds",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "entities",
-      "type" : "java.util.List<io.fluxzero.sdk.modeling.ImmutableEntity<?>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "EntityUpdate",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate",
-    "kind" : "record",
-    "modifiers" : [ "final", "public", "static" ],
-    "annotations" : [ ]
-  }, {
     "name" : "Id",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$Id",
     "kind" : "class",

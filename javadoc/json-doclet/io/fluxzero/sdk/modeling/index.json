@@ -30,11 +30,6 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder",
     "kind" : "class"
   }, {
-    "file" : "AnnotatedEntityHolder.EntityUpdate.json",
-    "name" : "AnnotatedEntityHolder.EntityUpdate",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate",
-    "kind" : "record"
-  }, {
     "file" : "AnnotatedEntityHolder.Id.json",
     "name" : "AnnotatedEntityHolder.Id",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$Id",

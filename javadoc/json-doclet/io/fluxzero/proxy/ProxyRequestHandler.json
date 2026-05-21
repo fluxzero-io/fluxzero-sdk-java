@@ -11,7 +11,7 @@
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.proxy.ProxyRequestHandler>",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.undertow.server.HttpHandler" ],
   "fields" : [ {
     "name" : "CORS_DOMAINS_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.CORS_DOMAINS_PROPERTY",
@@ -20,14 +20,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "FLUXZERO_CORS_DOMAINS"
-  }, {
-    "name" : "HOP_BY_HOP_RESPONSE_HEADERS",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.HOP_BY_HOP_RESPONSE_HEADERS",
-    "type" : "java.util.Set<java.lang.String>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   }, {
     "name" : "REQUEST_TIMEOUT",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_TIMEOUT",
@@ -85,41 +77,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "maxMultipartRequestBodySize",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.maxMultipartRequestBodySize",
-    "type" : "long",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "maxPendingWebsocketSends",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.maxPendingWebsocketSends",
-    "type" : "int",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "maxRequestBodySize",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.maxRequestBodySize",
-    "type" : "long",
-    "modifiers" : [ "private", "volatile" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "namespaceSelector",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.namespaceSelector",
     "type" : "io.fluxzero.proxy.NamespaceSelector",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "proxyWebsocketEndpoint",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.proxyWebsocketEndpoint",
-    "type" : "io.fluxzero.proxy.ProxyWebsocketEndpoint",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -149,10 +109,18 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "websocketContainer",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketContainer",
-    "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
-    "modifiers" : [ "private", "volatile" ],
+    "name" : "websocketEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketEndpoint",
+    "type" : "io.fluxzero.proxy.WebsocketEndpoint",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "websocketHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.websocketHandler",
+    "type" : "io.undertow.server.HttpHandler",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -201,8 +169,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -282,8 +250,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -296,23 +264,16 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "createWebsocketRequestParameters",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createWebsocketRequestParameters",
-    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "responseMessage",
-      "type" : "io.fluxzero.common.api.SerializedMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "webRequest",
-      "type" : "io.fluxzero.sdk.web.WebRequest",
-      "varArgs" : false,
-      "annotations" : [ ]
+    "name" : "createWebsocketHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createWebsocketHandler",
+    "returnType" : "io.undertow.server.HttpHandler",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
     } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -324,8 +285,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -354,32 +315,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "handle",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handle",
-    "returnType" : "boolean",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "request",
-      "type" : "org.eclipse.jetty.server.Request",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "response",
-      "type" : "org.eclipse.jetty.server.Response",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "callback",
-      "type" : "org.eclipse.jetty.util.Callback",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "handleCorsPreflight",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleCorsPreflight",
     "returnType" : "boolean",
@@ -387,8 +322,30 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleRequest",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -421,61 +378,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "headerContainsToken",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#headerContainsToken",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "headerValue",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "token",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "isForwardableResponseHeader",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isForwardableResponseHeader",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "name",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "isRequestBodyTooLarge",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isRequestBodyTooLarge",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "error",
-      "type" : "java.lang.Throwable",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -485,7 +389,7 @@
   }, {
     "name" : "prepareForSending",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#prepareForSending",
-    "returnType" : "void",
+    "returnType" : "io.undertow.server.HttpServerExchange",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -495,39 +399,13 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "statusCode",
       "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "putParameter",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#putParameter",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "parameters",
-      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "name",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "value",
-      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -542,24 +420,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "sendPayloadTooLarge",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendPayloadTooLarge",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -579,8 +441,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -595,24 +457,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "sendServiceUnavailable",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendServiceUnavailable",
-    "returnType" : "void",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -627,93 +473,13 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
       "name" : "webRequest",
       "type" : "io.fluxzero.sdk.web.WebRequest",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "setMaxMultipartRequestBodySize",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setMaxMultipartRequestBodySize",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "maxMultipartRequestBodySize",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "setMaxPendingWebsocketSends",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setMaxPendingWebsocketSends",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "maxPendingWebsocketSends",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "setMaxRequestBodySize",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setMaxRequestBodySize",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "maxRequestBodySize",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "setWebsocketContainer",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setWebsocketContainer",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "websocketContainer",
-      "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "statusMustNotHaveResponseBody",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#statusMustNotHaveResponseBody",
-    "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "statusCode",
-      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -732,6 +498,11 @@
       "type" : "io.fluxzero.sdk.web.WebRequest",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "se",
+      "type" : "io.undertow.server.HttpServerExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -739,11 +510,5 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "JettyExchange",
-    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
-    "kind" : "class",
-    "modifiers" : [ "protected", "static" ],
-    "annotations" : [ ]
-  } ]
+  "nestedTypes" : [ ]
 }

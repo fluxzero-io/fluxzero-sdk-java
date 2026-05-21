@@ -208,7 +208,10 @@
       "name" : "template",
       "type" : "java.lang.String",
       "varArgs" : false,
-      "annotations" : [ ]
+      "annotations" : [ {
+        "annotationType" : "javax.annotation.Nullable",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

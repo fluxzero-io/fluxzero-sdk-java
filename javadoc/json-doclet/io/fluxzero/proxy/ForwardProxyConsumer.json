@@ -65,6 +65,7 @@
     "annotations" : [ {
       "annotationType" : "lombok.Getter",
       "values" : {
+        "lazy" : "true",
         "value" : "PROTECTED"
       }
     } ],

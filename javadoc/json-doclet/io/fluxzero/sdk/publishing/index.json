@@ -58,7 +58,7 @@
     "file" : "DefaultRequestHandler.ResponseCallback.json",
     "name" : "DefaultRequestHandler.ResponseCallback",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback",
-    "kind" : "class"
+    "kind" : "record"
   }, {
     "file" : "DefaultResultGateway.json",
     "name" : "DefaultResultGateway",
