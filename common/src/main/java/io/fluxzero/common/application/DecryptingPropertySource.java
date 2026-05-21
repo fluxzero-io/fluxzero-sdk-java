@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common.application;
@@ -24,7 +25,6 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
-import static java.util.Optional.ofNullable;
 
 /**
  * A {@link PropertySource} decorator that transparently decrypts encrypted property values.
@@ -59,25 +59,15 @@ public class DecryptingPropertySource implements PropertySource {
     private final Function<String, String> decryptionCache = memoize(s -> getEncryption().decrypt(s));
 
     /**
-     * Constructs a {@code DecryptingPropertySource} using a delegate and automatically resolves the encryption key from
-     * system or environment variables.
-     * <p>It looks for the {@code ENCRYPTION_KEY} or {@code encryption_key} in the following order:
-     * <ul>
-     *   <li>Environment variable {@code ENCRYPTION_KEY}</li>
-     *   <li>Environment variable {@code encryption_key}</li>
-     *   <li>System property {@code ENCRYPTION_KEY}</li>
-     *   <li>System property {@code encryption_key}</li>
-     * </ul>
+     * Constructs a {@code DecryptingPropertySource} with the specified delegate property source.
+     * By default, the encryption key is fetched from the default property source using the keys
+     * "ENCRYPTION_KEY" or "encryption_key".
      *
-     * <p>If no key is found, a no-op encryption fallback is used.
-     *
-     * @param delegate the property source to wrap
+     * @param delegate the property source to wrap and decrypt values from
      */
     public DecryptingPropertySource(PropertySource delegate) {
-        this(delegate, ofNullable(System.getenv("ENCRYPTION_KEY"))
-                .or(() -> ofNullable(System.getenv("encryption_key")))
-                .or(() -> ofNullable(System.getProperty("ENCRYPTION_KEY")))
-                .or(() -> ofNullable(System.getProperty("encryption_key"))).orElse(null));
+        this(delegate, DefaultPropertySource.getInstance().get(
+                "ENCRYPTION_KEY", DefaultPropertySource.getInstance().get("encryption_key")));
     }
 
     /**
