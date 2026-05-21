@@ -90,6 +90,16 @@ public interface HandlerRegistry extends HasLocalHandlers {
     Optional<CompletableFuture<Object>> handle(DeserializingMessage message);
 
     /**
+     * Returns whether this registry has a local handler that can process the given message.
+     *
+     * @param message the message to inspect
+     * @return {@code true} if a local handler can handle the message, {@code false} otherwise
+     */
+    default boolean canHandle(DeserializingMessage message) {
+        return false;
+    }
+
+    /**
      * Creates a composite registry that invokes both this and the given registry.
      * <p>
      * Results are merged via {@code thenCombine()} if both registries handle the message.
@@ -131,6 +141,11 @@ public interface HandlerRegistry extends HasLocalHandlers {
             Optional<CompletableFuture<Object>> secondResult = second.handle(message);
             return firstResult.isPresent() ? secondResult.map(messageCompletableFuture -> firstResult.get()
                     .thenCombine(messageCompletableFuture, (a, b) -> a)).or(() -> firstResult) : secondResult;
+        }
+
+        @Override
+        public boolean canHandle(DeserializingMessage message) {
+            return first.canHandle(message) || second.canHandle(message);
         }
 
         @Override

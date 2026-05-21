@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.InMemoryTaskScheduler;
@@ -86,6 +87,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -387,13 +389,19 @@ public class TestFixture implements Given<TestFixture>, When {
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
         client = trackRemoteDocumentUpdates(client);
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
+        Clock fixtureClock = Clock.fixed(Instant.now().truncatedTo(ChronoUnit.MILLIS), ZoneId.systemDefault());
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
                 .addDispatchInterceptor(dispatchInterceptor)
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider
                         ? PredictableIdentityProvider.defaultPredictableIdentityProvider() : p)
-                .replaceTaskScheduler(clock -> new InMemoryTaskScheduler(
-                        "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
+                .replaceTaskScheduler(clock -> {
+                    if (clock instanceof DelegatingClock delegatingClock) {
+                        delegatingClock.setDelegate(fixtureClock);
+                    }
+                    return new InMemoryTaskScheduler(
+                            "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance(), false);
+                })
                 .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
                 .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
         this.fluxzeroBuilder = fluxzeroBuilder;
@@ -402,7 +410,7 @@ public class TestFixture implements Given<TestFixture>, When {
         if (synchronous) {
             localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
         }
-        withClock(Clock.fixed(Instant.now(), ZoneId.systemDefault()));
+        withClock(fixtureClock);
         List<Object> handlers = new ArrayList<>();
         if (synchronous) {
             handlers.add(new Object() {
@@ -577,11 +585,20 @@ public class TestFixture implements Given<TestFixture>, When {
                 return;
             }
             HandlerFilter handlerFilter = (c, e) -> true;
-            var registration = fc.apply(f -> handlers.stream().flatMap(
-                            h -> Stream.concat(localHandlerRegistries(f).map(r -> r.registerHandler(h, handlerFilter)),
-                                               ClientUtils.getTopics(CUSTOM, h).stream()
-                                                       .map(topic -> f.customGateway(topic).registerHandler(h, handlerFilter))))
-                    .reduce(Registration::merge).orElse(Registration.noOp()));
+            var registration = fc.apply(f -> {
+                Registration local = handlers.stream().flatMap(
+                                h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
+                                                           .map(r -> r.registerHandler(h, handlerFilter)),
+                                                   ClientUtils.getTopics(CUSTOM, h).stream()
+                                                           .map(topic -> f.customGateway(topic)
+                                                                   .registerHandler(h, handlerFilter))))
+                        .reduce(Registration::merge).orElse(Registration.noOp());
+                Registration schedules = scheduleLocalHandlerRegistry(f)
+                        .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
+                                .reduce(Registration::merge).orElse(Registration.noOp()))
+                        .orElse(Registration.noOp());
+                return local.merge(schedules);
+            });
             fixture.registration = fixture.registration.merge(registration);
         });
     }
@@ -607,6 +624,12 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected Stream<HasLocalHandlers> localHandlerRegistries(Fluxzero fluxzero) {
         return ObjectUtils.concat(
+                nonScheduleLocalHandlerRegistries(fluxzero),
+                scheduleLocalHandlerRegistry(fluxzero).stream());
+    }
+
+    protected Stream<HasLocalHandlers> nonScheduleLocalHandlerRegistries(Fluxzero fluxzero) {
+        return ObjectUtils.concat(
                 Stream.of(
                         fluxzero.commandGateway(),
                         fluxzero.queryGateway(),
@@ -615,8 +638,11 @@ public class TestFixture implements Given<TestFixture>, When {
                         fluxzero.errorGateway(),
                         fluxzero.webRequestGateway(),
                         fluxzero.metricsGateway()),
-                fluxzero.messageScheduler() instanceof DefaultMessageScheduler s ? Stream.of(s) : empty(),
                 fluxzero.documentStore() instanceof DefaultDocumentStore s ? Stream.of(s) : Stream.empty());
+    }
+
+    protected Optional<HasLocalHandlers> scheduleLocalHandlerRegistry(Fluxzero fluxzero) {
+        return fluxzero.messageScheduler() instanceof DefaultMessageScheduler s ? Optional.of(s) : Optional.empty();
     }
 
     /**
@@ -944,9 +970,7 @@ public class TestFixture implements Given<TestFixture>, When {
             fixtureResult.getTrace().startPhase("given");
             GivenWhenThenAssertionError.useTrace(this::renderTrace);
             return modifyFixture(fixture -> {
-                fixture.handleExpiredSchedulesLocally();
                 modifier.accept(fixture);
-                fixture.handleExpiredSchedulesLocally();
                 fixture.waitForConsumers();
             });
         } catch (Throwable e) {
@@ -1220,7 +1244,6 @@ public class TestFixture implements Given<TestFixture>, When {
             fixtureResult.getTrace().startPhase("when");
             GivenWhenThenAssertionError.useTrace(this::renderTrace);
             fixtureResult.setWhenPhaseStarted(true);
-            handleExpiredSchedulesLocally();
             waitForConsumers();
             resetMocks();
             fixtureResult.setCollectingResults(true);
@@ -1244,7 +1267,6 @@ public class TestFixture implements Given<TestFixture>, When {
             }
             fixtureResult.setResult(result);
             waitForConsumers();
-            handleExpiredSchedulesLocally();
             return new ResultValidator<>(this);
         });
     }
@@ -1301,29 +1323,6 @@ public class TestFixture implements Given<TestFixture>, When {
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
                                 Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
                                                                                  .toList());
-    }
-
-    protected void handleExpiredSchedulesLocally() {
-        getFluxzero().taskScheduler().executeExpiredTasks();
-        if (synchronous) {
-            try {
-                if (getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local) {
-                    List<Schedule> expiredSchedules;
-                    do {
-                        expiredSchedules = local.removeExpiredSchedules(getFluxzero().serializer());
-                        if (getFluxzero().messageScheduler() instanceof DefaultMessageScheduler scheduler) {
-                            expiredSchedules.forEach(scheduler::handleLocally);
-                        }
-                    } while (!expiredSchedules.isEmpty());
-                }
-            } catch (Throwable e) {
-                if (fixtureResult.isWhenPhaseStarted()) {
-                    registerError(e);
-                } else {
-                    throw e;
-                }
-            }
-        }
     }
 
     protected List<Schedule> getFutureSchedules() {
@@ -1460,24 +1459,32 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected void setClock(Clock clock) {
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
-        if (schedulingClient instanceof LocalSchedulingClient local) {
+        if (schedulingClient instanceof LocalSchedulingClient) {
             if (!skipScheduleDeadlines) {
                 var target = clock.instant();
-                var nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
-                while (nextDeadline != null && !nextDeadline.isAfter(target)) {
+                Instant previousDeadline = null;
+                Instant nextDeadline = getNextTaskDeadline(target);
+                while (nextDeadline != null && !Objects.equals(previousDeadline, nextDeadline)) {
                     Clock nextClock = Clock.fixed(nextDeadline, ZoneId.systemDefault());
                     getFluxzero().withClock(nextClock);
-                    local.setClock(nextClock);
-                    handleExpiredSchedulesLocally();
-                    nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+                    previousDeadline = nextDeadline;
+                    nextDeadline = getNextTaskDeadline(target);
                 }
             }
             getFluxzero().withClock(clock);
-            local.setClock(clock);
         } else {
             getFluxzero().withClock(clock);
             log.warn("Could not update clock of scheduling client. Timing tests may not work.");
         }
+    }
+
+    private Instant getNextTaskDeadline(Instant target) {
+        if (getFluxzero().taskScheduler() instanceof InMemoryTaskScheduler scheduler) {
+            return scheduler.getScheduledDeadlines().stream().filter(deadline -> !deadline.isAfter(target)).findFirst()
+                    .orElse(null);
+        }
+        return getFutureSchedules().stream().map(Schedule::getDeadline).filter(deadline -> !deadline.isAfter(target))
+                .findFirst().orElse(null);
     }
 
     protected void registerCommand(Message command) {

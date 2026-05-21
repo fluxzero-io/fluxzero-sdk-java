@@ -48,12 +48,12 @@ class StatefulMembersKotlinTest {
 
 @Stateful
 data class KotlinCustomer(
-    @EntityId @Association val customerId: String,
+    @EntityId @param:Association val customerId: String,
     @Member val payments: List<KotlinPayment> = emptyList(),
 )
 
 data class KotlinPayment(
-    @EntityId @Association val paymentId: String,
+    @EntityId @param:Association val paymentId: String,
     val captureCount: Int = 0,
     val customerContext: String? = null,
 ) {

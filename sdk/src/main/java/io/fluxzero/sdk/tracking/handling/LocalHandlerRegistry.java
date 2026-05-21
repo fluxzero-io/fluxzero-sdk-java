@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
@@ -193,13 +194,18 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         });
     }
 
+    @Override
+    public boolean canHandle(DeserializingMessage message) {
+        return message.apply(m -> getLocalHandlers(m).stream().anyMatch(handler -> handler.getInvoker(m).isPresent()));
+    }
+
     /**
      * Returns the full list of handlers that should be used to process the given message.
      * <p>
-     * This may include a self-handler if the message is a request type.
+     * This may include a self-handler if the message is a request or schedule type.
      */
     protected List<Handler<DeserializingMessage>> getLocalHandlers(DeserializingMessage message) {
-        if (!message.getMessageType().isRequest()) {
+        if (!message.getMessageType().isRequest() && message.getMessageType() != MessageType.SCHEDULE) {
             return localHandlers;
         }
         return message.apply(m -> selfHandlers.apply(m.getPayloadClass())

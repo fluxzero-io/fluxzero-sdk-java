@@ -32,6 +32,10 @@ import java.lang.annotation.Target;
  * Scheduled messages may originate from an explicit schedule call (see
  * {@link MessageScheduler}), or from a payload annotated with {@link Periodic}, which
  * enables automatic rescheduling after each invocation.
+ * <p>
+ * Schedule handlers can also run locally. Mark a handler with {@link LocalHandler}, or place the
+ * {@code @HandleSchedule} method on the scheduled payload type itself without {@code @TrackSelf}. Local schedule
+ * handlers are triggered by Fluxzero's task scheduler and can be used for in-process recurring work.
  *
  * <h2>Return behavior</h2>
  * A {@code @HandleSchedule} method may return a value to control rescheduling behavior:

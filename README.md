@@ -1381,6 +1381,11 @@ void weeklySync(PollData schedule) {
 
 This example triggers the `weeklySync` method every Monday at 00:00 in the Amsterdam time zone.
 
+Schedule handlers can also be local. Add `@LocalHandler` to a schedule handler, or put the `@HandleSchedule` method
+directly on the scheduled payload type without `@TrackSelf`. In those cases Fluxzero uses its `TaskScheduler` to trigger
+the schedule in the current application, which makes `@HandleSchedule`/`@Periodic` useful as an alternative to Spring's
+`@Scheduled` for Fluxzero-aware local jobs.
+
 #### Behavior and advanced options
 
 - `@Periodic` works only for scheduled messages (see `@HandleSchedule`).

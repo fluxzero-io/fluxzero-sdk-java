@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.tracking.client.LocalTrackingClient;
 import lombok.experimental.Delegate;
 
+import java.time.Clock;
 import java.time.Duration;
 
 /**
@@ -30,6 +31,14 @@ public class LocalSchedulingClient extends LocalTrackingClient implements Schedu
 
     public LocalSchedulingClient(Duration messageExpiration) {
         super(new InMemoryScheduleStore(messageExpiration), MessageType.SCHEDULE);
+    }
+
+    public LocalSchedulingClient(Duration messageExpiration, Clock clock) {
+        super(new InMemoryScheduleStore(messageExpiration, clock), MessageType.SCHEDULE);
+    }
+
+    public void setClock(Clock clock) {
+        getMessageStore().setClock(clock);
     }
 
     @Override

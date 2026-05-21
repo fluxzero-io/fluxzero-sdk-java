@@ -18,12 +18,16 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.common.ObjectUtils.asRunnable;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
@@ -49,6 +53,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     private final ScheduledExecutorService executorService;
     private final ExecutorService workerPool;
     private final Clock clock;
+    private final Registration clockChangeRegistration;
     private final Set<Task> tasks = new CopyOnWriteArraySet<>();
 
     public InMemoryTaskScheduler() {
@@ -96,19 +101,45 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     }
 
     public InMemoryTaskScheduler(int delay, String threadName, Clock clock, ExecutorService workerPool) {
+        this(delay, threadName, clock, workerPool, true);
+    }
+
+    public InMemoryTaskScheduler(String threadName, Clock clock, ExecutorService workerPool, boolean pollingEnabled) {
+        this(defaultDelay, threadName, clock, workerPool, pollingEnabled);
+    }
+
+    public InMemoryTaskScheduler(int delay, String threadName, Clock clock, ExecutorService workerPool,
+                                 boolean pollingEnabled) {
         this.executorService = Executors.newSingleThreadScheduledExecutor(newPlatformThreadFactory(threadName));
         this.workerPool = workerPool;
         this.clock = clock;
-        executorService.scheduleWithFixedDelay(this::executeExpiredTasksAsync, delay, delay, TimeUnit.MILLISECONDS);
+        this.clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
+                ? delegatingClock.onChange(this::executeExpiredTasks) : Registration.noOp();
+        if (pollingEnabled) {
+            executorService.scheduleWithFixedDelay(this::executeExpiredTasksAsync, delay, delay, TimeUnit.MILLISECONDS);
+        }
     }
 
     @Override
     public void executeExpiredTasks() {
+        while (executeExpiredTasksOnce()) {
+        }
+    }
+
+    protected boolean executeExpiredTasksOnce() {
+        AtomicBoolean executedTask = new AtomicBoolean();
         tasks.forEach(task -> {
             if (isMissedDeadline(clock(), task.deadline) && tasks.remove(task)) {
+                executedTask.set(true);
                 tryRunTask(task);
             }
         });
+        return executedTask.get();
+    }
+
+    public List<Instant> getScheduledDeadlines() {
+        return tasks.stream().map(task -> Instant.ofEpochMilli(task.deadline)).sorted(Comparator.naturalOrder())
+                .toList();
     }
 
     public void executeExpiredTasksAsync() {
@@ -147,6 +178,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     @Override
     @SneakyThrows
     public void shutdown() {
+        clockChangeRegistration.cancel();
         executorService.shutdownNow();
         workerPool.shutdown();
         if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {

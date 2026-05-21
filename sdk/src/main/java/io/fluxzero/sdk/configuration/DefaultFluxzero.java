@@ -37,6 +37,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
@@ -623,6 +624,9 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            if (client.unwrap() instanceof LocalClient localClient) {
+                localClient.setClock(clock);
+            }
             Cache cache = this.cache.isEmpty() ? this.cache : this.cache.rebuild();
             Cache relationshipsCache = this.relationshipsCache.isEmpty() ? this.relationshipsCache : this.relationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
@@ -896,6 +900,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                             serializer,
                                                                             dispatchChains.get(SCHEDULE),
                                                                             dispatchChains.get(COMMAND),
+                                                                            taskScheduler,
                                                                             localHandlerRegistry(SCHEDULE,
                                                                                                  handlerChains,
                                                                                                  runtimeParameterResolvers,

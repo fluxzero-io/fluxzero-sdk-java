@@ -47,6 +47,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *
  * <h2>Automatic Start</h2>
  * By default, the schedule is automatically started when the message is handled or the system starts. Set {@link #autoStart()} to {@code false} to disable this behavior.
+ * <p>
+ * When the matching {@link HandleSchedule} method is local (for example through
+ * {@link io.fluxzero.sdk.tracking.handling.LocalHandler}, or because it is declared on a non-{@code @TrackSelf}
+ * payload type), periodic execution is triggered through Fluxzero's task scheduler.
  *
  * <h2>Error Handling</h2>
  * If the schedule handler throws an exception:
@@ -168,7 +172,7 @@ public @interface Periodic {
     /**
      * Returns the initial schedule delay. Only relevant when {@link #autoStart()} is true. If initialDelay is negative,
      * the initial schedule will fire after the default delay (configured either via {@link #cron()} or
-     * {@link #delay()}).
+     * {@link #delay()}). A value of {@code 0} schedules the first invocation immediately.
      */
     long initialDelay() default 0;
 }
