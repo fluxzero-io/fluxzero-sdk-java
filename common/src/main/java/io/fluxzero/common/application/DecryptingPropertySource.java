@@ -84,6 +84,7 @@ public class DecryptingPropertySource implements PropertySource {
         this(delegate, Optional.ofNullable(encryptionKey)
                 .map(encodedKey -> {
                     try {
+                        log.info("Initializing DefaultEncryption from key");
                         return DefaultEncryption.fromEncryptionKey(encodedKey);
                     } catch (Exception e) {
                         log.error("Could not construct DefaultEncryption from environment variable "
