@@ -573,6 +573,18 @@ public interface Entity<T> {
     }
 
     /**
+     * Finds the first entity in this entity hierarchy that matches the given predicate. The search includes this
+     * entity and then continues through all nested entities.
+     *
+     * @param predicate the condition used to select an entity
+     * @return an {@code Optional} containing the first matching entity, or an empty {@code Optional} if no entity
+     * matches
+     */
+    default Optional<Entity<?>> findEntity(Predicate<? super Entity<?>> predicate) {
+        return allEntities().filter(predicate).findFirst();
+    }
+
+    /**
      * Retrieves an entity based on the provided entity ID. The entity can be matched either by its primary ID or by any
      * of its aliases.
      *

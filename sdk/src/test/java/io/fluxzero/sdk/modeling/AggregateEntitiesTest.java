@@ -204,6 +204,30 @@ public class AggregateEntitiesTest {
         }
 
         @Test
+        void findEntityByPredicateIncludesSelf() {
+            testFixture
+                    .whenApplying(fc -> loadAggregate("test", Aggregate.class)
+                            .findEntity(e -> "test".equals(e.id())))
+                    .expectResult(result -> result.map(Entity::isRoot).orElse(false));
+        }
+
+        @Test
+        void findEntityByPredicateFindsDescendant() {
+            testFixture
+                    .whenApplying(fc -> loadAggregate("test", Aggregate.class)
+                            .findEntity(e -> "grandChild".equals(e.id())))
+                    .expectResult(result -> result.map(Entity::id).filter("grandChild"::equals).isPresent());
+        }
+
+        @Test
+        void findEntityByPredicateReturnsEmptyWhenMissing() {
+            testFixture
+                    .whenApplying(fc -> loadAggregate("test", Aggregate.class)
+                            .findEntity(e -> "missingId".equals(e.id())))
+                    .expectResult(Optional::isEmpty);
+        }
+
+        @Test
         void findByAlias() {
             expectEntity(e -> e.getEntity(new GrandChildAlias()).isPresent());
         }
