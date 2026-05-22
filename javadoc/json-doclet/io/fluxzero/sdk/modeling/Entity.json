@@ -429,6 +429,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "findEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#findEntity",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds the first entity in this entity hierarchy that matches the given predicate. The search includes this\n entity and then continues through all nested entities.\n\n @param predicate the condition used to select an entity\n @return an {@code Optional} containing the first matching entity, or an empty {@code Optional} if no entity\n matches\n"
+  }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#get",
     "returnType" : "T",
