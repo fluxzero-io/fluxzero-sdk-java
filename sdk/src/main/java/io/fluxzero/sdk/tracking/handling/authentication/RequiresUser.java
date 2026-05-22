@@ -42,8 +42,8 @@ import java.lang.annotation.Target;
  * <pre>{@code
  * @HandleQuery
  * @RequiresUser
- * public UserProfile handle(GetUserProfile query) {
- *     return userService.getProfileFor(User.getCurrent());
+ * public UserProfile handle(GetUserProfile query, User user) {
+ *     return userService.getProfileFor(user);
  * }
  * }</pre>
  *

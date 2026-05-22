@@ -14,29 +14,35 @@
 
 package io.fluxzero.testserver;
 
-import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.common.api.RuntimeLifecycleEvent;
+import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
 import java.net.ServerSocket;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.METRICS;
+import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STARTED;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STOPPING;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
@@ -95,6 +101,51 @@ class TestServerLifecycleMetricsTest {
             restoreProperty("FLUXZERO_PORT", previousFluxzeroPort);
             restoreProperty("FLUX_PORT", previousFluxPort);
             restoreProperty("port", previousPort);
+        }
+    }
+
+    @Test
+    void restartedServerDeliversUpdatesToWaitingTrackers() throws Exception {
+        Server first = TestServer.startServer(0);
+        first.stop();
+
+        Server second = null;
+        WebSocketClient client = null;
+        try {
+            second = TestServer.startServer(0);
+            int port = getServerConnector(second).getLocalPort();
+            String consumer = "restart-" + UUID.randomUUID();
+            client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                    .runtimeBaseUrl("ws://localhost:" + port)
+                    .name("restart-test")
+                    .disableMetrics(true)
+                    .build());
+
+            ConsumerConfiguration config = ConsumerConfiguration.builder()
+                    .name(consumer)
+                    .maxWaitDuration(Duration.ofSeconds(2))
+                    .build();
+            client.getTrackingClient(WEBREQUEST).readAndWait(
+                    "warmup", null, config.toBuilder().maxWaitDuration(Duration.ZERO).build());
+            client.getTrackingClient(WEBREQUEST).disconnectTracker(consumer, "warmup", false).get(5, SECONDS);
+
+            CompletableFuture<MessageBatch> read = client.getTrackingClient(WEBREQUEST)
+                    .read("tracker", null, config);
+            Thread.sleep(100L);
+            assertFalse(read.isDone(), "Read should be waiting before a message is appended");
+
+            client.getGatewayClient(WEBREQUEST).append(
+                    STORED, new Message("after-restart").serialize(serializer)).get(5, SECONDS);
+
+            MessageBatch batch = read.get(5, SECONDS);
+            assertEquals(1, batch.getMessages().size());
+        } finally {
+            if (client != null) {
+                client.shutDown();
+            }
+            if (second != null && second.isRunning()) {
+                second.stop();
+            }
         }
     }
 

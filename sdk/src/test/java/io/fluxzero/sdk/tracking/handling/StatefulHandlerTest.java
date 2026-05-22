@@ -15,22 +15,44 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.HandlerConfiguration;
+import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.Builder;
+import lombok.With;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Executable;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class StatefulHandlerTest {
 
@@ -664,6 +686,862 @@ public class StatefulHandlerTest {
         }
     }
 
+    @Nested
+    class MemberTests {
+        private final TestFixture testFixture = TestFixture.create(Customer.class);
+
+        @Test
+        void memberIsCreatedInsideParent() {
+            testFixture.givenStateful(new Customer("customer-1", List.of()))
+                    .whenEvent(new PaymentStarted("customer-1", "payment-1"))
+                    .expectOnlyCommands("created:customer-1:payment-1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().size() == 1)
+                            .filter(c -> c.payments().getFirst().paymentId().equals("payment-1"))
+                            .filter(c -> c.payments().getFirst().eventCount() == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void memberIsUpdatedViaChildAssociationOnly() {
+            testFixture.givenStateful(new Customer("customer-1", List.of(new Payment("payment-1", 1))))
+                    .whenEvent(new PaymentCaptured("payment-1"))
+                    .expectOnlyCommands("updated:customer-1:payment-1:2")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().size() == 1)
+                            .filter(c -> c.payments().getFirst().eventCount() == 2)
+                            .isPresent());
+        }
+
+        @Test
+        void memberIsDeletedViaChildAssociationOnly() {
+            testFixture.givenStateful(new Customer("customer-1", List.of(new Payment("payment-1", 1))))
+                    .whenEvent(new PaymentCancelled("payment-1"))
+                    .expectNoCommands()
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .expectResult(customer -> customer.filter(c -> c.payments().isEmpty()).isPresent());
+        }
+
+        @Test
+        void memberIsNotUpdatedForWrongChildAssociation() {
+            testFixture.givenStateful(new Customer("customer-1", List.of(new Payment("payment-1", 1))))
+                    .whenEvent(new PaymentCaptured("payment-2"))
+                    .expectNoCommands()
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().size() == 1)
+                            .filter(c -> c.payments().getFirst().eventCount() == 1)
+                            .isPresent());
+        }
+
+        @Stateful
+        record Customer(@EntityId @Association String customerId,
+                        @Member @With List<Payment> payments) {
+        }
+
+        @Builder(toBuilder = true)
+        record Payment(@Association String paymentId,
+                       int eventCount) {
+            @HandleEvent
+            static Payment create(PaymentStarted event, Customer customer) {
+                Fluxzero.sendAndForgetCommand("created:%s:%s".formatted(customer.customerId(), event.paymentId()));
+                return new Payment(event.paymentId(), 1);
+            }
+
+            @HandleEvent
+            Payment handle(PaymentCaptured event, Customer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "updated:%s:%s:%s".formatted(customer.customerId(), paymentId(), eventCount + 1));
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+
+            @HandleEvent
+            Payment handle(PaymentCancelled event) {
+                return null;
+            }
+        }
+    }
+
+    @Nested
+    class AdvancedMemberTests {
+        @Test
+        void nestedMemberIsUpdatedViaGrandchildAssociationOnly() {
+            TestFixture.create(NestedCustomer.class)
+                    .givenStateful(new NestedCustomer("customer-1", List.of(
+                            new NestedPayment("payment-1", List.of(new PaymentAttempt("attempt-1", "psp-1", 0))))))
+                    .whenEvent(new PaymentAttemptSettled("psp-1"))
+                    .expectOnlyCommands("attempt:customer-1:payment-1:attempt-1:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(NestedCustomer.class).<NestedCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .map(c -> c.payments().getFirst().attempts().getFirst().eventCount())
+                            .filter(count -> count == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void mapAndSingleMembersCanHandleMessages() {
+            TestFixture.create(StructuredCustomer.class)
+                    .givenStateful(new StructuredCustomer(
+                            "customer-1", new StructuredPayment("primary", 0),
+                            Map.of("secondary", new StructuredPayment("secondary", 10))))
+                    .whenEvent(new StructuredPaymentCaptured("primary"))
+                    .expectOnlyCommands("structured:customer-1:primary:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenEvent(new StructuredPaymentCaptured("secondary"))
+                    .expectOnlyCommands("structured:customer-1:secondary:11")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(StructuredCustomer.class).<StructuredCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.primaryPayment().eventCount() == 1)
+                            .filter(c -> c.paymentsById().get("secondary").eventCount() == 11)
+                            .isPresent());
+        }
+
+        @Test
+        void memberUpdatesWorkWithCommitInBatch() {
+            TestFixture.createAsync(BatchedCustomer.class)
+                    .givenStateful(new BatchedCustomer(
+                            "customer-1", List.of(new BatchedPayment("payment-1", 0))))
+                    .whenApplying(fc -> {
+                        fc.eventGateway().publish(
+                                Guarantee.STORED,
+                                new BatchedPaymentCaptured("payment-1"),
+                                new BatchedPaymentCaptured("payment-1")).get();
+                        return null;
+                    })
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(BatchedCustomer.class).<BatchedCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .map(c -> c.payments().getFirst().eventCount())
+                            .filter(count -> count == 2)
+                            .isPresent());
+        }
+
+        @Test
+        void memberIsMatchedViaParameterAssociation() {
+            TestFixture.createAsync(ParameterAssociationCustomer.class, new ParameterAssociationCommandHandler())
+                    .givenStateful(new ParameterAssociationCustomer(
+                            "customer-1", List.of(new ParameterAssociationPayment("line-1", "payment-1", 0))))
+                    .whenCommand(new CapturePaymentCommand("payment-1"))
+                    .expectResult("payment-1")
+                    .expectOnlyCommands("parameter:customer-1:payment-1:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(ParameterAssociationCustomer.class)
+                            .<ParameterAssociationCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .map(c -> c.payments().getFirst().eventCount())
+                            .filter(count -> count == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void parentAndMemberMutationsAreComposedFromUpdatedRoot() {
+            TestFixture.create(CombinedCustomer.class)
+                    .givenStateful(new CombinedCustomer(
+                            "customer-1", 0, List.of(new CombinedPayment("line-1", "payment-1", 0, 0))))
+                    .whenEvent(new CombinedCustomerAndPaymentChanged("customer-1", "payment-1"))
+                    .expectOnlyCommands("parent:1", "child:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(CombinedCustomer.class).<CombinedCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.parentEventCount() == 1)
+                            .map(c -> c.payments().getFirst())
+                            .filter(p -> p.eventCount() == 1)
+                            .filter(p -> p.observedParentEventCount() == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void matchingAssociationCanUpdateMultipleChildrenAcrossParents() {
+            TestFixture.create(SharedPaymentCustomer.class)
+                    .givenStateful(new SharedPaymentCustomer("customer-1", List.of(
+                            new SharedPayment("line-1", "shared-payment", 0),
+                            new SharedPayment("line-2", "shared-payment", 10),
+                            new SharedPayment("line-ignored", "other-payment", 100))))
+                    .givenStateful(new SharedPaymentCustomer("customer-2", List.of(
+                            new SharedPayment("line-3", "shared-payment", 20))))
+                    .whenEvent(new SharedPaymentCaptured("shared-payment"))
+                    .expectOnlyCommands(
+                            "shared:customer-1:line-1:1",
+                            "shared:customer-1:line-2:11",
+                            "shared:customer-2:line-3:21")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(SharedPaymentCustomer.class)
+                            .fetchAll(SharedPaymentCustomer.class))
+                    .expectResult(customers -> customers.stream()
+                            .flatMap(c -> c.payments().stream())
+                            .filter(p -> p.paymentId().equals("shared-payment"))
+                            .map(SharedPayment::eventCount)
+                            .sorted()
+                            .toList()
+                            .equals(List.of(1, 11, 21)));
+        }
+
+        @Test
+        void staticMemberCreateWithoutParentAssociationDoesNotCreateMember() {
+            TestFixture.create(UnroutableCreateCustomer.class)
+                    .givenStateful(new UnroutableCreateCustomer("customer-1", List.of()))
+                    .whenEvent(new UnroutablePaymentStarted("payment-1"))
+                    .expectNoCommands()
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(UnroutableCreateCustomer.class)
+                            .<UnroutableCreateCustomer>fetchFirst())
+                    .expectResult(customer -> customer.filter(c -> c.payments().isEmpty()).isPresent());
+        }
+
+        @Test
+        void staticMemberCreateWithAlwaysAssociationFansOutToAllParents() {
+            TestFixture.create(FanoutCreateCustomer.class)
+                    .givenStateful(new FanoutCreateCustomer("customer-1", List.of()))
+                    .givenStateful(new FanoutCreateCustomer("customer-2", List.of()))
+                    .whenEvent(new FanoutPaymentStarted("payment-1"))
+                    .expectOnlyCommands("fanout:customer-1:payment-1", "fanout:customer-2:payment-1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(FanoutCreateCustomer.class)
+                            .fetchAll(FanoutCreateCustomer.class))
+                    .expectResult(customers -> customers.size() == 2
+                                               && customers.stream().allMatch(c -> c.payments().size() == 1)
+                                               && customers.stream().allMatch(c -> c.payments().getFirst()
+                                                       .paymentId().equals("payment-1")));
+        }
+
+        @Test
+        void memberCollectionReturnCanAddMultipleMembersToListAndMap() {
+            TestFixture.create(BulkCreateCustomer.class)
+                    .givenStateful(new BulkCreateCustomer("customer-1", List.of(), Map.of()))
+                    .whenEvent(new BulkListPaymentsStarted("customer-1", List.of("list-1", "list-2")))
+                    .expectNoErrors()
+                    .andThen()
+                    .whenEvent(new BulkMapPaymentsStarted("customer-1", List.of("map-1", "map-2")))
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(BulkCreateCustomer.class)
+                            .<BulkCreateCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.listPayments().stream().map(BulkListPayment::paymentId)
+                                    .sorted().toList().equals(List.of("list-1", "list-2")))
+                            .filter(c -> c.mapPayments().keySet().stream().sorted()
+                                    .toList().equals(List.of("map-1", "map-2")))
+                            .filter(c -> c.mapPayments().values().stream().map(BulkMapPayment::paymentId)
+                                    .sorted().toList().equals(List.of("map-1", "map-2")))
+                            .isPresent());
+        }
+
+        @Test
+        void memberCanReturnDifferentEntityIdForListAndMap() {
+            TestFixture.create(RenamedPaymentCustomer.class)
+                    .givenStateful(new RenamedPaymentCustomer(
+                            "customer-1",
+                            List.of(new RenamedListPayment("old-payment", 0)),
+                            Map.of("old-payment", new RenamedMapPayment("old-payment", 0))))
+                    .whenEvent(new PaymentRenamed("old-payment", "new-payment"))
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(RenamedPaymentCustomer.class)
+                            .<RenamedPaymentCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.listPayments().size() == 1)
+                            .filter(c -> c.listPayments().getFirst().paymentId().equals("new-payment"))
+                            .filter(c -> c.mapPayments().size() == 1)
+                            .filter(c -> !c.mapPayments().containsKey("old-payment"))
+                            .filter(c -> c.mapPayments().containsKey("new-payment"))
+                            .filter(c -> c.mapPayments().get("new-payment").paymentId().equals("new-payment"))
+                            .isPresent());
+        }
+
+        @Test
+        void memberCollectionReturnCanReplaceExistingMemberWithMultipleMembers() {
+            TestFixture.create(SplitPaymentCustomer.class)
+                    .givenStateful(new SplitPaymentCustomer(
+                            "customer-1", List.of(new SplitPayment("payment-1", 0))))
+                    .whenEvent(new PaymentSplit("payment-1", "payment-1-a", "payment-1-b"))
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(SplitPaymentCustomer.class)
+                            .<SplitPaymentCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().stream().map(SplitPayment::paymentId)
+                                    .sorted().toList().equals(List.of("payment-1-a", "payment-1-b")))
+                            .isPresent());
+        }
+
+        @Test
+        void memberAddedByParentCanHandleSameMessageFromUpdatedRoot() {
+            TestFixture.create(ParentCreatesChildCustomer.class)
+                    .givenStateful(new ParentCreatesChildCustomer("customer-1", List.of()))
+                    .whenEvent(new ParentCreatesMatchingPayment("customer-1", "payment-1"))
+                    .expectOnlyCommands("parent-created-child:customer-1:payment-1:1")
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(ParentCreatesChildCustomer.class)
+                            .<ParentCreatesChildCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().size() == 1)
+                            .filter(c -> c.payments().getFirst().handledCount() == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void recordMembersCanBeUpdatedWithoutExplicitWither() {
+            TestFixture.create(ConstructorBackedCustomer.class)
+                    .givenStateful(new ConstructorBackedCustomer(
+                            "customer-1", List.of(new ConstructorBackedPayment("payment-1", 0))))
+                    .whenEvent(new ConstructorBackedPaymentCaptured("payment-1"))
+                    .expectNoErrors()
+                    .andThen()
+                    .whenApplying(fc -> Fluxzero.search(ConstructorBackedCustomer.class)
+                            .<ConstructorBackedCustomer>fetchFirst())
+                    .expectResult(customer -> customer
+                            .filter(c -> c.payments().getFirst().captureCount() == 1)
+                            .isPresent());
+        }
+
+        @Test
+        void duplicateNonNullEntityIdsInStatefulMemberListDoNotBreakLoading() {
+            TestFixture.create(DuplicateStatefulMemberCustomer.class)
+                    .givenStateful(new DuplicateStatefulMemberCustomer(
+                            "customer-1",
+                            List.of(new DuplicateStatefulMemberPayment("payment-1"),
+                                    new DuplicateStatefulMemberPayment("payment-1"))))
+                    .whenEvent(new DuplicateStatefulMemberCaptured("payment-1"))
+                    .expectNoErrors();
+        }
+
+        @Stateful
+        record NestedCustomer(@EntityId @Association String customerId,
+                              @Member @With List<NestedPayment> payments) {
+        }
+
+        record NestedPayment(@EntityId String paymentId,
+                             @Member @With List<PaymentAttempt> attempts) {
+        }
+
+        @Builder(toBuilder = true)
+        record PaymentAttempt(@EntityId String attemptId,
+                              @Association String pspReference,
+                              int eventCount) {
+            @HandleEvent
+            PaymentAttempt handle(PaymentAttemptSettled event, NestedCustomer customer, NestedPayment payment) {
+                Fluxzero.sendAndForgetCommand(
+                        "attempt:%s:%s:%s:%s".formatted(
+                                customer.customerId(), payment.paymentId(), attemptId(), eventCount + 1));
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+
+        @Stateful
+        record StructuredCustomer(@EntityId @Association String customerId,
+                                  @Member @With StructuredPayment primaryPayment,
+                                  @Member @With Map<String, StructuredPayment> paymentsById) {
+        }
+
+        @Builder(toBuilder = true)
+        record StructuredPayment(@EntityId @Association String paymentId,
+                                 int eventCount) {
+            @HandleEvent
+            StructuredPayment handle(StructuredPaymentCaptured event, StructuredCustomer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "structured:%s:%s:%s".formatted(customer.customerId(), paymentId(), eventCount + 1));
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+
+        @Stateful(commitInBatch = true)
+        record BatchedCustomer(@EntityId @Association String customerId,
+                               @Member @With List<BatchedPayment> payments) {
+        }
+
+        @Builder(toBuilder = true)
+        record BatchedPayment(@EntityId @Association String paymentId,
+                              int eventCount) {
+            @HandleEvent
+            BatchedPayment handle(BatchedPaymentCaptured event) {
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+
+        @Stateful
+        record ParameterAssociationCustomer(@EntityId String customerId,
+                                            @Member @With List<ParameterAssociationPayment> payments) {
+        }
+
+        @Builder(toBuilder = true)
+        record ParameterAssociationPayment(@EntityId String lineId,
+                                           String paymentId,
+                                           int eventCount) {
+            @HandleResult
+            ParameterAssociationPayment retry(String result,
+                                              @Trigger @Association(value = "paymentId", path = "paymentId")
+                                              CapturePaymentCommand command,
+                                              ParameterAssociationCustomer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "parameter:%s:%s:%s".formatted(customer.customerId(), paymentId(), eventCount + 1));
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+
+        static class ParameterAssociationCommandHandler {
+            @HandleCommand
+            String handle(CapturePaymentCommand command) {
+                return command.paymentId();
+            }
+        }
+
+        @Stateful
+        @Builder(toBuilder = true)
+        record CombinedCustomer(@EntityId @Association String customerId,
+                                int parentEventCount,
+                                @Member @With List<CombinedPayment> payments) {
+            @HandleEvent
+            CombinedCustomer handle(CombinedCustomerAndPaymentChanged event) {
+                Fluxzero.sendAndForgetCommand("parent:%s".formatted(parentEventCount + 1));
+                return toBuilder().parentEventCount(parentEventCount + 1).build();
+            }
+        }
+
+        @Builder(toBuilder = true)
+        record CombinedPayment(@EntityId String lineId,
+                               @Association String paymentId,
+                               int eventCount,
+                               int observedParentEventCount) {
+            @HandleEvent
+            CombinedPayment handle(CombinedCustomerAndPaymentChanged event, CombinedCustomer customer) {
+                Fluxzero.sendAndForgetCommand("child:%s".formatted(customer.parentEventCount()));
+                return toBuilder()
+                        .eventCount(eventCount + 1)
+                        .observedParentEventCount(customer.parentEventCount())
+                        .build();
+            }
+        }
+
+        @Stateful
+        record SharedPaymentCustomer(@EntityId String customerId,
+                                     @Member @With List<SharedPayment> payments) {
+        }
+
+        @Builder(toBuilder = true)
+        record SharedPayment(@EntityId String lineId,
+                             @Association String paymentId,
+                             int eventCount) {
+            @HandleEvent
+            SharedPayment handle(SharedPaymentCaptured event, SharedPaymentCustomer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "shared:%s:%s:%s".formatted(customer.customerId(), lineId(), eventCount + 1));
+                return toBuilder().eventCount(eventCount + 1).build();
+            }
+        }
+
+        @Stateful
+        record UnroutableCreateCustomer(@EntityId String customerId,
+                                        @Member @With List<UnroutablePayment> payments) {
+        }
+
+        record UnroutablePayment(@EntityId @Association String paymentId) {
+            @HandleEvent
+            static UnroutablePayment create(UnroutablePaymentStarted event, UnroutableCreateCustomer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "unroutable:%s:%s".formatted(customer.customerId(), event.paymentId()));
+                return new UnroutablePayment(event.paymentId());
+            }
+        }
+
+        @Stateful
+        record FanoutCreateCustomer(@EntityId String customerId,
+                                    @Member @With List<FanoutPayment> payments) {
+        }
+
+        record FanoutPayment(@EntityId String paymentId) {
+            @HandleEvent
+            @Association(always = true)
+            static FanoutPayment create(FanoutPaymentStarted event, FanoutCreateCustomer customer) {
+                Fluxzero.sendAndForgetCommand("fanout:%s:%s".formatted(customer.customerId(), event.paymentId()));
+                return new FanoutPayment(event.paymentId());
+            }
+        }
+
+        @Stateful
+        record BulkCreateCustomer(@EntityId @Association String customerId,
+                                  @Member @With List<BulkListPayment> listPayments,
+                                  @Member @With Map<String, BulkMapPayment> mapPayments) {
+        }
+
+        record BulkListPayment(@EntityId String paymentId) {
+            @HandleEvent
+            static List<BulkListPayment> create(BulkListPaymentsStarted event) {
+                return event.paymentIds().stream().map(BulkListPayment::new).toList();
+            }
+        }
+
+        record BulkMapPayment(@EntityId String paymentId) {
+            @HandleEvent
+            static List<BulkMapPayment> create(BulkMapPaymentsStarted event) {
+                return event.paymentIds().stream().map(BulkMapPayment::new).toList();
+            }
+        }
+
+        @Stateful
+        record RenamedPaymentCustomer(@EntityId String customerId,
+                                      @Member @With List<RenamedListPayment> listPayments,
+                                      @Member @With Map<String, RenamedMapPayment> mapPayments) {
+        }
+
+        record RenamedListPayment(@EntityId @Association String paymentId,
+                                  int version) {
+            @HandleEvent
+            RenamedListPayment rename(PaymentRenamed event) {
+                return new RenamedListPayment(event.newPaymentId(), version + 1);
+            }
+        }
+
+        record RenamedMapPayment(@EntityId @Association String paymentId,
+                                 int version) {
+            @HandleEvent
+            RenamedMapPayment rename(PaymentRenamed event) {
+                return new RenamedMapPayment(event.newPaymentId(), version + 1);
+            }
+        }
+
+        @Stateful
+        record SplitPaymentCustomer(@EntityId String customerId,
+                                    @Member @With List<SplitPayment> payments) {
+        }
+
+        record SplitPayment(@EntityId @Association String paymentId,
+                            int version) {
+            @HandleEvent
+            List<SplitPayment> split(PaymentSplit event) {
+                return List.of(
+                        new SplitPayment(event.firstPaymentId(), version + 1),
+                        new SplitPayment(event.secondPaymentId(), version + 1));
+            }
+        }
+
+        @Stateful
+        @Builder(toBuilder = true)
+        record ParentCreatesChildCustomer(@EntityId @Association String customerId,
+                                          @Member @With List<ParentCreatedChildPayment> payments) {
+            @HandleEvent
+            ParentCreatesChildCustomer handle(ParentCreatesMatchingPayment event) {
+                return toBuilder()
+                        .payments(List.of(new ParentCreatedChildPayment(event.paymentId(), 0)))
+                        .build();
+            }
+        }
+
+        @Builder(toBuilder = true)
+        record ParentCreatedChildPayment(@EntityId @Association String paymentId,
+                                         int handledCount) {
+            @HandleEvent
+            ParentCreatedChildPayment handle(ParentCreatesMatchingPayment event,
+                                             ParentCreatesChildCustomer customer) {
+                Fluxzero.sendAndForgetCommand(
+                        "parent-created-child:%s:%s:%s".formatted(
+                                customer.customerId(), paymentId(), handledCount + 1));
+                return toBuilder().handledCount(handledCount + 1).build();
+            }
+        }
+
+        @Stateful
+        record ConstructorBackedCustomer(@EntityId String customerId,
+                                         @Member List<ConstructorBackedPayment> payments) {
+        }
+
+        record ConstructorBackedPayment(@EntityId @Association String paymentId,
+                                        int captureCount) {
+            @HandleEvent
+            ConstructorBackedPayment capture(ConstructorBackedPaymentCaptured event) {
+                return new ConstructorBackedPayment(paymentId, captureCount + 1);
+            }
+        }
+
+        @Stateful
+        record DuplicateStatefulMemberCustomer(@EntityId String customerId,
+                                               @Member List<DuplicateStatefulMemberPayment> payments) {
+        }
+
+        record DuplicateStatefulMemberPayment(@EntityId @Association String paymentId) {
+            @HandleEvent
+            DuplicateStatefulMemberPayment capture(DuplicateStatefulMemberCaptured event) {
+                return this;
+            }
+        }
+
+        record PaymentAttemptSettled(String pspReference) {
+        }
+
+        record StructuredPaymentCaptured(String paymentId) {
+        }
+
+        record BatchedPaymentCaptured(String paymentId) {
+        }
+
+        record CapturePaymentCommand(String paymentId) {
+        }
+
+        record CombinedCustomerAndPaymentChanged(String customerId, String paymentId) {
+        }
+
+        record SharedPaymentCaptured(String paymentId) {
+        }
+
+        record UnroutablePaymentStarted(String paymentId) {
+        }
+
+        record FanoutPaymentStarted(String paymentId) {
+        }
+
+        record BulkListPaymentsStarted(String customerId, List<String> paymentIds) {
+        }
+
+        record BulkMapPaymentsStarted(String customerId, List<String> paymentIds) {
+        }
+
+        record PaymentRenamed(String paymentId, String newPaymentId) {
+        }
+
+        record PaymentSplit(String paymentId, String firstPaymentId, String secondPaymentId) {
+        }
+
+        record ParentCreatesMatchingPayment(String customerId, String paymentId) {
+        }
+
+        record ConstructorBackedPaymentCaptured(String paymentId) {
+        }
+
+        record DuplicateStatefulMemberCaptured(String paymentId) {
+        }
+    }
+
+    @Nested
+    class StorageActionTests {
+        @Test
+        void existingStatefulWithoutMembersStillStoresOnce() {
+            CountingRepository repository =
+                    new CountingRepository().add("customer-1", new PlainCountingCustomer("customer-1", 0));
+
+            statefulHandler(PlainCountingCustomer.class, repository)
+                    .getInvoker(message(new PlainCountingCustomerChanged("customer-1")))
+                    .orElseThrow()
+                    .invoke();
+
+            assertEquals(1, repository.putCount);
+            assertEquals(0, repository.deleteCount);
+            assertEquals(new PlainCountingCustomer("customer-1", 1), repository.get("customer-1"));
+        }
+
+        @Test
+        void multipleListMemberMutationsInOneRootAreStoredOnce() {
+            CountingRepository repository = new CountingRepository()
+                    .add("customer-1", new ListCountingCustomer("customer-1", List.of(
+                            new ListCountingPayment("line-1", "shared-payment", 0),
+                            new ListCountingPayment("line-2", "shared-payment", 10))));
+
+            statefulHandler(ListCountingCustomer.class, repository)
+                    .getInvoker(message(new CountingPaymentCaptured("shared-payment")))
+                    .orElseThrow()
+                    .invoke();
+
+            ListCountingCustomer customer = repository.get("customer-1", ListCountingCustomer.class);
+            assertEquals(1, repository.putCount);
+            assertEquals(0, repository.deleteCount);
+            assertEquals(List.of(1, 11), customer.payments().stream().map(ListCountingPayment::captureCount).toList());
+        }
+
+        @Test
+        void multipleMapMemberMutationsInOneRootAreStoredOnce() {
+            CountingRepository repository = new CountingRepository()
+                    .add("customer-1", new MapCountingCustomer("customer-1", new LinkedHashMap<>(Map.of(
+                            "line-1", new MapCountingPayment("line-1", "shared-payment", 0),
+                            "line-2", new MapCountingPayment("line-2", "shared-payment", 10)))));
+
+            statefulHandler(MapCountingCustomer.class, repository)
+                    .getInvoker(message(new CountingPaymentCaptured("shared-payment")))
+                    .orElseThrow()
+                    .invoke();
+
+            MapCountingCustomer customer = repository.get("customer-1", MapCountingCustomer.class);
+            assertEquals(1, repository.putCount);
+            assertEquals(0, repository.deleteCount);
+            assertEquals(List.of(1, 11), customer.payments().values().stream()
+                    .map(MapCountingPayment::captureCount).sorted().toList());
+        }
+
+        @Test
+        void matchingMembersAcrossParentsStoreOncePerRoot() {
+            CountingRepository repository = new CountingRepository()
+                    .add("customer-1", new ListCountingCustomer("customer-1", List.of(
+                            new ListCountingPayment("line-1", "shared-payment", 0),
+                            new ListCountingPayment("line-2", "shared-payment", 10))))
+                    .add("customer-2", new ListCountingCustomer("customer-2", List.of(
+                            new ListCountingPayment("line-3", "shared-payment", 20))));
+
+            statefulHandler(ListCountingCustomer.class, repository)
+                    .getInvoker(message(new CountingPaymentCaptured("shared-payment")))
+                    .orElseThrow()
+                    .invoke();
+
+            assertEquals(2, repository.putCount);
+            assertEquals(0, repository.deleteCount);
+            assertEquals(List.of(1, 11), repository.get("customer-1", ListCountingCustomer.class)
+                    .payments().stream().map(ListCountingPayment::captureCount).sorted().toList());
+            assertEquals(List.of(21), repository.get("customer-2", ListCountingCustomer.class)
+                    .payments().stream().map(ListCountingPayment::captureCount).toList());
+        }
+
+        private StatefulHandler statefulHandler(Class<?> targetClass, HandlerRepository repository) {
+            List<ParameterResolver<? super DeserializingMessage>> resolvers =
+                    List.of(new PayloadParameterResolver());
+            Function<Executable, ? extends java.lang.annotation.Annotation> annotationProvider =
+                    e -> ReflectionUtils.getMethodAnnotation(e, HandleEvent.class).orElse(null);
+            BiFunction<Class<?>, List<ParameterResolver<? super DeserializingMessage>>,
+                    HandlerMatcher<Object, DeserializingMessage>> matcherFactory =
+                    (type, parameterResolvers) -> HandlerInspector.inspect(
+                            type,
+                            parameterResolvers,
+                            HandlerConfiguration.<DeserializingMessage>builder()
+                                    .methodAnnotation(HandleEvent.class)
+                                    .messageFilter(new PayloadFilter())
+                                    .build());
+            return new StatefulHandler(
+                    targetClass,
+                    matcherFactory.apply(targetClass, resolvers),
+                    repository,
+                    resolvers,
+                    annotationProvider,
+                    matcherFactory,
+                    new JacksonSerializer());
+        }
+
+        private DeserializingMessage message(Object payload) {
+            return new DeserializingMessage(new Message(payload), MessageType.EVENT, new JacksonSerializer());
+        }
+
+        @Stateful
+        record PlainCountingCustomer(@EntityId @Association String customerId,
+                                     int handledCount) {
+            @HandleEvent
+            PlainCountingCustomer handle(PlainCountingCustomerChanged event) {
+                return new PlainCountingCustomer(customerId, handledCount + 1);
+            }
+        }
+
+        @Stateful
+        record ListCountingCustomer(@EntityId String customerId,
+                                    @Member List<ListCountingPayment> payments) {
+        }
+
+        record ListCountingPayment(@EntityId String lineId,
+                                   @Association String paymentId,
+                                   int captureCount) {
+            @HandleEvent
+            ListCountingPayment capture(CountingPaymentCaptured event) {
+                return new ListCountingPayment(lineId, paymentId, captureCount + 1);
+            }
+        }
+
+        @Stateful
+        record MapCountingCustomer(@EntityId String customerId,
+                                   @Member Map<String, MapCountingPayment> payments) {
+        }
+
+        record MapCountingPayment(@EntityId String lineId,
+                                  @Association String paymentId,
+                                  int captureCount) {
+            @HandleEvent
+            MapCountingPayment capture(CountingPaymentCaptured event) {
+                return new MapCountingPayment(lineId, paymentId, captureCount + 1);
+            }
+        }
+
+        record PlainCountingCustomerChanged(String customerId) {
+        }
+
+        record CountingPaymentCaptured(String paymentId) {
+        }
+
+        class CountingRepository implements HandlerRepository {
+            private final Map<String, Object> values = new LinkedHashMap<>();
+            private int putCount;
+            private int deleteCount;
+
+            CountingRepository add(String id, Object value) {
+                values.put(id, value);
+                return this;
+            }
+
+            @SuppressWarnings("unchecked")
+            <T> T get(String id, Class<T> type) {
+                return (T) values.get(id);
+            }
+
+            Object get(String id) {
+                return values.get(id);
+            }
+
+            @Override
+            public Collection<? extends Entry<?>> findByAssociation(Map<Object, String> associations) {
+                return associations.isEmpty() ? List.of() : entries();
+            }
+
+            @Override
+            public Collection<? extends Entry<?>> getAll() {
+                return entries();
+            }
+
+            @Override
+            public CompletableFuture<?> put(Object id, Object value) {
+                putCount++;
+                values.put(id.toString(), value);
+                return CompletableFuture.completedFuture(value);
+            }
+
+            @Override
+            public CompletableFuture<?> delete(Object id) {
+                deleteCount++;
+                values.remove(id.toString());
+                return CompletableFuture.completedFuture(id);
+            }
+
+            private Collection<? extends Entry<?>> entries() {
+                return values.entrySet().stream()
+                        .map(entry -> new CountingEntry(entry.getKey(), entry.getValue()))
+                        .toList();
+            }
+        }
+
+        record CountingEntry(String id, Object value) implements Entry<Object> {
+            @Override
+            public String getId() {
+                return id;
+            }
+
+            @Override
+            public Object getValue() {
+                return value;
+            }
+        }
+    }
+
     record SomeEvent(String someId) {
     }
 
@@ -737,5 +1615,14 @@ public class StatefulHandlerTest {
     }
 
     record EventWithMapPropertyList(Map<String, List<String>> someIds) {
+    }
+
+    record PaymentStarted(String customerId, String paymentId) {
+    }
+
+    record PaymentCaptured(String paymentId) {
+    }
+
+    record PaymentCancelled(String paymentId) {
     }
 }

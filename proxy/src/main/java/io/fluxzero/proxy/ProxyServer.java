@@ -20,22 +20,36 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
-import io.undertow.Undertow;
-import io.undertow.UndertowOptions;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.http.HttpHeader;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.http2.server.HTTP2CServerConnectionFactory;
+import org.eclipse.jetty.server.Handler;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Response;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.util.VirtualThreads;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
+import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 
-import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
-import static io.undertow.Handlers.path;
-import static io.undertow.UndertowOptions.ENABLE_HTTP2;
-import static io.undertow.util.Headers.CONTENT_TYPE;
 
 @Slf4j
 public class ProxyServer implements Registration {
@@ -49,6 +63,46 @@ public class ProxyServer implements Registration {
      * Default maximum multipart request body size: 1 GiB
      */
     public static final long DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE = 1L << 30;
+
+    /**
+     * Default maximum request and response header size: 1 MiB
+     */
+    public static final int DEFAULT_MAX_HEADER_SIZE = 1 << 20;
+
+    /**
+     * Default connector idle timeout: 60 seconds
+     */
+    public static final long DEFAULT_IDLE_TIMEOUT_MILLIS = 60_000L;
+
+    /**
+     * Default Jetty maximum platform thread count.
+     */
+    public static final int DEFAULT_MAX_THREADS = 200;
+
+    /**
+     * Default Jetty minimum platform thread count.
+     */
+    public static final int DEFAULT_MIN_THREADS = 8;
+
+    /**
+     * Default maximum queued outgoing websocket sends per session.
+     */
+    public static final int DEFAULT_MAX_PENDING_WEBSOCKET_SENDS = 1024;
+
+    static final String MAX_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE";
+    static final String MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE";
+    static final String MAX_HEADER_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_HEADER_SIZE";
+    static final String IDLE_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_IDLE_TIMEOUT_MILLIS";
+    static final String MAX_THREADS_PROPERTY = "FLUXZERO_PROXY_MAX_THREADS";
+    static final String MIN_THREADS_PROPERTY = "FLUXZERO_PROXY_MIN_THREADS";
+    static final String USE_VIRTUAL_THREADS_PROPERTY = "FLUXZERO_PROXY_USE_VIRTUAL_THREADS";
+    static final String MAX_PENDING_WEBSOCKET_SENDS_PROPERTY = "FLUXZERO_PROXY_MAX_PENDING_WEBSOCKET_SENDS";
+
+    private static final long UNLIMITED_WEBSOCKET_SIZE = 0L;
+    private static final long IMMEDIATE_STOP_TIMEOUT_MILLIS = 0L;
+    private static final long GRACEFUL_STOP_TIMEOUT_MILLIS = 5000L;
+    private static final byte[] HEALTH_PAYLOAD = "Healthy".getBytes(StandardCharsets.UTF_8);
+    private static final String HEALTH_PAYLOAD_LENGTH = String.valueOf(HEALTH_PAYLOAD.length);
 
     /**
      * Standalone process entry point.
@@ -65,10 +119,11 @@ public class ProxyServer implements Registration {
                 .makeApplicationInstance(true)
                 .build(client);
 
-        ProxyServer proxyServer = startHttpProxyOnly(getConfiguredPort(), new ProxyRequestHandler(client));
+        ProxyServer proxyServer = startHttpProxyOnly(
+                getConfiguredPort(), new ProxyRequestHandler(client), Registration.noOp(), true);
         Registration registration = proxyServer
                 .merge(ForwardProxyConsumer.start(client));
-        log.info("Fluxzero proxy server running on port {}", proxyServer.getPort());
+        logStarted(proxyServer);
 
         fluxzero.beforeShutdown(() -> {
             log.info("Stopping Fluxzero proxy server");
@@ -95,13 +150,15 @@ public class ProxyServer implements Registration {
         try {
             forwardProxyConsumer = ForwardProxyConsumer.start(client);
             Registration startedForwardProxyConsumer = forwardProxyConsumer;
-            return startHttpProxyOnly(getConfiguredPort(), new ProxyRequestHandler(client), () -> {
+            ProxyServer proxyServer = startHttpProxyOnly(getConfiguredPort(), new ProxyRequestHandler(client), () -> {
                 try {
                     startedForwardProxyConsumer.cancel();
                 } finally {
                     client.shutDown();
                 }
-            });
+            }, true);
+            logStarted(proxyServer);
+            return proxyServer;
         } catch (RuntimeException | Error e) {
             try {
                 forwardProxyConsumer.cancel();
@@ -116,28 +173,117 @@ public class ProxyServer implements Registration {
      * Starts only the HTTP proxy surface for tests and embedded callers that provide their own forwarding lifecycle.
      */
     static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler) {
-        return startHttpProxyOnly(port, proxyHandler, Registration.noOp());
+        return startHttpProxyOnly(port, proxyHandler, Registration.noOp(), false);
     }
 
+    private static void logStarted(ProxyServer proxyServer) {
+        ProxyVersion.version().ifPresentOrElse(
+                version -> log.info("Fluxzero proxy server (version {}) running on port {}",
+                                    version, proxyServer.getPort()),
+                () -> log.info("Fluxzero proxy server running on port {}", proxyServer.getPort()));
+    }
+
+    @SneakyThrows
     private static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler,
-                                                 Registration shutdownRegistration) {
-        Undertow server = Undertow.builder()
-                .addHttpListener(port, "0.0.0.0")
-                .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, getLongProperty(
-                        "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE", DEFAULT_MAX_REQUEST_BODY_SIZE))
-                .setServerOption(UndertowOptions.MULTIPART_MAX_ENTITY_SIZE, getLongProperty(
-                        "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE", DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE))
-                .setServerOption(ENABLE_HTTP2, true)
-                .setHandler(path()
-                        .addPrefixPath("/", proxyHandler)
-                        .addExactPath(getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health"), exchange -> {
-                            exchange.getResponseHeaders().put(CONTENT_TYPE, "text/plain");
-                            exchange.getResponseSender().send("Healthy");
-                        }))
-                .build();
+                                                 Registration shutdownRegistration, boolean gracefulShutdown) {
+        Server server = new Server(createThreadPool());
+        server.setStopAtShutdown(false);
+        // Standalone proxy shutdown remains graceful; tests use the HTTP-only helper with immediate Jetty stop.
+        server.setStopTimeout(gracefulShutdown ? GRACEFUL_STOP_TIMEOUT_MILLIS : IMMEDIATE_STOP_TIMEOUT_MILLIS);
+
+        HttpConfiguration httpConfiguration = new HttpConfiguration();
+        int maxHeaderSize = getIntegerProperty(MAX_HEADER_SIZE_PROPERTY, DEFAULT_MAX_HEADER_SIZE);
+        httpConfiguration.setRequestHeaderSize(maxHeaderSize);
+        httpConfiguration.setResponseHeaderSize(maxHeaderSize);
+        ServerConnector connector = new ServerConnector(
+                server,
+                new HttpConnectionFactory(httpConfiguration),
+                new HTTP2CServerConnectionFactory(httpConfiguration));
+        connector.setHost("0.0.0.0");
+        connector.setPort(port);
+        connector.setIdleTimeout(getLongProperty(IDLE_TIMEOUT_MILLIS_PROPERTY, DEFAULT_IDLE_TIMEOUT_MILLIS));
+        server.addConnector(connector);
+
+        proxyHandler.setMaxRequestBodySize(getLongProperty(
+                MAX_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_REQUEST_BODY_SIZE));
+        proxyHandler.setMaxMultipartRequestBodySize(getLongProperty(
+                MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE));
+        proxyHandler.setMaxPendingWebsocketSends(getConfiguredMaxPendingWebsocketSends());
+
+        server.setHandler(createHandler(server, proxyHandler, getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health")));
         server.start();
-        port = server.getListenerInfo().getFirst().getAddress() instanceof InetSocketAddress a ? a.getPort() : port;
-        return new ProxyServer(proxyHandler, server, port, shutdownRegistration);
+        return new ProxyServer(proxyHandler, server, connector.getLocalPort(), shutdownRegistration, gracefulShutdown);
+    }
+
+    private static QueuedThreadPool createThreadPool() {
+        int maxThreads = getIntegerProperty(MAX_THREADS_PROPERTY, DEFAULT_MAX_THREADS);
+        int minThreads = getIntegerProperty(MIN_THREADS_PROPERTY, DEFAULT_MIN_THREADS);
+        if (maxThreads < 1) {
+            throw new IllegalArgumentException(MAX_THREADS_PROPERTY + " must be >= 1");
+        }
+        if (minThreads < 1) {
+            throw new IllegalArgumentException(MIN_THREADS_PROPERTY + " must be >= 1");
+        }
+        if (minThreads > maxThreads) {
+            throw new IllegalArgumentException(MIN_THREADS_PROPERTY + " must be <= " + MAX_THREADS_PROPERTY);
+        }
+
+        QueuedThreadPool threadPool = new QueuedThreadPool(maxThreads, minThreads);
+        threadPool.setName("fluxzero-proxy");
+        if (getBooleanProperty(USE_VIRTUAL_THREADS_PROPERTY, false)) {
+            if (supportsVirtualThreadWorkers()) {
+                ((VirtualThreads.Configurable) threadPool).setUseVirtualThreads(true);
+            } else {
+                log.warn("{} is enabled but virtual-thread workers are only supported on Java 25+",
+                         USE_VIRTUAL_THREADS_PROPERTY);
+            }
+        }
+        return threadPool;
+    }
+
+    private static int getConfiguredMaxPendingWebsocketSends() {
+        int maxPendingSends = getIntegerProperty(MAX_PENDING_WEBSOCKET_SENDS_PROPERTY,
+                                                 DEFAULT_MAX_PENDING_WEBSOCKET_SENDS);
+        if (maxPendingSends < 1) {
+            throw new IllegalArgumentException(MAX_PENDING_WEBSOCKET_SENDS_PROPERTY + " must be >= 1");
+        }
+        return maxPendingSends;
+    }
+
+    private static Handler createHandler(Server server, ProxyRequestHandler proxyHandler, String healthEndpoint) {
+        ContextHandler context = new ContextHandler("/");
+        WebSocketUpgradeHandler webSocketHandler = WebSocketUpgradeHandler.from(server, context, container -> {
+            configureContainer(container);
+            proxyHandler.setWebsocketContainer(container);
+        });
+        webSocketHandler.setHandler(new Handler.Abstract() {
+            @Override
+            public boolean handle(Request request, Response response,
+                                  org.eclipse.jetty.util.Callback callback) throws Exception {
+                return proxyHandler.handle(request, response, callback);
+            }
+        });
+        context.setHandler(new Handler.Wrapper(webSocketHandler) {
+            @Override
+            public boolean handle(Request request, Response response,
+                                  org.eclipse.jetty.util.Callback callback) throws Exception {
+                if (healthEndpoint.equals(Request.getPathInContext(request))) {
+                    response.setStatus(HttpStatus.OK_200);
+                    response.getHeaders().put(HttpHeader.CONTENT_TYPE, "text/plain");
+                    response.getHeaders().put(HttpHeader.CONTENT_LENGTH, HEALTH_PAYLOAD_LENGTH);
+                    response.write(true, ByteBuffer.wrap(HEALTH_PAYLOAD), callback);
+                    return true;
+                }
+                return super.handle(request, response, callback);
+            }
+        });
+        return context;
+    }
+
+    private static void configureContainer(ServerWebSocketContainer container) {
+        container.setMaxBinaryMessageSize(UNLIMITED_WEBSOCKET_SIZE);
+        container.setMaxTextMessageSize(UNLIMITED_WEBSOCKET_SIZE);
+        container.setMaxFrameSize(UNLIMITED_WEBSOCKET_SIZE);
     }
 
     private static Client createConfiguredClient() {
@@ -158,26 +304,51 @@ public class ProxyServer implements Registration {
     }
 
     private final ProxyRequestHandler proxyHandler;
-    private final Undertow server;
+    private final Server server;
     @Getter
     private final int port;
     private final Registration shutdownRegistration;
+    private final boolean gracefulShutdown;
     private final AtomicBoolean cancelled = new AtomicBoolean();
 
-    protected ProxyServer(ProxyRequestHandler proxyHandler, Undertow server, int port,
-                          Registration shutdownRegistration) {
+    protected ProxyServer(ProxyRequestHandler proxyHandler, Server server, int port,
+                          Registration shutdownRegistration, boolean gracefulShutdown) {
         this.proxyHandler = proxyHandler;
         this.server = server;
         this.port = port;
         this.shutdownRegistration = shutdownRegistration;
+        this.gracefulShutdown = gracefulShutdown;
+    }
+
+    long getIdleTimeoutMillis() {
+        return server.getConnectors().length == 0 ? -1L : connectorIdleTimeout();
+    }
+
+    int getMaxThreads() {
+        return ((QueuedThreadPool) server.getThreadPool()).getMaxThreads();
+    }
+
+    int getMinThreads() {
+        return ((QueuedThreadPool) server.getThreadPool()).getMinThreads();
+    }
+
+    boolean isUsingVirtualThreads() {
+        return server.getThreadPool() instanceof VirtualThreads.Configurable configurable
+               && configurable.isUseVirtualThreads();
+    }
+
+    private long connectorIdleTimeout() {
+        return ((ServerConnector) server.getConnectors()[0]).getIdleTimeout();
     }
 
     @Override
     public void cancel() {
         if (cancelled.compareAndSet(false, true)) {
             try {
-                proxyHandler.close(false);
+                proxyHandler.close(gracefulShutdown);
                 server.stop();
+            } catch (Exception e) {
+                log.warn("Failed to stop Fluxzero proxy server", e);
             } finally {
                 shutdownRegistration.cancel();
             }

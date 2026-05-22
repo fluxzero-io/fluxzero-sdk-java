@@ -18,14 +18,19 @@ package io.fluxzero.sdk.givenwhenthen;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.scheduling.CancelPeriodic;
 import io.fluxzero.sdk.scheduling.Periodic;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.test.GivenWhenThenAssertionError;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.Stateful;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.junit.jupiter.api.Nested;
@@ -49,6 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class GivenWhenThenSchedulingTest {
 
     private static final String atStartOfDay = "0 0 * * *";
+    private static final String LEGACY_DEFAULTS_VERSION = "2026.05.20";
+    private static final String NEW_DEFAULTS_VERSION = "2026.05.21";
     private final TestFixture subject = TestFixture.create(new CommandHandler(), new ScheduleHandler());
 
     @Test
@@ -305,12 +312,119 @@ class GivenWhenThenSchedulingTest {
     }
 
     @Nested
+    class PeriodicInitialDelayDefaults {
+        private final Instant start = Instant.parse("2024-01-01T12:11:00Z");
+
+        @Test
+        void legacyDefaultsImplicitFixedDelayStartsImmediately() {
+            fixtureWithDefaults(LEGACY_DEFAULTS_VERSION)
+                    .whenExecuting(fc -> fc.registerHandlers(new ImplicitFixedDelayHandler("legacy delay")))
+                    .expectOnlyEvents("legacy delay");
+        }
+
+        @Test
+        void newDefaultsImplicitFixedDelayStartsAfterDelay() {
+            Instant deadline = start.plusSeconds(60);
+
+            fixtureWithDefaults(NEW_DEFAULTS_VERSION)
+                    .whenExecuting(fc -> fc.registerHandlers(new ImplicitFixedDelayHandler("new delay")))
+                    .expectNoEvents()
+                    .expectSchedule(s -> s.getPayload() instanceof ImplicitFixedDelaySchedule
+                                         && deadline.equals(s.getDeadline()))
+                    .andThen()
+                    .whenTimeAdvancesTo(deadline)
+                    .expectOnlyEvents("new delay");
+        }
+
+        @Test
+        void featureFlagEnablesImplicitFixedDelayDefault() {
+            Instant deadline = start.plusSeconds(60);
+
+            TestFixture.create().atFixedTime(start)
+                    .withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
+                    .whenExecuting(fc -> fc.registerHandlers(new ImplicitFixedDelayHandler("flag delay")))
+                    .expectNoEvents()
+                    .expectSchedule(s -> s.getPayload() instanceof ImplicitFixedDelaySchedule
+                                         && deadline.equals(s.getDeadline()));
+        }
+
+        @Test
+        void newDefaultsImplicitCronStartsAtNextCronFireTime() {
+            Instant deadline = Instant.parse("2024-01-01T12:15:00Z");
+
+            fixtureWithDefaults(NEW_DEFAULTS_VERSION)
+                    .whenExecuting(fc -> fc.registerHandlers(new ImplicitCronHandler()))
+                    .expectNoEvents()
+                    .expectSchedule(s -> s.getPayload() instanceof ImplicitCronSchedule
+                                         && deadline.equals(s.getDeadline()))
+                    .andThen()
+                    .whenTimeAdvancesTo(deadline)
+                    .expectOnlyEvents(deadline);
+        }
+
+        @Test
+        void explicitInitialDelayZeroStartsImmediatelyInBothDefaultsVersions() {
+            assertInitialDelayZeroStartsImmediately(LEGACY_DEFAULTS_VERSION, "legacy zero");
+            assertInitialDelayZeroStartsImmediately(NEW_DEFAULTS_VERSION, "new zero");
+        }
+
+        @Test
+        void explicitPositiveInitialDelayWorksInBothDefaultsVersions() {
+            assertPositiveInitialDelay(LEGACY_DEFAULTS_VERSION, "legacy positive");
+            assertPositiveInitialDelay(NEW_DEFAULTS_VERSION, "new positive");
+        }
+
+        @Test
+        void disabledCronDoesNotAutoStartInBothDefaultsVersions() {
+            assertDisabledCronDoesNotAutoStart(LEGACY_DEFAULTS_VERSION);
+            assertDisabledCronDoesNotAutoStart(NEW_DEFAULTS_VERSION);
+        }
+
+        private TestFixture fixtureWithDefaults(String defaultsVersion) {
+            TestFixture fixture = TestFixture.create().atFixedTime(start);
+            if (defaultsVersion != null) {
+                fixture.withProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, defaultsVersion);
+            }
+            return fixture;
+        }
+
+        private void assertInitialDelayZeroStartsImmediately(String defaultsVersion, String event) {
+            fixtureWithDefaults(defaultsVersion)
+                    .whenExecuting(fc -> fc.registerHandlers(new InitialDelayZeroHandler(event)))
+                    .expectOnlyEvents(event);
+        }
+
+        private void assertPositiveInitialDelay(String defaultsVersion, String event) {
+            Instant deadline = start.plusSeconds(5);
+
+            fixtureWithDefaults(defaultsVersion)
+                    .whenExecuting(fc -> fc.registerHandlers(new PositiveInitialDelayHandler(event)))
+                    .expectNoEvents()
+                    .expectSchedule(s -> s.getPayload() instanceof PositiveInitialDelaySchedule
+                                         && deadline.equals(s.getDeadline()))
+                    .andThen()
+                    .whenTimeAdvancesTo(deadline)
+                    .expectOnlyEvents(event);
+        }
+
+        private void assertDisabledCronDoesNotAutoStart(String defaultsVersion) {
+            fixtureWithDefaults(defaultsVersion)
+                    .whenExecuting(fc -> fc.registerHandlers(
+                            new DisabledCronHandler(), new MissingPropertyDisabledCronHandler()))
+                    .expectNoEvents()
+                    .expectNoNewSchedules()
+                    .expectNoSchedules();
+        }
+    }
+
+    @Nested
     class SchedulingErrorTests {
         @Test
         void stopAfterError() {
             TestFixture.create(new Object() {
                         @HandleSchedule
-                        @Periodic(continueOnError = false, delay = 60, timeUnit = TimeUnit.MINUTES)
+                        @Periodic(continueOnError = false, delay = 60, initialDelay = 0,
+                                timeUnit = TimeUnit.MINUTES)
                         void handleSchedule(Object schedule) {
                             throw new MockException();
                         }
@@ -326,7 +440,7 @@ class GivenWhenThenSchedulingTest {
                         private int count = 0;
 
                         @HandleSchedule
-                        @Periodic(delay = 60, timeUnit = TimeUnit.MINUTES)
+                        @Periodic(delay = 60, initialDelay = 0, timeUnit = TimeUnit.MINUTES)
                         void handleSchedule(Object schedule) {
                             if (++count == 1) {
                                 throw new MockException();
@@ -345,7 +459,7 @@ class GivenWhenThenSchedulingTest {
                         private int count = 0;
 
                         @HandleSchedule
-                        @Periodic(delayAfterError = 10, delay = 60, timeUnit = TimeUnit.MINUTES)
+                        @Periodic(delayAfterError = 10, delay = 60, initialDelay = 0, timeUnit = TimeUnit.MINUTES)
                         void handleSchedule(Object schedule) {
                             if (++count == 1) {
                                 throw new MockException();
@@ -378,7 +492,31 @@ class GivenWhenThenSchedulingTest {
         YieldsSchedule command = new YieldsSchedule();
         subject.whenCommand(command)
                 .expectOnlyNewSchedules(command.getSchedule())
-                .expectSchedules(command.getSchedule(), PeriodicSchedule.class);
+                .expectSchedules(command.getSchedule());
+    }
+
+    @Test
+    void testExpectScheduledCommand() {
+        Instant deadline = subject.getCurrentTime().plusSeconds(10);
+        Message command = new Message("command").addMetadata("a", "b");
+        subject.whenCommand(new YieldsScheduledCommand(command, "testId", deadline))
+                .expectOnlyScheduledCommands(command)
+                .expectScheduledCommand(new Schedule(command.getPayload(), command.getMetadata(), "testId", deadline));
+    }
+
+    @Test
+    void testExpectScheduledCommand_async() {
+        Instant deadline = Instant.now().plusSeconds(10);
+        TestFixture.createAsync(new CommandHandler())
+                .whenCommand(new YieldsScheduledCommand("command", "testId", deadline))
+                .expectScheduledCommand("command");
+    }
+
+    @Test
+    void testExpectNoScheduledCommandLike() {
+        Instant deadline = subject.getCurrentTime().plusSeconds(10);
+        subject.whenCommand(new YieldsScheduledCommand("command", "testId", deadline))
+                .expectNoScheduledCommandsLike("otherCommand");
     }
 
     @Test
@@ -492,7 +630,7 @@ class GivenWhenThenSchedulingTest {
     @Test
     void testAlteredPayloadPeriodic() {
         TestFixture.create(new AlteredPayloadPeriodicHandler())
-                .whenTimeElapses(Duration.ofMillis(1000)).expectOnlyNewSchedules(new YieldsAlteredSchedule(2));
+                .whenTimeElapses(Duration.ofMillis(1000)).expectOnlyNewSchedules(new YieldsAlteredSchedule(1));
     }
 
     @Test
@@ -540,6 +678,63 @@ class GivenWhenThenSchedulingTest {
         TestFixture.create(new InterfacePeriodicHandler())
                 .whenTimeElapses(Duration.ofMillis(1000))
                 .expectNewSchedules(PeriodicScheduleFromInterface.class);
+    }
+
+    @Test
+    void localScheduleHandlerIsTriggeredByTaskSchedulerInAsyncFixture() {
+        TestFixture.createAsync(new LocalScheduleHandler())
+                .whenScheduleExpires(new LocalSchedule())
+                .expectOnlyEvents("local schedule");
+    }
+
+    @Test
+    void payloadScheduleHandlerWithoutTrackSelfIsHandledLocally() {
+        TestFixture.createAsync()
+                .whenScheduleExpires(new LocalSelfSchedule())
+                .expectOnlyEvents("local self schedule");
+    }
+
+    @Test
+    void localPeriodicScheduleHandlerIsTriggeredByTaskSchedulerInAsyncFixture() {
+        TestFixture.createAsync(new LocalPeriodicScheduleHandler())
+                .whenTimeElapses(Duration.ofMillis(1000))
+                .expectEvents("local periodic schedule");
+    }
+
+    @Test
+    void autoStartedLocalPeriodicScheduleIsScheduledWhenRegisteredDuringWhen() {
+        TestFixture.create()
+                .whenExecuting(fc -> fc.registerHandlers(new LocalPeriodicScheduleHandler()))
+                .expectNoEvents()
+                .expectNewSchedules(LocalPeriodicSchedule.class);
+    }
+
+    @Test
+    void localPeriodicReturnValuesRescheduleThroughTaskSchedulerInAsyncFixture() {
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant firstDeadline = start.plusMillis(1000);
+
+        TestFixture.createAsync(new LocalPeriodicReturnHandler()).atFixedTime(start)
+                .givenSchedules(new Schedule(new LocalPeriodicDurationReturn(), "local-duration", firstDeadline),
+                                new Schedule(new LocalPeriodicInstantReturn(), "local-instant", firstDeadline),
+                                new Schedule(new LocalPeriodicPayloadReturn(), "local-payload", firstDeadline),
+                                new Schedule(new LocalPeriodicScheduleReturn(), "local-schedule", firstDeadline))
+                .whenTimeElapses(Duration.ofMillis(1000))
+                .expectOnlyNewSchedules(
+                        scheduled(new LocalPeriodicDurationReturn(), firstDeadline.plusMillis(2000)),
+                        scheduled(new LocalPeriodicInstantReturn(), firstDeadline.plusMillis(3000)),
+                        scheduled(new LocalPeriodicPayloadReturn(1), firstDeadline.plusMillis(1000)),
+                        scheduled(new LocalPeriodicScheduleReturn(1), firstDeadline.plusMillis(4000)));
+    }
+
+    @Test
+    void statefulScheduleCreatedBeforeStateIsStoredIsTriggeredLocally() {
+        TestFixture.create(StatefulScheduleProcess.class)
+                .whenCommand(new StartStatefulScheduleProcess("process-1"))
+                .expectNewSchedules(new StatefulSchedule("process-1"))
+                .andThen()
+                .whenTimeElapses(Duration.ofSeconds(1))
+                .expectOnlyEvents("expired process-1");
     }
 
     @Test
@@ -591,6 +786,11 @@ class GivenWhenThenSchedulingTest {
         @HandleCommand
         void handle(YieldsSchedule command) {
             Fluxzero.get().messageScheduler().schedule(command.getSchedule());
+        }
+
+        @HandleCommand
+        void handle(YieldsScheduledCommand command) {
+            Fluxzero.scheduleCommand(command.getCommand(), command.getScheduleId(), command.getDeadline());
         }
 
         @HandleCommand
@@ -671,6 +871,58 @@ class GivenWhenThenSchedulingTest {
         }
     }
 
+    @LocalHandler
+    static class LocalScheduleHandler {
+        @HandleSchedule
+        void handle(LocalSchedule schedule) {
+            Fluxzero.publishEvent("local schedule");
+        }
+    }
+
+    static class LocalSelfSchedule {
+        @HandleSchedule
+        void handle(LocalSelfSchedule schedule) {
+            Fluxzero.publishEvent("local self schedule");
+        }
+    }
+
+    @LocalHandler
+    static class LocalPeriodicScheduleHandler {
+        @HandleSchedule
+        @Periodic(delay = 1000)
+        void handle(LocalPeriodicSchedule schedule) {
+            Fluxzero.publishEvent("local periodic schedule");
+        }
+    }
+
+    @LocalHandler
+    static class LocalPeriodicReturnHandler {
+        @HandleSchedule
+        @Periodic(delay = 1000, autoStart = false)
+        Duration handle(LocalPeriodicDurationReturn schedule) {
+            return Duration.ofMillis(2000);
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 1000, autoStart = false)
+        Instant handle(LocalPeriodicInstantReturn schedule, Schedule message) {
+            return message.getDeadline().plusMillis(3000);
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 1000, autoStart = false)
+        LocalPeriodicPayloadReturn handle(LocalPeriodicPayloadReturn schedule) {
+            return new LocalPeriodicPayloadReturn(schedule.getSequence() + 1);
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 1000, autoStart = false)
+        Schedule handle(LocalPeriodicScheduleReturn schedule, Schedule message) {
+            return message.withPayload(new LocalPeriodicScheduleReturn(schedule.getSequence() + 1))
+                    .reschedule(Duration.ofMillis(4000));
+        }
+    }
+
     static class MethodPeriodicHandler {
         @HandleSchedule
         @Periodic(delay = 1000)
@@ -691,6 +943,78 @@ class GivenWhenThenSchedulingTest {
         @Periodic(delay = 1000)
         YieldsAlteredSchedule handle(YieldsAlteredSchedule schedule) {
             throw new CancelPeriodic();
+        }
+    }
+
+    @LocalHandler
+    static class ImplicitFixedDelayHandler {
+        private final String event;
+
+        ImplicitFixedDelayHandler(String event) {
+            this.event = event;
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 60, timeUnit = TimeUnit.SECONDS)
+        void handle(ImplicitFixedDelaySchedule schedule) {
+            Fluxzero.publishEvent(event);
+        }
+    }
+
+    @LocalHandler
+    static class ImplicitCronHandler {
+        @HandleSchedule
+        @Periodic(cron = "*/5 * * * *")
+        void handle(ImplicitCronSchedule schedule, Schedule message) {
+            Fluxzero.publishEvent(message.getDeadline());
+        }
+    }
+
+    @LocalHandler
+    static class InitialDelayZeroHandler {
+        private final String event;
+
+        InitialDelayZeroHandler(String event) {
+            this.event = event;
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 60, initialDelay = 0, timeUnit = TimeUnit.SECONDS)
+        void handle(InitialDelayZeroSchedule schedule) {
+            Fluxzero.publishEvent(event);
+        }
+    }
+
+    @LocalHandler
+    static class PositiveInitialDelayHandler {
+        private final String event;
+
+        PositiveInitialDelayHandler(String event) {
+            this.event = event;
+        }
+
+        @HandleSchedule
+        @Periodic(delay = 60, initialDelay = 5, timeUnit = TimeUnit.SECONDS)
+        void handle(PositiveInitialDelaySchedule schedule) {
+            Fluxzero.publishEvent(event);
+        }
+    }
+
+    @LocalHandler
+    static class DisabledCronHandler {
+        @HandleSchedule
+        @Periodic(cron = Periodic.DISABLED)
+        void handle(DisabledCronSchedule schedule) {
+            Fluxzero.publishEvent("disabled cron");
+        }
+    }
+
+    @LocalHandler
+    static class MissingPropertyDisabledCronHandler {
+        @HandleSchedule
+        @Periodic(cron = "${missingCronSchedule:-}")
+        void handle(MissingPropertyDisabledCronSchedule schedule) {
+            Fluxzero.publishEvent("missing property cron");
         }
     }
 
@@ -721,6 +1045,13 @@ class GivenWhenThenSchedulingTest {
     }
 
     @Value
+    static class YieldsScheduledCommand {
+        Object command;
+        String scheduleId;
+        Instant deadline;
+    }
+
+    @Value
     static class YieldsCommand {
         Object command;
     }
@@ -735,6 +1066,28 @@ class GivenWhenThenSchedulingTest {
     }
 
     record BranchObserved(int iteration) {
+    }
+
+    record StartStatefulScheduleProcess(String processId) {
+    }
+
+    record StatefulSchedule(String processId) {
+    }
+
+    @Stateful
+    record StatefulScheduleProcess(@EntityId @Association String processId) {
+        @HandleCommand
+        static StatefulScheduleProcess start(StartStatefulScheduleProcess command) {
+            Fluxzero.schedule(new StatefulSchedule(command.processId()),
+                              "stateful-schedule-" + command.processId(),
+                              Duration.ofSeconds(1));
+            return new StatefulScheduleProcess(command.processId());
+        }
+
+        @HandleSchedule
+        void expire(StatefulSchedule schedule) {
+            Fluxzero.publishEvent("expired " + schedule.processId());
+        }
     }
 
     @Value
@@ -770,6 +1123,82 @@ class GivenWhenThenSchedulingTest {
 
     @Value
     static class MethodPeriodicSchedule {
+    }
+
+    static class ImplicitFixedDelaySchedule {
+        public ImplicitFixedDelaySchedule() {
+        }
+    }
+
+    static class ImplicitCronSchedule {
+        public ImplicitCronSchedule() {
+        }
+    }
+
+    static class InitialDelayZeroSchedule {
+        public InitialDelayZeroSchedule() {
+        }
+    }
+
+    static class PositiveInitialDelaySchedule {
+        public PositiveInitialDelaySchedule() {
+        }
+    }
+
+    static class DisabledCronSchedule {
+        public DisabledCronSchedule() {
+        }
+    }
+
+    static class MissingPropertyDisabledCronSchedule {
+        public MissingPropertyDisabledCronSchedule() {
+        }
+    }
+
+    @Value
+    static class LocalSchedule {
+    }
+
+    @Value
+    static class LocalPeriodicSchedule {
+    }
+
+    @Value
+    static class LocalPeriodicDurationReturn {
+    }
+
+    @Value
+    static class LocalPeriodicInstantReturn {
+    }
+
+    @Value
+    static class LocalPeriodicPayloadReturn {
+        int sequence;
+
+        public LocalPeriodicPayloadReturn() {
+            this(0);
+        }
+
+        public LocalPeriodicPayloadReturn(int sequence) {
+            this.sequence = sequence;
+        }
+    }
+
+    @Value
+    static class LocalPeriodicScheduleReturn {
+        int sequence;
+
+        public LocalPeriodicScheduleReturn() {
+            this(0);
+        }
+
+        public LocalPeriodicScheduleReturn(int sequence) {
+            this.sequence = sequence;
+        }
+    }
+
+    private static Predicate<Schedule> scheduled(Object payload, Instant deadline) {
+        return schedule -> payload.equals(schedule.getPayload()) && deadline.equals(schedule.getDeadline());
     }
 
     @Value

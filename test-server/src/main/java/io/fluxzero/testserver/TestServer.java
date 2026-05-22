@@ -92,10 +92,7 @@ public class TestServer {
     private static final String DEFAULT_NAMESPACE = "public";
     private static final String RUNTIME_NAME = "FluxzeroTestServer";
 
-    private static final MemoizingFunction<String, Client> clients = memoize(
-            namespace -> new TestServerProject(LocalClient.newInstance()));
-    private static final MemoizingFunction<String, MetricsLog> metricsLogSupplier =
-            memoize(TestServer::createMetricsLog);
+    private static volatile ServerState latestState = new ServerState();
 
     /**
      * Standalone process entry point.
@@ -144,22 +141,24 @@ public class TestServer {
     }
 
     private static Server startServer(int port, boolean registerShutdownHook) {
+        ServerState state = new ServerState();
+        latestState = state;
         JettyWebsocketRouter router = new JettyWebsocketRouter();
         CommandIdempotencyStore commandIdempotencyStore = new CommandIdempotencyStore();
-        RuntimeLifecycleMetrics runtimeLifecycleMetrics = new RuntimeLifecycleMetrics();
+        RuntimeLifecycleMetrics runtimeLifecycleMetrics = new RuntimeLifecycleMetrics(state);
         for (MessageType messageType : Arrays.asList(METRICS, EVENT, COMMAND, QUERY, RESULT, ERROR, WEBREQUEST, WEBRESPONSE)) {
-            router = deploy(namespace -> new ProducerEndpoint(getMessageLogMaintenance(namespace, messageType), messageType,
+            router = deploy(namespace -> new ProducerEndpoint(state.getMessageLogMaintenance(namespace, messageType), messageType,
                                                               null, commandIdempotencyStore)
                                     .metricsLog(messageType == METRICS ? new NoOpMetricsLog() :
                                                 runtimeLifecycleMetrics.metricsLog(namespace)),
                             format("/%s/", gatewayPath(messageType)), router);
-            router = deploy(namespace -> new ConsumerEndpoint(getMessageLogMaintenance(namespace, messageType), messageType,
+            router = deploy(namespace -> new ConsumerEndpoint(state.getMessageLogMaintenance(namespace, messageType), messageType,
                                                               commandIdempotencyStore)
                                     .metricsLog(messageType == METRICS ? new NoOpMetricsLog() :
                                                 runtimeLifecycleMetrics.metricsLog(namespace)),
                             format("/%s/", trackingPath(messageType)), router);
         }
-        router = deploy(namespace -> new ConsumerEndpoint(getMessageLogMaintenance(namespace, NOTIFICATION), NOTIFICATION,
+        router = deploy(namespace -> new ConsumerEndpoint(state.getMessageLogMaintenance(namespace, NOTIFICATION), NOTIFICATION,
                                                           commandIdempotencyStore)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(NOTIFICATION)), router);
@@ -169,7 +168,7 @@ public class TestServer {
                 case CUSTOM: {
                     router = deployFromSession(
                             ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ProducerEndpoint(
-                                            getMessageLogMaintenance(namespace, messageType, topic), messageType, topic,
+                                            state.getMessageLogMaintenance(namespace, messageType, topic), messageType, topic,
                                             commandIdempotencyStore)
                                             .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
@@ -178,7 +177,7 @@ public class TestServer {
                 case DOCUMENT: {
                     router = deployFromSession(
                             ObjectUtils.<String, String, WebsocketEndpoint>memoize((namespace, topic) -> new ConsumerEndpoint(
-                                            getMessageLogMaintenance(namespace, messageType, topic), messageType, topic,
+                                            state.getMessageLogMaintenance(namespace, messageType, topic), messageType, topic,
                                             commandIdempotencyStore)
                                             .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)))
                                     .compose(s -> new SimpleEntry<>(getNamespace(s), getTopic(s))),
@@ -188,19 +187,19 @@ public class TestServer {
             }
         }
 
-        router = deploy(namespace -> new EventSourcingEndpoint(clients.apply(namespace).getEventStoreClient(),
+        router = deploy(namespace -> new EventSourcingEndpoint(state.client(namespace).getEventStoreClient(),
                                                                commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", eventSourcingPath()), router);
-        router = deploy(namespace -> new KeyValueEndPoint(clients.apply(namespace).getKeyValueClient(),
+        router = deploy(namespace -> new KeyValueEndPoint(state.client(namespace).getKeyValueClient(),
                                                           commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", keyValuePath()), router);
-        router = deploy(namespace -> new SearchEndpoint(clients.apply(namespace).getSearchClient(),
+        router = deploy(namespace -> new SearchEndpoint(state.client(namespace).getSearchClient(),
                                                         commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", searchPath()), router);
-        router = deploy(namespace -> new SchedulingEndpoint(clients.apply(namespace).getSchedulingClient(),
+        router = deploy(namespace -> new SchedulingEndpoint(state.client(namespace).getSchedulingClient(),
                                                             commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", schedulingPath()), router);
-        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) clients.apply(namespace).getSchedulingClient(), SCHEDULE,
+        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) state.client(namespace).getSchedulingClient(), SCHEDULE,
                                                           commandIdempotencyStore)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(SCHEDULE)), router);
@@ -222,8 +221,14 @@ public class TestServer {
                     () -> stopServer(server, commandIdempotencyStore, commandIdempotencyStoreClosed)));
         }
 
-        log.info("Fluxzero test server running on port {}", localPort);
+        logStarted(localPort);
         return server;
+    }
+
+    private static void logStarted(int localPort) {
+        TestServerVersion.version().ifPresentOrElse(
+                version -> log.info("Fluxzero test server (version {}) running on port {}", version, localPort),
+                () -> log.info("Fluxzero test server running on port {}", localPort));
     }
 
     private static void stopServer(Server server, CommandIdempotencyStore commandIdempotencyStore,
@@ -239,10 +244,6 @@ public class TestServer {
         } finally {
             closeCommandIdempotencyStore(commandIdempotencyStore, commandIdempotencyStoreClosed);
         }
-    }
-
-    private static MetricsLog createMetricsLog(String namespace) {
-        return new DefaultMetricsLog(getMessageStore(namespace, METRICS));
     }
 
     private static int getConfiguredPort() {
@@ -296,18 +297,63 @@ public class TestServer {
     }
 
     static MessageStore getMetricsMessageStore(String namespace) {
-        return getMessageStore(namespace, METRICS);
+        return latestState.getMessageStore(namespace, METRICS);
+    }
+
+    private static class ServerState {
+        private final MemoizingFunction<String, Client> clients = memoize(
+                namespace -> new TestServerProject(LocalClient.newInstance()));
+        private final MemoizingFunction<String, MetricsLog> metricsLogSupplier = memoize(
+                namespace -> new DefaultMetricsLog(getMessageStore(namespace, METRICS)));
+
+        private Client client(String namespace) {
+            return clients.apply(namespace);
+        }
+
+        private MetricsLog metricsLog(String namespace) {
+            return metricsLogSupplier.apply(namespace);
+        }
+
+        private MessageStore getMessageStore(String namespace, MessageType messageType) {
+            return getMessageStore(namespace, messageType, null);
+        }
+
+        private MessageStore getMessageStore(String namespace, MessageType messageType, String topic) {
+            return getMessageLogMaintenance(namespace, messageType, topic).getMessageStore();
+        }
+
+        private MessageLogMaintenance getMessageLogMaintenance(String namespace, MessageType messageType) {
+            return getMessageLogMaintenance(namespace, messageType, null);
+        }
+
+        private MessageLogMaintenance getMessageLogMaintenance(String namespace, MessageType messageType,
+                                                               String topic) {
+            var client = client(namespace).getTrackingClient(messageType, topic);
+            if (client instanceof LocalTrackingClient localTrackingClient) {
+                return localTrackingClient.getMessageLogMaintenance();
+            }
+            if (client instanceof HasMessageStore hasMessageStore) {
+                throw new IllegalStateException("Tracking client with message store has no message log maintenance: "
+                                                + hasMessageStore.getClass());
+            }
+            throw new IllegalStateException("Tracking client has no message log maintenance: " + client.getClass());
+        }
     }
 
     private static class RuntimeLifecycleMetrics {
+        private final ServerState state;
         private final Set<String> namespaces = ConcurrentHashMap.newKeySet();
         private final Set<String> startupNamespaces = ConcurrentHashMap.newKeySet();
         private volatile RuntimeLifecycleEvent startupEvent;
 
+        RuntimeLifecycleMetrics(ServerState state) {
+            this.state = state;
+        }
+
         MetricsLog metricsLog(String namespace) {
             namespace = namespace == null ? DEFAULT_NAMESPACE : namespace;
             namespaces.add(namespace);
-            MetricsLog metricsLog = metricsLogSupplier.apply(namespace);
+            MetricsLog metricsLog = state.metricsLog(namespace);
             registerStartupMetric(namespace, metricsLog);
             return metricsLog;
         }
@@ -315,12 +361,12 @@ public class TestServer {
         void started(int port) {
             startupEvent = runtimeLifecycleEvent(STARTED, port);
             namespaces.add(DEFAULT_NAMESPACE);
-            namespaces.forEach(namespace -> registerStartupMetric(namespace, metricsLogSupplier.apply(namespace)));
+            namespaces.forEach(namespace -> registerStartupMetric(namespace, state.metricsLog(namespace)));
         }
 
         void stopping(int port) {
             RuntimeLifecycleEvent event = runtimeLifecycleEvent(STOPPING, port);
-            namespaces.forEach(namespace -> registerLifecycleMetric(metricsLogSupplier.apply(namespace), event));
+            namespaces.forEach(namespace -> registerLifecycleMetric(state.metricsLog(namespace), event));
         }
 
         private void registerStartupMetric(String namespace, MetricsLog metricsLog) {
@@ -328,30 +374,6 @@ public class TestServer {
                     .filter(event -> startupNamespaces.add(namespace))
                     .ifPresent(event -> registerLifecycleMetric(metricsLog, event));
         }
-    }
-
-    private static MessageStore getMessageStore(String namespace, MessageType messageType) {
-        return getMessageStore(namespace, messageType, null);
-    }
-
-    private static MessageStore getMessageStore(String namespace, MessageType messageType, String topic) {
-        return getMessageLogMaintenance(namespace, messageType, topic).getMessageStore();
-    }
-
-    private static MessageLogMaintenance getMessageLogMaintenance(String namespace, MessageType messageType) {
-        return getMessageLogMaintenance(namespace, messageType, null);
-    }
-
-    private static MessageLogMaintenance getMessageLogMaintenance(String namespace, MessageType messageType, String topic) {
-        var client = clients.apply(namespace).getTrackingClient(messageType, topic);
-        if (client instanceof LocalTrackingClient localTrackingClient) {
-            return localTrackingClient.getMessageLogMaintenance();
-        }
-        if (client instanceof HasMessageStore hasMessageStore) {
-            throw new IllegalStateException("Tracking client with message store has no message log maintenance: "
-                                            + hasMessageStore.getClass());
-        }
-        throw new IllegalStateException("Tracking client has no message log maintenance: " + client.getClass());
     }
 
     @AllArgsConstructor

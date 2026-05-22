@@ -17,10 +17,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jackson.version>2.21.3</jackson.version>
-        <junit.version>6.0.3</junit.version>
+        <junit.version>6.1.0</junit.version>
         <kotlin.version>2.3.21</kotlin.version>
+        <logback.version>1.5.32</logback.version>
         <maven.deploy.version>3.1.4</maven.deploy.version>
-        <maven.enforcer.version>3.6.2</maven.enforcer.version>
+        <maven.enforcer.version>3.6.3</maven.enforcer.version>
         <maven.install.version>3.1.4</maven.install.version>
         <maven.resources.version>3.5.0</maven.resources.version>
         <maven.surefire.version>3.5.5</maven.surefire.version>
@@ -92,6 +93,12 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

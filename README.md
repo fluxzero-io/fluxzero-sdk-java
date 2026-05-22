@@ -475,7 +475,33 @@ Fluxzero handles message dispatch asynchronously by default. When a message such
 
 ### Default Consumer Behavior
 
-By default, handlers join the **default consumer** for a given message type. For example:
+Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` are assigned according to the
+configured unconfigured-handler consumer mode. If no mode is configured explicitly, `fluxzero.defaults.version`
+selects the default behavior.
+
+For defaults versions `2026.05.20` and newer, the default behavior is `perHandler`:
+
+```properties
+fluxzero.defaults.version=2026.05.20
+# equivalent explicit setting:
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
+```
+
+With this defaults version, Fluxzero creates an isolated default consumer per handler class. The generated consumer uses
+the default consumer configuration for the message type as its template and is named after the application and handler
+class, for example `my-app_MyHandler`.
+
+Existing applications without `fluxzero.defaults.version`, or with an older defaults version, keep the compatibility
+default: unconfigured handlers join the shared application default consumer for the message type. You can choose either
+behavior explicitly:
+
+```properties
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
+# or
+fluxzero.tracking.unconfiguredHandlerConsumerMode=defaultAppConsumer
+```
+
+For example:
 
 ```java
 class MyHandler {
@@ -486,7 +512,13 @@ class MyHandler {
 }
 ```
 
-This handler joins the default **command consumer** automatically.
+With `perHandler`, this handler gets its own generated command consumer. With `defaultAppConsumer`, it joins the shared
+default command consumer. A matching custom `ConsumerConfiguration` or explicit `@Consumer` remains more specific and
+takes precedence.
+
+The practical difference is that `perHandler` gives each unconfigured handler its own tracking position and error
+isolation. With `defaultAppConsumer`, unconfigured handlers for the same message type move together through one shared
+consumer, which preserves the original compatibility behavior for existing applications.
 
 ### Custom Consumers with @Consumer
 
@@ -995,6 +1027,8 @@ This includes support for:
   custom value extractors
 - validation groups, group sequences, group conversion, and custom constraint validators
 - executable parameter and return-value validation
+- contextual method constraints such as `@AssertTrue` methods that inject parameters via Fluxzero's configured
+  `ParameterResolver`s
 - Constraint violations in command/query/webrequest payloads
 
 The supported profile is aimed at SDK usage, not at being a drop-in provider for every Jakarta Validation TCK edge
@@ -1011,6 +1045,24 @@ public record CreateUser(@NotBlank String userId,
 }
 ```
 
+Constraint methods on a payload may also request contextual parameters that the SDK's default validator can inject while
+a message is being handled. It uses the same resolver set as handler method injection, so values such as `User`,
+`Message`, `DeserializingMessage`, `Metadata`, and custom resolver values can be used without reaching for thread-local
+helpers.
+
+```java
+public record CreateUser(@NotBlank String userId) {
+    @AssertTrue(message = "Only admins may create admin users")
+    boolean allowedBy(User user, Message message) {
+        return !userId.startsWith("admin-") || user != null && user.hasRole("admin");
+    }
+}
+```
+
+If a constrained method declares parameters that cannot be resolved in the current validation context, Fluxzero skips
+that method for that validation run. Keep required structural checks on fields or no-argument constraint methods when a
+rule must also apply outside message handling.
+
 You can disable this validation entirely by calling:
 
 [//]: # (@formatter:off)
@@ -1019,8 +1071,10 @@ DefaultFluxzero.builder().disablePayloadValidation();
 ```
 [//]: # (@formatter:on)
 
-Of course, it is also easy to provide your own validation if desired. For how to do that, please refer to the section
-on `HandlerInterceptors`.
+Of course, it is also easy to provide your own validation if desired. Use `replaceValidator(...)` on the
+`FluxzeroBuilder` to replace the configured validator. Convenience methods on `ValidationUtils` delegate to the
+validator of the current `Fluxzero` instance when one is bound, and otherwise fall back to
+`ValidationUtils.defaultValidator`.
 
 > 💡 **Tip**: Fluxzero automatically correlates errors with the triggering message (e.g.: command or event).
 >
@@ -1355,6 +1409,11 @@ void weeklySync(PollData schedule) {
 
 This example triggers the `weeklySync` method every Monday at 00:00 in the Amsterdam time zone.
 
+Schedule handlers can also be local. Add `@LocalHandler` to a schedule handler, or put the `@HandleSchedule` method
+directly on the scheduled payload type without `@TrackSelf`. In those cases Fluxzero uses its `TaskScheduler` to trigger
+the schedule in the current application, which makes `@HandleSchedule`/`@Periodic` useful as an alternative to Spring's
+`@Scheduled` for Fluxzero-aware local jobs.
+
 #### Behavior and advanced options
 
 - `@Periodic` works only for scheduled messages (see `@HandleSchedule`).
@@ -1368,6 +1427,12 @@ This example triggers the `weeklySync` method every Monday at 00:00 in the Amste
     - You may specify a fallback delay via `delayAfterError`.
     - Throw `CancelPeriodic` from the handler to stop the schedule completely.
 - To prevent startup activation, use `@Periodic(autoStart = false)`.
+- `initialDelay = -1` means no explicit initial delay. With compatibility defaults, Fluxzero treats that implicit value
+  as `0` to preserve immediate autostart. With `fluxzero.defaults.version >= 2026.05.21` or
+  `fluxzero.scheduling.periodic.useDefaultInitialDelay=true`, fixed-delay schedules first run after `delay` and cron
+  schedules first run at the next cron match. For example, `@Periodic(delay = 60_000)` first runs after 60 seconds,
+  while `@Periodic(cron = "*/5 * * * *")` first runs at the next five-minute boundary. Set `initialDelay = 0` when the
+  first run should be immediate.
 - The schedule ID defaults to the class name, but can be customized with `scheduleId`.
 
 Here's an example of robust polling with error fallback:
@@ -3272,10 +3337,8 @@ To define a nested structure, annotate the collection or field with `@Member`:
 @Builder(toBuilder = true)
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
-                          boolean accountClosed) {
-
-    @Member
-    List<Authorization> authorizations;
+                          boolean accountClosed,
+                          @Member List<Authorization> authorizations) {
 }
 ```
 
@@ -3336,8 +3399,8 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 > - Apply the update to the child entity
 > - And return a **new instance of the parent** (if it's immutable), with the updated child state included
 >
-> This allows you to use immutable models (e.g. Java records or classes with Lombok’s `@Value`) without extra
-> boilerplate.
+> Java records are rebuilt through their canonical constructor, so `@Member` record components do not need `@With`.
+> Custom immutable classes can still use explicit withers or builders where needed.
 
 ---
 
@@ -3815,6 +3878,11 @@ String pspReference;
 ### State Update Semantics
 
 - If the handler method returns a new instance of its class, it replaces the previous version in the store
+- If it returns a collection, every returned instance of the same stateful type is stored
+- Returning an empty collection deletes the current instance
+- If a returned collection does not include the current instance ID, the current instance is deleted
+- Returning a same-type instance with a different `@EntityId` replaces the current instance
+- Returning `null` from a handler-compatible return type deletes the current handler
 - If it returns `void` or a value of another type, state is left unchanged
 - This allows safe utility returns (like `Duration` for `@HandleSchedule`)
 
@@ -3826,6 +3894,46 @@ Duration on(CheckStatus schedule) {
     return Duration.ofMinutes(5);
 }
 ```
+
+### Stateful Members
+
+`@Stateful` handlers may contain `@Member` objects. A member can declare its own `@Handle...` methods and
+`@Association` properties; Fluxzero loads the parent stateful, invokes matching members, and stores the updated parent.
+
+```java
+
+@Stateful
+public record Customer(@EntityId @Association String customerId,
+                       @Member List<Payment> payments) {
+}
+
+public record Payment(@Association String paymentId, int captureCount) {
+    @HandleEvent
+    static Payment start(PaymentStarted event, Customer customer) {
+        return new Payment(event.paymentId(), 0);
+    }
+
+    @HandleEvent
+    Payment capture(PaymentCaptured event, Customer customer) {
+        return new Payment(paymentId, captureCount + 1);
+    }
+
+    @HandleEvent
+    Payment cancel(PaymentCancelled event) {
+        return null;
+    }
+}
+```
+
+- A message with only the child association, such as `paymentId`, can target the matching member inside the parent.
+- Static member handlers can create a child when the message can be associated with a parent; use
+  `@Association(always = true)` only when fan-out is intentional.
+- Returning a member instance creates or replaces that member; returning a collection adds/replaces multiple members.
+- Returning `null` from a member-compatible instance method deletes that member.
+- If the parent and a member both handle the same message, the parent mutation is applied first.
+- Multiple members may match one message, both within one parent and across parents.
+- For map-backed members, newly added members use `@EntityId` or `@Member(idProperty = "...")` as the map key.
+- Java records are rebuilt through their canonical constructor, so `@Member` record components do not need `@With`.
 
 ### Batch Commit Control
 
@@ -4780,6 +4888,28 @@ boolean enabled = ApplicationProperties.getBooleanProperty("feature.toggle", tru
 int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
 ```
 
+### Versioned Defaults
+
+`fluxzero.defaults.version` lets new applications opt into newer SDK defaults while existing applications keep
+compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
+earlier versions, and each behavior can still be overridden with its dedicated property.
+
+| Defaults version | Equivalent property | What changes |
+| --- | --- | --- |
+| `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
+| `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+
+For example:
+
+```properties
+fluxzero.defaults.version=2026.05.21
+```
+
+This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
+explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
+`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
+and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+
 ### Encrypted Values
 
 Fluxzero supports secure storage of secrets using its built-in encryption utility. To use encryption:
@@ -5118,8 +5248,9 @@ public class MyCustomizer implements FluxzeroCustomizer {
 
 #### Consumer and Tracking Configuration
 
-- `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer behavior
-  per message type.
+- `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer template
+  per message type. In `perHandler` mode this template is copied for generated handler consumers; in
+  `defaultAppConsumer` mode it is the shared fallback consumer.
 - `addConsumerConfiguration(...)` to register additional consumers for selected message types.
 - `forwardWebRequestsToLocalServer(...)` to redirect incoming `@HandleWeb` calls to an existing local HTTP
   server.
@@ -5152,6 +5283,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 #### Parameter Injection and Handler Behavior
 
 - `addParameterResolver(...)` registers a `ParameterResolver` to inject custom arguments into handler methods.
+- `replaceValidator(...)` replaces the validator used by payload validation, web parameter validation, and
+  `ValidationUtils` convenience methods.
 - `replaceDefaultResponseMapper(...)` and `replaceWebResponseMapper(...)` to change how handler return values are mapped
   into responses.
 
@@ -5455,7 +5588,6 @@ compatible with recent versions.
 | `org.mockito:mockito-core`                   | test  |
 | `org.jooq:joor`                              | test  |
 | `org.hamcrest:hamcrest-library`              | test  |
-| `org.jboss.resteasy:resteasy-undertow`       | test  |
 
 ---
 

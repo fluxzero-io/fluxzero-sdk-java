@@ -29,5 +29,5 @@ class KotlinValidationTest {
         assertEquals("name must not be null", exception.message)
     }
 
-    data class KotlinConstructorProperty(@NotNull val name: String?)
+    data class KotlinConstructorProperty(@param:NotNull val name: String?)
 }

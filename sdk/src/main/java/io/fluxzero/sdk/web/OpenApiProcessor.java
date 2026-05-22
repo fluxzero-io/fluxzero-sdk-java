@@ -20,13 +20,11 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.auto.service.AutoService;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedOptions;
@@ -146,7 +144,6 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
         OpenApiProcessor.SERVERS_OPTION,
         OpenApiProcessor.GRADLE_AGGREGATING_OPTION
 })
-@AutoService(Processor.class)
 public class OpenApiProcessor extends AbstractProcessor {
     public static final String DEFAULT_OUTPUT = "META-INF/fluxzero/openapi.json";
     public static final String ENABLED_OPTION = "fluxzero.openapi.enabled";

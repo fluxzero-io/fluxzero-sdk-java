@@ -41,8 +41,10 @@ data is filtered according to user permissions before it ever reaches the networ
 Fluxzero integrates with **Jakarta Validation** through the SDK's built-in validator. Annotate your Command and Query
 records to enforce constraints. The supported SDK profile covers standard constraints, Fluxzero convenience
 constraints, custom validators, groups, cascaded/container validation, executable parameter/return validation, and raw
-constraint violations. XML mappings, `validation.xml`, CDI lifecycle integration, TraversableResolver reachability
-rules, and full Expression Language message evaluation are intentionally not supported.
+constraint violations. Constrained payload methods such as `@AssertTrue` may declare parameters that the SDK's default
+validator resolves from the same `ParameterResolver` set used for handler method injection. XML mappings,
+`validation.xml`, CDI lifecycle integration, TraversableResolver reachability rules, and full Expression Language
+message evaluation are intentionally not supported.
 
 ### Structural Validation
 
@@ -66,6 +68,23 @@ public record CreateUser(
 }
 ```
 [//]: # (@formatter:on)
+
+Context-aware method constraints can inject values such as `User`, `Message`, `DeserializingMessage`, `Metadata`, or
+custom resolver values while a message is being handled:
+
+[//]: # (@formatter:off)
+```java
+public record CreateUser(@NotBlank String userId) {
+    @AssertTrue(message = "Only admins may create admin users")
+    boolean allowedBy(User user) {
+        return !userId.startsWith("admin-") || user != null && user.hasRole("admin");
+    }
+}
+```
+[//]: # (@formatter:on)
+
+If a constrained method declares parameters that cannot be resolved for the current validation run, Fluxzero skips that
+method instead of failing validation. Keep always-required checks on fields or no-argument constraint methods.
 
 ### @ValidateWith
 

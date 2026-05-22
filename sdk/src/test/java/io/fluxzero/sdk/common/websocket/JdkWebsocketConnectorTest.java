@@ -191,10 +191,11 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void connectFailsAndRemovesOpenSessionWhenEndpointOpenCallbackFails() throws Exception {
+    void connectFailsAndReportsErrorWhenEndpointOpenCallbackFails() throws Exception {
         try (TestWebSocketServer server = TestWebSocketServer.start()) {
             JdkWebsocketConnector connector = new JdkWebsocketConnector();
             AtomicReference<Throwable> error = new AtomicReference<>();
+            CountDownLatch onErrorReported = new CountDownLatch(1);
             WebsocketEndpoint endpoint = new RecordingEndpoint() {
                 @Override
                 public void onOpen(WebsocketSession session) {
@@ -205,11 +206,13 @@ class JdkWebsocketConnectorTest {
                 @Override
                 public void onError(WebsocketSession session, Throwable throwable) {
                     error.set(throwable);
+                    onErrorReported.countDown();
                 }
             };
 
             IOException exception = assertThrows(IOException.class, () -> connector.connect(endpoint, null, server.uri()));
 
+            assertTrue(onErrorReported.await(5, TimeUnit.SECONDS));
             assertTrue(exception.getMessage().contains("failed to open"));
             assertInstanceOf(IllegalStateException.class, exception.getCause());
             assertEquals("boom", exception.getCause().getMessage());

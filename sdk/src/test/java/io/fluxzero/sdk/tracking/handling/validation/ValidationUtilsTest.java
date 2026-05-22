@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,6 +74,29 @@ class ValidationUtilsTest {
                              "code", "must match \"[A-Z]{4}[0-9]{7}\""),
                      violations.stream().collect(Collectors.toMap(
                              v -> v.getPropertyPath().toString(), ConstraintViolation::getMessage)));
+    }
+
+    @Test
+    void convenienceMethodsUseCurrentFluxzeroValidator() {
+        Validator validator = new Validator() {
+            @Override
+            public <T> Optional<ValidationException> checkValidity(T object, Class<?>... groups) {
+                return Optional.of(new ValidationException("configured validator", Set.of("configured validator")));
+            }
+        };
+        Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replaceValidator(current -> validator)
+                .build(LocalClient.newInstance(null));
+
+        try {
+            fluxzero.execute(fc -> {
+                ValidationException exception = assertThrows(
+                        ValidationException.class, () -> ValidationUtils.assertValid(new Object()));
+                assertEquals("configured validator", exception.getMessage());
+            });
+        } finally {
+            fluxzero.close(true);
+        }
     }
 
     @Value

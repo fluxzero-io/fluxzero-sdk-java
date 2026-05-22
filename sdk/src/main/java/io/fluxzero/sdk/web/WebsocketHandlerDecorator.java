@@ -26,7 +26,10 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
+import io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailureMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -255,6 +258,9 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
                 Optional<HandlerInvoker> autoHandshakeInvoker(DeserializingMessage message) {
                     DefaultWebRequestContext context = getWebRequestContext(message);
+                    WebHandlerMatcher.putWebRequestDescription(message, context);
+                    message.putContext(AuthorizationFailureMapper.class,
+                                       failure -> mapHandshakeAuthorizationFailure(failure, context));
                     HandlerInvoker invoker = openHandlers
                             .match(WS_OPEN, context.getOrigin(), context.getRequestPath())
                             .map(WebRouteMatcher.Match::value)
@@ -277,6 +283,24 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
             };
         }
         return handler;
+    }
+
+    private Throwable mapHandshakeAuthorizationFailure(Throwable failure, DefaultWebRequestContext context) {
+        String message = "Websocket handshake for %s failed because %s".formatted(
+                context.getRequestPath(), Optional.ofNullable(failure.getMessage())
+                        .filter(m -> !m.isBlank()).orElse(failure.getClass().getSimpleName()));
+        if (failure instanceof UnauthenticatedException) {
+            return withCause(new UnauthenticatedException(message), failure);
+        }
+        if (failure instanceof UnauthorizedException) {
+            return withCause(new UnauthorizedException(message), failure);
+        }
+        return failure;
+    }
+
+    private <T extends Throwable> T withCause(T result, Throwable cause) {
+        result.initCause(cause);
+        return result;
     }
 
     protected Handler<DeserializingMessage> useSessionUser(Handler<DeserializingMessage> handler) {

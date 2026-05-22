@@ -17,6 +17,7 @@ package io.fluxzero.sdk.scheduling.client;
 
 import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -58,6 +59,7 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     private final ConcurrentSkipListMap<Long, String> scheduleIdsByIndex = new ConcurrentSkipListMap<>();
     private final AtomicLong minScheduleIndex = new AtomicLong();
     private final DelegatingClock clock = new DelegatingClock();
+    private Registration clockChangeRegistration = Registration.noOp();
 
     public InMemoryScheduleStore() {
         super(SCHEDULE);
@@ -65,6 +67,13 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
 
     public InMemoryScheduleStore(Duration messageExpiration) {
         super(SCHEDULE, messageExpiration);
+    }
+
+    public InMemoryScheduleStore(Duration messageExpiration, Clock clock) {
+        super(SCHEDULE, messageExpiration);
+        if (clock != null) {
+            setClock(clock);
+        }
     }
 
     @Override
@@ -143,7 +152,14 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     public synchronized void setClock(@NonNull Clock clock) {
+        clockChangeRegistration.cancel();
         this.clock.setDelegate(clock);
+        clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
+                ? delegatingClock.onChange(this::clockChanged) : Registration.noOp();
+        clockChanged();
+    }
+
+    protected synchronized void clockChanged() {
         this.minScheduleIndex.set(0L);
         notifyMonitors();
     }
@@ -188,5 +204,11 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     @Override
     public String toString() {
         return "InMemoryScheduleStore";
+    }
+
+    @Override
+    public synchronized void close() {
+        clockChangeRegistration.cancel();
+        super.close();
     }
 }

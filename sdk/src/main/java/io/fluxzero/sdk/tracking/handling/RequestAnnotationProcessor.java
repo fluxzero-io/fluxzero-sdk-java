@@ -15,10 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
-import com.google.auto.service.AutoService;
-
 import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
@@ -77,15 +74,11 @@ import java.util.concurrent.Future;
  *     <li>{@link HandleQuery}</li>
  *     <li>{@link HandleCustom}</li>
  * </ul>
- *
- * <p>
- * This processor is automatically registered via {@code @AutoService(Processor.class)} and does not require manual configuration.
  */
 @SupportedAnnotationTypes({
         "io.fluxzero.sdk.tracking.handling.HandleQuery",
         "io.fluxzero.sdk.tracking.handling.HandleCommand",
         "io.fluxzero.sdk.tracking.handling.HandleCustom"})
-@AutoService(Processor.class)
 public class RequestAnnotationProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -207,12 +200,8 @@ public class RequestAnnotationProcessor extends AbstractProcessor {
         // Check superclass
         TypeMirror superclass = element.getSuperclass();
         if (superclass.getKind() != TypeKind.NONE) {
-            TypeMirror resolved = findSuperType(superclass, target, newMap);
-            if (resolved != null) {
-                return resolved;
-            }
+            return findSuperType(superclass, target, newMap);
         }
-
         return null;
     }
 

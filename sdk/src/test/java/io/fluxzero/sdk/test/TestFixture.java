@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.InMemoryTaskScheduler;
@@ -86,6 +87,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -365,6 +367,7 @@ public class TestFixture implements Given<TestFixture>, When {
                     tryCatch(() -> fixture.fluxzero.execute(
                             fc -> fixture.fluxzero.close(true)))));
             ofNullable(Fluxzero.instance.get()).ifPresent(fc -> Fluxzero.instance.remove());
+            GivenWhenThenAssertionError.clearTrace();
         }
     }
 
@@ -386,13 +389,19 @@ public class TestFixture implements Given<TestFixture>, When {
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
         client = trackRemoteDocumentUpdates(client);
         client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
+        Clock fixtureClock = Clock.fixed(Instant.now().truncatedTo(ChronoUnit.MILLIS), ZoneId.systemDefault());
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .addParameterResolver(beanParameterResolver)
                 .addDispatchInterceptor(dispatchInterceptor)
                 .replaceIdentityProvider(p -> p == IdentityProvider.defaultIdentityProvider
                         ? PredictableIdentityProvider.defaultPredictableIdentityProvider() : p)
-                .replaceTaskScheduler(clock -> new InMemoryTaskScheduler(
-                        "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance()))
+                .replaceTaskScheduler(clock -> {
+                    if (clock instanceof DelegatingClock delegatingClock) {
+                        delegatingClock.setDelegate(fixtureClock);
+                    }
+                    return new InMemoryTaskScheduler(
+                            "FluxzeroTaskScheduler", clock, DirectExecutorService.newInstance(), false);
+                })
                 .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
                 .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
         this.fluxzeroBuilder = fluxzeroBuilder;
@@ -401,7 +410,7 @@ public class TestFixture implements Given<TestFixture>, When {
         if (synchronous) {
             localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
         }
-        withClock(Clock.fixed(Instant.now(), ZoneId.systemDefault()));
+        withClock(fixtureClock);
         List<Object> handlers = new ArrayList<>();
         if (synchronous) {
             handlers.add(new Object() {
@@ -576,11 +585,20 @@ public class TestFixture implements Given<TestFixture>, When {
                 return;
             }
             HandlerFilter handlerFilter = (c, e) -> true;
-            var registration = fc.apply(f -> handlers.stream().flatMap(
-                            h -> Stream.concat(localHandlerRegistries(f).map(r -> r.registerHandler(h, handlerFilter)),
-                                               ClientUtils.getTopics(CUSTOM, h).stream()
-                                                       .map(topic -> f.customGateway(topic).registerHandler(h, handlerFilter))))
-                    .reduce(Registration::merge).orElse(Registration.noOp()));
+            var registration = fc.apply(f -> {
+                Registration local = handlers.stream().flatMap(
+                                h -> Stream.concat(nonScheduleLocalHandlerRegistries(f)
+                                                           .map(r -> r.registerHandler(h, handlerFilter)),
+                                                   ClientUtils.getTopics(CUSTOM, h).stream()
+                                                           .map(topic -> f.customGateway(topic)
+                                                                   .registerHandler(h, handlerFilter))))
+                        .reduce(Registration::merge).orElse(Registration.noOp());
+                Registration schedules = scheduleLocalHandlerRegistry(f)
+                        .map(s -> handlers.stream().map(h -> s.registerHandler(h, handlerFilter))
+                                .reduce(Registration::merge).orElse(Registration.noOp()))
+                        .orElse(Registration.noOp());
+                return local.merge(schedules);
+            });
             fixture.registration = fixture.registration.merge(registration);
         });
     }
@@ -606,6 +624,12 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected Stream<HasLocalHandlers> localHandlerRegistries(Fluxzero fluxzero) {
         return ObjectUtils.concat(
+                nonScheduleLocalHandlerRegistries(fluxzero),
+                scheduleLocalHandlerRegistry(fluxzero).stream());
+    }
+
+    protected Stream<HasLocalHandlers> nonScheduleLocalHandlerRegistries(Fluxzero fluxzero) {
+        return ObjectUtils.concat(
                 Stream.of(
                         fluxzero.commandGateway(),
                         fluxzero.queryGateway(),
@@ -614,8 +638,11 @@ public class TestFixture implements Given<TestFixture>, When {
                         fluxzero.errorGateway(),
                         fluxzero.webRequestGateway(),
                         fluxzero.metricsGateway()),
-                fluxzero.messageScheduler() instanceof DefaultMessageScheduler s ? Stream.of(s) : empty(),
                 fluxzero.documentStore() instanceof DefaultDocumentStore s ? Stream.of(s) : Stream.empty());
+    }
+
+    protected Optional<HasLocalHandlers> scheduleLocalHandlerRegistry(Fluxzero fluxzero) {
+        return fluxzero.messageScheduler() instanceof DefaultMessageScheduler s ? Optional.of(s) : Optional.empty();
     }
 
     /**
@@ -731,8 +758,10 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public TestFixture givenAppliedEvents(String aggregateId, Class<?> aggregateClass, Object... events) {
         Class<?> callerClass = getCallerClass();
-        return givenModification(fixture -> fixture.applyEvents(aggregateId, aggregateClass, fixture.getFluxzero(),
-                                                                fixture.asMessages(callerClass, events).toList()));
+        return givenModificationWithTrace(describeFixtureAction("applied events to", aggregateClass),
+                                          fixture -> fixture.applyEvents(
+                                                  aggregateId, aggregateClass, fixture.getFluxzero(),
+                                                  fixture.asMessages(callerClass, events).toList()));
     }
 
     @Override
@@ -933,15 +962,15 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public TestFixture given(ThrowingConsumer<Fluxzero> condition) {
-        return givenModification(fixture -> condition.accept(fixture.getFluxzero()));
+        return givenModificationWithTrace("custom task", fixture -> condition.accept(fixture.getFluxzero()));
     }
 
     protected TestFixture givenModification(ThrowingConsumer<TestFixture> modifier) {
         try {
+            fixtureResult.getTrace().startPhase("given");
+            GivenWhenThenAssertionError.useTrace(this::renderTrace);
             return modifyFixture(fixture -> {
-                fixture.handleExpiredSchedulesLocally();
                 modifier.accept(fixture);
-                fixture.handleExpiredSchedulesLocally();
                 fixture.waitForConsumers();
             });
         } catch (Throwable e) {
@@ -949,7 +978,27 @@ public class TestFixture implements Given<TestFixture>, When {
                 log.info("Ignoring error in given:", e);
                 return this;
             }
-            throw new IllegalStateException("Failed to execute given", e);
+            throw new IllegalStateException(enrichFailureMessage("Failed to execute given", e), e);
+        }
+    }
+
+    private TestFixture givenModificationWithTrace(String description, ThrowingConsumer<TestFixture> modifier) {
+        return givenModification(fixture -> fixture.executeGivenAction(description, modifier));
+    }
+
+    private void executeGivenAction(String description, ThrowingConsumer<TestFixture> modifier) throws Exception {
+        FixtureTrace.ActionScope traceScope = fixtureResult.getTrace().beginAction(description);
+        Throwable error = null;
+        try {
+            modifier.accept(this);
+        } catch (RuntimeException | Error e) {
+            error = e;
+            throw e;
+        } catch (Exception e) {
+            error = e;
+            throw e;
+        } finally {
+            traceScope.close(null, error);
         }
     }
 
@@ -960,42 +1009,42 @@ public class TestFixture implements Given<TestFixture>, When {
     @Override
     public Then<Object> whenCommand(Object command) {
         Message message = trace(command);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenCommandByUser(Object user, Object command) {
         Message message = trace(command);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenQuery(Object query) {
         Message message = trace(query);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenQueryByUser(Object user, Object query) {
         Message message = trace(query);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenCustom(String topic, Object request) {
         Message message = trace(request);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(message)));
     }
 
     @Override
     public Then<Object> whenCustomByUser(Object user, String topic, Object request) {
         Message message = trace(request);
-        return whenApplying(fc -> message.getPayload() == null
+        return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(addUser(getUser(user), message))));
     }
 
@@ -1003,28 +1052,33 @@ public class TestFixture implements Given<TestFixture>, When {
     public Then<?> whenEvent(Object event) {
         Message message = trace(event);
         return message.getPayload() == null ? whenNothingHappens()
-                : whenExecuting(fc -> fc.eventGateway().publish(message, Guarantee.STORED).get());
+                : executeWhen(fc -> fc.eventGateway().publish(message, Guarantee.STORED).get());
     }
 
     @Override
     public Then<?> whenMetric(Object metric) {
         Message message = trace(metric);
         return message.getPayload() == null ? whenNothingHappens()
-                : whenExecuting(fc -> ((DefaultMetricsGateway) fc.metricsGateway()).sendAndForget(message,
-                                                                                                  Guarantee.STORED)
+                : executeWhen(fc -> ((DefaultMetricsGateway) fc.metricsGateway()).sendAndForget(message,
+                                                                                                Guarantee.STORED)
                         .get());
     }
 
     @Override
     public Then<?> whenEventsAreApplied(String aggregateId, Class<?> aggregateClass, Object... events) {
         Class<?> callerClass = getCallerClass();
-        return whenExecuting(fc -> applyEvents(aggregateId, aggregateClass, fc,
-                                               asMessages(callerClass, events).collect(toList())));
+        return executeWhenWithTrace(describeFixtureAction("applying events to", aggregateClass),
+                                    fc -> {
+                                        applyEvents(aggregateId, aggregateClass, fc,
+                                                    asMessages(callerClass, events).collect(toList()));
+                                        return null;
+                                    });
     }
 
     @Override
     public <R> Then<List<R>> whenSearching(Object collection, UnaryOperator<Search> searchQuery) {
-        return whenApplying(fc -> searchQuery.apply(fc.documentStore().search(collection)).fetchAll());
+        return executeWhenWithTrace(describeFixtureAction("searching", collection),
+                                    fc -> searchQuery.apply(fc.documentStore().search(collection)).fetchAll());
     }
 
     @Override
@@ -1090,7 +1144,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     Then<Object> doWhenWebRequest(WebRequest message) {
-        return whenApplying(fc -> {
+        return executeWhen(fc -> {
             try {
                 var response = executeWebRequest(message);
                 if (response != null && synchronous
@@ -1122,7 +1176,7 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
         Message message = trace(schedule);
-        return whenExecuting(fc -> {
+        return executeWhen(fc -> {
             if (message instanceof Schedule s) {
                 fc.messageScheduler().schedule(s);
                 if (s.getDeadline().isAfter(getCurrentTime())) {
@@ -1131,48 +1185,88 @@ public class TestFixture implements Given<TestFixture>, When {
             } else {
                 fc.messageScheduler().schedule(message, getCurrentTime());
             }
+            return null;
         });
     }
 
     @Override
     @SneakyThrows
     public Then<?> whenTimeElapses(Duration duration) {
-        return whenExecuting(fc -> advanceTimeBy(duration));
+        return executeWhen(fc -> {
+            advanceTimeBy(duration);
+            return null;
+        });
     }
 
     @Override
     public <R> Then<R> whenUpcasting(Object value) {
         Class<?> callerClass = getCallerClass();
-        return whenApplying(fc -> parseObject(value, callerClass));
+        return executeWhenWithTrace("upcasting", fc -> parseObject(value, callerClass));
     }
 
     @Override
     @SneakyThrows
     public Then<?> whenTimeAdvancesTo(Instant instant) {
-        return whenExecuting(fc -> advanceTimeTo(instant));
+        return executeWhen(fc -> {
+            advanceTimeTo(instant);
+            return null;
+        });
+    }
+
+    @Override
+    public Then<?> whenExecuting(ThrowingConsumer<Fluxzero> action) {
+        return executeWhenWithTrace("custom task", fc -> {
+            action.accept(fc);
+            return null;
+        });
     }
 
     @Override
     public <R> Then<R> whenApplying(ThrowingFunction<Fluxzero, R> action) {
+        return executeWhenWithTrace("applying", action);
+    }
+
+    @Override
+    public Then<?> whenNothingHappens() {
+        return executeWhenWithTrace("nothing happens", fc -> null);
+    }
+
+    private <R> Then<R> executeWhen(ThrowingFunction<Fluxzero, R> action) {
+        return executeWhen(null, action);
+    }
+
+    private <R> Then<R> executeWhenWithTrace(String description, ThrowingFunction<Fluxzero, R> action) {
+        return executeWhen(description, action);
+    }
+
+    private <R> Then<R> executeWhen(String description, ThrowingFunction<Fluxzero, R> action) {
         return fluxzero.apply(fc -> {
+            fixtureResult.getTrace().startPhase("when");
+            GivenWhenThenAssertionError.useTrace(this::renderTrace);
             fixtureResult.setWhenPhaseStarted(true);
-            handleExpiredSchedulesLocally();
             waitForConsumers();
             resetMocks();
             fixtureResult.setCollectingResults(true);
-            Object result;
+            FixtureTrace.ActionScope traceScope = description == null
+                    ? null : fixtureResult.getTrace().beginAction(description);
+            Object result = null;
+            Throwable error = null;
             try {
                 result = action.apply(fc);
                 if (result instanceof CompletableFuture<?> future) {
                     result = getDispatchResult(future);
                 }
             } catch (Throwable e) {
+                error = e;
                 registerError(e);
                 result = e;
+            } finally {
+                if (traceScope != null) {
+                    traceScope.close(result, error);
+                }
             }
             fixtureResult.setResult(result);
             waitForConsumers();
-            handleExpiredSchedulesLocally();
             return new ResultValidator<>(this);
         });
     }
@@ -1231,29 +1325,6 @@ public class TestFixture implements Given<TestFixture>, When {
                                                                                  .toList());
     }
 
-    protected void handleExpiredSchedulesLocally() {
-        getFluxzero().taskScheduler().executeExpiredTasks();
-        if (synchronous) {
-            try {
-                if (getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local) {
-                    List<Schedule> expiredSchedules;
-                    do {
-                        expiredSchedules = local.removeExpiredSchedules(getFluxzero().serializer());
-                        if (getFluxzero().messageScheduler() instanceof DefaultMessageScheduler scheduler) {
-                            expiredSchedules.forEach(scheduler::handleLocally);
-                        }
-                    } while (!expiredSchedules.isEmpty());
-                }
-            } catch (Throwable e) {
-                if (fixtureResult.isWhenPhaseStarted()) {
-                    registerError(e);
-                } else {
-                    throw e;
-                }
-            }
-        }
-    }
-
     protected List<Schedule> getFutureSchedules() {
         return getFluxzero().client().getSchedulingClient() instanceof LocalSchedulingClient local ?
                 local.getFutureSchedules(getFluxzero().serializer()) : emptyList();
@@ -1294,6 +1365,7 @@ public class TestFixture implements Given<TestFixture>, When {
         var previousResult = fixtureResult;
         fixtureResult = new FixtureResult();
         fixtureResult.setPreviousResult(previousResult);
+        GivenWhenThenAssertionError.useTrace(this::renderTrace);
         return this;
     }
 
@@ -1317,29 +1389,102 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void advanceTimeTo(Instant instant) {
-        setClock(Clock.fixed(instant, ZoneId.systemDefault()));
+        try (FixtureTrace.TraceScope ignored = fixtureResult.getTrace().beginTimeShift(describeTimeShift(instant))) {
+            setClock(Clock.fixed(instant, ZoneId.systemDefault()));
+        }
+    }
+
+    private String describeTimeShift(Instant instant) {
+        Duration duration = Duration.between(getCurrentTime(), instant);
+        return duration.isNegative() ? formatDuration(duration.negated()) + " moved back"
+                : formatDuration(duration) + " elapsed";
+    }
+
+    private static String formatDuration(Duration duration) {
+        if (duration.isZero()) {
+            return "0ms";
+        }
+        long millis = duration.toMillis();
+        if (millis == 0L) {
+            return "<1ms";
+        }
+        long days = millis / Duration.ofDays(1).toMillis();
+        millis %= Duration.ofDays(1).toMillis();
+        long hours = millis / Duration.ofHours(1).toMillis();
+        millis %= Duration.ofHours(1).toMillis();
+        long minutes = millis / Duration.ofMinutes(1).toMillis();
+        millis %= Duration.ofMinutes(1).toMillis();
+        long seconds = millis / Duration.ofSeconds(1).toMillis();
+        millis %= Duration.ofSeconds(1).toMillis();
+        List<String> parts = new ArrayList<>();
+        if (days > 0) {
+            parts.add(days + "d");
+        }
+        if (hours > 0) {
+            parts.add(hours + "h");
+        }
+        if (minutes > 0) {
+            parts.add(minutes + "m");
+        }
+        if (seconds > 0) {
+            parts.add(seconds + "s");
+        }
+        if (millis > 0) {
+            parts.add(millis + "ms");
+        }
+        return String.join(" ", parts);
+    }
+
+    private static String describeFixtureAction(String action, Object target) {
+        return target == null ? action : action + " " + describeFixtureActionTarget(target);
+    }
+
+    private static String describeFixtureActionTarget(Object target) {
+        if (target instanceof Class<?> type) {
+            return simpleTypeName(type);
+        }
+        return String.valueOf(target);
+    }
+
+    private static String simpleTypeName(Class<?> type) {
+        if (type == null) {
+            return "Unknown";
+        }
+        if (type.isArray()) {
+            return simpleTypeName(type.getComponentType()) + "[]";
+        }
+        String simpleName = type.getSimpleName();
+        return simpleName.isBlank() ? type.getName() : simpleName;
     }
 
     protected void setClock(Clock clock) {
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
-        if (schedulingClient instanceof LocalSchedulingClient local) {
+        if (schedulingClient instanceof LocalSchedulingClient) {
             if (!skipScheduleDeadlines) {
                 var target = clock.instant();
-                var nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
-                while (nextDeadline != null && nextDeadline.isBefore(target)) {
+                Instant previousDeadline = null;
+                Instant nextDeadline = getNextTaskDeadline(target);
+                while (nextDeadline != null && !Objects.equals(previousDeadline, nextDeadline)) {
                     Clock nextClock = Clock.fixed(nextDeadline, ZoneId.systemDefault());
                     getFluxzero().withClock(nextClock);
-                    local.setClock(nextClock);
-                    handleExpiredSchedulesLocally();
-                    nextDeadline = getFutureSchedules().stream().findFirst().map(Schedule::getDeadline).orElse(null);
+                    previousDeadline = nextDeadline;
+                    nextDeadline = getNextTaskDeadline(target);
                 }
             }
             getFluxzero().withClock(clock);
-            local.setClock(clock);
         } else {
             getFluxzero().withClock(clock);
             log.warn("Could not update clock of scheduling client. Timing tests may not work.");
         }
+    }
+
+    private Instant getNextTaskDeadline(Instant target) {
+        if (getFluxzero().taskScheduler() instanceof InMemoryTaskScheduler scheduler) {
+            return scheduler.getScheduledDeadlines().stream().filter(deadline -> !deadline.isAfter(target)).findFirst()
+                    .orElse(null);
+        }
+        return getFutureSchedules().stream().map(Schedule::getDeadline).filter(deadline -> !deadline.isAfter(target))
+                .findFirst().orElse(null);
     }
 
     protected void registerCommand(Message command) {
@@ -1388,11 +1533,63 @@ public class TestFixture implements Given<TestFixture>, When {
                     ? dispatchResult.get(0, MILLISECONDS)
                     : dispatchResult.get(resultTimeout.toMillis(), MILLISECONDS));
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof TimeoutException timeout) {
+                throw enrichTimeout(timeout);
+            }
             throw e.getCause();
         } catch (TimeoutException e) {
-            throw new TimeoutException("Test fixture did not receive a dispatch result in time. "
-                                       + "Perhaps some messages did not have handlers?");
+            throw enrichTimeout(new TimeoutException(
+                    "Test fixture did not receive a dispatch result in time. "
+                    + "Perhaps some messages did not have handlers?"));
         }
+    }
+
+    private TimeoutException enrichTimeout(TimeoutException timeout) {
+        TimeoutException result = new TimeoutException(fixtureResult.getTrace().timeoutMessage(
+                ofNullable(timeout.getMessage()).orElse("Test fixture timed out while waiting for a dispatch result")));
+        result.initCause(timeout);
+        return result;
+    }
+
+    private String enrichFailureMessage(String message, Throwable cause) {
+        String causeMessage = cause.getMessage();
+        String enriched = causeMessage == null || causeMessage.isBlank() ? message : message + ": " + causeMessage;
+        return fixtureResult.getTrace().appendTo(enriched);
+    }
+
+    private String renderTrace() {
+        String body = renderTraceBody(fixtureResult);
+        return body.isBlank() ? "" : "Test trace:" + System.lineSeparator()
+                                    + System.lineSeparator() + body + System.lineSeparator();
+    }
+
+    private String renderTraceBody(FixtureResult result) {
+        List<String> traces = new ArrayList<>();
+        collectTraceBodies(result, traces);
+        return String.join(System.lineSeparator() + "and then ", traces);
+    }
+
+    private void collectTraceBodies(FixtureResult result, List<String> traces) {
+        if (result == null) {
+            return;
+        }
+        collectTraceBodies(result.getPreviousResult(), traces);
+        String trace = result.getTrace().renderBody();
+        if (!trace.isBlank()) {
+            traces.add(trace);
+        }
+    }
+
+    void showTraceMessageType(MessageType messageType) {
+        fixtureResult.getTrace().show(messageType);
+    }
+
+    void recordMissedTraceMessages(MessageType messageType, String topic, Collection<?> expectedMessages) {
+        fixtureResult.getTrace().recordMissed(messageType, topic, expectedMessages);
+    }
+
+    void recordUnexpectedTraceMessages(MessageType messageType, String topic, Collection<?> unexpectedMessages) {
+        fixtureResult.getTrace().recordUnexpected(messageType, topic, unexpectedMessages);
     }
 
     protected Stream<Message> asMessages(Class<?> callerClass, Object... messages) {
@@ -1566,6 +1763,7 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+            testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.registerAutomaticTrackSelfHandler(message);
 
             if (testFixture.fixtureResult.isCollectingResults()) {
@@ -1696,12 +1894,18 @@ public class TestFixture implements Given<TestFixture>, When {
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
             return m -> {
+                var traceScope = testFixture.fixtureResult.getTrace().beginHandling(m, invoker);
+                Object result = null;
+                Throwable error = null;
                 try {
-                    return function.apply(m);
+                    result = function.apply(m);
+                    return result;
                 } catch (Throwable e) {
+                    error = e;
                     testFixture.registerError(e);
                     throw e;
                 } finally {
+                    traceScope.close(result, error);
                     if (
                             m.getMessageType().isRequest()
                             && Tracker.current().map(Tracker::getMessageBatch).map(batch -> batch.getMessages().stream()

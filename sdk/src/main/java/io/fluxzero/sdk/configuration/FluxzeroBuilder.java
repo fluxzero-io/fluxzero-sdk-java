@@ -57,6 +57,9 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
     /**
      * Update the default consumer configuration for the specified message type.
+     * <p>
+     * When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE}, this configuration is
+     * used as the template for the generated per-handler consumers.
      */
     FluxzeroBuilder configureDefaultConsumer(MessageType messageType,
                                              UnaryOperator<ConsumerConfiguration> updateFunction);
@@ -182,7 +185,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder replaceTaskScheduler(Function<Clock, TaskScheduler> function);
 
     /**
-     * Replaces the validator used for payload and web parameter validation.
+     * Replaces the validator used for payload validation, web parameter validation, and {@code ValidationUtils}
+     * convenience methods executed in this Fluxzero instance's context.
      *
      * @param replaceFunction function that receives the current validator and returns the replacement
      * @return this builder instance

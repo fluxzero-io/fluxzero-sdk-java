@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -29,6 +30,7 @@ import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
@@ -41,11 +43,15 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -62,6 +68,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
@@ -108,11 +115,15 @@ import static java.util.stream.Collectors.toMap;
 @AllArgsConstructor
 @Slf4j
 public class DefaultTracking implements Tracking {
+    private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
+
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
             .map(LocalHandler::allowExternalMessages).orElse(true);
     private final MessageType messageType;
     private final ResultGateway resultGateway;
-    private final List<ConsumerConfiguration> configurations;
+    private final List<ConsumerConfiguration> customConfigurations;
+    private final List<ConsumerConfiguration> defaultConfigurations;
     private final Serializer serializer;
     private final HandlerFactory handlerFactory;
 
@@ -138,7 +149,7 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
         return fluxzero.apply(fc -> {
-            Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(handlers);
+            Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fc, handlers);
             Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
             assignedHandlers.forEach((config, matches) ->
                     matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
@@ -204,27 +215,28 @@ public class DefaultTracking implements Tracking {
      *   <li>Conflicting consumers have been defined for the same handler</li>
      * </ul>
      */
-    private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(List<?> handlers) {
+    private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(Fluxzero fluxzero, List<?> handlers) {
+        List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(handlers).toList();
+        if (useSharedDefaultAppConsumerForUnconfiguredHandlers(fluxzero)) {
+            return assignHandlersToConsumers(
+                    handlers, Stream.concat(explicitConfigurations.stream(), defaultConfigurations.stream()));
+        }
+        List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
+        return assignHandlersToConsumers(
+                handlers, Stream.concat(explicitConfigurations.stream(),
+                                        defaultConsumerConfigurations(fluxzero, fallbackHandlers)));
+    }
+
+    private Stream<ConsumerConfiguration> explicitConfigurations(List<?> handlers) {
+        return Stream.concat(
+                ConsumerConfiguration.configurations(handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
+                customConfigurations.stream());
+    }
+
+    private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
+            List<?> handlers, Stream<ConsumerConfiguration> configurations) {
         var unassignedHandlers = new ArrayList<Object>(handlers);
-        var configurations = Stream.concat(
-                        ConsumerConfiguration.configurations(handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
-                        this.configurations.stream())
-                .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
-                .map(ConsumerConfiguration::ordered)
-                .map(ConsumerConfiguration::substituteProperties)
-                .collect(toMap(ConsumerConfiguration::getName, Function.identity(), (a, b) -> {
-                    if (a.equals(b)) {
-                        return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
-                    }
-                    throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
-                            "Consumer name is configured more than once",
-                            "Fluxzero found multiple different consumer configurations named `%s`.".formatted(
-                                    a.getName()),
-                            "Use unique consumer names, or make the repeated @Consumer configurations identical so "
-                            + "Fluxzero can merge their handler filters.",
-                            null, a.getName()));
-                }, LinkedHashMap::new));
-        var result = configurations.values().stream().map(config -> {
+        var result = normalizeConfigurations(configurations).stream().map(config -> {
             var matches =
                     unassignedHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
             if (config.exclusive() && !config.conditionallyExclusive()) {
@@ -243,6 +255,138 @@ public class DefaultTracking implements Tracking {
                     h, null));
         });
         return result;
+    }
+
+    private static boolean useSharedDefaultAppConsumerForUnconfiguredHandlers(Fluxzero fluxzero) {
+        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
+               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+    }
+
+    private static UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
+        String configuredMode = propertySource.get(
+                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
+        if (configuredMode != null) {
+            return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        return defaultsVersionUsesPerHandlerConsumers(propertySource)
+                ? UnconfiguredHandlerConsumerMode.PER_HANDLER
+                : UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+    }
+
+    private static UnconfiguredHandlerConsumerMode parseUnconfiguredHandlerConsumerMode(String mode) {
+        String normalized = mode.trim();
+        if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_HANDLER;
+        }
+        if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+        }
+        throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                "Invalid unconfigured handler consumer mode",
+                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                        ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
+                        ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
+                "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY),
+                null, mode));
+    }
+
+    private static boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return Optional.ofNullable(defaultsVersion(propertySource))
+                .map(version -> !version.isBefore(PER_HANDLER_DEFAULTS_VERSION)).orElse(false);
+    }
+
+    private static LocalDate defaultsVersion(PropertySource propertySource) {
+        String value = propertySource.get(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                    "Invalid Fluxzero defaults version",
+                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
+                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value),
+                    "Set a date like `2026.05.20`, or remove the property to use compatibility defaults.",
+                    null, value), e);
+        }
+    }
+
+    private enum UnconfiguredHandlerConsumerMode {
+        DEFAULT_APP_CONSUMER,
+        PER_HANDLER
+    }
+
+    private List<Object> fallbackHandlers(List<?> handlers, Collection<ConsumerConfiguration> configurations) {
+        var fallbackHandlers = new ArrayList<Object>(handlers);
+        normalizeConfigurations(configurations.stream()).forEach(config -> {
+            var matches = fallbackHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
+            if (config.exclusive() && !config.conditionallyExclusive()) {
+                fallbackHandlers.removeAll(matches);
+            }
+        });
+        return fallbackHandlers;
+    }
+
+    private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations) {
+        return configurations
+                .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
+                .map(ConsumerConfiguration::ordered)
+                .map(ConsumerConfiguration::substituteProperties)
+                .collect(toMap(ConsumerConfiguration::getName, Function.identity(),
+                               DefaultTracking::mergeConfigurations, LinkedHashMap::new))
+                .values().stream().toList();
+    }
+
+    private static ConsumerConfiguration mergeConfigurations(ConsumerConfiguration a, ConsumerConfiguration b) {
+        if (a.equals(b)) {
+            return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
+        }
+        throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                "Consumer name is configured more than once",
+                "Fluxzero found multiple different consumer configurations named `%s`.".formatted(
+                        a.getName()),
+                "Use unique consumer names, or make the repeated @Consumer configurations identical so "
+                + "Fluxzero can merge their handler filters.",
+                null, a.getName()));
+    }
+
+    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(Fluxzero fluxzero, List<Object> handlers) {
+        if (handlers.isEmpty() || defaultConfigurations.isEmpty()) {
+            return Stream.empty();
+        }
+        ConsumerConfiguration template = defaultConfigurations.getFirst();
+        List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().toList();
+        Map<String, Integer> simpleNameCounts = new HashMap<>();
+        handlerTypes.stream().map(DefaultTracking::consumerSimpleName)
+                .forEach(name -> simpleNameCounts.merge(name, 1, Integer::sum));
+        return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
+                fluxzero.client().name(), template, handlerType,
+                simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private static ConsumerConfiguration defaultConsumerConfiguration(
+            String applicationName, ConsumerConfiguration template, Class<?> handlerType, boolean includePackageName) {
+        Predicate<Object> handlerFilter = h -> ReflectionUtils.asClass(h).equals(handlerType);
+        return template.toBuilder()
+                .name(defaultConsumerName(applicationName, handlerType, includePackageName))
+                .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                .build();
+    }
+
+    private static String defaultConsumerName(String applicationName, Class<?> handlerType,
+                                              boolean includePackageName) {
+        String handlerName = includePackageName ? handlerType.getName() : consumerSimpleName(handlerType);
+        String sanitizedHandlerName = handlerName.replace('.', '_').replace('$', '_');
+        return applicationName == null || applicationName.isBlank() ? sanitizedHandlerName
+                : "%s_%s".formatted(applicationName, sanitizedHandlerName);
+    }
+
+    private static String consumerSimpleName(Class<?> handlerType) {
+        String simpleName = handlerType.getSimpleName();
+        return simpleName == null || simpleName.isBlank() ? handlerType.getName() : simpleName;
     }
 
     private HandlerDecorator conditionalExclusivityDecorator(ConsumerConfiguration currentConfig,

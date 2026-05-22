@@ -113,6 +113,8 @@ Use these only when default behavior is not sufficient:
   predicates.
 - **Custom parameter injection**: register custom `ParameterResolver`s via `.addParameterResolver(...)` for contextual
   handler arguments.
+- **Custom validation**: replace the configured validator via `.replaceValidator(...)`; `ValidationUtils` convenience
+  methods use the validator from the active `Fluxzero` instance and fall back to the SDK default outside that context.
 - **Selective runtime toggles**: use targeted toggles (for example metrics/correlation/protection toggles) only when you
   have an explicit operational reason.
 
@@ -123,7 +125,7 @@ Typical patterns:
 2. **Domain grouping by predicate**: Route a subset of handlers into a dedicated consumer (for example billing-heavy
    handlers) for independent scaling/tuning.
 3. **Context injection**: Use `addParameterResolver(...)` when standard payload/metadata/sender/entity injection is not
-   enough.
+   enough for handler methods.
 
 ```java
 FluxzeroBuilder builder = DefaultFluxzero.builder()
@@ -134,7 +136,7 @@ Example patterns:
 
 ```java
 FluxzeroBuilder builder = DefaultFluxzero.builder()
-    // 1) Tune the default command consumer
+    // 1) Tune the default command consumer/template
     .configureDefaultConsumer(MessageType.COMMAND, c -> c.toBuilder()
         .name("commands-default")
         .threads(4)

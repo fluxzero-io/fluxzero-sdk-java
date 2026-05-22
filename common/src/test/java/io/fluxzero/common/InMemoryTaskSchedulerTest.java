@@ -3,15 +3,38 @@ package io.fluxzero.common;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class InMemoryTaskSchedulerTest {
+
+    @Test
+    void clockChangeExecutesExpiredTasks() {
+        DelegatingClock clock = new DelegatingClock();
+        clock.setDelegate(Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
+        InMemoryTaskScheduler scheduler = new InMemoryTaskScheduler("scheduler-test", clock);
+        AtomicInteger invocations = new AtomicInteger();
+
+        try {
+            scheduler.schedule(Instant.EPOCH.plusSeconds(1), invocations::incrementAndGet);
+
+            assertEquals(0, invocations.get());
+
+            clock.setDelegate(Clock.fixed(Instant.EPOCH.plusSeconds(1), ZoneOffset.UTC));
+
+            assertEquals(1, invocations.get());
+        } finally {
+            scheduler.shutdown();
+        }
+    }
 
     @Test
     void executeExpiredTasksAsyncDelegatesExpiredTasksToWorkerPool() {

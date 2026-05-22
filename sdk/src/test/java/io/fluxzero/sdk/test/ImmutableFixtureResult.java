@@ -32,6 +32,7 @@ class ImmutableFixtureResult {
     Message tracedMessage;
     Object result;
     ImmutableFixtureResult previousResult;
+    String trace;
     Map<String, String> knownWebParams;
     List<Message> commands;
     List<Message> queries;
@@ -50,6 +51,7 @@ class ImmutableFixtureResult {
                 result.getTracedMessage(),
                 result.getResult(),
                 result.getPreviousResult() == null ? null : from(result.getPreviousResult()),
+                result.getTrace().render(),
                 Map.copyOf(result.getKnownWebParams()),
                 List.copyOf(result.getCommands()),
                 List.copyOf(result.getQueries()),

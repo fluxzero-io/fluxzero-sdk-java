@@ -29,7 +29,9 @@ import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.HandlerRepository;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
 import io.fluxzero.sdk.web.DefaultWebRequestContext;
@@ -43,6 +45,8 @@ import io.fluxzero.sdk.web.WebHandlerMatcher;
 import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AccessibleObject;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -117,6 +121,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final Function<Class<?>, HandlerRepository> handlerRepositorySupplier;
     private final RepositoryProvider repositoryProvider;
     private final boolean trackingMetricsEnabled;
+    private final Serializer serializer;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -128,7 +133,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                  MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator,
                                  Function<Class<?>, HandlerRepository> handlerRepositorySupplier,
                                  RepositoryProvider repositoryProvider,
-                                 boolean trackingMetricsEnabled) {
+                                 boolean trackingMetricsEnabled,
+                                 Serializer serializer) {
         this.messageType = messageType;
         this.defaultDecorator = defaultDecorator;
         this.parameterResolvers = parameterResolvers;
@@ -136,6 +142,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         this.handlerRepositorySupplier = handlerRepositorySupplier;
         this.repositoryProvider = repositoryProvider;
         this.trackingMetricsEnabled = trackingMetricsEnabled;
+        this.serializer = serializer;
         this.handlerAnnotation = getHandlerAnnotation(messageType);
         this.messageFilter = computeMessageFilter();
     }
@@ -162,7 +169,27 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (hasHandlerMethods(targetClass, handlerConfiguration)) {
             return true;
         }
+        if (ReflectionUtils.getTypeAnnotation(targetClass, Stateful.class) != null
+            && hasMemberHandlerMethods(targetClass, handlerConfiguration, new HashSet<>())) {
+            return true;
+        }
         return messageType == MessageType.WEBREQUEST && StaticFileHandler.isHandler(targetClass);
+    }
+
+    protected boolean hasMemberHandlerMethods(Class<?> targetClass, HandlerConfiguration<?> handlerConfiguration,
+                                              Set<Class<?>> visitedTypes) {
+        if (targetClass == null || Object.class.equals(targetClass) || !visitedTypes.add(targetClass)) {
+            return false;
+        }
+        for (AccessibleObject location : ReflectionUtils.getAnnotatedProperties(targetClass, Member.class)) {
+            Class<?> memberType = ReflectionUtils.getCollectionElementType(location)
+                    .orElse(ReflectionUtils.getPropertyType(location));
+            if (hasHandlerMethods(memberType, handlerConfiguration)
+                || hasMemberHandlerMethods(memberType, handlerConfiguration, new HashSet<>(visitedTypes))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected Handler<DeserializingMessage> buildHandler(@NonNull Object target,
@@ -176,7 +203,10 @@ public class DefaultHandlerFactory implements HandlerFactory {
                     return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
                                                handlerRepositorySupplier.apply(targetClass),
                                                parameterResolvers,
-                                               e -> statefulConfig.getAnnotation(e).orElse(null));
+                                               e -> statefulConfig.getAnnotation(e).orElse(null),
+                                               (memberType, resolvers) -> createHandlerMatcher(
+                                                       memberType, statefulConfig, resolvers),
+                                               serializer);
                 }
             }
 
@@ -271,9 +301,15 @@ public class DefaultHandlerFactory implements HandlerFactory {
         };
     }
 
-    @SuppressWarnings("SwitchStatementWithTooFewBranches")
     protected HandlerMatcher<Object, DeserializingMessage> createHandlerMatcher(
             Object target, HandlerConfiguration<DeserializingMessage> config) {
+        return createHandlerMatcher(target, config, parameterResolvers);
+    }
+
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    protected HandlerMatcher<Object, DeserializingMessage> createHandlerMatcher(
+            Object target, HandlerConfiguration<DeserializingMessage> config,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         return switch (messageType) {
             case WEBREQUEST -> WebHandlerMatcher.create(target, parameterResolvers, config, webRouteRegistry);
             default -> HandlerInspector.inspect(ReflectionUtils.asClass(target), parameterResolvers, config);

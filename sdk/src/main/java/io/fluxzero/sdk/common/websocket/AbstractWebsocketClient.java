@@ -137,6 +137,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             AbstractWebsocketClient.class.getName() + ".runtimeVersion";
     protected static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".selectedCompressionAlgorithm";
+    static final String REPLAYED_RESPONSE_METADATA_KEY = "replayedResponse";
 
     public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
     public static ObjectMapper defaultObjectMapper = JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES)
@@ -391,16 +392,11 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 log().warn("Could not find outstanding read request for id {}", result.getRequestId());
             } else {
                 try {
-                    long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
                     Metadata metadata = metricsMetadata()
                             .with("requestId", webSocketRequest.request.getRequestId(),
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
-                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp,
-                                  "requestReceivedTimestamp",
-                                  requestReceivedTimestamp > 0 ? requestReceivedTimestamp : null,
-                                  "responseTimestamp", result.getTimestamp(),
-                                  "serverMsDuration", requestReceivedTimestamp > 0
-                                                      ? result.getTimestamp() - requestReceivedTimestamp : null)
+                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
+                            .with(responseTimingMetadata(result))
                             .with(webSocketRequest.correlationData)
                             .with("batchId", batchId)
                             .with("sessionId", sessionId)
@@ -423,6 +419,30 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (Throwable e) {
             log().error("Failed to handle result {}", result, e);
         }
+    }
+
+    static Metadata responseTimingMetadata(RequestResult result) {
+        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
+        return Metadata.of(
+                "requestReceivedTimestamp", requestReceivedTimestamp > 0 ? requestReceivedTimestamp : null,
+                "responseTimestamp", result.getTimestamp(),
+                "serverMsDuration", serverMsDuration(result),
+                REPLAYED_RESPONSE_METADATA_KEY, isReplayedResponse(result) ? true : null);
+    }
+
+    static Long serverMsDuration(RequestResult result) {
+        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
+        if (requestReceivedTimestamp <= 0) {
+            return null;
+        }
+        long responseTimestamp = result.getTimestamp();
+        // Idempotency can replay a cached result that was created before the retried request reached the server.
+        return responseTimestamp >= requestReceivedTimestamp ? responseTimestamp - requestReceivedTimestamp : 0L;
+    }
+
+    static boolean isReplayedResponse(RequestResult result) {
+        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
+        return requestReceivedTimestamp > 0 && result.getTimestamp() < requestReceivedTimestamp;
     }
 
     protected PingRegistration schedulePing(WebsocketSession session) {

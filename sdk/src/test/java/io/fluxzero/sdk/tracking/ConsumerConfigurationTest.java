@@ -15,8 +15,10 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Order;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.test.TestFixture;
@@ -30,8 +32,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -96,6 +100,63 @@ public class ConsumerConfigurationTest {
                 .whenCommand(new Command())
                 .expectOnlyEvents("nonExclusivePassive", "default")
                 .expectResult("default");
+    }
+
+    @Test
+    void unconfiguredHandlersGetDedicatedConsumersWithPerHandlerMode() {
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                                                ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE)).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(
+                        (Predicate<String>) consumerName -> consumerName.endsWith("_Handler"),
+                        (Predicate<String>) consumerName -> consumerName.endsWith("_OtherHandler"));
+    }
+
+    @Test
+    void unconfiguredHandlersGetDedicatedConsumersWithNewDefaultsVersion() {
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                "2026.05.20")).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(
+                        (Predicate<String>) consumerName -> consumerName.endsWith("_Handler"),
+                        (Predicate<String>) consumerName -> consumerName.endsWith("_OtherHandler"));
+    }
+
+    @Test
+    void sharedDefaultConsumerIsLegacyDefaultsBehavior() {
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                "2026.05.19")).andThen(existing))
+                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                                new Handler())
+
+                .whenCommand(new Command())
+                .expectEvents((Predicate<String>) consumerName -> consumerName.endsWith("_default"))
+                .expectResult((String consumerName) -> consumerName.endsWith("_default"));
+    }
+
+    @Test
+    void sharedDefaultConsumerCanBeSelectedWithMode() {
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.20",
+                                                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                                                ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE)).andThen(existing))
+                                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().name("default").build()),
+                                new Handler())
+
+                .whenCommand(new Command())
+                .expectEvents((Predicate<String>) consumerName -> consumerName.endsWith("_default"))
+                .expectResult((String consumerName) -> consumerName.endsWith("_default"));
     }
 
     @Test
@@ -171,7 +232,8 @@ public class ConsumerConfigurationTest {
                 .whenCommand(new Command())
                 .expectThat(fc -> {
                     assertEquals(1, ConditionalExclusiveHandler.invocations.size());
-                    assertTrue(ConditionalExclusiveHandler.invocations.getFirst().endsWith("default"));
+                    assertTrue(ConditionalExclusiveHandler.invocations.getFirst()
+                                       .endsWith("_ConditionalExclusiveHandler"));
                 });
     }
 
@@ -269,6 +331,13 @@ public class ConsumerConfigurationTest {
     }
 
     static class Command {
+    }
+
+    static class OtherHandler {
+        @HandleCommand
+        void handle(Command command) {
+            Fluxzero.publishEvent(Tracker.current().orElseThrow().getConfiguration().getName());
+        }
     }
 
     static class OrderedHandler {

@@ -26,7 +26,10 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -209,34 +212,123 @@ public class AnnotatedEntityHolder {
                                              && m.getName().toLowerCase().contains(propertyName.toLowerCase())) :
                 witherCandidates.filter(m -> Objects.equals(member.wither(), m.getName()));
         Optional<BiFunction<Object, Object, Object>> wither =
-                witherCandidates.findFirst().map(m -> (o, h) -> call(() -> m.invoke(o, h)));
-        return wither.orElseGet(() -> {
-            AtomicBoolean warningIssued = new AtomicBoolean();
-            MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
-                    .map(DefaultMemberInvoker::asInvoker).orElse(null);
-            Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
-            return (o, h) -> {
-                if (warningIssued.get()) {
-                    return o;
-                }
-                if (field == null) {
-                    if (warningIssued.compareAndSet(false, true)) {
-                        log.warn("No update function found for @Member {}. {}",
-                                 location, updateFunctionAdvice(ownerType, propertyName));
-                    }
-                } else {
-                    try {
-                        o = ownerCloner.apply(o);
-                        field.invoke(o, h);
-                    } catch (Exception e) {
-                        if (warningIssued.compareAndSet(false, true)) {
-                            log.warn("Not able to update @Member {}. {}", location,
-                                     updateFunctionAdvice(ownerType, propertyName), e);
+                witherCandidates.findFirst()
+                        .map(ReflectionUtils::ensureAccessible)
+                        .map(m -> (o, h) -> call(() -> m.invoke(o, h)));
+        return wither
+                .or(() -> computeRecordWither(ownerType, propertyName))
+                .or(() -> computeCopyMethodWither(ownerType, propertyName))
+                .orElseGet(() -> {
+                    AtomicBoolean warningIssued = new AtomicBoolean();
+                    MemberInvoker field = ReflectionUtils.getField(ownerType, propertyName)
+                            .map(DefaultMemberInvoker::asInvoker).orElse(null);
+                    Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
+                    return (o, h) -> {
+                        if (warningIssued.get()) {
+                            return o;
                         }
+                        if (field == null) {
+                            if (warningIssued.compareAndSet(false, true)) {
+                                log.warn("No update function found for @Member {}. {}",
+                                         location, updateFunctionAdvice(ownerType, propertyName));
+                            }
+                        } else {
+                            try {
+                                o = ownerCloner.apply(o);
+                                field.invoke(o, h);
+                            } catch (Exception e) {
+                                if (warningIssued.compareAndSet(false, true)) {
+                                    log.warn("Not able to update @Member {}. {}", location,
+                                             updateFunctionAdvice(ownerType, propertyName), e);
+                                }
+                            }
+                        }
+                        return o;
+                    };
+                });
+    }
+
+    private static Optional<BiFunction<Object, Object, Object>> computeCopyMethodWither(Class<?> ownerType,
+                                                                                        String propertyName) {
+        List<Field> fields = Arrays.stream(ownerType.getDeclaredFields())
+                .filter(field -> !Modifier.isStatic(field.getModifiers()))
+                .filter(field -> !field.isSynthetic())
+                .map(ReflectionUtils::ensureAccessible)
+                .toList();
+        int memberIndex = -1;
+        for (int i = 0; i < fields.size(); i++) {
+            if (Objects.equals(fields.get(i).getName(), propertyName)) {
+                memberIndex = i;
+                break;
+            }
+        }
+        if (memberIndex < 0) {
+            return Optional.empty();
+        }
+        int updateIndex = memberIndex;
+        return ReflectionUtils.getAllMethods(ownerType).stream()
+                .filter(method -> "copy".equals(method.getName()))
+                .filter(method -> ownerType.isAssignableFrom(method.getReturnType()))
+                .filter(method -> matchesCopyParameters(method, fields))
+                .findFirst()
+                .map(ReflectionUtils::ensureAccessible)
+                .map(method -> (owner, holder) -> call(() -> {
+                    Object[] args = new Object[fields.size()];
+                    for (int i = 0; i < fields.size(); i++) {
+                        args[i] = i == updateIndex ? holder : fields.get(i).get(owner);
                     }
+                    return method.invoke(owner, args);
+                }));
+    }
+
+    private static boolean matchesCopyParameters(Method method, List<Field> fields) {
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        if (parameterTypes.length != fields.size()) {
+            return false;
+        }
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Class<?> fieldType = fields.get(i).getType();
+            Class<?> parameterType = parameterTypes[i];
+            if (fieldType.isPrimitive() || parameterType.isPrimitive()) {
+                if (!fieldType.equals(parameterType)) {
+                    return false;
                 }
-                return o;
-            };
+            } else if (!parameterType.isAssignableFrom(fieldType) && !fieldType.isAssignableFrom(parameterType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Optional<BiFunction<Object, Object, Object>> computeRecordWither(Class<?> ownerType,
+                                                                                    String propertyName) {
+        if (!ownerType.isRecord()) {
+            return Optional.empty();
+        }
+        RecordComponent[] components = ownerType.getRecordComponents();
+        int memberIndex = -1;
+        Class<?>[] constructorTypes = new Class<?>[components.length];
+        Method[] accessors = new Method[components.length];
+        for (int i = 0; i < components.length; i++) {
+            constructorTypes[i] = components[i].getType();
+            accessors[i] = ReflectionUtils.ensureAccessible(components[i].getAccessor());
+            if (Objects.equals(components[i].getName(), propertyName)) {
+                memberIndex = i;
+            }
+        }
+        if (memberIndex < 0) {
+            return Optional.empty();
+        }
+        int updateIndex = memberIndex;
+        return call(() -> {
+            var constructor = ReflectionUtils.ensureAccessible(ownerType.getDeclaredConstructor(constructorTypes));
+            return Optional.<BiFunction<Object, Object, Object>>of((owner, holder) -> call(() -> {
+                Object[] args = new Object[components.length];
+                for (int i = 0; i < components.length; i++) {
+                    args[i] = i == updateIndex ? holder : accessors[i].invoke(owner);
+                }
+                return constructor.newInstance(args);
+            }));
         });
     }
 
@@ -252,8 +344,9 @@ public class AnnotatedEntityHolder {
 
     private static String updateFunctionAdvice(Class<?> ownerType, String propertyName) {
         if (ownerType.isRecord()) {
-            return "Records require an explicit wither such as with%s(...) or @Member(wither = \"...\") to update the parent entity automatically."
-                    .formatted(Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1));
+            return "Record component '%s' could not be updated through the canonical constructor. Add an explicit wither such as with%s(...) or @Member(wither = \"...\")."
+                    .formatted(propertyName,
+                               Character.toUpperCase(propertyName.charAt(0)) + propertyName.substring(1));
         }
         return "Please add a wither or setter method.";
     }
@@ -441,6 +534,25 @@ public class AnnotatedEntityHolder {
      */
     @SneakyThrows
     public Object updateOwner(Object owner, Entity<?> before, Entity<?> after) {
+        return updateOwner(owner, List.of(new EntityUpdate(before, after)));
+    }
+
+    /**
+     * Updates the parent object with multiple child entity changes for the same holder in one pass. Collection and map
+     * holders are cloned once, all updates are applied in order, and the owner wither is invoked once.
+     *
+     * @param owner   the parent object containing the member field
+     * @param updates ordered entity updates to apply to this holder
+     * @return a new updated parent object, or the original if mutation fails
+     */
+    @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public Object updateOwner(Object owner, Collection<EntityUpdate> updates) {
+        List<EntityUpdate> updateList = updates instanceof List<?> ? (List<EntityUpdate>) updates
+                : new ArrayList<>(updates);
+        if (updateList.isEmpty()) {
+            return owner;
+        }
         Object holder = ReflectionUtils.getValue(location, owner);
         if (collectionHolder) {
             Collection<Object> collection = serializer.clone(holder);
@@ -449,20 +561,32 @@ public class AnnotatedEntityHolder {
             }
             if (collection instanceof List<?>) {
                 List<Object> list = (List<Object>) collection;
-                int index = list.indexOf(before.get());
-                if (index < 0) {
-                    list.add(after.get());
-                } else {
-                    if (after.get() == null) {
+                for (EntityUpdate update : updateList) {
+                    int index = indexOf(list, update);
+                    if (index < 0) {
+                        if (update.after().get() != null) {
+                            list.add(update.after().get());
+                        }
+                    } else if (update.after().get() == null) {
                         list.remove(index);
                     } else {
-                        list.set(index, after.get());
+                        list.set(index, update.after().get());
                     }
                 }
                 holder = list;
             } else {
-                collection.remove(before.get());
-                collection.add(after.get());
+                for (EntityUpdate update : updateList) {
+                    if (!collection.remove(update.before().get()) && update.before().id() != null) {
+                        removeEntityId(collection, update.before().id());
+                    }
+                    if (update.after().get() != null) {
+                        Object id = Optional.ofNullable(update.after().id()).orElse(update.before().id());
+                        if (id != null) {
+                            removeEntityId(collection, id);
+                        }
+                        collection.add(update.after().get());
+                    }
+                }
                 holder = collection;
             }
         } else if (mapHolder) {
@@ -470,18 +594,64 @@ public class AnnotatedEntityHolder {
             if (map == null) {
                 map = new LinkedHashMap<>();
             }
-            Object id = Optional.ofNullable(after.id()).orElseGet(() -> idProvider.apply(after.get()).value());
-            if (after.get() == null) {
-                map.remove(id);
-            } else {
-                map.put(id, after.get());
+            for (EntityUpdate update : updateList) {
+                Object previousId = update.before().id();
+                if (update.after().get() == null) {
+                    Object id = Optional.ofNullable(update.after().id()).orElse(previousId);
+                    map.remove(id);
+                } else {
+                    Object id = Optional.ofNullable(update.after().id())
+                            .orElseGet(() -> idProvider.apply(update.after().get()).value());
+                    if (id == null) {
+                        throw new IllegalStateException(
+                                "Cannot add @Member map value without a member id. Add @EntityId to the member type "
+                                + "or configure @Member(idProperty = \"...\") on " + location + ".");
+                    }
+                    if (previousId != null && !Objects.equals(previousId, id)) {
+                        map.remove(previousId);
+                    }
+                    map.put(id, update.after().get());
+                }
             }
             holder = map;
         } else {
-            holder = after.get();
+            holder = updateList.getLast().after().get();
         }
         Object result = wither.apply(owner, holder);
         return result == null ? owner : result;
+    }
+
+    private int indexOf(List<Object> list, EntityUpdate update) {
+        Object before = update.before().get();
+        int index = before == null ? -1 : list.indexOf(before);
+        if (index < 0) {
+            Object id = update.after().get() == null
+                    ? update.before().id() : Optional.ofNullable(update.after().id()).orElse(update.before().id());
+            if (id != null) {
+                index = indexOfEntityId(list, id);
+            }
+        }
+        return index;
+    }
+
+    private int indexOfEntityId(List<Object> list, Object id) {
+        for (int i = 0; i < list.size(); i++) {
+            Object candidate = list.get(i);
+            if (candidate != null && Objects.equals(idProvider.apply(candidate).value(), id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void removeEntityId(Collection<Object> collection, Object id) {
+        collection.removeIf(candidate -> candidate != null && Objects.equals(idProvider.apply(candidate).value(), id));
+    }
+
+    /**
+     * A single child entity replacement within an {@link AnnotatedEntityHolder}.
+     */
+    public record EntityUpdate(Entity<?> before, Entity<?> after) {
     }
 
     @Value

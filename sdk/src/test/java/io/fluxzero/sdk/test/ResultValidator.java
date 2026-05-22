@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.test;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.common.ThrowingPredicate;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -21,6 +22,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.*;
@@ -33,6 +35,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.MessageType.ERROR;
+import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 import static io.fluxzero.sdk.common.Message.asMessage;
 import static java.lang.String.format;
@@ -158,92 +162,110 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public Then<R> expectEvents(Object... events) {
-        return expect(asMessages(events), this.events);
+        return expect(asMessages(events), this.events, MessageType.EVENT);
     }
 
     @Override
     public Then<R> expectOnlyEvents(Object... events) {
-        return expectOnly(asMessages(events), this.events);
+        return expectOnly(asMessages(events), this.events, MessageType.EVENT);
     }
 
     @Override
     public Then<R> expectNoEventsLike(Object... events) {
-        return expectNo(asMessages(events), this.events);
+        return expectNo(asMessages(events), this.events, MessageType.EVENT);
     }
 
     @Override
     public Then<R> expectCommands(Object... commands) {
-        return expect(asMessages(commands), this.commands);
+        return expect(asMessages(commands), this.commands, MessageType.COMMAND);
     }
 
     @Override
     public Then<R> expectOnlyCommands(Object... commands) {
-        return expectOnly(asMessages(commands), this.commands);
+        return expectOnly(asMessages(commands), this.commands, MessageType.COMMAND);
     }
 
     @Override
     public Then<R> expectNoCommandsLike(Object... commands) {
-        return expectNo(asMessages(commands), this.commands);
+        return expectNo(asMessages(commands), this.commands, MessageType.COMMAND);
+    }
+
+    @Override
+    public Then<R> expectScheduledCommands(Object... commands) {
+        return expectScheduledCommandMessages(asMessages(commands), scheduledCommands(this.newSchedules));
+    }
+
+    @Override
+    public Then<R> expectOnlyScheduledCommands(Object... commands) {
+        return expectOnlyScheduledCommandMessages(asMessages(commands), scheduledCommands(this.newSchedules));
+    }
+
+    @Override
+    public Then<R> expectNoScheduledCommandsLike(Object... commands) {
+        return expectNo(asMessages(commands), scheduledCommands(this.newSchedules), MessageType.SCHEDULE);
     }
 
     @Override
     public Then<R> expectCustom(String topic, Object... requests) {
-        return expect(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()));
+        return expect(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()),
+                      MessageType.CUSTOM, topic);
     }
 
     @Override
     public Then<R> expectOnlyCustom(String topic, Object... requests) {
-        return expectOnly(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()));
+        return expectOnly(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()),
+                          MessageType.CUSTOM, topic);
     }
 
     @Override
     public Then<R> expectNoCustomLike(String topic, Object... requests) {
-        return expectNo(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()));
+        return expectNo(asMessages(requests), this.customMessages.getOrDefault(topic, new ArrayList<>()),
+                        MessageType.CUSTOM, topic);
     }
 
     @Override
     public Then<R> expectQueries(Object... queries) {
-        return expect(asMessages(queries), this.queries);
+        return expect(asMessages(queries), this.queries, MessageType.QUERY);
     }
 
     @Override
     public Then<R> expectOnlyQueries(Object... queries) {
-        return expectOnly(asMessages(queries), this.queries);
+        return expectOnly(asMessages(queries), this.queries, MessageType.QUERY);
     }
 
     @Override
     public Then<R> expectNoQueriesLike(Object... queries) {
-        return expectNo(asMessages(queries), this.queries);
+        return expectNo(asMessages(queries), this.queries, MessageType.QUERY);
     }
 
     @Override
     public Then<R> expectWebRequests(Object... webRequests) {
-        return expect(asMessages(webRequests), this.webRequests);
+        return expect(asMessages(webRequests), this.webRequests, MessageType.WEBREQUEST);
     }
 
     @Override
     public Then<R> expectOnlyWebRequests(Object... webRequests) {
-        return expectOnly(asMessages(webRequests), this.webRequests);
+        return expectOnly(asMessages(webRequests), this.webRequests, MessageType.WEBREQUEST);
     }
 
     @Override
     public Then<R> expectNoWebRequestsLike(Object... webRequests) {
-        return expectNo(asMessages(this.webRequests), this.webRequests);
+        return expectNo(asMessages(webRequests), this.webRequests, MessageType.WEBREQUEST);
     }
 
     @Override
     public Then<R> expectWebResponses(Object... webResponses) {
-        return expect(asMessages(webResponses), this.webResponses);
+        return expect(asMessages(webResponses), this.webResponses, MessageType.WEBRESPONSE);
     }
 
     @Override
     public Then<R> expectOnlyWebResponses(Object... webResponses) {
-        return expectOnly(asMessages(webResponses), this.webResponses);
+        return expectOnly(asMessages(webResponses), this.webResponses, MessageType.WEBRESPONSE);
     }
 
     @Override
     public Then<R> expectNoWebResponsesLike(Object... webResponses) {
-        return expectNo(asMessages(webResponses), this.webResponses);
+        return expectNo(asMessages(webResponses), this.webResponses, MessageType.WEBRESPONSE);
     }
 
     @Override
@@ -258,7 +280,7 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public Then<R> expectNoNewSchedulesLike(Object... schedules) {
-        return expectNo(asMessages(schedules), this.newSchedules);
+        return expectNo(asMessages(schedules), this.newSchedules, MessageType.SCHEDULE);
     }
 
     @Override
@@ -273,7 +295,7 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public Then<R> expectNoSchedulesLike(Object... schedules) {
-        return expectNo(asMessages(schedules), this.allSchedules);
+        return expectNo(asMessages(schedules), this.allSchedules, MessageType.SCHEDULE);
     }
 
     @Override
@@ -362,8 +384,11 @@ public class ResultValidator<R> implements Then<R> {
     @SafeVarargs
     @Override
     public final <T> Then<R> expectResultContaining(T... results) {
+        if (this.result instanceof Map<?, ?> map) {
+            return expectMapContaining(List.of(results), map);
+        }
         if (!(this.result instanceof Collection<?>)) {
-            throw new GivenWhenThenAssertionError("Result is not a collection", List.of(results), this.result);
+            throw new GivenWhenThenAssertionError("Result is not a collection or map", List.of(results), this.result);
         }
         return expect(List.of(results), (Collection<?>) this.result);
     }
@@ -407,6 +432,7 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public Then<R> expectError(Object expectedError) {
+        testFixture.showTraceMessageType(ERROR);
         if (errors.isEmpty()) {
             throw new GivenWhenThenAssertionError("An error was expected but none was published",
                                                   expectedError, null);
@@ -416,6 +442,7 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public <T extends Throwable> Then<R> expectError(ThrowingPredicate<T> predicate, String description) {
+        testFixture.showTraceMessageType(ERROR);
         if (errors.isEmpty()) {
             throw new GivenWhenThenAssertionError("An error was expected but none was published",
                                                   description, null);
@@ -431,25 +458,30 @@ public class ResultValidator<R> implements Then<R> {
 
     @Override
     public Then<R> expectNoErrors() {
+        testFixture.showTraceMessageType(ERROR);
         if (!errors.isEmpty()) {
             throw new GivenWhenThenAssertionError("An unexpected exception occurred during handling",
                                                   errors.getFirst());
         }
         return this;
     }
+
     @Override
     public Then<R> expectMetrics(Object... metrics) {
-        return expect(asMessages(metrics), this.metrics);
+        testFixture.showTraceMessageType(METRICS);
+        return expect(asMessages(metrics), this.metrics, MessageType.METRICS);
     }
 
     @Override
     public Then<R> expectOnlyMetrics(Object... metrics) {
-        return expectOnly(asMessages(metrics), this.metrics);
+        testFixture.showTraceMessageType(METRICS);
+        return expectOnly(asMessages(metrics), this.metrics, MessageType.METRICS);
     }
 
     @Override
     public Then<R> expectNoMetricsLike(Object... metrics) {
-        return expectNo(asMessages(metrics), this.metrics);
+        testFixture.showTraceMessageType(METRICS);
+        return expectNo(asMessages(metrics), this.metrics, MessageType.METRICS);
     }
 
     @Override
@@ -496,11 +528,13 @@ public class ResultValidator<R> implements Then<R> {
     protected ResultValidator<R> expectScheduledMessages(Collection<?> expected, Collection<? extends Schedule> actual) {
         return fluxzero.apply(fc -> {
             if (!expected.isEmpty() && actual.isEmpty()) {
+                recordMissedExpected(MessageType.SCHEDULE, null, expected, actual);
                 throw new GivenWhenThenAssertionError("No messages were scheduled");
             }
             expected.forEach(e -> {
                 if (e instanceof Schedule) {
                     if (actual.stream().noneMatch(s -> Objects.equals(s.getDeadline(), ((Schedule) e).getDeadline()))) {
+                        recordMissedExpected(MessageType.SCHEDULE, null, expected, actual);
                         throw new GivenWhenThenAssertionError(
                                 "Found no schedules with matching deadline",
                                        ((Schedule) e).getDeadline(),
@@ -508,14 +542,24 @@ public class ResultValidator<R> implements Then<R> {
                     }
                 }
             });
-            return expect(asMessages(expected), actual);
+            return expect(asMessages(expected), actual, MessageType.SCHEDULE);
         });
     }
 
 
     protected ResultValidator<R> expect(Collection<?> expected, Collection<?> actual) {
+        return expect(expected, actual, null);
+    }
+
+    protected ResultValidator<R> expect(Collection<?> expected, Collection<?> actual, MessageType messageType) {
+        return expect(expected, actual, messageType, null);
+    }
+
+    protected ResultValidator<R> expect(Collection<?> expected, Collection<?> actual, MessageType messageType,
+                                        String topic) {
         return fluxzero.apply(fc -> {
             if (!containsAll(expected, actual)) {
+                recordMissedExpected(messageType, topic, expected, actual);
                 List<?> remaining = new ArrayList<>(actual);
                 List<?> filtered = expected.stream().flatMap(e -> {
                     if (e != null && !isMatcher(expected) && !(expected instanceof Predicate<?>)) {
@@ -539,11 +583,22 @@ public class ResultValidator<R> implements Then<R> {
     }
 
     protected ResultValidator<R> expectOnly(Collection<?> expected, Collection<?> actual) {
+        return expectOnly(expected, actual, null);
+    }
+
+    protected ResultValidator<R> expectOnly(Collection<?> expected, Collection<?> actual, MessageType messageType) {
+        return expectOnly(expected, actual, messageType, null);
+    }
+
+    protected ResultValidator<R> expectOnly(Collection<?> expected, Collection<?> actual, MessageType messageType,
+                                            String topic) {
         return fluxzero.apply(fc -> {
             if (expected.size() != actual.size()) {
+                recordMissedExpected(messageType, topic, expected, actual);
                 reportMismatch(expected, actual);
             } else {
                 if (!containsAll(expected, actual)) {
+                    recordMissedExpected(messageType, topic, expected, actual);
                     reportMismatch(expected, actual);
                 }
             }
@@ -552,8 +607,19 @@ public class ResultValidator<R> implements Then<R> {
     }
 
     protected ResultValidator<R> expectNo(Collection<?> expectedNotToGet, Collection<?> actual) {
+        return expectNo(expectedNotToGet, actual, null);
+    }
+
+    protected ResultValidator<R> expectNo(Collection<?> expectedNotToGet, Collection<?> actual,
+                                          MessageType messageType) {
+        return expectNo(expectedNotToGet, actual, messageType, null);
+    }
+
+    protected ResultValidator<R> expectNo(Collection<?> expectedNotToGet, Collection<?> actual,
+                                          MessageType messageType, String topic) {
         return fluxzero.apply(fc -> {
             if (containsAny(expectedNotToGet, actual)) {
+                recordUnexpectedActual(messageType, topic, expectedNotToGet, actual);
                 reportUnwantedMatch(expectedNotToGet, actual);
             }
             return this;
@@ -588,7 +654,114 @@ public class ResultValidator<R> implements Then<R> {
     protected ResultValidator<R> expectOnlyScheduledMessages(Collection<?> expected,
                                                           Collection<? extends Schedule> actual) {
         ResultValidator<R> result = expectScheduledMessages(expected, actual);
-        return result.expectOnly(expected, actual);
+        return result.expectOnly(expected, actual, MessageType.SCHEDULE);
+    }
+
+    protected ResultValidator<R> expectMapContaining(Collection<?> expected, Map<?, ?> actual) {
+        return fluxzero.apply(fc -> {
+            List<Object> missed = new ArrayList<>();
+            for (Object expectedItem : expected) {
+                if (expectedItem instanceof Map<?, ?> expectedMap) {
+                    expectedMap.entrySet().stream()
+                            .filter(expectedEntry -> !containsEntry(actual, expectedEntry))
+                            .forEach(missed::add);
+                } else if (expectedItem instanceof Map.Entry<?, ?> expectedEntry) {
+                    if (!containsEntry(actual, expectedEntry)) {
+                        missed.add(expectedEntry);
+                    }
+                } else if (actual.values().stream().noneMatch(actualValue -> matches(expectedItem, actualValue))) {
+                    missed.add(expectedItem);
+                }
+            }
+            if (!missed.isEmpty()) {
+                throw new GivenWhenThenAssertionError(
+                        "Result map did not contain expected values or entries", expected, actual);
+            }
+            return this;
+        });
+    }
+
+    protected boolean containsEntry(Map<?, ?> actual, Map.Entry<?, ?> expectedEntry) {
+        return actual.entrySet().stream().anyMatch(
+                actualEntry -> matches(expectedEntry.getKey(), actualEntry.getKey())
+                               && matches(expectedEntry.getValue(), actualEntry.getValue()));
+    }
+
+    protected ResultValidator<R> expectScheduledCommandMessages(Collection<?> expected,
+                                                                Collection<? extends Schedule> actual) {
+        return fluxzero.apply(fc -> {
+            if (!expected.isEmpty() && actual.isEmpty()) {
+                recordMissedExpected(MessageType.SCHEDULE, null, expected, actual);
+                throw new GivenWhenThenAssertionError("No commands were scheduled");
+            }
+            return expectScheduledMessages(expected, actual);
+        });
+    }
+
+    protected ResultValidator<R> expectOnlyScheduledCommandMessages(Collection<?> expected,
+                                                                    Collection<? extends Schedule> actual) {
+        ResultValidator<R> result = expectScheduledCommandMessages(expected, actual);
+        return result.expectOnly(expected, actual, MessageType.SCHEDULE);
+    }
+
+    protected List<Schedule> scheduledCommands(Collection<? extends Schedule> schedules) {
+        return schedules.stream()
+                .filter(schedule -> schedule.getPayload() instanceof ScheduledCommand)
+                .map(this::scheduledCommand)
+                .collect(toList());
+    }
+
+    protected Schedule scheduledCommand(Schedule schedule) {
+        ScheduledCommand scheduledCommand = (ScheduledCommand) schedule.getPayload();
+        Message command = fluxzero.serializer()
+                .deserializeMessage(scheduledCommand.getCommand(), MessageType.COMMAND)
+                .toMessage();
+        return new Schedule(command.getPayload(), command.getMetadata(), command.getMessageId(),
+                            command.getTimestamp(), schedule.getScheduleId(), schedule.getDeadline());
+    }
+
+    protected void recordMissedExpected(MessageType messageType, String topic, Collection<?> expected,
+                                        Collection<?> actual) {
+        if (messageType == null) {
+            return;
+        }
+        List<?> missed = missedExpected(expected, actual);
+        if (!missed.isEmpty()) {
+            testFixture.recordMissedTraceMessages(messageType, topic, missed);
+        }
+    }
+
+    protected void recordUnexpectedActual(MessageType messageType, String topic, Collection<?> expectedNotToGet,
+                                          Collection<?> actual) {
+        if (messageType == null) {
+            return;
+        }
+        List<?> unexpected = unexpectedActual(expectedNotToGet, actual);
+        if (!unexpected.isEmpty()) {
+            testFixture.recordUnexpectedTraceMessages(messageType, topic, unexpected);
+        }
+    }
+
+    protected List<?> missedExpected(Collection<?> expected, Collection<?> actual) {
+        List<Object> remainingActual = new ArrayList<>(actual);
+        List<Object> missed = new ArrayList<>();
+        for (Object expectedItem : expected) {
+            Optional<Object> match = remainingActual.stream().filter(actualItem -> matches(expectedItem, actualItem))
+                    .findFirst();
+            if (match.isPresent()) {
+                remainingActual.remove(match.get());
+            } else {
+                missed.add(expectedItem);
+            }
+        }
+        return missed;
+    }
+
+    protected List<?> unexpectedActual(Collection<?> expectedNotToGet, Collection<?> actual) {
+        return actual.stream()
+                .filter(actualItem -> expectedNotToGet.stream()
+                        .anyMatch(expectedItem -> matches(expectedItem, actualItem)))
+                .collect(toList());
     }
 
     protected boolean containsAll(Collection<?> expected, Collection<?> actual) {

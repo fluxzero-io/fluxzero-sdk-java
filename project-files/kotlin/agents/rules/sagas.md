@@ -10,6 +10,7 @@ and be directly addressable via `@Association` keys.
 - [When to use Stateful Sagas](#when-to-use)
 - [Lifecycle & Implementation](#lifecycle)
 - [Associations & Correlation](#associations)
+- [Stateful Members](#stateful-members)
 - [Error Handling & Retries](#error-handling)
 - [Stateless Orchestration Alternative](#stateless-alternative)
 
@@ -143,6 +144,64 @@ Fields marked with **@Association** correlate incoming messages to saga instance
 - **Parameter-level Association**: `@Association` can also be placed on a handler parameter and uses the resolved
   parameter value, including `@Trigger` parameters.
 - **Multiple Instances**: Multiple instances can match a single message.
+
+---
+
+<a name="stateful-members"></a>
+
+## Stateful Members
+
+`@Stateful` handlers may contain `@Member` objects. A member can declare its own `@Handle...` methods and
+`@Association` properties; Fluxzero loads the parent stateful, invokes the matching member, and stores the updated
+parent.
+
+Use this when a child has its own lifecycle but should remain persisted inside the parent stateful.
+
+```kotlin
+@Stateful
+data class Customer(
+    @EntityId @Association val customerId: String,
+    @Member val payments: List<Payment> = emptyList()
+)
+
+data class Payment(
+    @Association val paymentId: String,
+    val captureCount: Int = 0
+) {
+    companion object {
+        @HandleEvent
+        @JvmStatic
+        fun start(event: PaymentStarted, customer: Customer): Payment {
+            return Payment(event.paymentId)
+        }
+    }
+
+    @HandleEvent
+    fun capture(event: PaymentCaptured, customer: Customer): Payment {
+        return copy(captureCount = captureCount + 1)
+    }
+
+    @HandleEvent
+    fun cancel(event: PaymentCancelled): Payment? {
+        return null
+    }
+}
+```
+
+- A message with only `paymentId` can target the matching `Payment` inside the matching `Customer`.
+- If multiple members match, all matching members are invoked, including multiple children in one parent or across
+  parents.
+- Returning a member instance creates or replaces that member inside the parent.
+- Returning a collection of member instances adds/replaces those members; an empty collection deletes the current
+  matched member.
+- Returning `null` from a member-compatible instance method deletes that member.
+- The parent stateful can be injected into member handlers for context.
+- For map-backed members, newly added members use `@EntityId` or `@Member(idProperty = "...")` as the map key.
+- Within one member collection, non-null `@EntityId` values must be unique. Use `@Association` for non-unique business
+  keys.
+- A static member create needs a parent association in the message unless the handler deliberately uses
+  `@Association(always = true)`.
+- Kotlin data classes work well because Fluxzero can use `copy()` semantics when rebuilding the parent.
 
 ---
 

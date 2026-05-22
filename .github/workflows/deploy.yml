@@ -81,6 +81,22 @@ jobs:
             target/project-kotlin.zip
           retention-days: 1
 
+  repair-main-ci:
+    name: Repair failed main build
+    needs: build-and-test
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build-and-test.result == 'failure' }}
+    uses: ./.github/workflows/repair-main-ci.yml
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    secrets: inherit
+    with:
+      run_id: ${{ github.run_id }}
+      run_url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      head_sha: ${{ github.sha }}
+      head_branch: main
+
   # Job 2: Deploy to Maven Central (runs in parallel after build)
   maven-central:
     needs: build-and-test

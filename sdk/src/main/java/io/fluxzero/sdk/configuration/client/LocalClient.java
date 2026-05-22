@@ -31,9 +31,11 @@ import io.fluxzero.sdk.tracking.client.LocalTrackingClient;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.experimental.Accessors;
 
 import java.lang.management.ManagementFactory;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -75,6 +77,7 @@ public class LocalClient extends AbstractClient {
     private final Duration messageExpiration;
     private final LocalEventStoreClient eventStore;
     private final LocalSchedulingClient scheduleStore;
+    private Clock clock;
     @Getter @Accessors(fluent = true)
     private final String namespace;
     @Getter(AccessLevel.PRIVATE)
@@ -96,15 +99,31 @@ public class LocalClient extends AbstractClient {
     }
 
     protected LocalClient(Duration messageExpiration) {
-        this(messageExpiration, "public", null);
+        this(messageExpiration, "public", null, null);
     }
 
-    protected LocalClient(Duration messageExpiration, String namespace, LocalClient defaultClient) {
+    protected LocalClient(Duration messageExpiration, String namespace, LocalClient defaultClient, Clock clock) {
         this.messageExpiration = messageExpiration;
         this.eventStore = new LocalEventStoreClient(messageExpiration);
-        this.scheduleStore = new LocalSchedulingClient(messageExpiration);
+        this.scheduleStore = clock == null ? new LocalSchedulingClient(messageExpiration)
+                : new LocalSchedulingClient(messageExpiration, clock);
+        this.clock = clock;
         this.namespace = namespace;
         this.defaultClient = defaultClient;
+    }
+
+    /**
+     * Links the local scheduling store to the Fluxzero clock.
+     * <p>
+     * This is called by the Fluxzero builder so local schedules and test-time shifts observe the same time source as the
+     * rest of the SDK.
+     */
+    public void setClock(@NonNull Clock clock) {
+        if (defaultClient != null && defaultClient.clock != clock) {
+            defaultClient.setClock(clock);
+        }
+        this.clock = clock;
+        scheduleStore.setClock(clock);
     }
 
     @Override
@@ -170,6 +189,6 @@ public class LocalClient extends AbstractClient {
         if (namespace == null) {
             return this;
         }
-        return new LocalClient(getMessageExpiration(), namespace, this);
+        return new LocalClient(getMessageExpiration(), namespace, this, clock);
     }
 }

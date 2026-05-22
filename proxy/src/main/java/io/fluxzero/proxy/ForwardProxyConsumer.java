@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -73,11 +74,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private final Client client;
     private final String consumerName;
     private final Long minIndex;
-    @Getter(lazy = true, value = AccessLevel.PROTECTED)
-    private final boolean mainConsumer = minIndex == null;
+    @Getter(value = AccessLevel.PROTECTED)
+    private final boolean mainConsumer;
 
     public static Registration start(Client client) {
-        var consumer = new ForwardProxyConsumer(client, defaultSettings.getConsumer(), null);
+        var consumer = new ForwardProxyConsumer(
+                client, defaultSettings.getConsumer(),
+                IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true);
         consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
         return () -> {
             Collection<Registration> running = consumer.runningConsumers.values();
@@ -107,7 +110,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                         }
                     } else if (isMainConsumer()) {
                         runningConsumers.computeIfAbsent(
-                                settings.getConsumer(), c -> new ForwardProxyConsumer(client, c, s.getIndex()).start());
+                                settings.getConsumer(), c -> new ForwardProxyConsumer(client, c, s.getIndex(), false)
+                                        .start());
                     }
                 } catch (Throwable e) {
                     log.error("Failed to handle external request {}. Continuing..", s.getMessageId(), e);

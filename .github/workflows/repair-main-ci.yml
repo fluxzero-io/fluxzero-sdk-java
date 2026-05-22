@@ -1,0 +1,311 @@
+name: Repair Main CI
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: "GitHub Actions run id to repair"
+        required: true
+        type: string
+      run_url:
+        description: "GitHub Actions run URL to repair"
+        required: true
+        type: string
+      head_sha:
+        description: "Head SHA of the failing main build"
+        required: true
+        type: string
+      head_branch:
+        description: "Head branch of the failing build"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "GitHub Actions run id to repair"
+        required: true
+      run_url:
+        description: "GitHub Actions run URL to repair"
+        required: false
+      head_sha:
+        description: "Head SHA of the failing main build"
+        required: false
+      head_branch:
+        description: "Head branch of the failing build"
+        required: false
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: repair-main-ci-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Reproduce and repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      GH_TOKEN: ${{ secrets.REPAIR_GITHUB_TOKEN || github.token }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CODEX_MODEL: gpt-5.5
+      CODEX_REASONING_EFFORT: xhigh
+      FAILED_RUN_ID: ${{ inputs.run_id }}
+      FAILED_RUN_URL: ${{ inputs.run_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
+      FAILED_RUN_HEAD_SHA: ${{ inputs.head_sha || '' }}
+      FAILED_RUN_HEAD_BRANCH: ${{ inputs.head_branch || '' }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve failed run
+        id: failed_run
+        run: |
+          set -euo pipefail
+          if [ -n "${FAILED_RUN_HEAD_SHA:-}" ] && [ -n "${FAILED_RUN_HEAD_BRANCH:-}" ]; then
+            conclusion=""
+            head_branch="$FAILED_RUN_HEAD_BRANCH"
+            head_sha="$FAILED_RUN_HEAD_SHA"
+            url="$FAILED_RUN_URL"
+            workflow_name="Deploy"
+          else
+            mapfile -t run_fields < <(gh run view "$FAILED_RUN_ID" \
+              --json conclusion,headBranch,headSha,url,workflowName \
+              --jq '[.conclusion, .headBranch, .headSha, .url, .workflowName] | .[] // ""')
+
+            conclusion="${run_fields[0]}"
+            head_branch="${run_fields[1]}"
+            head_sha="${run_fields[2]}"
+            url="${run_fields[3]}"
+            workflow_name="${run_fields[4]}"
+          fi
+
+          if [ "$workflow_name" != "Deploy" ]; then
+            echo "::error::Run $FAILED_RUN_ID belongs to workflow '$workflow_name', expected 'Deploy'."
+            exit 1
+          fi
+
+          if [ "$head_branch" != "main" ]; then
+            echo "::error::Run $FAILED_RUN_ID was for branch '$head_branch', expected 'main'."
+            exit 1
+          fi
+
+          if [ -z "${FAILED_RUN_HEAD_SHA:-}" ]; then
+            case "$conclusion" in
+              failure|timed_out) ;;
+              *)
+                echo "::error::Run $FAILED_RUN_ID concluded with '$conclusion', expected 'failure' or 'timed_out'."
+                exit 1
+                ;;
+            esac
+          fi
+
+          short_sha="${head_sha:0:12}"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "FAILED_RUN_URL=$url" >> "$GITHUB_ENV"
+          echo "FAILED_RUN_HEAD_SHA=$head_sha" >> "$GITHUB_ENV"
+          echo "FAILED_RUN_SHORT_SHA=$short_sha" >> "$GITHUB_ENV"
+
+      - name: Gate repair target
+        id: gate
+        run: |
+          set -euo pipefail
+          build_conclusion="$(gh run view "$FAILED_RUN_ID" \
+            --json jobs \
+            --jq '.jobs[] | select(.name == "build-and-test") | .conclusion' | head -n 1)"
+
+          case "$build_conclusion" in
+            failure|timed_out) ;;
+            "")
+              echo "Could not find build-and-test job in run $FAILED_RUN_ID; skipping."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+            *)
+              echo "Run $FAILED_RUN_ID failed outside build-and-test; skipping repair."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          git fetch origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          failed_sha="${{ steps.failed_run.outputs.head_sha }}"
+          if [ "$failed_sha" != "$current_main_sha" ]; then
+            echo "Main has moved from failing SHA $failed_sha to $current_main_sha; skipping stale failure."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check required secrets
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Set the OPENAI_API_KEY repository secret before enabling Repair Main CI."
+            exit 1
+          fi
+
+      - name: Avoid duplicate repair PR
+        if: steps.gate.outputs.skip != 'true'
+        id: duplicate
+        run: |
+          set -euo pipefail
+          branch="codex/repair-main-ci-${FAILED_RUN_SHORT_SHA}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          count="$(gh pr list --state open --head "$branch" --json number --jq 'length')"
+          if [ "$count" != "0" ]; then
+            echo "Existing repair PR found for $branch; skipping."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare repair branch
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          git switch -c "${{ steps.duplicate.outputs.branch }}"
+
+      - name: Install Java and Maven
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Install Node.js
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install Codex CLI
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        run: npm install -g @openai/codex@0.130.0
+
+      - name: Run Codex repair agent
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          cat > /tmp/codex-repair-prompt.md <<PROMPT
+          You are repairing a failing main-branch GitHub Actions build for fluxzero-io/fluxzero-sdk-java.
+
+          Goal:
+          - Inspect the failing GitHub Actions run and logs.
+          - Reproduce the observed failure locally with the narrowest useful command.
+          - If the failure is flaky, first make the failure deterministic or gather concrete race/order evidence.
+          - Apply the minimal safe fix.
+          - Run targeted verification and the relevant Maven CI command.
+          - Leave the final code changes uncommitted in the worktree.
+
+          Constraints:
+          - Follow AGENTS.md.
+          - Use ./mvnw for Maven.
+          - Keep public SDK behavior backward compatible.
+          - Do not push, commit, or open a PR; the workflow will do that.
+          - If there is no safe minimal fix, leave the worktree unchanged and explain why.
+          - Prefer fixing tests only when the evidence shows a test race rather than a production defect.
+          - The main Deploy build command is ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy.
+
+          Failing run:
+          - Run id: ${FAILED_RUN_ID}
+          - Run URL: ${FAILED_RUN_URL}
+          - Head SHA: ${FAILED_RUN_HEAD_SHA}
+
+          Output:
+          - End with a concise report that includes the root cause, reproduction evidence, files changed, and verification commands/results.
+          PROMPT
+
+          set +e
+          codex exec \
+            --cd "$GITHUB_WORKSPACE" \
+            --model "$CODEX_MODEL" \
+            --sandbox danger-full-access \
+            --json \
+            --ephemeral \
+            -c shell_environment_policy.inherit=all \
+            -c "model_reasoning_effort=\"$CODEX_REASONING_EFFORT\"" \
+            --dangerously-bypass-approvals-and-sandbox \
+            --output-last-message /tmp/codex-repair-report.md \
+            - < /tmp/codex-repair-prompt.md | tee /tmp/codex-repair-events.jsonl
+          status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Codex exited with status $status. Continuing only if it left a usable diff."
+          fi
+
+      - name: Check for changes
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        id: changes
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            git status --short
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "Codex did not leave repository changes."
+          fi
+
+      - name: Upload Codex report
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: codex-repair-main-ci-${{ env.FAILED_RUN_ID }}
+          path: |
+            /tmp/codex-repair-report.md
+            /tmp/codex-repair-events.jsonl
+          if-no-files-found: ignore
+
+      - name: Verify changed worktree
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
+        run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
+
+      - name: Commit and push repair branch
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ci): repair failing main build"
+          git push --set-upstream origin "${{ steps.duplicate.outputs.branch }}"
+
+      - name: Open draft PR
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "Automated Codex repair attempt for failing main build."
+            echo
+            echo "- Failing run: ${FAILED_RUN_URL}"
+            echo "- Run id: ${FAILED_RUN_ID}"
+            echo "- Head SHA: ${FAILED_RUN_HEAD_SHA}"
+            echo
+            echo "## Codex Report"
+            echo
+            if [ -f /tmp/codex-repair-report.md ]; then
+              cat /tmp/codex-repair-report.md
+            else
+              echo "Codex did not produce a final report file."
+            fi
+          } > /tmp/pr-body.md
+
+          gh pr create \
+            --draft \
+            --base main \
+            --head "${{ steps.duplicate.outputs.branch }}" \
+            --title "fix(ci): repair failing main build" \
+            --body-file /tmp/pr-body.md

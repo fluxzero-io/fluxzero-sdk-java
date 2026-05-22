@@ -22,6 +22,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import jakarta.validation.constraints.NotNull;
@@ -278,6 +279,7 @@ class DataProtectionInterceptorTest {
     }
 
     @Getter
+    @Consumer(name = "data-protection")
     private static class SomeHandler {
         private SomeEvent lastEvent;
         private Metadata lastMetadata;
@@ -302,6 +304,7 @@ class DataProtectionInterceptorTest {
     }
 
     @Getter
+    @Consumer(name = "data-protection")
     private static class DroppingHandler {
         private SomeEvent lastEvent;
 

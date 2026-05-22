@@ -25,7 +25,9 @@ import java.util.function.Function;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.defaultValidator;
 
 /**
- * A {@link HandlerInterceptor} that validates the payload of messages before they are handled.
+ * A {@link HandlerInterceptor} that validates the payload of messages before they are handled. When the supplied
+ * validator supports contextual method constraints, the current message context can be used to resolve constrained
+ * method parameters.
  */
 public class ValidatingInterceptor implements HandlerInterceptor {
     private final Validator validator;

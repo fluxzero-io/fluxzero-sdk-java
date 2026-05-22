@@ -30,6 +30,12 @@ import java.util.Set;
  * <p>
  * A {@code Validator} is responsible for detecting constraint violations and producing a {@link ValidationException} if
  * applicable. It supports validation groups to selectively apply rules.
+ * <p>
+ * The SDK's default validator also supports constrained payload methods with contextual parameters when validation runs
+ * inside a Fluxzero message context. For example, a payload method annotated with {@code @AssertTrue} may declare a
+ * {@code User}, {@code Message}, {@code Metadata}, or custom parameter resolved by the configured parameter resolvers.
+ * If a constrained method declares parameters that cannot be resolved for the current validation run, that method is
+ * skipped instead of failing validation.
  *
  * <h2>Usage</h2>
  * The validator may be used programmatically:

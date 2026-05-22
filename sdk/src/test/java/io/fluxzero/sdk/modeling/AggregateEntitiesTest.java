@@ -1065,6 +1065,25 @@ public class AggregateEntitiesTest {
             }
 
             @Test
+            void testUpdateNestedMemberInRecordOwnerUsingCanonicalConstructor() {
+                TestFixture.create().given(fc -> loadAggregate("constructor-record", ConstructorRecordAggregate.class)
+                                .update(s -> new ConstructorRecordAggregate(
+                                        "constructor-record",
+                                        new ConstructorRecordChild("recordChild",
+                                                                   new ConstructorRecordGrandChild("gc0")))))
+                        .registerHandlers(new Object() {
+                            @HandleCommand
+                            void handle(Object command) {
+                                loadAggregate("constructor-record", ConstructorRecordAggregate.class).apply(command);
+                            }
+                        })
+                        .whenCommand(new UpdateConstructorRecordGrandChild("gc0", "gc1"))
+                        .expectTrue(fc -> "gc1".equals(loadAggregate(
+                                "constructor-record", ConstructorRecordAggregate.class)
+                                                               .get().child().grandChild().recordGrandChildId()));
+            }
+
+            @Test
             void testUpdateSingleton_illegalBeforeAdding() {
                 testFixture.whenCommand(new UpdateChild("missing", "data"))
                         .expectExceptionalResult(Entity.NOT_FOUND_EXCEPTION)
@@ -1256,6 +1275,48 @@ public class AggregateEntitiesTest {
                 testFixture.whenCommand(new RemoveChild("list1"))
                         .expectThat(fc -> expectNoEntity(e -> "list1".equals(e.id())))
                         .expectTrue(fc -> loadAggregate("test", Aggregate.class).get().getList().size() == 2);
+            }
+
+            @Test
+            void duplicateNonNullEntityIdsInOneListCanStillBeTraversed() {
+                TestFixture.create()
+                        .whenApplying(fc -> loadAggregate("duplicate-list", DuplicateListAggregate.class)
+                                .update(s -> new DuplicateListAggregate(
+                                        "duplicate-list",
+                                        List.of(new DuplicateListChild("child"),
+                                                new DuplicateListChild("child"))))
+                                .allEntities()
+                                .filter(entity -> Objects.equals(entity.id(), "child"))
+                                .count())
+                        .expectResult(2L);
+            }
+
+            @Test
+            void applyingSameListChildTwiceReplacesExistingChild() {
+                testFixture.whenApplying(fc -> fc.aggregateRepository().asEntity(Aggregate.builder().build())
+                                .apply(new AddListChild("list2"), new AddListChild("list2"))
+                                .get().getList().stream()
+                                .filter(child -> Objects.equals(child.listChildId(), "list2"))
+                                .count())
+                        .expectResult(1L);
+            }
+
+            @Test
+            void eventSourcingSameListChildTwiceReplacesExistingChild() {
+                testFixture.whenApplying(fc -> {
+                            boolean wasLoading = Entity.isLoading();
+                            try {
+                                Entity.loading.set(true);
+                                return fc.aggregateRepository().asEntity(Aggregate.builder().build())
+                                        .apply(new AddListChild("list2"), new AddListChild("list2"))
+                                        .get().getList().stream()
+                                        .filter(child -> Objects.equals(child.listChildId(), "list2"))
+                                        .count();
+                            } finally {
+                                Entity.loading.set(wasLoading);
+                            }
+                        })
+                        .expectResult(1L);
             }
 
             @Value
@@ -2125,6 +2186,22 @@ public class AggregateEntitiesTest {
     record RecordGrandChild(@EntityId String recordGrandChildId) {
     }
 
+    record ConstructorRecordAggregate(@EntityId String id, @Member ConstructorRecordChild child) {
+    }
+
+    record ConstructorRecordChild(@EntityId String recordChildId,
+                                  @Member ConstructorRecordGrandChild grandChild) {
+    }
+
+    record ConstructorRecordGrandChild(@EntityId String recordGrandChildId) {
+    }
+
+    record DuplicateListAggregate(@EntityId String id, @Member List<DuplicateListChild> children) {
+    }
+
+    record DuplicateListChild(@EntityId String childId) {
+    }
+
     @Value
     @Builder(toBuilder = true)
     static class ChildWithChild {
@@ -2489,6 +2566,12 @@ public class AggregateEntitiesTest {
         }
     }
 
+    record UpdateConstructorRecordGrandChild(@RoutingKey String recordGrandChildId, String newGrandChildId) {
+        @Apply
+        ConstructorRecordGrandChild apply(ConstructorRecordGrandChild grandChild) {
+            return new ConstructorRecordGrandChild(newGrandChildId);
+        }
+    }
 
     record Key(String key) {
         @Override

@@ -29,6 +29,7 @@ import java.util.function.Function;
  * <h2>Default Implementation</h2>
  * The {@link #DEFAULT} formatter returns:
  * <ul>
+ *   <li>A message-scoped {@link MessageDescription}, when present</li>
  *   <li>The simple name of the payload class if the message is already deserialized</li>
  *   <li>The type string (usually the fully qualified class name) otherwise</li>
  * </ul>
@@ -45,5 +46,7 @@ public interface MessageFormatter extends Function<DeserializingMessage, String>
      * The default formatter that returns the simple name of the payload class if deserialized, or the raw type string
      * if not.
      */
-    MessageFormatter DEFAULT = m -> m.isDeserialized() ? m.getPayloadClass().getSimpleName() : m.getType();
+    MessageFormatter DEFAULT = m -> m.getContext(MessageDescription.class)
+            .map(MessageDescription::value)
+            .orElseGet(() -> m.isDeserialized() ? m.getPayloadClass().getSimpleName() : m.getType());
 }

@@ -37,6 +37,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
@@ -131,6 +132,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -352,7 +354,8 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         /**
-         * Replaces the validator used by payload and web parameter validation.
+         * Replaces the validator used by payload validation, web parameter validation, and {@code ValidationUtils}
+         * convenience methods executed in this Fluxzero instance's context.
          *
          * @param replaceFunction function that receives the current validator and returns the replacement
          * @return this builder
@@ -622,16 +625,24 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            if (client.unwrap() instanceof LocalClient localClient) {
+                localClient.setClock(clock);
+            }
             Cache cache = this.cache.isEmpty() ? this.cache : this.cache.rebuild();
             Cache relationshipsCache = this.relationshipsCache.isEmpty() ? this.relationshipsCache : this.relationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> HandlerDecorator.noOp));
-            Map<MessageType, List<ConsumerConfiguration>> consumerConfigurations =
-                    new HashMap<>(this.customConsumerConfigurations);
-            this.defaultConsumerConfigurations.forEach((type, config) -> consumerConfigurations.get(type).add(
-                    config.toBuilder().name(String.format("%s_%s", client.name(), config.getName())).build()));
+            Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
+                    this.customConsumerConfigurations.entrySet().stream()
+                            .collect(toMap(Entry::getKey, e -> new ArrayList<>(e.getValue())));
+            Map<MessageType, List<ConsumerConfiguration>> defaultConsumerConfigurations =
+                    this.defaultConsumerConfigurations.entrySet().stream().collect(toMap(
+                            Entry::getKey,
+                            e -> List.of(e.getValue().toBuilder()
+                                                  .name(String.format("%s_%s", client.name(), e.getValue().getName()))
+                                                  .build())));
             Map<MessageType, List<BatchInterceptor>> internalBatchInterceptors = new HashMap<>();
 
             KeyValueStore keyValueStore = new DefaultKeyValueStore(client.getKeyValueClient(), serializer);
@@ -878,18 +889,19 @@ public class DefaultFluxzero implements Fluxzero {
             //tracking
             Map<MessageType, Tracking> trackingMap = stream(MessageType.values())
                     .collect(toMap(identity(), m -> new DefaultTracking(
-                            m, m == WEBREQUEST ? webResponseGateway : resultGateway, consumerConfigurations.get(m),
-                            this.serializer,
+                            m, m == WEBREQUEST ? webResponseGateway : resultGateway,
+                            customConsumerConfigurations.get(m), defaultConsumerConfigurations.get(m), this.serializer,
                             new DefaultHandlerFactory(m, handlerChains.get(m == NOTIFICATION ? EVENT : m),
                                                       runtimeParameterResolvers, methodInvocationValidator(m),
                                                       handlerRepositorySupplier,
-                                                      repositorySupplier, !disableTrackingMetrics))));
+                                                      repositorySupplier, !disableTrackingMetrics, this.serializer))));
 
             //misc
             MessageScheduler messageScheduler = new DefaultMessageScheduler(client,
                                                                             serializer,
                                                                             dispatchChains.get(SCHEDULE),
                                                                             dispatchChains.get(COMMAND),
+                                                                            taskScheduler,
                                                                             localHandlerRegistry(SCHEDULE,
                                                                                                  handlerChains,
                                                                                                  runtimeParameterResolvers,
@@ -1030,13 +1042,13 @@ public class DefaultFluxzero implements Fluxzero {
                     messageType, handlerDecorators.get(messageType), parameterResolvers,
                     methodInvocationValidator(messageType),
                     handlerRepositorySupplier, repositoryProvider,
-                    !disableTrackingMetrics), dispatchInterceptors.get(messageType));
+                    !disableTrackingMetrics, this.serializer), dispatchInterceptors.get(messageType));
             if (messageType == EVENT) {
                 return result.andThen(new LocalHandlerRegistry(new DefaultHandlerFactory(
                         NOTIFICATION, handlerDecorators.get(EVENT), parameterResolvers,
                         methodInvocationValidator(NOTIFICATION),
                         handlerRepositorySupplier, repositoryProvider,
-                        !disableTrackingMetrics), dispatchInterceptors.get(EVENT)));
+                        !disableTrackingMetrics, this.serializer), dispatchInterceptors.get(EVENT)));
             }
             return result;
         }

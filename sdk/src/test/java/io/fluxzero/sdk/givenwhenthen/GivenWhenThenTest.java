@@ -35,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -141,6 +142,15 @@ class GivenWhenThenTest {
     void testExpectResultUsingPredicate() {
         YieldsResult command = new YieldsResult();
         testFixture.whenCommand(command).expectResult("result"::equals);
+    }
+
+    @Test
+    void testExpectResultContainingMap() {
+        testFixture.whenCommand(new YieldsMapResult())
+                .expectResultContaining(
+                        "bar",
+                        Map.entry("answer", Integer.class),
+                        Map.of("nested", Map.of("value", "inside")));
     }
 
     @Test
@@ -340,6 +350,11 @@ class GivenWhenThenTest {
             return "result";
         }
 
+        @HandleCommand
+        public Map<String, Object> handle(YieldsMapResult command) {
+            return Map.of("foo", "bar", "answer", 42, "nested", Map.of("value", "inside"));
+        }
+
         @HandleCommand(allowedClasses = YieldsException.class)
         public void handleYieldException() {
             throw new MockException();
@@ -420,6 +435,10 @@ class GivenWhenThenTest {
 
     @Value
     private static class YieldsResult {
+    }
+
+    @Value
+    private static class YieldsMapResult {
     }
 
     @Value

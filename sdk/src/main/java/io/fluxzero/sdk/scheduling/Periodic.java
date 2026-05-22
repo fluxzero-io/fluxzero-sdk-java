@@ -47,6 +47,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *
  * <h2>Automatic Start</h2>
  * By default, the schedule is automatically started when the message is handled or the system starts. Set {@link #autoStart()} to {@code false} to disable this behavior.
+ * <p>
+ * When the matching {@link HandleSchedule} method is local (for example through
+ * {@link io.fluxzero.sdk.tracking.handling.LocalHandler}, or because it is declared on a non-{@code @TrackSelf}
+ * payload type), periodic execution is triggered through Fluxzero's task scheduler.
  *
  * <h2>Error Handling</h2>
  * If the schedule handler throws an exception:
@@ -101,6 +105,13 @@ public @interface Periodic {
      * will be ignored.
      */
     String DISABLED = "-";
+
+    /**
+     * Feature flag that enables the new implicit initial-delay behavior without changing
+     * {@link io.fluxzero.sdk.configuration.ApplicationProperties#DEFAULTS_VERSION_PROPERTY}. When set to {@code true},
+     * {@link #initialDelay()} values below {@code 0} mean that no explicit initial delay was configured.
+     */
+    String USE_DEFAULT_INITIAL_DELAY_PROPERTY = "fluxzero.scheduling.periodic.useDefaultInitialDelay";
 
     /**
      * Define a unix-like cron expression. If a cron value is specified the {@link #delay()} in milliseconds is
@@ -166,9 +177,15 @@ public @interface Periodic {
     TimeUnit timeUnit() default MILLISECONDS;
 
     /**
-     * Returns the initial schedule delay. Only relevant when {@link #autoStart()} is true. If initialDelay is negative,
-     * the initial schedule will fire after the default delay (configured either via {@link #cron()} or
-     * {@link #delay()}).
+     * Returns the initial schedule delay. Relevant when {@link #autoStart()} is true or when a schedule is started via
+     * {@link MessageScheduler#schedulePeriodic(Object)}. A value of {@code 0} schedules the first invocation
+     * immediately. Positive values delay the first invocation by the configured amount.
+     * <p>
+     * The default {@code -1} means that no explicit initial delay was configured. With compatibility defaults, Fluxzero
+     * treats this implicit value as {@code 0} to preserve the previous immediate autostart behavior. With the new
+     * defaults behavior, enabled via {@link #USE_DEFAULT_INITIAL_DELAY_PROPERTY} or
+     * {@link io.fluxzero.sdk.configuration.ApplicationProperties#DEFAULTS_VERSION_PROPERTY}, fixed-delay schedules
+     * start after {@link #delay()} and cron schedules start at the next cron fire time.
      */
-    long initialDelay() default 0;
+    long initialDelay() default -1;
 }

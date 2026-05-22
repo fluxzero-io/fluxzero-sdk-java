@@ -69,6 +69,7 @@ import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.Tracking;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -1227,11 +1228,18 @@ public interface Fluxzero extends AutoCloseable {
                                         .map(topic -> customGateway(topic).registerHandler(h))
                                         .reduce(Registration::merge).orElse(Registration.noOp())))
                     .reduce(Registration::merge).orElse(Registration.noOp());
+            local = local.merge(handlers.stream().map(this::registerScheduleLocalHandler)
+                                        .reduce(Registration::merge).orElse(Registration.noOp()));
 
             Registration tracking = stream(MessageType.values()).map(t -> tracking(t).start(this, handlers))
                     .reduce(Registration::merge).orElse(Registration.noOp());
             return tracking.merge(local);
         });
+    }
+
+    private Registration registerScheduleLocalHandler(Object handler) {
+        return messageScheduler() instanceof HasLocalHandlers localHandlers
+                ? localHandlers.registerHandler(handler) : Registration.noOp();
     }
 
     /**

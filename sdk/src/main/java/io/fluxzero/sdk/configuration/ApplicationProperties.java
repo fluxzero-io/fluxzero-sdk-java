@@ -65,6 +65,36 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+    /**
+     * Selects the versioned Fluxzero default behavior profile for applications that do not configure each default
+     * explicitly.
+     * <p>
+     * Existing applications can omit this property to keep compatibility defaults. New applications can set a value in
+     * {@code yyyy.MM.dd} format to opt into all default changes introduced on or before that date. Each default can
+     * still be overridden by its own dedicated property.
+     * <table>
+     *     <caption>Versioned defaults</caption>
+     *     <tr>
+     *         <th>Defaults version</th>
+     *         <th>Equivalent property</th>
+     *         <th>Behavior</th>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.05.20}</td>
+     *         <td>{@code fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler}</td>
+     *         <td>Handlers without an explicit consumer get an isolated generated default consumer per handler class,
+     *         instead of joining the shared application default consumer for the message type.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.05.21}</td>
+     *         <td>{@code fluxzero.scheduling.periodic.useDefaultInitialDelay = true}</td>
+     *         <td>{@code @Periodic} schedules without an explicit {@code initialDelay} use their natural first
+     *         deadline: fixed-delay schedules first run after {@code delay}, and cron schedules first run at the next
+     *         cron match. Use {@code initialDelay = 0} for an immediate first run.</td>
+     *     </tr>
+     * </table>
+     */
+    public static final String DEFAULTS_VERSION_PROPERTY = "fluxzero.defaults.version";
 
     /**
      * Returns the raw string property for the given key, or {@code null} if not found.

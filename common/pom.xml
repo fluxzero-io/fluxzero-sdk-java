@@ -84,10 +84,6 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                         </path>
-                        <path>
-                            <groupId>com.google.auto.service</groupId>
-                            <artifactId>auto-service</artifactId>
-                        </path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
