@@ -45,6 +45,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD;
@@ -54,6 +57,8 @@ import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER
 @ContextConfiguration(classes = {FluxzeroTestConfig.class, GivenWhenThenSpringTest.FooConfig.class, GivenWhenThenSpringTest.BarConfig.class})
 @TestPropertySource(properties = {"stateful-disabled=true", "trackself-disabled=true"})
 class GivenWhenThenSpringTest {
+
+    private static final AtomicReference<CountDownLatch> slowCommandHandlerStarted = new AtomicReference<>();
 
     private final TestFixture testFixture;
 
@@ -93,10 +98,16 @@ class GivenWhenThenSpringTest {
     @Test
     @SneakyThrows
     void testWaitForSlowResultAfterTerminate() {
-        CompletableFuture<Object> result = testFixture.getFluxzero().commandGateway().send(new SlowCommand());
-        sleepAWhile(100);
-        testFixture.getFluxzero().close();
-        assertTrue(result.isDone());
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        slowCommandHandlerStarted.set(handlerStarted);
+        try {
+            CompletableFuture<Object> result = testFixture.getFluxzero().commandGateway().send(new SlowCommand());
+            assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
+            testFixture.getFluxzero().close();
+            assertTrue(result.isDone());
+        } finally {
+            slowCommandHandlerStarted.set(null);
+        }
     }
 
     @Test
@@ -257,7 +268,13 @@ class GivenWhenThenSpringTest {
 
         @HandleCommand
         public CompletableFuture<?> handle(SlowCommand command) {
-            return CompletableFuture.runAsync(() -> sleepAWhile(500));
+            return CompletableFuture.runAsync(() -> {
+                CountDownLatch handlerStarted = slowCommandHandlerStarted.get();
+                if (handlerStarted != null) {
+                    handlerStarted.countDown();
+                }
+                sleepAWhile(100);
+            });
         }
     }
 

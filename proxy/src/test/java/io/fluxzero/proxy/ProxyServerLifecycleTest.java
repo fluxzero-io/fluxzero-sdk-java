@@ -89,6 +89,8 @@ class ProxyServerLifecycleTest {
             assertEquals(200, response.getStatus());
             assertEquals("Healthy", new String(response.<byte[]>getPayload(), StandardCharsets.UTF_8));
 
+            requester.close(true);
+            requester = null;
             proxyServer.cancel();
             proxyServer.cancel();
         } finally {

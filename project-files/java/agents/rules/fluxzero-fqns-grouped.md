@@ -22,6 +22,7 @@ io.fluxzero.sdk.common.logging.ConsoleError
 io.fluxzero.sdk.common.logging.ConsoleWarning
 io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender
 io.fluxzero.sdk.common.serialization.AbstractSerializer<I>
+io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage
 io.fluxzero.sdk.common.serialization.ContentFilter
 io.fluxzero.sdk.common.serialization.DeserializationException
 io.fluxzero.sdk.common.serialization.DeserializingMessage

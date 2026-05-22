@@ -83,6 +83,23 @@ public interface TrackingClient extends AutoCloseable {
     List<SerializedMessage> readFromIndex(long minIndex, int maxSize);
 
     /**
+     * Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} up to the provided max size.
+     * <p>
+     * Implementations may override this to perform a bounded server-side range read. The default implementation keeps
+     * the wire protocol backward compatible by using {@link #readFromIndex(long, int)} and filtering locally.
+     *
+     * @param minIndexInclusive the starting index (inclusive)
+     * @param maxIndexExclusive the maximum index (exclusive)
+     * @param maxSize           the maximum number of messages to retrieve
+     * @return a list of serialized messages in the requested range
+     */
+    default List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
+        return readFromIndex(minIndexInclusive, maxSize).stream()
+                .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
+                .toList();
+    }
+
+    /**
      * Claims a processing segment for the given tracker.
      * <p>
      * Segments are used to partition the message log among multiple tracker threads for parallel processing.

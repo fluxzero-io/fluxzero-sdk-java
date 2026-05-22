@@ -40,15 +40,19 @@ class JettyWebsocketRouterTest {
     @Test
     void stopsEndpointsWhenServerStopsWithoutRegisteringJettyShutdownHook() throws Exception {
         CountDownLatch endpointOpened = new CountDownLatch(1);
+        CountDownLatch endpointClosed = new CountDownLatch(1);
         CountDownLatch endpointStopped = new CountDownLatch(1);
         JettyWebsocketRouter router = WebsocketDeploymentUtils.deploy(
-                ignored -> new TrackingEndpoint(endpointOpened, endpointStopped), "/test", new JettyWebsocketRouter());
+                ignored -> new TrackingEndpoint(endpointOpened, endpointClosed, endpointStopped), "/test",
+                new JettyWebsocketRouter());
         Server server = router.start(0);
 
         try {
             assertFalse(server.getStopAtShutdown());
-            connectTestSession(server);
+            WebsocketSession session = connectTestSession(server);
             assertTrue(endpointOpened.await(1, SECONDS), "Expected test endpoint to open before server stop");
+            session.close();
+            assertTrue(endpointClosed.await(1, SECONDS), "Expected test session to close before server stop");
         } finally {
             server.stop();
         }
@@ -76,10 +80,12 @@ class JettyWebsocketRouterTest {
 
     private static class TrackingEndpoint extends WebsocketEndpoint {
         private final CountDownLatch opened;
+        private final CountDownLatch closed;
         private final CountDownLatch stopped;
 
-        TrackingEndpoint(CountDownLatch opened, CountDownLatch stopped) {
+        TrackingEndpoint(CountDownLatch opened, CountDownLatch closed, CountDownLatch stopped) {
             this.opened = opened;
+            this.closed = closed;
             this.stopped = stopped;
         }
 
@@ -87,6 +93,12 @@ class JettyWebsocketRouterTest {
         public void onOpen(ServerWebsocketSession session) {
             super.onOpen(session);
             opened.countDown();
+        }
+
+        @Override
+        public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
+            super.onClose(session, closeReason);
+            closed.countDown();
         }
 
         @Override

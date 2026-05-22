@@ -17,9 +17,13 @@ package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.FileUtils;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ThrowingPredicate;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.JsonUtils;
@@ -27,6 +31,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ErrorHandler;
@@ -64,9 +69,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,6 +93,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
@@ -363,8 +372,88 @@ public class HandleWebTest {
         }
 
         @Test
+        void testPostChunkedOctetStreamStartsStreamHandlerWithWebRequestInjection() {
+            CompletableFuture<String> firstBytesRead = new CompletableFuture<>();
+            CompletableFuture<String> completed = new CompletableFuture<>();
+            AtomicBoolean headerSeen = new AtomicBoolean();
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/stream/request")
+                String stream(InputStream payload, WebRequest request) throws Exception {
+                    headerSeen.set("yes".equals(request.getHeader("X-Chunked-Test")));
+                    String first = new String(payload.readNBytes(6), StandardCharsets.UTF_8);
+                    firstBytesRead.complete(first);
+                    String rest = new String(payload.readAllBytes(), StandardCharsets.UTF_8);
+                    completed.complete(rest);
+                    return first + rest;
+                }
+            }).whenApplying(fc -> {
+                WebRequest request = WebRequest.builder().method(POST).url("/stream/request")
+                        .payload(new byte[0]).header("Content-Type", "application/octet-stream")
+                        .header("X-Chunked-Test", "yes").build();
+                SerializedMessage firstChunk = chunk(request, "hello ".getBytes(StandardCharsets.UTF_8), true, false, 0);
+                SerializedMessage secondChunk = chunk(request, "world".getBytes(StandardCharsets.UTF_8), false, true, 1);
+                try (DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                        fc.client(), MessageType.WEBRESPONSE, Duration.ofSeconds(5),
+                        "chunked-web-request-injection-test")) {
+                    firstChunk.setSegment(ConsistentHashing.computeSegment(firstChunk.getMessageId()));
+                    AtomicReference<CompletableFuture<Void>> firstDispatch =
+                            new AtomicReference<>(CompletableFuture.completedFuture(null));
+                    CompletableFuture<SerializedMessage> responseFuture = requestHandler.sendRequest(
+                            firstChunk, message -> firstDispatch.set(fc.client().getGatewayClient(MessageType.WEBREQUEST)
+                                    .append(Guarantee.SENT, message)), Duration.ofSeconds(5), null);
+                    firstDispatch.get().get(1, TimeUnit.SECONDS);
+                    assertEquals("hello ", firstBytesRead.get(1, TimeUnit.SECONDS));
+                    assertTrue(headerSeen.get());
+
+                    secondChunk.setRequestId(firstChunk.getRequestId());
+                    secondChunk.setSource(firstChunk.getSource());
+                    secondChunk.setSegment(firstChunk.getSegment());
+                    fc.client().getGatewayClient(MessageType.WEBREQUEST).append(Guarantee.SENT, secondChunk)
+                            .get(1, TimeUnit.SECONDS);
+                    responseFuture.get(1, TimeUnit.SECONDS);
+                    assertEquals("world", completed.get(1, TimeUnit.SECONDS));
+                }
+                return null;
+            }).expectNoErrors();
+        }
+
+        @Test
         void testGet_disabled() {
             testFixture.whenGet("/disabled").expectExceptionalResult(TimeoutException.class);
+        }
+
+        @Test
+        void testChunkedResponseAddsChunkIndexes() {
+            byte[] payload = new byte[WebResponseGateway.MAX_RESPONSE_SIZE + 123];
+            for (int i = 0; i < payload.length; i++) {
+                payload[i] = (byte) (i % 251);
+            }
+            TestFixture asyncFixture = TestFixture.createAsync().resultTimeout(Duration.ofSeconds(1))
+                    .consumerTimeout(Duration.ofSeconds(1));
+            List<SerializedMessage> observed = new ArrayList<>();
+            var registration = asyncFixture.getFluxzero().client().getGatewayClient(MessageType.WEBRESPONSE)
+                    .registerMonitor(observed::addAll);
+            try {
+                asyncFixture.registerHandlers(new Object() {
+                            @HandleGet("/chunkedResponse")
+                            WebResponse chunkedResponse() {
+                                return WebResponse.ok(() -> new java.io.ByteArrayInputStream(payload),
+                                                      Map.of("Content-Type", "application/octet-stream"));
+                            }
+                        })
+                        .whenGet("/chunkedResponse")
+                        .expectThat(fc -> {
+                            assertEquals(2, observed.size());
+                            assertEquals("0", observed.get(0).getMetadata().get(HasMetadata.CHUNK_INDEX));
+                            assertEquals("1", observed.get(1).getMetadata().get(HasMetadata.CHUNK_INDEX));
+                            assertEquals("true", observed.get(0).getMetadata().get(HasMetadata.FIRST_CHUNK));
+                            assertEquals("false", observed.get(0).getMetadata().get(HasMetadata.FINAL_CHUNK));
+                            assertEquals("false", observed.get(1).getMetadata().get(HasMetadata.FIRST_CHUNK));
+                            assertEquals("true", observed.get(1).getMetadata().get(HasMetadata.FINAL_CHUNK));
+                        });
+            } finally {
+                registration.cancel();
+            }
         }
 
         @Test
@@ -920,6 +1009,17 @@ public class HandleWebTest {
                     """).formatted(boundary, boundary, boundary, boundary, boundary)
                     .getBytes(StandardCharsets.UTF_8);
         }
+    }
+
+    private static SerializedMessage chunk(WebRequest request, byte[] payload, boolean first, boolean last,
+                                           long chunkIndex) {
+        return new SerializedMessage(
+                new Data<>(payload, byte[].class.getName(), 0, "application/octet-stream"),
+                request.getMetadata().with(
+                        HasMetadata.FIRST_CHUNK, Boolean.toString(first),
+                        HasMetadata.FINAL_CHUNK, Boolean.toString(last),
+                        HasMetadata.CHUNK_INDEX, Long.toString(chunkIndex)),
+                request.getMessageId(), request.getTimestamp().toEpochMilli());
     }
 
     @Value

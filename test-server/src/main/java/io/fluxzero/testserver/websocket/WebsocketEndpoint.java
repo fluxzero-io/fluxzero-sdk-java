@@ -19,6 +19,7 @@ package io.fluxzero.testserver.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
@@ -71,6 +72,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -81,6 +83,7 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
 import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
@@ -91,6 +94,7 @@ import static java.util.Optional.ofNullable;
 
 @Slf4j
 public abstract class WebsocketEndpoint {
+    private static final int DEFAULT_COMMAND_REQUEST_STRIPES = 16;
 
     private static final ObjectMapper defaultObjectMapper = JsonMapper.builder()
             .findAndAddModules().disable(WRITE_DATES_AS_TIMESTAMPS)
@@ -108,6 +112,7 @@ public abstract class WebsocketEndpoint {
     private final ObjectMapper objectMapper;
     private final Executor requestExecutor;
     private final ExecutorService ownedRequestExecutor;
+    private final ExecutorService[] commandExecutors;
     private final CommandIdempotencyStore commandIdempotencyStore;
     private final boolean ownsCommandIdempotencyStore;
 
@@ -145,6 +150,7 @@ public abstract class WebsocketEndpoint {
         this.objectMapper = defaultObjectMapper;
         this.ownedRequestExecutor = ownsRequestExecutor ? (ExecutorService) requestExecutor : null;
         this.requestExecutor = requestExecutor;
+        this.commandExecutors = newRequestStripeExecutors(DEFAULT_COMMAND_REQUEST_STRIPES);
         this.commandIdempotencyStore = commandIdempotencyStore;
         this.ownsCommandIdempotencyStore = ownsCommandIdempotencyStore;
     }
@@ -226,11 +232,17 @@ public abstract class WebsocketEndpoint {
             return false;
         }
         try {
-            requestExecutor.execute(task);
+            executorFor(request).execute(task);
             return true;
         } catch (RejectedExecutionException ignored) {
             return false;
         }
+    }
+
+    private Executor executorFor(JsonType request) {
+        return request instanceof Command command && command.routingKey() != null
+                ? commandExecutors[ConsistentHashing.computeSegment(command.routingKey(), commandExecutors.length)]
+                : requestExecutor;
     }
 
     private void processRequest(ServerWebsocketSession session, JsonType request, long requestReceivedTimestamp) {
@@ -586,6 +598,7 @@ public abstract class WebsocketEndpoint {
                 if (ownsCommandIdempotencyStore) {
                     commandIdempotencyStore.close();
                 }
+                Arrays.stream(commandExecutors).forEach(ExecutorService::shutdown);
                 ofNullable(ownedRequestExecutor).ifPresent(ExecutorService::shutdown);
                 sessionBacklogs.values().stream().map(SessionBacklog::getSession).filter(ServerWebsocketSession::isOpen).forEach(s -> {
                     try {
@@ -595,6 +608,16 @@ public abstract class WebsocketEndpoint {
                 });
             }
         }
+    }
+
+    @SuppressWarnings({"SameParameterValue", "resource"})
+    protected ExecutorService[] newRequestStripeExecutors(int stripes) {
+        ExecutorService[] result = new ExecutorService[stripes];
+        for (int i = 0; i < stripes; i++) {
+            result[i] = Executors.newSingleThreadExecutor(
+                    newPlatformThreadFactory(getClass().getSimpleName() + "-command-stripe-" + i));
+        }
+        return result;
     }
 
     protected CompressionAlgorithm getCompressionAlgorithm(ServerWebsocketSession session) {

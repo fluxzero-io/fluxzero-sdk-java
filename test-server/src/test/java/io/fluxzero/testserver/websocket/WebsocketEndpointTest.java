@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -139,7 +140,7 @@ class WebsocketEndpointTest {
         assertEquals(1, endpoint.invocations());
         assertVoidResult(command, endpoint.results("session-1").getFirst());
         assertVoidResult(command, endpoint.results("session-2").getFirst());
-        endpoint.shutDown();
+        closeEndpoint(endpoint, firstSession, retrySession);
     }
 
     @Test
@@ -155,7 +156,7 @@ class WebsocketEndpointTest {
         RequestResult result = endpoint.results("session-1").getFirst();
         assertVoidResult(command, result);
         assertEquals(requestReceivedTimestamp, result.getRequestReceivedTimestamp());
-        endpoint.shutDown();
+        closeEndpoint(endpoint, session);
     }
 
     @Test
@@ -173,7 +174,7 @@ class WebsocketEndpointTest {
         assertEquals(2, endpoint.invocations());
         assertTrue(endpoint.results("session-1").isEmpty());
         assertTrue(endpoint.results("session-2").isEmpty());
-        endpoint.shutDown();
+        closeEndpoint(endpoint, firstSession, retrySession);
     }
 
     @Test
@@ -195,6 +196,35 @@ class WebsocketEndpointTest {
     }
 
     @Test
+    void commandsWithSameRoutingKeyAreHandledSequentially() throws Exception {
+        TestEndpoint endpoint = new TestEndpoint();
+        ServerWebsocketSession session = session("session-1");
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondEntered = new CountDownLatch(1);
+        TestCommand first = new TestCommand(CompletableFuture.completedFuture(null), SENT, "same-key",
+                                            firstEntered, releaseFirst);
+        TestCommand second = new TestCommand(CompletableFuture.completedFuture(null), SENT, "same-key",
+                                             secondEntered, null);
+
+        endpoint.onOpen(session);
+        try {
+            endpoint.dispatch(session, first);
+            assertTrue(firstEntered.await(1, TimeUnit.SECONDS));
+
+            endpoint.dispatch(session, second);
+            assertFalse(secondEntered.await(100, TimeUnit.MILLISECONDS));
+
+            releaseFirst.countDown();
+            assertTrue(secondEntered.await(1, TimeUnit.SECONDS));
+            assertEquals(2, endpoint.invocations());
+        } finally {
+            releaseFirst.countDown();
+            closeEndpoint(endpoint, session);
+        }
+    }
+
+    @Test
     void serverPingTimeoutClosesSession() throws Exception {
         Duration originalPingTimeout = WebsocketEndpoint.pingTimeout;
         WebsocketEndpoint.pingTimeout = Duration.ofMillis(10);
@@ -208,7 +238,7 @@ class WebsocketEndpointTest {
             assertTrue(session.awaitPing(1, TimeUnit.SECONDS));
             assertTrue(session.awaitClose(1, TimeUnit.SECONDS));
         } finally {
-            endpoint.shutDown();
+            closeEndpoint(endpoint, session);
             WebsocketEndpoint.pingTimeout = originalPingTimeout;
         }
     }
@@ -252,6 +282,8 @@ class WebsocketEndpointTest {
         @Handle
         CompletableFuture<Void> handle(TestCommand command) {
             invocations.incrementAndGet();
+            command.markEntered();
+            command.awaitRelease();
             return command.result;
         }
 
@@ -297,18 +329,60 @@ class WebsocketEndpointTest {
         assertEquals(command.getRequestId(), result.getRequestId());
     }
 
+    private static void closeEndpoint(TestEndpoint endpoint, ServerWebsocketSession... sessions) {
+        WebsocketCloseReason closeReason = new WebsocketCloseReason(
+                WebsocketCloseReason.NORMAL_CLOSURE, "test complete");
+        for (ServerWebsocketSession session : sessions) {
+            endpoint.onClose(session, closeReason);
+        }
+        endpoint.shutDown();
+    }
+
     private static class TestCommand extends Command {
         private final CompletableFuture<Void> result;
         private final io.fluxzero.common.Guarantee guarantee;
+        private final String routingKey;
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
 
         private TestCommand(CompletableFuture<Void> result, io.fluxzero.common.Guarantee guarantee) {
+            this(result, guarantee, null, null, null);
+        }
+
+        private TestCommand(CompletableFuture<Void> result, io.fluxzero.common.Guarantee guarantee,
+                            String routingKey, CountDownLatch entered, CountDownLatch release) {
             this.result = result;
             this.guarantee = guarantee;
+            this.routingKey = routingKey;
+            this.entered = entered;
+            this.release = release;
         }
 
         @Override
         public io.fluxzero.common.Guarantee getGuarantee() {
             return guarantee;
+        }
+
+        @Override
+        public String routingKey() {
+            return routingKey;
+        }
+
+        private void markEntered() {
+            if (entered != null) {
+                entered.countDown();
+            }
+        }
+
+        private void awaitRelease() {
+            if (release != null) {
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 

@@ -194,6 +194,11 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     @Override
+    public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
+        return delegate.readRange(minIndexInclusive, maxIndexExclusive, maxSize);
+    }
+
+    @Override
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
         return delegate.claimSegment(trackerId, lastIndex, config);

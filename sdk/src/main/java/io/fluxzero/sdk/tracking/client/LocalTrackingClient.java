@@ -154,6 +154,13 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     }
 
     @Override
+    public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
+        return messageStore.getBatch(minIndexInclusive, maxSize, true).stream()
+                .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
+                .toList();
+    }
+
+    @Override
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
         CompletableFuture<ClaimSegmentResult> result = new CompletableFuture<>();

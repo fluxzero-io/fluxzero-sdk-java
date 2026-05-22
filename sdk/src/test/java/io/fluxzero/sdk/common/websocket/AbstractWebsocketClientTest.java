@@ -319,12 +319,12 @@ class AbstractWebsocketClientTest {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
-                .connectionTimeout(Duration.ofMillis(100))
+                .connectionTimeout(Duration.ofMillis(20))
                 .build();
         BlockingWebsocketConnector container = new BlockingWebsocketConnector();
 
         try (TimeoutObservingClient client = new TimeoutObservingClient(container, clientConfig,
-                                                                        Duration.ofMillis(50))) {
+                                                                        Duration.ofMillis(10))) {
             assertTimeout(Duration.ofSeconds(2), () -> assertThrows(TimeoutException.class, client::connectOnce));
             assertTrue(container.connectStarted.await(1, TimeUnit.SECONDS));
             assertTrue(container.connectInterrupted.await(1, TimeUnit.SECONDS));

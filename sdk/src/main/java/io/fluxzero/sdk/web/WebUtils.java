@@ -22,6 +22,8 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Type;
@@ -238,6 +240,8 @@ public class WebUtils {
      * This method preserves already-compatible payload instances, supports explicit low-level conversion to
      * {@code String} and {@code byte[]}, and only parses raw JSON when the payload is represented as text or bytes and
      * the content type indicates JSON.
+     * <p>
+     * When the payload is an {@link InputStream}, the stream is fully consumed before conversion.
      *
      * @param payload     the decoded payload value
      * @param type        the requested target type
@@ -253,6 +257,9 @@ public class WebUtils {
         if (type instanceof Class<?> c && c.isInstance(payload)) {
             return (R) payload;
         }
+        if (payload instanceof InputStream inputStream) {
+            payload = readPayloadBytes(inputStream);
+        }
         if (type == String.class) {
             return (R) (payload instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8)
                     : payload instanceof String s ? s : JsonUtils.asJson(payload));
@@ -264,6 +271,14 @@ public class WebUtils {
         return isJsonContentType(contentType) && (payload instanceof byte[] || payload instanceof String)
                 ? payload instanceof byte[] bytes ? JsonUtils.fromJson(bytes, type) : JsonUtils.fromJson((String) payload, type)
                 : JsonUtils.convertValue(payload, type);
+    }
+
+    private static byte[] readPayloadBytes(InputStream inputStream) {
+        try {
+            return inputStream.readAllBytes();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read web payload stream", e);
+        }
     }
 
     /**

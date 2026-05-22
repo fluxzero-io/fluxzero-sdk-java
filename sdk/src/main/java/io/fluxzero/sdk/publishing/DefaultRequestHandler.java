@@ -255,6 +255,18 @@ public class DefaultRequestHandler implements RequestHandler {
         });
     }
 
+    /**
+     * Completes a pending request exceptionally and removes its response callback.
+     *
+     * @param requestId the request id assigned by {@link #prepareRequest(SerializedMessage, Duration, Consumer)}
+     * @param error     the error that should complete the pending request
+     * @return {@code true} when a pending request was found and completed
+     */
+    protected boolean completeRequestExceptionally(int requestId, Throwable error) {
+        ResponseCallback callback = callbacks.remove(requestId);
+        return callback != null && callback.completeExceptionally(error);
+    }
+
     @Override
     public void close() {
         waitForResults(Duration.ofSeconds(2),
@@ -283,6 +295,10 @@ public class DefaultRequestHandler implements RequestHandler {
 
         CompletableFuture<SerializedMessage> finalCallback() {
             return finalCallback;
+        }
+
+        boolean completeExceptionally(Throwable error) {
+            return finalCallback.completeExceptionally(error);
         }
 
         private void process(SerializedMessage response) {

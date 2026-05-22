@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.Handler;
@@ -28,15 +29,18 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.exception.TechnicalException;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
+import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.web.WebRequest;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
@@ -63,14 +67,18 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
@@ -79,6 +87,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static java.lang.String.format;
+import static java.util.concurrent.CompletableFuture.supplyAsync;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
@@ -131,6 +140,7 @@ public class DefaultTracking implements Tracking {
             new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
+    private final ExecutorService chunkedMessageHandlerExecutor = newWorkerPool("tracking-chunked-message-handler", 8);
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
 
     /**
@@ -494,10 +504,14 @@ public class DefaultTracking implements Tracking {
 
     protected Consumer<List<SerializedMessage>> createConsumer(ConsumerConfiguration config,
                                                                List<Handler<DeserializingMessage>> handlers) {
+        Map<String, ChunkedDeserializingMessage> activeChunkedMessages = new ConcurrentHashMap<>();
         return serializedMessages -> {
             String topic = Tracker.current().orElseThrow().getTopic();
+            TrackingClient trackingClient = Fluxzero.get().client().forNamespace(config.getNamespace())
+                    .getTrackingClient(messageType, topic);
             try {
-                handleBatch(serializer.deserializeMessages(serializedMessages.stream(), messageType, topic))
+                handleBatch(deserializeMessages(serializedMessages, topic, trackingClient, activeChunkedMessages,
+                                                config.getMaxFetchSize()))
                         .forEach(m -> handlers.forEach(h -> tryHandle(m, h, config, true)));
             } catch (BatchProcessingException e) {
                 throw e;
@@ -505,10 +519,93 @@ public class DefaultTracking implements Tracking {
                 config.getErrorHandler().handleError(
                         e, format("Failed to handle batch of consumer %s", config.getName()),
                         () -> handleBatch(
-                                serializer.deserializeMessages(serializedMessages.stream(), messageType, topic))
+                                        deserializeMessages(serializedMessages, topic, trackingClient,
+                                                            activeChunkedMessages, config.getMaxFetchSize()))
                                 .forEach(m -> handlers.forEach(h -> tryHandle(m, h, config, false))));
             }
         };
+    }
+
+    protected Stream<DeserializingMessage> deserializeMessages(List<SerializedMessage> serializedMessages, String topic,
+                                                               TrackingClient trackingClient,
+                                                               Map<String, ChunkedDeserializingMessage>
+                                                                       activeChunkedMessages,
+                                                               int recoveryMaxFetchSize) {
+        List<DeserializingMessage> result = new ArrayList<>();
+        Map<String, List<SerializedMessage>> pendingContinuations = new HashMap<>();
+        for (SerializedMessage message : serializedMessages) {
+            if (!message.chunked()) {
+                serializer.deserializeMessages(Stream.of(message), messageType, topic).findAny().ifPresent(result::add);
+                continue;
+            }
+            if (!message.firstChunk()) {
+                String key = chunkKey(topic, message);
+                ChunkedDeserializingMessage chunkedMessage = activeChunkedMessages.get(key);
+                if (chunkedMessage == null) {
+                    chunkedMessage = recoverChunkedMessage(topic, trackingClient, message, recoveryMaxFetchSize)
+                            .orElse(null);
+                    if (chunkedMessage != null) {
+                        result.add(chunkedMessage);
+                        trackActiveChunkedMessage(activeChunkedMessages, key, chunkedMessage);
+                    }
+                }
+                if (chunkedMessage == null) {
+                    pendingContinuations.computeIfAbsent(message.getMessageId(), ignored -> new ArrayList<>())
+                            .add(message);
+                } else {
+                    chunkedMessage.appendObservedContinuation(message);
+                }
+                continue;
+            }
+            ChunkedDeserializingMessage chunkedMessage =
+                    new ChunkedDeserializingMessage(message, messageType, topic, serializer);
+            String chunkKey = chunkKey(topic, message);
+            List<SerializedMessage> observedContinuations = pendingContinuations.remove(message.getMessageId());
+            if (observedContinuations != null) {
+                observedContinuations.forEach(chunkedMessage::appendObservedContinuation);
+            }
+            trackActiveChunkedMessage(activeChunkedMessages, chunkKey, chunkedMessage);
+            result.add(chunkedMessage);
+        }
+        pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
+        return result.stream();
+    }
+
+    private String chunkKey(String topic, SerializedMessage message) {
+        return messageType + ":" + topic + ":" + message.getMessageId();
+    }
+
+    private void trackActiveChunkedMessage(Map<String, ChunkedDeserializingMessage> activeChunkedMessages,
+                                           String chunkKey, ChunkedDeserializingMessage chunkedMessage) {
+        if (!chunkedMessage.completion().isDone()) {
+            activeChunkedMessages.put(chunkKey, chunkedMessage);
+            chunkedMessage.completion().whenComplete(
+                    (ignored, error) -> activeChunkedMessages.remove(chunkKey, chunkedMessage));
+        }
+    }
+
+    private Optional<ChunkedDeserializingMessage> recoverChunkedMessage(String topic, TrackingClient trackingClient,
+                                                                       SerializedMessage continuation,
+                                                                       int maxFetchSize) {
+        if (continuation.getIndex() == null || continuation.getTimestamp() == null) {
+            return Optional.empty();
+        }
+        long minIndex = Math.min(continuation.getIndex(),
+                                 Math.max(0L, IndexUtils.indexFromMillis(continuation.getTimestamp())));
+        Optional<ChunkedDeserializingMessage> result = ChunkedDeserializingMessage.recoverFromContinuation(
+                continuation, messageType, topic, serializer, minIndex, maxFetchSize, trackingClient::readRange);
+        result.ifPresent(message -> log.debug(
+                "Recovered chunked {} message {} from index range [{}, {}) after observing continuation at index {}",
+                messageType, continuation.getMessageId(), minIndex, continuation.getIndex(),
+                continuation.getIndex()));
+        return result;
+    }
+
+    private void logSkippedContinuation(SerializedMessage message) {
+        log.warn("Skipping chunked {} message {} at index {} because the first chunk was not observed "
+                 + "(firstChunk={}, finalChunk={}, chunkIndex={})",
+                 messageType, message.getMessageId(), message.getIndex(),
+                 message.firstChunk(), message.lastChunk(), message.getMetadata().get(HasMetadata.CHUNK_INDEX));
     }
 
     protected void tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,
@@ -558,12 +655,52 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
+        if (message instanceof ChunkedDeserializingMessage) {
+            Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
+            Tracker tracker = Tracker.current().orElse(null);
+            User user = User.getCurrent();
+            return supplyAsync(
+                    () -> withHandlerContext(message, fluxzero, tracker, user,
+                                             () -> doHandle(message, h, handler, config)),
+                    chunkedMessageHandlerExecutor);
+        }
+        return doHandle(message, h, handler, config);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Object doHandle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
+                              ConsumerConfiguration config) {
         try {
             Object result = Invocation.performInvocation(h, h::invoke);
             return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
                     .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config))) : result;
         } catch (Throwable e) {
             return processError(e, message, h, handler, config);
+        }
+    }
+
+    protected <T> T withHandlerContext(DeserializingMessage message, Fluxzero fluxzero, Tracker tracker, User user,
+                                       Supplier<T> task) {
+        Fluxzero previousFluxzero = Fluxzero.instance.get();
+        Tracker previousTracker = Tracker.current.get();
+        User previousUser = User.getCurrent();
+        try {
+            setThreadLocal(Fluxzero.instance, fluxzero);
+            setThreadLocal(Tracker.current, tracker);
+            setThreadLocal(User.current, user);
+            return message.apply(m -> task.get());
+        } finally {
+            setThreadLocal(Fluxzero.instance, previousFluxzero);
+            setThreadLocal(Tracker.current, previousTracker);
+            setThreadLocal(User.current, previousUser);
+        }
+    }
+
+    protected <T> void setThreadLocal(ThreadLocal<T> threadLocal, T value) {
+        if (value == null) {
+            threadLocal.remove();
+        } else {
+            threadLocal.set(value);
         }
     }
 
@@ -574,18 +711,27 @@ public class DefaultTracking implements Tracking {
                 () -> Invocation.performInvocation(h, h::invoke));
     }
 
-    protected void reportResult(Object result, HandlerInvoker h, DeserializingMessage message,
-                                ConsumerConfiguration config) {
+    protected CompletionStage<Void> reportResult(Object result, HandlerInvoker h, DeserializingMessage message,
+                                                 ConsumerConfiguration config) {
         if (result instanceof CompletionStage<?> s) {
+            CompletableFuture<Void> completion = new CompletableFuture<>();
+            CompletableFuture<?> resultFuture = s.toCompletableFuture();
+            outstandingRequests.add(resultFuture);
             s.whenComplete((r, e) -> {
                 try {
-                    message.run(m -> reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config));
+                    message.run(m -> reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
+                            .toCompletableFuture().join());
+                    completion.complete(null);
+                } catch (Throwable t) {
+                    completion.completeExceptionally(t);
                 } finally {
+                    outstandingRequests.remove(resultFuture);
                     if (e != null) {
                         close();
                     }
                 }
             });
+            return completion;
         } else {
             if (shouldSendResponse(h, message, result, config)) {
                 if (result instanceof Throwable) {
@@ -606,6 +752,7 @@ public class DefaultTracking implements Tracking {
                             () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
                 }
             }
+            return CompletableFuture.completedFuture(null);
         }
     }
 
@@ -637,6 +784,8 @@ public class DefaultTracking implements Tracking {
     @Override
     @Synchronized
     public void close() {
-        shutdownFunction.get().merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests)).cancel();
+        shutdownFunction.get().merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests))
+                .merge(chunkedMessageHandlerExecutor::shutdown)
+                .cancel();
     }
 }

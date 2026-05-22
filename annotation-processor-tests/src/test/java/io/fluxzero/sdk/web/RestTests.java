@@ -1,8 +1,15 @@
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import jakarta.validation.constraints.NotNull;
@@ -11,7 +18,21 @@ import lombok.Value;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RestTests {
 
@@ -156,6 +177,32 @@ class RestTests {
                     .as(HotelId.class)).expectResult(new HotelId("hotel-from-body"));
         }
 
+        @Test
+        void testChunkedBodyParamWaitsForFinalChunkWithoutBlockingTracker() {
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/bodyParam/chunked")
+                String post(@BodyParam("message") String message) {
+                    handled.set(message);
+                    handledLatch.countDown();
+                    return message;
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                sendChunkedWebRequest(
+                        fc, "/bodyParam/chunked", "application/json",
+                        "{\"message\":\"hello ".getBytes(StandardCharsets.UTF_8),
+                        "world\"}".getBytes(StandardCharsets.UTF_8),
+                        handledLatch, handled, "chunked-bodyparam-test");
+                return null;
+            }).expectNoErrors();
+        }
+
         static class Handler {
             @HandlePost("/bookings")
             String create(@BodyParam SomeId hotelId, @BodyParam SomeId roomId, @BodyParam BookingDetails details) {
@@ -214,6 +261,166 @@ class RestTests {
                                   + "/callback/google|google-code");
         }
 
+        @Test
+        void testChunkedFormParamWaitsForFinalChunkWithoutBlockingTracker() {
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/formParam/chunked")
+                String post(@FormParam("message") String message) {
+                    handled.set(message);
+                    handledLatch.countDown();
+                    return message;
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                sendChunkedWebRequest(
+                        fc, "/formParam/chunked", "application/x-www-form-urlencoded",
+                        "message=hello+".getBytes(StandardCharsets.UTF_8),
+                        "world".getBytes(StandardCharsets.UTF_8),
+                        handledLatch, handled, "chunked-formparam-test");
+                assertEquals("hello world", handled.get());
+                return null;
+            }).expectNoErrors();
+        }
+
+        @Test
+        void testChunkedFormObjectParamWaitsForFinalChunkWithoutBlockingTracker() {
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/formParam/object-chunked")
+                String post(TokenForm form) {
+                    handled.set(form.clientId + "|" + form.clientSecret + "|" + form.redirectUri + "|" + form.code);
+                    handledLatch.countDown();
+                    return handled.get();
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                sendChunkedWebRequest(
+                        fc, "/formParam/object-chunked", "application/x-www-form-urlencoded",
+                        "clientId=google-managed-client&clientSecret=google-managed-secret".getBytes(StandardCharsets.UTF_8),
+                        ("&redirectUri=https%3A%2F%2Fauth.fluxzero.test%2Flogin%2Fcallback%2Fgoogle"
+                         + "&code=google-code").getBytes(StandardCharsets.UTF_8),
+                        handledLatch, handled, "chunked-form-object-test");
+                assertEquals("google-managed-client|google-managed-secret|https://auth.fluxzero.test/login"
+                             + "/callback/google|google-code", handled.get());
+                return null;
+            }).expectNoErrors();
+        }
+
+        @Test
+        void testChunkedMultipartFormParamWaitsForFinalChunkWithoutBlockingTracker() {
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/formParam/multipart")
+                String post(@FormParam("message") String message) {
+                    handled.set(message);
+                    handledLatch.countDown();
+                    return message;
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                String boundary = "chunkedBoundary";
+                sendChunkedWebRequest(
+                        fc, "/formParam/multipart", "multipart/form-data; boundary=" + boundary,
+                        ("--" + boundary + "\r\n"
+                         + "Content-Disposition: form-data; name=\"message\"\r\n\r\n"
+                         + "hello ").getBytes(StandardCharsets.UTF_8),
+                        ("world\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8),
+                        handledLatch, handled, "chunked-multipart-formparam-test");
+                assertEquals("hello world", handled.get());
+                return null;
+            }).expectNoErrors();
+        }
+
+        @Test
+        void testChunkedMultipartFilePartWaitsForFinalChunkWithoutBlockingTracker() {
+            byte[] fileBytes = "%PDF-1.7\nchunked file\n".getBytes(StandardCharsets.ISO_8859_1);
+            String expected = "document.pdf|application/pdf|" + Base64.getEncoder().encodeToString(fileBytes) + "|"
+                              + Base64.getEncoder().encodeToString(fileBytes);
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/formParam/multipart-file")
+                String post(@FormParam("document") byte[] document,
+                            @FormParam("document") InputStream stream,
+                            @FormParam("document") WebFormPart part) throws Exception {
+                    handled.set(part.getFileName() + "|" + part.getContentType() + "|"
+                                + Base64.getEncoder().encodeToString(document) + "|"
+                                + Base64.getEncoder().encodeToString(stream.readAllBytes()));
+                    handledLatch.countDown();
+                    return handled.get();
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                String boundary = "chunkedFileBoundary";
+                sendChunkedWebRequest(
+                        fc, "/formParam/multipart-file", "multipart/form-data; boundary=" + boundary,
+                        ("--" + boundary + "\r\n"
+                         + "Content-Disposition: form-data; name=\"document\"; filename=\"document.pdf\"\r\n"
+                         + "Content-Type: application/pdf\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1),
+                        (new String(fileBytes, StandardCharsets.ISO_8859_1) + "\r\n--" + boundary + "--\r\n")
+                                .getBytes(StandardCharsets.ISO_8859_1),
+                        handledLatch, handled, "chunked-multipart-file-test");
+                assertEquals(expected, handled.get());
+                return null;
+            }).expectNoErrors();
+        }
+
+        @Test
+        void testChunkedMultipartMultipleFilePartsBySameKey() {
+            AtomicReference<String> handled = new AtomicReference<>();
+            CountDownLatch handledLatch = new CountDownLatch(1);
+            TestFixture.createAsync(new Object() {
+                @HandlePost("/multipart/multi-file-chunked")
+                String post(@FormParam("document") List<WebFormPart> documents) {
+                    handled.set(documents.stream().map(WebFormPart::asString).reduce((a, b) -> a + "|" + b)
+                                        .orElse(""));
+                    handledLatch.countDown();
+                    return handled.get();
+                }
+
+                @HandlePost("/ping")
+                String ping() {
+                    return "pong";
+                }
+            }).whenApplying(fc -> {
+                String boundary = "chunkedMultiBoundary";
+                sendChunkedWebRequest(
+                        fc, "/multipart/multi-file-chunked", "multipart/form-data; boundary=" + boundary,
+                        ("--" + boundary + "\r\n"
+                         + "Content-Disposition: form-data; name=\"document\"; filename=\"one.pdf\"\r\n"
+                         + "Content-Type: application/pdf\r\n\r\n"
+                         + "first-file\r\n"
+                         + "--" + boundary + "\r\n"
+                         + "Content-Disposition: form-data; name=\"document\"; filename=\"two.pdf\"\r\n"
+                         + "Content-Type: application/pdf\r\n\r\n")
+                                .getBytes(StandardCharsets.ISO_8859_1),
+                        ("second-file\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1),
+                        handledLatch, handled, "chunked-multipart-multi-file-test");
+                assertEquals("first-file|second-file", handled.get());
+                return null;
+            }).expectNoErrors();
+        }
+
         @Path("https://mock-google.test")
         static class Handler {
             @HandlePost("/token")
@@ -224,6 +431,57 @@ class RestTests {
                 return clientId + "|" + clientSecret + "|" + redirectUri + "|" + code;
             }
         }
+
+        @Value
+        static class TokenForm {
+            String clientId;
+            String clientSecret;
+            String redirectUri;
+            String code;
+        }
+    }
+
+    private static void sendChunkedWebRequest(Fluxzero fc, String path, String contentType, byte[] firstPayload,
+                                              byte[] secondPayload, CountDownLatch handledLatch,
+                                              AtomicReference<String> handled, String requestHandlerName)
+            throws Exception {
+        WebRequest request = WebRequest.builder().method("POST").url(path).payload(new byte[0])
+                .header("Content-Type", contentType).build();
+        SerializedMessage firstChunk = chunk(request, firstPayload, true, false, 0);
+        SerializedMessage secondChunk = chunk(request, secondPayload, false, true, 1);
+        try (DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                fc.client(), MessageType.WEBRESPONSE, Duration.ofSeconds(5), requestHandlerName)) {
+            firstChunk.setSegment(ConsistentHashing.computeSegment(firstChunk.getMessageId()));
+            AtomicReference<CompletableFuture<Void>> firstDispatch =
+                    new AtomicReference<>(CompletableFuture.completedFuture(null));
+            CompletableFuture<SerializedMessage> responseFuture = requestHandler.sendRequest(
+                    firstChunk, message -> firstDispatch.set(fc.client().getGatewayClient(MessageType.WEBREQUEST)
+                            .append(Guarantee.SENT, message)), Duration.ofSeconds(5), null);
+            firstDispatch.get().get(1, TimeUnit.SECONDS);
+            assertFalse(handledLatch.await(50, TimeUnit.MILLISECONDS));
+            assertNull(handled.get());
+            assertEquals("pong", fc.webRequestGateway().sendAndWait(WebRequest.post("/ping").build())
+                    .getPayloadAs(String.class));
+
+            secondChunk.setRequestId(firstChunk.getRequestId());
+            secondChunk.setSource(firstChunk.getSource());
+            secondChunk.setSegment(firstChunk.getSegment());
+            fc.client().getGatewayClient(MessageType.WEBREQUEST).append(Guarantee.SENT, secondChunk)
+                    .get(1, TimeUnit.SECONDS);
+            responseFuture.get(1, TimeUnit.SECONDS);
+            assertTrue(handledLatch.await(1, TimeUnit.SECONDS));
+        }
+    }
+
+    private static SerializedMessage chunk(WebRequest request, byte[] payload, boolean first, boolean last,
+                                           long chunkIndex) {
+        return new SerializedMessage(
+                new Data<>(payload, byte[].class.getName(), 0, "application/octet-stream"),
+                request.getMetadata().with(
+                        HasMetadata.FIRST_CHUNK, Boolean.toString(first),
+                        HasMetadata.FINAL_CHUNK, Boolean.toString(last),
+                        HasMetadata.CHUNK_INDEX, Long.toString(chunkIndex)),
+                request.getMessageId(), request.getTimestamp().toEpochMilli());
     }
 
     static class SomeId extends Id<Object> {

@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.Getter;
 
@@ -95,7 +96,9 @@ public class DefaultWebRequestContext implements WebRequestContext {
         if (message.getMessageType() != MessageType.WEBREQUEST) {
             throw new IllegalArgumentException("Invalid message type: " + message.getMessageType());
         }
-        bodySupplier = () -> message.getSerializedObject().getData().getValue();
+        bodySupplier = () -> message instanceof ChunkedDeserializingMessage chunked
+                ? chunked.getAggregatedPayloadBytes()
+                : message.getSerializedObject().getData().getValue();
         metadata = message.getMetadata();
         uri = URI.create(Optional.ofNullable(WebRequest.getUrl(metadata)).orElse(""));
         method = WebRequest.getMethod(metadata);
@@ -149,6 +152,12 @@ public class DefaultWebRequestContext implements WebRequestContext {
 
     public Map<String, List<WebFormPart>> getFormParts() {
         return formParts();
+    }
+
+    Map<String, Object> formObject() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        formParameterValues().forEach((key, value) -> result.put(key, firstOrListObject(value)));
+        return result;
     }
 
     public JsonNode getJsonBody() {
