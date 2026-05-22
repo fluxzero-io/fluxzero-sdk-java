@@ -26,7 +26,6 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,8 +40,9 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
  * <p>Resolution logic supports both {@link HasEntity} and {@link HasMessage} sources:
  * <ul>
  *   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>
- *   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID,
- *   then loads the entity from the Fluxzero Runtime using {@code Fluxzero#loadEntity}.</li>
+ *   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID.
+ *   Aggregate metadata is resolved directly using {@code Fluxzero#loadAggregate}; routing keys still use
+ *   {@code Fluxzero#loadEntity} because they may point at nested entities.</li>
  * </ul>
  *
  * <p>The entity is only resolved if:
@@ -118,13 +118,17 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             return ((HasEntity) input).getEntity();
         } else if (input instanceof HasMessage message) {
             var type = Entity.getAggregateType(message);
-            if (type == null) {
-                return null;
+            String aggregateId = Entity.getAggregateId(message);
+            if (aggregateId != null) {
+                return Fluxzero.getOptionally()
+                        .map(fc -> loadAggregate(aggregateId, type, parameter))
+                        .filter(e -> isAssignable(parameter, e))
+                        .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
+                        .orElse(null);
             }
-            if (Entity.class.isAssignableFrom(parameter.getType())
-                || Optional.of(type).map(
-                    t -> parameter.getType().isAssignableFrom(t)).orElse(false)) {
-                return Optional.ofNullable(Entity.getAggregateId(message)).or(message::computeRoutingKey)
+            if (type != null && (Entity.class.isAssignableFrom(parameter.getType())
+                                 || parameter.getType().isAssignableFrom(type))) {
+                return message.computeRoutingKey()
                         .flatMap(possibleEntityId -> Fluxzero.getOptionally()
                                 .map(fc -> Fluxzero.loadEntity(possibleEntityId)))
                         .filter(e -> isAssignable(parameter, e))
@@ -133,6 +137,16 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             }
         }
         return null;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType, Parameter parameter) {
+        Class<?> parameterType = getEntityParameterType(parameter);
+        Class<?> type = aggregateType;
+        if (type == null && !Object.class.equals(parameterType)) {
+            type = parameterType;
+        }
+        return type == null ? Fluxzero.loadAggregate(aggregateId) : Fluxzero.loadAggregate(aggregateId, (Class) type);
     }
 
     /**
