@@ -12,7 +12,7 @@ permissions:
 jobs:
   auto-merge:
     name: Enable Dependabot auto-merge
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'fluxzero-io/fluxzero-sdk-java'
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'fluxzero-io/fluxzero-sdk-java'
     runs-on: ubuntu-latest
 
     steps:
