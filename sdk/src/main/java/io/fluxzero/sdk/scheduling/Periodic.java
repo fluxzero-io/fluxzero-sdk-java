@@ -48,6 +48,11 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * <h2>Automatic Start</h2>
  * By default, the schedule is automatically started when the message is handled or the system starts. Set {@link #autoStart()} to {@code false} to disable this behavior.
  * <p>
+ * Auto-started cron schedules store an internal metadata entry with the cron schema that created them. On startup,
+ * Fluxzero replaces such a stored schedule when the cron schema has changed. Schedules that were delayed explicitly by
+ * returning {@link java.time.Duration}, {@link java.time.Instant}, or {@link Schedule} from a handler are not marked as
+ * cron-created and are left untouched by automatic start.
+ * <p>
  * When the matching {@link HandleSchedule} method is local (for example through
  * {@link io.fluxzero.sdk.tracking.handling.LocalHandler}, or because it is declared on a non-{@code @TrackSelf}
  * payload type), periodic execution is triggered through Fluxzero's task scheduler.

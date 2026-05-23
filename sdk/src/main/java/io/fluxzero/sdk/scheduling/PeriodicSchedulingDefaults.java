@@ -28,6 +28,8 @@ import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.sdk.scheduling.CronExpression.parseCronExpression;
 
 final class PeriodicSchedulingDefaults {
+    static final String CRON_SCHEMA_METADATA_KEY = "$periodic.cron";
+
     private static final LocalDate DEFAULT_INITIAL_DELAY_DEFAULTS_VERSION = LocalDate.of(2026, 5, 21);
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
     private static final Function<String, CronExpression> cronExpression = memoize(PeriodicSchedulingDefaults::parse);
@@ -75,6 +77,14 @@ final class PeriodicSchedulingDefaults {
 
     static boolean isDisabledCron(Periodic periodic) {
         return !periodic.cron().isBlank() && cronExpression(periodic).isEmpty();
+    }
+
+    static boolean isCronBased(Periodic periodic) {
+        return periodic != null && !periodic.cron().isBlank() && !isDisabledCron(periodic);
+    }
+
+    static String cronSchema(Periodic periodic) {
+        return "%s@%s".formatted(ApplicationProperties.substituteProperties(periodic.cron()), periodic.timeZone());
     }
 
     private static Optional<CronExpression> cronExpression(Periodic periodic) {
