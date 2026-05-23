@@ -25,6 +25,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "clearCron",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#clearCron",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "firstDeadline",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#firstDeadline",
     "returnType" : "java.time.Instant",
@@ -111,6 +127,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasCronSchema",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#hasCronSchema",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initializePeriodicSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#initializePeriodicSchedule",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageScheduler",
+      "type" : "io.fluxzero.sdk.scheduling.MessageScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "initializePeriodicSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#initializePeriodicSchedule",
     "returnType" : "void",
@@ -185,6 +248,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "markCron",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#markCron",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "nextDeadline",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#nextDeadline",
     "returnType" : "java.time.Instant",
@@ -234,6 +318,32 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "instant",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "schedule",
       "type" : "io.fluxzero.sdk.scheduling.Schedule",
       "varArgs" : false,
@@ -262,6 +372,90 @@
     }, {
       "name" : "instant",
       "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "instant",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduleInternal",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#scheduleInternal",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldReplacePeriodicSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#shouldReplacePeriodicSchedule",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentSchedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "wasCronScheduled",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulingInterceptor#wasCronScheduled",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

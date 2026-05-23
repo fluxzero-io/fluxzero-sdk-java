@@ -50,6 +50,58 @@
     "varArgs" : false,
     "documentation" : " Look up an existing schedule.\n\n @param scheduleId the ID of the schedule\n @return the schedule if found\n"
   }, {
+    "name" : "periodicCronMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#periodicCronMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "periodicSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#periodicSchedule",
+    "returnType" : "io.fluxzero.sdk.scheduling.Schedule",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "periodic",
+      "type" : "io.fluxzero.sdk.scheduling.Periodic",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
     "returnType" : "void",
