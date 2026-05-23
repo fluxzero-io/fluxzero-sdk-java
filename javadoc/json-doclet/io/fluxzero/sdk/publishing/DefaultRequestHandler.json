@@ -162,6 +162,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "completeRequestExceptionally",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#completeRequestExceptionally",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Completes a pending request exceptionally and removes its response callback.\n\n @param requestId the request id assigned by {@link #prepareRequest(SerializedMessage, Duration, Consumer)}\n @param error     the error that should complete the pending request\n @return {@code true} when a pending request was found and completed\n"
+  }, {
     "name" : "ensureStarted",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#ensureStarted",
     "returnType" : "void",

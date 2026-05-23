@@ -32,6 +32,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "chunkedMessageHandlerExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.chunkedMessageHandlerExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "customConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.customConfigurations",
     "type" : "java.util.List<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -167,6 +175,27 @@
     }, {
       "name" : "configurations",
       "type" : "java.util.stream.Stream<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "chunkKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#chunkKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -359,6 +388,78 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#deserializeMessages",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedMessages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingClient",
+      "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activeChunkedMessages",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "recoveryMaxFetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "doHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#doHandle",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "h",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "explicitConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#explicitConfigurations",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -463,6 +564,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "logSkippedContinuation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#logSkippedContinuation",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "mergeConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#mergeConfigurations",
     "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
@@ -552,6 +669,37 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "recoverChunkedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#recoverChunkedMessage",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingClient",
+      "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "continuation",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxFetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerConsumerHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#registerConsumerHandlers",
     "returnType" : "io.fluxzero.common.Registration",
@@ -601,7 +749,7 @@
   }, {
     "name" : "reportResult",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#reportResult",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletionStage<java.lang.Void>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -654,6 +802,27 @@
     }, {
       "name" : "fluxzero",
       "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setThreadLocal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#setThreadLocal",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "threadLocal",
+      "type" : "java.lang.ThreadLocal<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "T",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -781,6 +950,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "trackActiveChunkedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#trackActiveChunkedMessage",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "activeChunkedMessages",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkedMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "trackingTopics",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#trackingTopics",
     "returnType" : "java.util.Set<java.lang.String>",
@@ -882,6 +1077,42 @@
     "parameters" : [ {
       "name" : "fluxzero",
       "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withHandlerContext",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#withHandlerContext",
+    "returnType" : "T",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "tracker",
+      "type" : "io.fluxzero.sdk.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -10,13 +10,29 @@
   "superClass" : null,
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "CHUNK_INDEX",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata.CHUNK_INDEX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Metadata key that stores the zero-based position of a chunk within a chunked message.\n",
+    "constantValue" : "$chunkIndex"
+  }, {
     "name" : "FINAL_CHUNK",
     "qualifiedName" : "io.fluxzero.common.api.HasMetadata.FINAL_CHUNK",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : null,
+    "documentation" : " Metadata key that marks whether a chunk is the final part of a chunked message.\n",
     "constantValue" : "$finalChunk"
+  }, {
+    "name" : "FIRST_CHUNK",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata.FIRST_CHUNK",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Metadata key that marks the first part of a chunked message.\n",
+    "constantValue" : "$firstChunk"
   } ],
   "constructors" : [ ],
   "methods" : [ {
@@ -30,6 +46,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Determines if the data associated with this metadata is \"chunked\". This method checks if the metadata contains a\n {@code FINAL_CHUNK} key.\n\n @return true if the metadata contains the {@code FINAL_CHUNK} key, false otherwise.\n"
+  }, {
+    "name" : "firstChunk",
+    "qualifiedName" : "io.fluxzero.common.api.HasMetadata#firstChunk",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines if the data associated with this metadata is the first part of the data. If the\n {@code FIRST_CHUNK} key is missing or set to {@code true}, this method returns {@code true}.\n\n @return true if the metadata value for the {@code FIRST_CHUNK} key is {@code true}, false otherwise.\n"
   }, {
     "name" : "getMetadata",
     "qualifiedName" : "io.fluxzero.common.api.HasMetadata#getMetadata",

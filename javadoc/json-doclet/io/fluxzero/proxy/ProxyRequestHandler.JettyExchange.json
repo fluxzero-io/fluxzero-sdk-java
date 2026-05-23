@@ -244,6 +244,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRequestBodyLength",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#getRequestBodyLength",
+    "returnType" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getRequestHeader",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#getRequestHeader",
     "returnType" : "java.lang.String",
@@ -263,6 +274,17 @@
     "name" : "getRequestHeaders",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#getRequestHeaders",
     "returnType" : "org.eclipse.jetty.http.HttpFields",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRequestInputStream",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange#getRequestInputStream",
+    "returnType" : "java.io.InputStream",
     "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],

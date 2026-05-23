@@ -56,6 +56,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "completeExceptionally",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback#completeExceptionally",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "enqueue",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback#enqueue",
     "returnType" : "void",

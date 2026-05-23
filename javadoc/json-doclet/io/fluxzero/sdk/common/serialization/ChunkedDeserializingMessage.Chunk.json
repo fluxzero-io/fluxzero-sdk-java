@@ -1,0 +1,153 @@
+{
+  "name" : "Chunk",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "record",
+  "modifiers" : [ "final", "protected", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk.bytes",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk.end",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "error",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk.error",
+    "type" : "java.lang.Throwable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Chunk",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#Chunk",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#bytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#end",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "error",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#error",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "bytes",
+    "type" : "byte[]",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "end",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "error",
+    "type" : "java.lang.Throwable",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

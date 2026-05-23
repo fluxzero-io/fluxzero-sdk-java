@@ -99,7 +99,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Converts a web payload to the requested target type.\n <p>\n This method preserves already-compatible payload instances, supports explicit low-level conversion to\n {@code String} and {@code byte[]}, and only parses raw JSON when the payload is represented as text or bytes and\n the content type indicates JSON.\n\n @param payload     the decoded payload value\n @param type        the requested target type\n @param contentType the associated content type, used to determine whether JSON parsing should be applied\n @param <R>         the expected return type\n @return the converted payload, or {@code null} if the input payload is {@code null}\n"
+    "documentation" : " Converts a web payload to the requested target type.\n <p>\n This method preserves already-compatible payload instances, supports explicit low-level conversion to\n {@code String} and {@code byte[]}, and only parses raw JSON when the payload is represented as text or bytes and\n the content type indicates JSON.\n <p>\n When the payload is an {@link InputStream}, the stream is fully consumed before conversion.\n\n @param payload     the decoded payload value\n @param type        the requested target type\n @param contentType the associated content type, used to determine whether JSON parsing should be applied\n @param <R>         the expected return type\n @return the converted payload, or {@code null} if the input payload is {@code null}\n"
   }, {
     "name" : "emptyHeaderMap",
     "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#emptyHeaderMap",
@@ -334,6 +334,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readPayloadBytes",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebUtils#readPayloadBytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputStream",
+      "type" : "java.io.InputStream",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

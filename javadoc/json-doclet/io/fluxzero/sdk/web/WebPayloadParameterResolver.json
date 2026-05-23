@@ -41,6 +41,38 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "hasStreamingPayload",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#hasStreamingPayload",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isFormContentType",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#isFormContentType",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "contentType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#matches",
     "returnType" : "boolean",
@@ -117,6 +149,53 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Resolves the value for the given method parameter by converting the message payload to the expected parameter\n type. If configured, it also validates and authorizes the payload.\n\n @param p                the method parameter to resolve\n @param methodAnnotation the annotation on the handler method (typically {@code @HandleWeb})\n @return a function that resolves the parameter from a {@link HasMessage} instance\n"
+  }, {
+    "name" : "resolvePayload",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#resolvePayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldBindFormPayload",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#shouldBindFormPayload",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.sdk.web.WebPayloadParameterResolver#test",

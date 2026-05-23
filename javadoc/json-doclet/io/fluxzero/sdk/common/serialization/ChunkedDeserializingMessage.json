@@ -1,0 +1,597 @@
+{
+  "name" : "ChunkedDeserializingMessage",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Deserializing view for a message whose payload is split across multiple indexed messages.\n <p>\n The first chunk can be handled immediately as an {@link InputStream}. Typed payload access waits until the final\n chunk has been observed in the normal tracking stream.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aggregatedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.aggregatedMessage",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "aggregatedMessageType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.aggregatedMessageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "aggregatedSerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.aggregatedSerializedMessage",
+    "type" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "chunks",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.chunks",
+    "type" : "java.util.List<byte[]>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completed",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.completed",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "expectedChunkIndex",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.expectedChunkIndex",
+    "type" : "long",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inputStream",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.inputStream",
+    "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.StreamingInputStream",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingContinuations",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.pendingContinuations",
+    "type" : "java.util.NavigableMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "representativeChunk",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.representativeChunk",
+    "type" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "streamingMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.streamingMessage",
+    "type" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "streamingOnly",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.streamingOnly",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ChunkedDeserializingMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#ChunkedDeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "firstChunk",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a chunked message view starting at the first observed chunk.\n\n @param firstChunk  the first chunk of the message\n @param messageType the type of message being reconstructed\n @param topic       the topic associated with the message, if any\n @param serializer  the serializer used for typed payload access\n"
+  } ],
+  "methods" : [ {
+    "name" : "aggregatedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#aggregatedMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "aggregatedSerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#aggregatedSerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "appendChunk",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#appendChunk",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "chunk",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Appends an additional chunk to this message.\n"
+  }, {
+    "name" : "appendContinuation",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#appendContinuation",
+    "returnType" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.ChunkProgress",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "appendExpectedContinuation",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#appendExpectedContinuation",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "appendObservedContinuation",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#appendObservedContinuation",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Appends a continuation chunk that was already present in the current tracker batch.\n"
+  }, {
+    "name" : "awaitCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#awaitCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "chunkIndex",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#chunkIndex",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "chunkIndexOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#chunkIndexOrNull",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cleanChunkMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#cleanChunkMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completion",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#completion",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a future that completes when the final chunk has been observed.\n"
+  }, {
+    "name" : "enableStreamingOnlyMode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#enableStreamingOnlyMode",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Switches this message to streaming-only mode. Subsequent chunks are exposed through the input stream but are no\n longer retained in heap for full-payload aggregation.\n"
+  }, {
+    "name" : "fail",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#fail",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fails the stream and any pending aggregated deserialization with the given error.\n"
+  }, {
+    "name" : "getAggregatedPayloadBytes",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getAggregatedPayloadBytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the fully aggregated payload bytes, waiting for the final chunk when necessary.\n"
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPayload",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getPayload",
+    "returnType" : "V",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPayloadAs",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getPayloadAs",
+    "returnType" : "R",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPayloadClass",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getPayloadClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSerializedObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getSerializedObject",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasRecoveredPreviousChunks",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#hasRecoveredPreviousChunks",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "chunks",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "continuationChunkIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readPreviousChunks",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#readPreviousChunks",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "continuation",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "continuationChunkIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pageSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkReader",
+      "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.ChunkReader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "recoverFromContinuation",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#recoverFromContinuation",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "continuation",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pageSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkReader",
+      "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage.ChunkReader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a chunked message when tracking observes a continuation after the original first chunk was already\n read by an earlier tracker run.\n\n @param continuation      the observed continuation chunk\n @param messageType       the type of message being reconstructed\n @param topic             the topic associated with the message, if any\n @param serializer        the serializer used for typed payload access\n @param minIndexInclusive the first index to inspect while looking for earlier chunks\n @param pageSize          the maximum number of messages to request per range read\n @param chunkReader       callback used to read earlier messages from the tracking stream\n @return a reconstructed chunked message when the first chunk and required previous continuations were found\n"
+  }, {
+    "name" : "requestDeadlineMillis",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#requestDeadlineMillis",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "timeoutException",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#timeoutException",
+    "returnType" : "java.util.concurrent.TimeoutException",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#toMessage",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Chunk",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk",
+    "kind" : "record",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ChunkProgress",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkProgress",
+    "kind" : "enum",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ChunkReader",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkReader",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "StreamingInputStream",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$StreamingInputStream",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  } ]
+}

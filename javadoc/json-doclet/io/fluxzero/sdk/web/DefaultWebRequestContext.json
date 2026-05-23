@@ -307,6 +307,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "formObject",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#formObject",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "formParameterValues",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#formParameterValues",
     "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.Object>>",

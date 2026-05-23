@@ -325,6 +325,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readRange",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#readRange",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxIndexExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#registerMonitor",
     "returnType" : "io.fluxzero.common.Registration",

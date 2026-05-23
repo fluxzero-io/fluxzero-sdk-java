@@ -29,6 +29,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "REQUEST_CHUNKING_ENABLED_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Enables publishing large or unknown-length request bodies as chunked web request messages.\n <p>\n Defaults to {@code false} for backward compatibility with applications that still run older SDK clients.\n",
+    "constantValue" : "FLUXZERO_PROXY_REQUEST_CHUNKING_ENABLED"
+  }, {
+    "name" : "REQUEST_CHUNK_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Maximum payload bytes per web request chunk when {@link #REQUEST_CHUNKING_ENABLED_PROPERTY} is enabled.\n",
+    "constantValue" : "FLUXZERO_PROXY_REQUEST_CHUNK_SIZE"
+  }, {
     "name" : "REQUEST_TIMEOUT",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_TIMEOUT",
     "type" : "java.time.Duration",
@@ -63,6 +79,14 @@
         "lazy" : "true"
       }
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "chunkedRequestExecutor",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.chunkedRequestExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -125,6 +149,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "requestChunkSize",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestChunkSize",
+    "type" : "int",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestChunkingEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestChunkingEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "requestGateway",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestGateway",
     "type" : "io.fluxzero.sdk.publishing.client.GatewayClient",
@@ -135,7 +175,7 @@
   }, {
     "name" : "requestHandler",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.requestHandler",
-    "type" : "io.fluxzero.sdk.publishing.RequestHandler",
+    "type" : "io.fluxzero.proxy.ProxyRequestHandler.CancellableRequestHandler",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -240,6 +280,73 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "completeChunkedResponse",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#completeChunkedResponse",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "chunkedRequest",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ChunkedProxyRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "response",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeResponse",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#completeResponse",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "corsOrigin",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#corsOrigin",
     "returnType" : "boolean",
@@ -249,6 +356,42 @@
     "parameters" : [ {
       "name" : "origin",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createChunkedRequestMessage",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createChunkedRequestMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunk",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "firstChunk",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "finalChunk",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -305,6 +448,58 @@
     "parameters" : [ {
       "name" : "responseMessage",
       "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "dispatchReadableChunks",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#dispatchReadableChunks",
+    "returnType" : "io.fluxzero.proxy.ProxyRequestHandler.ChunkedProxyRequest",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pending",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ChunkAccumulator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "last",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunkedRequest",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ChunkedProxyRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "doSendChunkedWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#doSendChunkedWebRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -451,6 +646,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isClientDisconnect",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isClientDisconnect",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isForwardableResponseHeader",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isForwardableResponseHeader",
     "returnType" : "boolean",
@@ -467,6 +678,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isRequestBodyReadTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isRequestBodyReadTimeout",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isRequestBodyTooLarge",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isRequestBodyTooLarge",
     "returnType" : "boolean",
@@ -476,6 +703,38 @@
     "parameters" : [ {
       "name" : "error",
       "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "knownRequestBodyTooLarge",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#knownRequestBodyTooLarge",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "methodMayHaveRequestBody",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#methodMayHaveRequestBody",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -535,6 +794,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readChunkedWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#readChunkedWebRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendGatewayTimeout",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendGatewayTimeout",
     "returnType" : "void",
@@ -560,6 +840,48 @@
     "parameters" : [ {
       "name" : "exchange",
       "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequestTimeout",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendRequestTimeout",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendResolvedWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendResolvedWebRequest",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "chunked",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -636,6 +958,11 @@
       "type" : "io.fluxzero.sdk.web.WebRequest",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "chunked",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -689,6 +1016,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "setRequestChunkSize",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setRequestChunkSize",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestChunkSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setRequestChunkingEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setRequestChunkingEnabled",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestChunkingEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "setWebsocketContainer",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setWebsocketContainer",
     "returnType" : "void",
@@ -698,6 +1057,22 @@
     "parameters" : [ {
       "name" : "websocketContainer",
       "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldChunkRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#shouldChunkRequest",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -736,10 +1111,44 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "validateRequestChunkSize",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#validateRequestChunkSize",
+    "returnType" : "int",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestChunkSize",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "CancellableRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$CancellableRequestHandler",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ChunkAccumulator",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ChunkedProxyRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkedProxyRequest",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  }, {
     "name" : "JettyExchange",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
     "kind" : "class",

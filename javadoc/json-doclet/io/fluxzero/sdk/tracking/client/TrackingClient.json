@@ -223,6 +223,32 @@
     "varArgs" : false,
     "documentation" : " Fetches messages starting from the given index up to the provided max size.\n <p>\n This method bypasses consumer configurations and is primarily used for diagnostics or reprocessing.\n\n @param minIndex the starting index (inclusive)\n @param maxSize  the maximum number of messages to retrieve\n @return a list of serialized messages starting at the given index\n"
   }, {
+    "name" : "readRange",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#readRange",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxIndexExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} up to the provided max size.\n <p>\n Implementations may override this to perform a bounded server-side range read. The default implementation keeps\n the wire protocol backward compatible by using {@link #readFromIndex(long, int)} and filtering locally.\n\n @param minIndexInclusive the starting index (inclusive)\n @param maxIndexExclusive the maximum index (exclusive)\n @param maxSize           the maximum number of messages to retrieve\n @return a list of serialized messages in the requested range\n"
+  }, {
     "name" : "resetPosition",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#resetPosition",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

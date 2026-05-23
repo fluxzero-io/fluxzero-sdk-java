@@ -35,6 +35,21 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",
     "kind" : "class"
   }, {
+    "file" : "ProxyRequestHandler.CancellableRequestHandler.json",
+    "name" : "ProxyRequestHandler.CancellableRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$CancellableRequestHandler",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ChunkAccumulator.json",
+    "name" : "ProxyRequestHandler.ChunkAccumulator",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ChunkedProxyRequest.json",
+    "name" : "ProxyRequestHandler.ChunkedProxyRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkedProxyRequest",
+    "kind" : "class"
+  }, {
     "file" : "ProxyRequestHandler.JettyExchange.json",
     "name" : "ProxyRequestHandler.JettyExchange",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",

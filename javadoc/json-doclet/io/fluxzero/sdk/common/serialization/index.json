@@ -10,6 +10,31 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer",
     "kind" : "class"
   }, {
+    "file" : "ChunkedDeserializingMessage.json",
+    "name" : "ChunkedDeserializingMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
+    "kind" : "class"
+  }, {
+    "file" : "ChunkedDeserializingMessage.Chunk.json",
+    "name" : "ChunkedDeserializingMessage.Chunk",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$Chunk",
+    "kind" : "record"
+  }, {
+    "file" : "ChunkedDeserializingMessage.ChunkProgress.json",
+    "name" : "ChunkedDeserializingMessage.ChunkProgress",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkProgress",
+    "kind" : "enum"
+  }, {
+    "file" : "ChunkedDeserializingMessage.ChunkReader.json",
+    "name" : "ChunkedDeserializingMessage.ChunkReader",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkReader",
+    "kind" : "interface"
+  }, {
+    "file" : "ChunkedDeserializingMessage.StreamingInputStream.json",
+    "name" : "ChunkedDeserializingMessage.StreamingInputStream",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$StreamingInputStream",
+    "kind" : "class"
+  }, {
     "file" : "ContentFilter.json",
     "name" : "ContentFilter",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ContentFilter",
