@@ -34,10 +34,14 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import jdk.jfr.Configuration;
+import jdk.jfr.Recording;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,10 +81,13 @@ public class TrackerIntegrationBenchmark {
         BenchmarkMode mode = BenchmarkMode.parse(ApplicationProperties.getProperty("mode", "CONCURRENT"));
         ClientMode clientMode = ClientMode.parse(ApplicationProperties.getProperty("clientMode", "WEBSOCKET"));
         PipelineMode pipelineMode = PipelineMode.parse(ApplicationProperties.getProperty("pipelineMode", "BENCHMARK"));
+        String jfrFile = ApplicationProperties.getProperty("jfrFile", null);
+        String jfrSettings = ApplicationProperties.getProperty("jfrSettings", "profile");
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
             port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
-            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode);
+            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile,
+            jfrSettings);
         log.info("Shutting down");
         System.exit(0);
         log.info("Shutdown complete");
@@ -90,17 +97,18 @@ public class TrackerIntegrationBenchmark {
     void run(String namespace, int port, int clientCount, int consumerCount, int threadCount,
              int messageCount, int publisherCount,
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
-             BenchmarkMode mode, ClientMode clientMode, PipelineMode pipelineMode) {
+             BenchmarkMode mode, ClientMode clientMode, PipelineMode pipelineMode, String jfrFile,
+             String jfrSettings) {
 
         String runId = namespace.substring(0, Math.min(namespace.length(), 12));
 
         log.info("""
                          Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
-                         benchmarkTimeoutMs={}, mode={}, clientMode={}, pipelineMode={}
+                         benchmarkTimeoutMs={}, mode={}, clientMode={}, pipelineMode={}, jfrFile={}
                          """.replaceAll("\\s+", " "),
                  namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
-                 distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode);
+                 distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);
@@ -148,6 +156,7 @@ public class TrackerIntegrationBenchmark {
             publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys, payloadBytes);
             log.info("Waiting for benchmark to complete");
             timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            jfrFile, jfrSettings,
                             () -> registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch,
                                                     deliveriesPerConsumer));
         } else {
@@ -155,6 +164,7 @@ public class TrackerIntegrationBenchmark {
             Thread.sleep(1000);
             log.info("Waiting for benchmark to complete");
             timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            jfrFile, jfrSettings,
                             () -> publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys,
                                                 payloadBytes));
         }
@@ -222,21 +232,56 @@ public class TrackerIntegrationBenchmark {
 
     private static void timeConsumption(int totalCount, int consumerCount, int messageCount, int benchmarkTimeoutMs,
                                         CountDownLatch latch,
-                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer, Runnable setup) {
-        TimingUtils.time(() -> {
-            setup.run();
-            if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
-                log.error("Benchmark timed out after {} ms with {} events remaining",
-                          benchmarkTimeoutMs, latch.getCount());
-                logMissingConsumers(messageCount, deliveriesPerConsumer);
-                throw new IllegalStateException("Timed out with %s events remaining".formatted(latch.getCount()));
-            }
+                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer, String jfrFile,
+                                        String jfrSettings, Runnable setup) {
+        Recording recording = startRecording(jfrFile, jfrSettings);
+        try {
+            TimingUtils.time(() -> {
+                setup.run();
+                if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
+                    log.error("Benchmark timed out after {} ms with {} events remaining",
+                              benchmarkTimeoutMs, latch.getCount());
+                    logMissingConsumers(messageCount, deliveriesPerConsumer);
+                    throw new IllegalStateException("Timed out with %s events remaining".formatted(latch.getCount()));
+                }
+                return null;
+            }, millis -> {
+                log.info("Consumed {} events in {} ms across {} consumers ({} events/s)", messageCount, millis,
+                         consumerCount,
+                         millis == 0 ? totalCount : (totalCount * 1000L) / millis);
+            });
+        } finally {
+            stopRecording(recording, jfrFile);
+        }
+    }
+
+    @SneakyThrows
+    private static Recording startRecording(String jfrFile, String jfrSettings) {
+        if (jfrFile == null || jfrFile.isBlank()) {
             return null;
-        }, millis -> {
-            log.info("Consumed {} events in {} ms across {} consumers ({} events/s)", messageCount, millis,
-                     consumerCount,
-                     millis == 0 ? totalCount : (totalCount * 1000L) / millis);
-        });
+        }
+        Path destination = Path.of(jfrFile).toAbsolutePath();
+        Files.createDirectories(destination.getParent());
+        Recording result = new Recording(Configuration.getConfiguration(jfrSettings));
+        result.setName("tracker-integration-consumption");
+        result.start();
+        log.info("Started JFR recording with settings={} to {}", jfrSettings, destination);
+        return result;
+    }
+
+    @SneakyThrows
+    private static void stopRecording(Recording recording, String jfrFile) {
+        if (recording == null) {
+            return;
+        }
+        Path destination = Path.of(jfrFile).toAbsolutePath();
+        try {
+            recording.stop();
+            recording.dump(destination);
+            log.info("JFR recording written to {}", destination);
+        } finally {
+            recording.close();
+        }
     }
 
     private static Client createClient(ClientMode clientMode, Client localClient, String namespace, int port,
