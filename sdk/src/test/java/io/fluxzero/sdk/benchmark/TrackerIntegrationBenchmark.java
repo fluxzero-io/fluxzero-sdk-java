@@ -70,15 +70,12 @@ public class TrackerIntegrationBenchmark {
         int port = ApplicationProperties.getIntegerProperty(
                 "FLUXZERO_PORT", ApplicationProperties.getIntegerProperty(
                         "FLUX_PORT", ApplicationProperties.getIntegerProperty("port", 8888)));
-        boolean concurrentPublish = ApplicationProperties.getBooleanProperty("concurrentPublish", true);
-        PublishMode publishMode = PublishMode.valueOf(
-                System.getProperty("publishMode", concurrentPublish ? "CONCURRENT" : "BULK")
-                        .toUpperCase(Locale.ROOT));
+        BenchmarkMode mode = BenchmarkMode.parse(ApplicationProperties.getProperty("mode", "CONCURRENT"));
         ClientMode clientMode = ClientMode.parse(ApplicationProperties.getProperty("clientMode", "WEBSOCKET"));
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
             port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
-            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode, clientMode);
+            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode);
         log.info("Shutting down");
         System.exit(0);
         log.info("Shutdown complete");
@@ -88,17 +85,17 @@ public class TrackerIntegrationBenchmark {
     void run(String namespace, int port, int clientCount, int consumerCount, int threadCount,
              int messageCount, int publisherCount,
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
-             PublishMode publishMode, ClientMode clientMode) {
+             BenchmarkMode mode, ClientMode clientMode) {
 
         String runId = namespace.substring(0, Math.min(namespace.length(), 12));
 
         log.info("""
                          Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
-                         benchmarkTimeoutMs={}, publishMode={}, clientMode={}
+                         benchmarkTimeoutMs={}, mode={}, clientMode={}
                          """.replaceAll("\\s+", " "),
                  namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
-                 distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode, clientMode);
+                 distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);
@@ -147,18 +144,38 @@ public class TrackerIntegrationBenchmark {
         warmUp(clients);
         log.info("Warming up complete");
 
-        log.info("Registering handlers");
         List<Fluxzero> publishers = clients.subList(0, Math.min(publisherCount, clients.size()));
-        clients.forEach(c -> c.registerHandlers(new Handler(latch, deliveriesPerConsumer)));
-        Thread.sleep(1000);
 
-        log.info("Waiting for benchmark to complete");
+        if (mode == BenchmarkMode.PRELOAD) {
+            publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys, payloadBytes);
+            log.info("Waiting for benchmark to complete");
+            timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            () -> registerHandlers(clients, latch, deliveriesPerConsumer));
+        } else {
+            registerHandlers(clients, latch, deliveriesPerConsumer);
+            Thread.sleep(1000);
+            log.info("Waiting for benchmark to complete");
+            timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            () -> publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys,
+                                                payloadBytes));
+        }
+
+        log.info("Closing clients");
+        clients.forEach(Fluxzero::close);
+        log.info("Clients closed");
+    }
+
+    private static void registerHandlers(List<Fluxzero> clients, CountDownLatch latch,
+                                         ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer) {
+        log.info("Registering handlers");
+        clients.forEach(c -> c.registerHandlers(new Handler(latch, deliveriesPerConsumer)));
+    }
+
+    private static void timeConsumption(int totalCount, int consumerCount, int messageCount, int benchmarkTimeoutMs,
+                                        CountDownLatch latch,
+                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer, Runnable setup) {
         TimingUtils.time(() -> {
-            switch (publishMode) {
-                case BULK -> publishEventsBulk(publishers.getFirst(), messageCount, distinctKeys, payloadBytes);
-                case CONCURRENT -> publishEventsConcurrently(publishers, messageCount, publishBatchSize, distinctKeys,
-                                                             payloadBytes);
-            }
+            setup.run();
             if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
                 log.error("Benchmark timed out after {} ms with {} events remaining",
                           benchmarkTimeoutMs, latch.getCount());
@@ -171,10 +188,6 @@ public class TrackerIntegrationBenchmark {
                      consumerCount,
                      millis == 0 ? totalCount : (totalCount * 1000L) / millis);
         });
-
-        log.info("Closing clients");
-        clients.forEach(Fluxzero::close);
-        log.info("Clients closed");
     }
 
     private static Client createClient(ClientMode clientMode, Client localClient, String namespace, int port,
@@ -263,6 +276,15 @@ public class TrackerIntegrationBenchmark {
         log.info("Append events complete in {} ms", millis);
     }
 
+    static void publishEvents(BenchmarkMode mode, List<Fluxzero> publishers, int messageCount,
+                              int publishBatchSize, int distinctKeys, int payloadBytes) {
+        switch (mode) {
+            case PRELOAD, BULK -> publishEventsBulk(publishers.getFirst(), messageCount, distinctKeys, payloadBytes);
+            case CONCURRENT -> publishEventsConcurrently(publishers, messageCount, publishBatchSize, distinctKeys,
+                                                         payloadBytes);
+        }
+    }
+
     static void publishEventsBulk(Fluxzero publisher, int messageCount, int distinctKeys, int payloadBytes) {
         log.info("Append events in one bulk");
         long start = System.nanoTime();
@@ -282,11 +304,6 @@ public class TrackerIntegrationBenchmark {
         return String.valueOf(c).repeat(Math.max(0, count));
     }
 
-    enum PublishMode {
-        BULK,
-        CONCURRENT
-    }
-
     enum ClientMode {
         WEBSOCKET,
         LOCAL;
@@ -296,6 +313,21 @@ public class TrackerIntegrationBenchmark {
                 case "LOCAL", "LOCALCLIENT" -> LOCAL;
                 case "WEBSOCKET", "WEBSOCKETCLIENT", "WS" -> WEBSOCKET;
                 default -> throw new IllegalArgumentException("Unsupported clientMode: " + value);
+            };
+        }
+    }
+
+    enum BenchmarkMode {
+        PRELOAD,
+        BULK,
+        CONCURRENT;
+
+        static BenchmarkMode parse(String value) {
+            return switch (value.toUpperCase(Locale.ROOT).replace("-", "").replace("_", "")) {
+                case "PRELOAD", "PRELOADED" -> PRELOAD;
+                case "BULK" -> BULK;
+                case "CONCURRENT" -> CONCURRENT;
+                default -> throw new IllegalArgumentException("Unsupported mode: " + value);
             };
         }
     }
