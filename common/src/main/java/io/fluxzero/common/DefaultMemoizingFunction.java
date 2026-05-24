@@ -14,8 +14,6 @@
 
 package io.fluxzero.common;
 
-import lombok.AllArgsConstructor;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,32 +34,60 @@ import static java.util.Optional.ofNullable;
  * @param <K> the type of input keys
  * @param <V> the type of values produced by applying the delegate function
  */
-@AllArgsConstructor
 public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
     private static final Entry nullValue = new Entry(null);
-    private final ConcurrentHashMap<Object, Entry> map = new ConcurrentHashMap<>();
     private final Function<K, V> delegate;
     private final Duration lifespan;
     private final Clock clock;
+    private volatile ConcurrentHashMap<Object, Entry> map;
 
     public DefaultMemoizingFunction(Function<K, V> delegate) {
         this(delegate, null, null);
+    }
+
+    public DefaultMemoizingFunction(Function<K, V> delegate, Duration lifespan, Clock clock) {
+        this.delegate = delegate;
+        this.lifespan = lifespan;
+        this.clock = clock;
+    }
+
+    public DefaultMemoizingFunction(ConcurrentHashMap<Object, Entry> map, Function<K, V> delegate, Duration lifespan,
+                                    Clock clock) {
+        this(delegate, lifespan, clock);
+        this.map = map;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public V apply(K key) {
         Object normalizedKey = normalizeKey(key);
-        Entry cached = map.get(normalizedKey);
-        if (cached != null && !isExpired(cached)) {
-            return (V) cached.value();
+        ConcurrentHashMap<Object, Entry> currentMap = map;
+        if (currentMap != null) {
+            Entry cached = currentMap.get(normalizedKey);
+            if (cached != null && !isExpired(cached)) {
+                return (V) cached.value();
+            }
         }
         if (lifespan == null) {
-            return (V) map.computeIfAbsent(normalizedKey, k -> loadEntry(key)).value();
+            return (V) map().computeIfAbsent(normalizedKey, k -> loadEntry(key)).value();
         }
-        Entry result = map.compute(normalizedKey, (k, current) ->
+        Entry result = map().compute(normalizedKey, (k, current) ->
                 current == null || isExpired(current) ? loadEntry(key) : current);
         return (V) result.value();
+    }
+
+    private ConcurrentHashMap<Object, Entry> map() {
+        ConcurrentHashMap<Object, Entry> result = map;
+        if (result == null) {
+            synchronized (this) {
+                result = map;
+                if (result == null) {
+                    result = new ConcurrentHashMap<>();
+                    map = result;
+                }
+            }
+        }
+        return result;
     }
 
     private Object normalizeKey(K key) {
@@ -80,24 +106,33 @@ public class DefaultMemoizingFunction<K, V> implements MemoizingFunction<K, V> {
 
     @Override
     public void clear() {
-        map.clear();
+        ConcurrentHashMap<Object, Entry> currentMap = map;
+        if (currentMap != null) {
+            currentMap.clear();
+        }
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public V remove(K key) {
-        return (V) Optional.ofNullable(map.remove(normalizeKey(key))).map(Entry::value).orElse(null);
+        ConcurrentHashMap<Object, Entry> currentMap = map;
+        return currentMap == null ? null
+                : (V) Optional.ofNullable(currentMap.remove(normalizeKey(key))).map(Entry::value).orElse(null);
     }
 
     @Override
     public boolean isCached(K key) {
-        return map.containsKey(normalizeKey(key));
+        ConcurrentHashMap<Object, Entry> currentMap = map;
+        return currentMap != null && currentMap.containsKey(normalizeKey(key));
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void forEach(Consumer<? super V> consumer) {
-        map.values().forEach(e -> consumer.accept((V) e.value()));
+        ConcurrentHashMap<Object, Entry> currentMap = map;
+        if (currentMap != null) {
+            currentMap.values().forEach(e -> consumer.accept((V) e.value()));
+        }
     }
 
     record Entry(Object value, Instant expiry) {
