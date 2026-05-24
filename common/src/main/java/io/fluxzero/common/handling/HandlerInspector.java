@@ -226,6 +226,7 @@ public class HandlerInspector {
         private final Class<?> targetClass;
         private final List<ParameterResolver<? super M>> parameterResolvers;
         private final HandlerConfiguration<? super M> config;
+        private final MessageFilter<? super M> messageFilter;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private final Optional<Object> emptyResult = Optional.of(void.class);
 
@@ -245,6 +246,7 @@ public class HandlerInspector {
             this.methodAnnotation = config.getAnnotation(executable).orElse(null);
             this.methodAnnotationType = Optional.ofNullable(this.methodAnnotation).map(Annotation::annotationType)
                     .orElse(null);
+            this.messageFilter = config.messageFilter().prepare(this.executable, this.methodAnnotationType, targetClass);
             this.classForSpecificity = computeClassForSpecificity();
             this.lowestSpecificityPriority = this.parameterResolvers.stream()
                     .filter(ParameterResolver::determinesSpecificity)
@@ -266,7 +268,7 @@ public class HandlerInspector {
 
         @SuppressWarnings("unchecked")
         protected Optional<Function<Object, HandlerInvoker>> prepareInvoker(M m) {
-            if (!config.messageFilter().test(m, executable, methodAnnotationType, targetClass)) {
+            if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
                 return Optional.empty();
             }
 
@@ -325,11 +327,12 @@ public class HandlerInspector {
                     : !(executable instanceof Method) || staticMethod) {
                 return Optional.empty();
             }
-            return prepareInvoker(m).map(f -> f.apply(target));
+            Optional<Function<Object, HandlerInvoker>> preparedInvoker = prepareInvoker(m);
+            return preparedInvoker.isEmpty() ? Optional.empty() : Optional.of(preparedInvoker.get().apply(target));
         }
 
         protected Class<?> computeClassForSpecificity() {
-            Class<?> handlerType = config.messageFilter().getLeastSpecificAllowedClass(
+            Class<?> handlerType = messageFilter.getLeastSpecificAllowedClass(
                     executable, methodAnnotationType).orElse(null);
             for (Parameter p : parameters) {
                 for (ParameterResolver<? super M> r : parameterResolvers) {

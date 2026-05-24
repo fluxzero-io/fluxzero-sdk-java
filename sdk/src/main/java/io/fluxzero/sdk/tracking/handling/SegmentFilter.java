@@ -57,13 +57,20 @@ public class SegmentFilter implements MessageFilter<HasMessage> {
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
-        return message instanceof DeserializingMessage dm
-               && Tracker.current().filter(tracker -> tracker.getConfiguration().ignoreSegment())
-                       .map(tracker -> ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
-                               .map(routingKey -> message.getRoutingKey(routingKey.value())
-                                       .or(message::computeRoutingKey)
-                                       .orElseGet(message::getMessageId))
-                               .map(routingValue -> tracker.canHandle(dm, routingValue))
-                               .orElse(true)).orElse(true);
+        Tracker tracker = Tracker.current.get();
+        if (!(message instanceof DeserializingMessage dm)
+            || tracker == null
+            || !tracker.getConfiguration().ignoreSegment()) {
+            return true;
+        }
+        RoutingKey routingKey = ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
+                .orElse(null);
+        if (routingKey == null) {
+            return true;
+        }
+        String routingValue = message.getRoutingKey(routingKey.value())
+                .or(message::computeRoutingKey)
+                .orElseGet(message::getMessageId);
+        return tracker.canHandle(dm, routingValue);
     }
 }

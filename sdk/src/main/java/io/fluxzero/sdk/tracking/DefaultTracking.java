@@ -591,7 +591,7 @@ public class DefaultTracking implements Tracking {
     }
 
     private Optional<DeserializingMessage> deserializeNonChunkedMessage(SerializedMessage message, String topic) {
-        return serializer.deserializeMessages(Stream.of(message), messageType, topic).findAny();
+        return serializer.deserializeFirstMessage(message, messageType, topic);
     }
 
     private String chunkKey(String topic, SerializedMessage message) {
@@ -633,28 +633,31 @@ public class DefaultTracking implements Tracking {
 
     protected void tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,
                              ConsumerConfiguration config, boolean reportResult) {
-        getInvoker(message, handler, config).ifPresent(h -> {
-            Object result;
+        Optional<HandlerInvoker> optionalInvoker = getInvoker(message, handler, config);
+        if (optionalInvoker.isEmpty()) {
+            return;
+        }
+        HandlerInvoker h = optionalInvoker.get();
+        Object result;
+        try {
+            result = handle(message, h, handler, config);
+        } catch (Throwable e) {
             try {
-                result = handle(message, h, handler, config);
-            } catch (Throwable e) {
-                try {
-                    stopTracker(message, handler, e);
-                    return;
-                } finally {
-                    if (reportResult) {
-                        reportResult(e, h, message, config);
-                    }
-                }
-            }
-            try {
-                if (reportResult) {
-                    reportResult(result, h, message, config);
-                }
-            } catch (Throwable e) {
                 stopTracker(message, handler, e);
+                return;
+            } finally {
+                if (reportResult) {
+                    reportResult(e, h, message, config);
+                }
             }
-        });
+        }
+        try {
+            if (reportResult) {
+                reportResult(result, h, message, config);
+            }
+        } catch (Throwable e) {
+            stopTracker(message, handler, e);
+        }
     }
 
     @SuppressWarnings("unchecked")

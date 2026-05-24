@@ -15,8 +15,10 @@
 
 package io.fluxzero.sdk.common.serialization;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.Converter;
@@ -39,6 +41,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -249,6 +252,56 @@ public abstract class AbstractSerializer<I> implements Serializer {
                                 }
                             }));
                 });
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public Optional<DeserializingMessage> deserializeFirstMessage(SerializedMessage message, MessageType messageType,
+                                                                  String topic) {
+        SerializedObject<?> casted = upcasterChain.castFirstOrNull(message, null);
+        if (casted == null) {
+            return Optional.empty();
+        }
+        DeserializingObject<byte[], ?> object = deserializeFirstObject(casted, UnknownTypeStrategy.AS_INTERMEDIATE);
+        if (object == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new DeserializingMessage((DeserializingObject) object, messageType, topic, this));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private DeserializingObject<byte[], ?> deserializeFirstObject(SerializedObject<?> input,
+                                                                  UnknownTypeStrategy unknownTypeStrategy) {
+        SerializedObject<byte[]> s = (SerializedObject<byte[]>) input;
+        String type = s.data().getType();
+        String upcastedType = upcastType(type);
+        if (!Objects.equals(type, upcastedType)) {
+            s = (SerializedObject<byte[]>) s.withData((Data) s.data().withType(upcastedType));
+        }
+        if (!Objects.equals(format, s.data().getFormat())) {
+            return deserializeOtherFormat(s).findAny().orElse(null);
+        }
+        if (!isKnownType(s.data().getType())) {
+            if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
+                throw new DeserializationException(
+                        format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
+                               s.data().getType(), s.data().getRevision()));
+            }
+            if (unknownTypeStrategy == UnknownTypeStrategy.IGNORE) {
+                return null;
+            }
+            return deserializeUnknownType(s).findAny().orElse(null);
+        }
+        SerializedObject<byte[]> serializedObject = s;
+        return new DeserializingObject(serializedObject, (Function<Type, Object>) requestedType -> {
+            try {
+                return Object.class.equals(requestedType)
+                        ? doDeserialize(serializedObject.data(), serializedObject.data().getType())
+                        : doDeserialize(serializedObject.data(), asString(requestedType));
+            } catch (Exception e) {
+                throw new DeserializationException("Could not deserialize a " + serializedObject.data().getType(), e);
+            }
+        });
     }
 
     /**

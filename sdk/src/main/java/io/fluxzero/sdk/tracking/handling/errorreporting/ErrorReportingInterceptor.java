@@ -15,7 +15,9 @@
 package io.fluxzero.sdk.tracking.handling.errorreporting;
 
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
@@ -28,7 +30,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.concurrent.CompletionStage;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.isLocalHandler;
@@ -61,27 +66,70 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
     private final ErrorGateway errorGateway;
 
     @Override
-    public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
-                                                                    HandlerInvoker invoker) {
-        return message -> {
-            if (isLocalHandler(invoker, message)) {
-                return function.apply(message);
-            }
-            try {
-                Object result = function.apply(message);
-                if (result instanceof CompletionStage<?> s) {
-                    s.whenComplete((r, e) -> {
-                        if (e != null) {
-                            message.run(m -> reportError(e, invoker, m));
-                        }
-                    });
+    public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
+        return new Handler<>() {
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                Optional<HandlerInvoker> optionalInvoker = handler.getInvoker(message);
+                if (optionalInvoker.isEmpty()) {
+                    return Optional.empty();
                 }
-                return result;
-            } catch (Throwable e) {
-                reportError(e, invoker, message);
-                throw e;
+                HandlerInvoker invoker = optionalInvoker.get();
+                return Optional.of(new DelegatingHandlerInvoker(invoker) {
+                    @Override
+                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                        if (isLocalHandler(invoker, message)) {
+                            return invoker.invoke(combiner);
+                        }
+                        try {
+                            return monitorResult(invoker.invoke(combiner), invoker, message);
+                        } catch (Throwable e) {
+                            reportError(e, invoker, message);
+                            throw e;
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return handler.getTargetClass();
+            }
+
+            @Override
+            public String toString() {
+                return handler.toString();
             }
         };
+    }
+
+    @Override
+    public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
+                                                                    HandlerInvoker invoker) {
+        return message -> handle(message, invoker, () -> function.apply(message));
+    }
+
+    private Object handle(DeserializingMessage message, HandlerInvoker invoker, Supplier<Object> action) {
+        if (isLocalHandler(invoker, message)) {
+            return action.get();
+        }
+        try {
+            return monitorResult(action.get(), invoker, message);
+        } catch (Throwable e) {
+            reportError(e, invoker, message);
+            throw e;
+        }
+    }
+
+    private Object monitorResult(Object result, HandlerInvoker invoker, DeserializingMessage message) {
+        if (result instanceof CompletionStage<?> s) {
+            s.whenComplete((r, e) -> {
+                if (e != null) {
+                    message.run(m -> reportError(e, invoker, m));
+                }
+            });
+        }
+        return result;
     }
 
     protected void reportError(Throwable e, HandlerInvoker invoker, DeserializingMessage cause) {

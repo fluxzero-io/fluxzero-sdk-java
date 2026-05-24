@@ -49,6 +49,17 @@ public interface MessageFilter<M> {
     boolean test(M message, Executable executable, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass);
 
     /**
+     * Returns a filter prepared for the supplied handler method.
+     * <p>
+     * Implementations may use this hook to precompute annotation or reflection metadata once when a handler is
+     * constructed, instead of repeating that work for every message.
+     */
+    default MessageFilter<? super M> prepare(Executable executable, Class<? extends Annotation> handlerAnnotation,
+                                             Class<?> targetClass) {
+        return this;
+    }
+
+    /**
      * Provides the least specific class type that is allowed to match this filter for a given method and annotation.
      * <p>
      * This can be used to restrict or optimize handler matching, especially when working with inheritance or interface
@@ -82,6 +93,31 @@ public interface MessageFilter<M> {
                                                                    Class<? extends Annotation> handlerAnnotation) {
                 return first.getLeastSpecificAllowedClass(executable, handlerAnnotation)
                         .or(() -> second.getLeastSpecificAllowedClass(executable, handlerAnnotation));
+            }
+
+            @Override
+            public MessageFilter<? super M> prepare(Executable executable,
+                                                    Class<? extends Annotation> handlerAnnotation,
+                                                    Class<?> targetClass) {
+                @SuppressWarnings("unchecked")
+                MessageFilter<? super M> preparedFirst =
+                        (MessageFilter<? super M>) first.prepare(executable, handlerAnnotation, targetClass);
+                @SuppressWarnings("unchecked")
+                MessageFilter<? super M> preparedSecond =
+                        (MessageFilter<? super M>) second.prepare(executable, handlerAnnotation, targetClass);
+                return new MessageFilter<>() {
+                    @Override
+                    public boolean test(M m, Executable e, Class<? extends Annotation> a, Class<?> t) {
+                        return preparedFirst.test(m, e, a, t) && preparedSecond.test(m, e, a, t);
+                    }
+
+                    @Override
+                    public Optional<Class<?>> getLeastSpecificAllowedClass(
+                            Executable e, Class<? extends Annotation> a) {
+                        return preparedFirst.getLeastSpecificAllowedClass(e, a)
+                                .or(() -> preparedSecond.getLeastSpecificAllowedClass(e, a));
+                    }
+                };
             }
         };
     }

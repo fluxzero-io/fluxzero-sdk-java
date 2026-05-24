@@ -53,8 +53,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Wrapper for a {@link Message} that supports lazy deserialization, context caching, type adaptation, and batch-level
  * execution utilities.
@@ -175,7 +173,20 @@ public class DeserializingMessage implements HasMessage {
     }
 
     public <T> T apply(Function<DeserializingMessage, T> action) {
-        return handleBatch(Stream.of(this)).map(action).toList().get(0);
+        DeserializingMessage previous = getCurrent();
+        try {
+            current.set(this);
+            T result = action.apply(this);
+            current.set(previous);
+            if (previous == null) {
+                completeBatch(null);
+            }
+            return result;
+        } catch (RuntimeException | Error e) {
+            current.set(previous);
+            completeBatch(e);
+            throw e;
+        }
     }
 
     @Override
@@ -467,22 +478,27 @@ public class DeserializingMessage implements HasMessage {
                 throw e;
             }
             if (!hadNext && getCurrent() == null) {
-                onBatchCompletion(null);
+                completeBatch(null);
             }
             return hadNext;
         }
 
         protected void onBatchCompletion(Throwable error) {
-            try {
-                ofNullable(batchCompletionHandlers.get()).ifPresent(handlers -> {
-                    batchCompletionHandlers.remove();
-                    handlers.forEach(h -> h.accept(error));
-                });
-            } finally {
-                batchResources.remove();
-                batchCompletionHandlers.remove();
-            }
+            completeBatch(error);
         }
 
+    }
+
+    private static void completeBatch(Throwable error) {
+        try {
+            Set<Consumer<Throwable>> handlers = batchCompletionHandlers.get();
+            if (handlers != null) {
+                batchCompletionHandlers.remove();
+                handlers.forEach(h -> h.accept(error));
+            }
+        } finally {
+            batchResources.remove();
+            batchCompletionHandlers.remove();
+        }
     }
 }

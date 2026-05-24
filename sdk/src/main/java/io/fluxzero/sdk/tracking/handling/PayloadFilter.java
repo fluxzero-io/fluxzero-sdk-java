@@ -22,6 +22,7 @@ import lombok.Value;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,23 +54,71 @@ import java.util.Optional;
  */
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
+    private static final Class<?>[] NO_ALLOWED_CLASSES = new Class<?>[0];
+    private static final MessageFilter<HasMessage> ALLOW_ALL =
+            new PreparedPayloadFilter(NO_ALLOWED_CLASSES, null);
+
+    @Override
+    public MessageFilter<? super HasMessage> prepare(Executable executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        HandleAnnotation annotation = lookupHandleAnnotation(executable, handlerAnnotation);
+        if (annotation == null || annotation.getAllowedClasses().isEmpty()) {
+            return ALLOW_ALL;
+        }
+        Class<?>[] allowedClasses = annotation.getAllowedClasses().toArray(Class[]::new);
+        Class<?> leastSpecificAllowedClass = Arrays.stream(allowedClasses)
+                .max(ReflectionUtils.getClassSpecificityComparator()).orElse(null);
+        return new PreparedPayloadFilter(allowedClasses, leastSpecificAllowedClass);
+    }
+
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
-        Class<?> payloadClass = message.getPayloadClass();
-        return Optional.ofNullable(ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
-                                           .orElse(null))
-                .map(a -> a.getAllowedClasses().isEmpty() || a.getAllowedClasses().stream()
-                        .anyMatch(c -> c.isAssignableFrom(payloadClass))).orElse(true);
+        HandleAnnotation annotation = lookupHandleAnnotation(executable, handlerAnnotation);
+        if (annotation == null || annotation.getAllowedClasses().isEmpty()) {
+            return true;
+        }
+        return allowed(annotation.getAllowedClasses().toArray(Class[]::new), message.getPayloadClass());
     }
 
     @Override
     public Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
                                                            Class<? extends Annotation> handlerAnnotation) {
-        return Optional.ofNullable(ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
-                                           .orElse(null))
+        return Optional.ofNullable(lookupHandleAnnotation(executable, handlerAnnotation))
                 .flatMap(a -> a.getAllowedClasses().stream()
                         .max(ReflectionUtils.getClassSpecificityComparator()));
+    }
+
+    private static HandleAnnotation lookupHandleAnnotation(Executable executable,
+                                                           Class<? extends Annotation> handlerAnnotation) {
+        return ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+                .orElse(null);
+    }
+
+    private record PreparedPayloadFilter(Class<?>[] allowedClasses, Class<?> leastSpecificAllowedClass)
+            implements MessageFilter<HasMessage> {
+
+        @Override
+        public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                            Class<?> targetClass) {
+            return allowedClasses.length == 0 || allowed(allowedClasses, message.getPayloadClass());
+        }
+
+        @Override
+        public Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
+                                                               Class<? extends Annotation> handlerAnnotation) {
+            return Optional.ofNullable(leastSpecificAllowedClass);
+        }
+    }
+
+    private static boolean allowed(Class<?>[] allowedClasses, Class<?> payloadClass) {
+        for (Class<?> allowedClass : allowedClasses) {
+            if (allowedClass.isAssignableFrom(payloadClass)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Value

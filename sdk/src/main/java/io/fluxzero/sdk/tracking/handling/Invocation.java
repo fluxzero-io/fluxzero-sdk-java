@@ -18,13 +18,14 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.IdentityProvider;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
@@ -75,7 +76,13 @@ public class Invocation {
     String handler;
     @Getter(lazy = true)
     String id = IdentityProvider.defaultIdentityProvider.nextTechnicalId();
-    transient List<BiConsumer<Object, Throwable>> callbacks = new ArrayList<>();
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    transient List<BiConsumer<Object, Throwable>> callbacks;
+
+    private Invocation(String handler) {
+        this.handler = handler;
+    }
 
     /**
      * Wraps the given {@link Callable} in an invocation context.
@@ -112,21 +119,22 @@ public class Invocation {
         try {
             V result = callable.call();
             current.remove();
-            invocation.getCallbacks().forEach(c -> c.accept(result, null));
+            invocation.complete(result, null);
             return result;
         } catch (Throwable e) {
             current.remove();
-            invocation.getCallbacks().forEach(c -> c.accept(null, e));
+            invocation.complete(null, e);
             throw e;
         }
     }
 
     private static String getHandlerName(HandlerInvoker handlerInvoker) {
-        return Optional.ofNullable(handlerInvoker)
-                .map(HandlerInvoker::getTargetClass)
-                .filter(targetClass -> !HandlerInvoker.SimpleInvoker.class.equals(targetClass))
-                .map(Class::getSimpleName)
-                .orElse(null);
+        if (handlerInvoker == null) {
+            return null;
+        }
+        Class<?> targetClass = handlerInvoker.getTargetClass();
+        return targetClass == null || HandlerInvoker.SimpleInvoker.class.equals(targetClass)
+                ? null : targetClass.getSimpleName();
     }
 
     /**
@@ -155,7 +163,16 @@ public class Invocation {
     }
 
     private Registration registerCallback(BiConsumer<Object, Throwable> callback) {
+        if (callbacks == null) {
+            callbacks = new ArrayList<>();
+        }
         callbacks.add(callback);
         return () -> callbacks.remove(callback);
+    }
+
+    private void complete(Object result, Throwable error) {
+        if (callbacks != null) {
+            callbacks.forEach(c -> c.accept(result, error));
+        }
     }
 }

@@ -92,9 +92,8 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
 
     protected static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> create(
             Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter, boolean down) {
-        return create(casterCandidates, converter.getOutputType(), down)
-                .intercept(i -> new ConvertingSerializedObject<>(i, converter),
-                           o -> ((ConvertingSerializedObject<?, ?>) o).getResult());
+        return new ConvertingCasterChain<>(
+                new DefaultCasterChain<>(casterCandidates, converter.getOutputType(), down), converter);
     }
 
     protected static <T, S extends SerializedObject<T>> CasterChain<S, S> create(
@@ -144,6 +143,81 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
                     .map(caster -> cast(caster.cast(i), desiredRevision))
                     .orElseGet(() -> Stream.of(i));
         });
+    }
+
+    @Override
+    public S castFirstOrNull(S input, Integer desiredRevision) {
+        if (isComplete(input, desiredRevision)) {
+            return input;
+        }
+        if (casters.isEmpty()) {
+            return input;
+        }
+        AnnotatedCaster<T> caster = casters.get(new DataRevision(input.getType(), input.getRevision()));
+        if (caster == null) {
+            return input;
+        }
+        return cast(caster.cast(input), desiredRevision).findAny().orElse(null);
+    }
+
+    private boolean canSkipCast(SerializedObject<?> input, Integer desiredRevision) {
+        return isComplete(input, desiredRevision) || !hasCaster(input.getType(), input.getRevision());
+    }
+
+    private boolean isComplete(SerializedObject<?> input, Integer desiredRevision) {
+        return desiredRevision != null
+               && (down ? input.getRevision() <= desiredRevision : input.getRevision() >= desiredRevision);
+    }
+
+    private boolean hasCaster(String type, int revision) {
+        return !casters.isEmpty() && casters.containsKey(new DataRevision(type, revision));
+    }
+
+    private static class ConvertingCasterChain<BEFORE, INTERNAL>
+            implements CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> {
+        private final DefaultCasterChain<INTERNAL, ConvertingSerializedObject<BEFORE, INTERNAL>> delegate;
+        private final Converter<BEFORE, INTERNAL> converter;
+
+        private ConvertingCasterChain(
+                DefaultCasterChain<INTERNAL, ConvertingSerializedObject<BEFORE, INTERNAL>> delegate,
+                Converter<BEFORE, INTERNAL> converter) {
+            this.delegate = delegate;
+            this.converter = converter;
+        }
+
+        @Override
+        public Stream<? extends SerializedObject<?>> cast(Stream<? extends SerializedObject<BEFORE>> inputStream,
+                                                          Integer rev) {
+            return inputStream.flatMap(input -> {
+                if (delegate.canSkipCast(input, rev)) {
+                    return Stream.of(convertFormat(input));
+                }
+                ConvertingSerializedObject<BEFORE, INTERNAL> converting =
+                        new ConvertingSerializedObject<>(input, converter);
+                return delegate.cast(Stream.of(converting), rev).map(ConvertingSerializedObject::getResult);
+            });
+        }
+
+        @Override
+        public SerializedObject<?> castFirstOrNull(SerializedObject<BEFORE> input, Integer rev) {
+            if (delegate.canSkipCast(input, rev)) {
+                return convertFormat(input);
+            }
+            ConvertingSerializedObject<BEFORE, INTERNAL> converting = new ConvertingSerializedObject<>(input, converter);
+            ConvertingSerializedObject<BEFORE, INTERNAL> result = delegate.castFirstOrNull(converting, rev);
+            return result == null ? null : result.getResult();
+        }
+
+        @Override
+        public Registration registerCasterCandidates(Object... candidates) {
+            return delegate.registerCasterCandidates(candidates);
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private SerializedObject<?> convertFormat(SerializedObject<BEFORE> input) {
+            Data converted = converter.convertFormat(input.data());
+            return converted == input.data() ? input : input.withData(converted);
+        }
     }
 
     /**

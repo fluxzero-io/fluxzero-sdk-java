@@ -34,6 +34,20 @@ import java.util.stream.Stream;
 public interface CasterChain<I, O> extends Caster<I, O> {
 
     /**
+     * Casts a single input and returns the first resulting output, or {@code null} if the input is dropped.
+     *
+     * <p>This is equivalent to {@code cast(Stream.of(input), rev).findAny().orElse(null)}, but implementations may
+     * optimize the common no-caster path without constructing a stream pipeline.
+     *
+     * @param input the input value
+     * @param rev   the target revision number (nullable)
+     * @return the first casted result, or {@code null} when no result is produced
+     */
+    default O castFirstOrNull(I input, Integer rev) {
+        return cast(Stream.of(input), rev).findAny().orElse(null);
+    }
+
+    /**
      * Registers one or more objects that may contain casting logic (e.g. annotated methods or implementations).
      * These candidates are inspected and included into the chain if applicable.
      *
@@ -58,6 +72,12 @@ public interface CasterChain<I, O> extends Caster<I, O> {
             @Override
             public Stream<? extends AFTER> cast(Stream<? extends BEFORE> inputStream, Integer rev) {
                 return CasterChain.this.cast(inputStream.map(before), rev).map(after);
+            }
+
+            @Override
+            public AFTER castFirstOrNull(BEFORE input, Integer rev) {
+                O result = CasterChain.this.castFirstOrNull(before.apply(input), rev);
+                return result == null ? null : after.apply(result);
             }
 
             @Override

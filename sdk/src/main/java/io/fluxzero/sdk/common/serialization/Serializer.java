@@ -22,6 +22,7 @@ import io.fluxzero.common.api.SerializedObject;
 
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -204,6 +205,23 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Deserializes one {@link SerializedMessage} into the first resulting {@link DeserializingMessage}.
+     *
+     * <p>This preserves the same semantics as {@code deserializeMessages(Stream.of(message), ...).findAny()}:
+     * upcasters that drop a message return {@link Optional#empty()}, and upcasters that split a message contribute only
+     * their first result.
+     *
+     * @param message     the serialized message
+     * @param messageType the type of message (COMMAND, EVENT, etc.)
+     * @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}
+     * @return the first deserialized message, if any
+     */
+    default Optional<DeserializingMessage> deserializeFirstMessage(SerializedMessage message, MessageType messageType,
+                                                                   String topic) {
+        return deserializeMessages(Stream.of(message), messageType, topic).findAny();
+    }
+
+    /**
      * Deserializes a single {@link SerializedMessage} into a {@link DeserializingMessage}. If the input data cannot be
      * deserialized to a single result (due to upcasting) a {@link DeserializationException} is thrown.
      *
@@ -212,8 +230,7 @@ public interface Serializer extends ContentFilter {
      * @return the deserialized message
      */
     default DeserializingMessage deserializeMessage(SerializedMessage message, MessageType messageType) {
-        return deserializeMessages(Stream.of(message), messageType).findAny()
-                .orElseThrow(DeserializationException::new);
+        return deserializeFirstMessage(message, messageType, null).orElseThrow(DeserializationException::new);
     }
 
     /**

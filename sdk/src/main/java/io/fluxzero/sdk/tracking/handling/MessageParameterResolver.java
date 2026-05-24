@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
@@ -33,24 +34,37 @@ import java.util.function.Function;
  * <p>
  * Useful when advanced information about the message is needed, such as the Fluxzero-assigned message index.
  */
-public class MessageParameterResolver implements ParameterResolver<Object> {
+public class MessageParameterResolver implements PreparedParameterResolver<Object> {
+    private static final Function<Object, Object> DESERIALIZING_MESSAGE_RESOLVER =
+            m -> m instanceof DeserializingMessage ? m : DeserializingMessage.getCurrent();
+    private static final Function<Object, Object> SERIALIZED_MESSAGE_RESOLVER = m -> {
+        var dm = m instanceof DeserializingMessage dem ? dem : DeserializingMessage.getCurrent();
+        return dm.getSerializedObject();
+    };
+    private static final Function<Object, Object> HAS_MESSAGE_RESOLVER = m -> {
+        var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
+        return dm.toMessage();
+    };
 
     @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
-        if (DeserializingMessage.class.isAssignableFrom(p.getType())) {
-            return m -> m instanceof DeserializingMessage ? m : DeserializingMessage.getCurrent();
+        return resolve(p.getType());
+    }
+
+    @Override
+    public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object value) {
+        return resolve(parameter.getType());
+    }
+
+    private Function<Object, Object> resolve(Class<?> parameterType) {
+        if (DeserializingMessage.class.isAssignableFrom(parameterType)) {
+            return DESERIALIZING_MESSAGE_RESOLVER;
         }
-        if (SerializedMessage.class.isAssignableFrom(p.getType())) {
-            return m -> {
-                var dm = m instanceof DeserializingMessage dem ? dem : DeserializingMessage.getCurrent();
-                return dm.getSerializedObject();
-            };
+        if (SerializedMessage.class.isAssignableFrom(parameterType)) {
+            return SERIALIZED_MESSAGE_RESOLVER;
         }
-        if (HasMessage.class.isAssignableFrom(p.getType())) {
-            return m -> {
-                var dm = m instanceof HasMessage dem ? dem : DeserializingMessage.getCurrent();
-                return dm.toMessage();
-            };
+        if (HasMessage.class.isAssignableFrom(parameterType)) {
+            return HAS_MESSAGE_RESOLVER;
         }
         return null;
     }
