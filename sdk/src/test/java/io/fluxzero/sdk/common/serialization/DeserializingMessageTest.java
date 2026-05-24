@@ -23,12 +23,15 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeserializingMessageTest {
 
@@ -110,6 +113,32 @@ class DeserializingMessageTest {
         assertSame(failure, result);
         assertNull(DeserializingMessage.getCurrent());
         assertEquals(List.of(failure), completions);
+    }
+
+    @Test
+    void withMetadataSharesMemoizedPayload() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        SerializedMessage serializedMessage = new SerializedMessage(
+                serializer.serialize("serialized"), Metadata.empty(), "message-id", 0L);
+        AtomicInteger calls = new AtomicInteger();
+        DeserializingMessage message = new DeserializingMessage(
+                new DeserializingObject<>(serializedMessage, type -> {
+                    calls.incrementAndGet();
+                    return "payload";
+                }),
+                MessageType.EVENT,
+                null,
+                serializer);
+
+        DeserializingMessage withMetadata = message.withMetadata(Metadata.of("key", "value"));
+
+        assertFalse(message.isDeserialized());
+        assertFalse(withMetadata.isDeserialized());
+        assertEquals("payload", message.getPayload());
+        assertEquals("payload", withMetadata.getPayload());
+        assertEquals(1, calls.get());
+        assertTrue(message.isDeserialized());
+        assertTrue(withMetadata.isDeserialized());
     }
 
     private static DeserializingMessage message(String payload) {

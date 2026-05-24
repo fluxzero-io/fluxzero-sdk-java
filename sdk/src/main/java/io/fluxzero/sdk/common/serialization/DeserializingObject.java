@@ -39,21 +39,32 @@ import static io.fluxzero.common.ObjectUtils.memoize;
  * @param <T> The raw data type of the serialized object (e.g., String or byte[])
  * @param <S> The specific {@link SerializedObject} type used to represent the serialized payload
  */
-@ToString(exclude = "objectFunction")
+@ToString(exclude = {"payload", "objectFunction"})
 public class DeserializingObject<T, S extends SerializedObject<T>> {
     /**
      * Returns the underlying {@link SerializedObject}.
      */
     @Getter
     private final S serializedObject;
-    private final MemoizingFunction<Type, Object> objectFunction;
+    private final Function<Type, Object> payload;
+    private volatile MemoizingFunction<Type, Object> objectFunction;
 
     /**
      * Returns the memoized deserialization function used to deserialize the payload. This method is protected for use
      * in subclasses.
      */
     protected MemoizingFunction<Type, Object> getObjectFunction() {
-        return objectFunction;
+        MemoizingFunction<Type, Object> result = objectFunction;
+        if (result == null) {
+            synchronized (this) {
+                result = objectFunction;
+                if (result == null) {
+                    result = memoize(payload);
+                    objectFunction = result;
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -64,7 +75,12 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
      */
     public DeserializingObject(S serializedObject, Function<Type, Object> payload) {
         this.serializedObject = serializedObject;
-        this.objectFunction = memoize(payload);
+        this.payload = payload;
+        if (payload instanceof MemoizingFunction<?, ?> memoizingFunction) {
+            @SuppressWarnings("unchecked")
+            MemoizingFunction<Type, Object> typed = (MemoizingFunction<Type, Object>) memoizingFunction;
+            this.objectFunction = typed;
+        }
     }
 
     /**
@@ -73,7 +89,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
      */
     @SuppressWarnings("unchecked")
     public <V> V getPayload() {
-        return (V) objectFunction.apply(Object.class);
+        return (V) getObjectFunction().apply(Object.class);
     }
 
     /**
@@ -84,14 +100,15 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
      */
     @SuppressWarnings("unchecked")
     public <V> V getPayloadAs(Type type) {
-        return (V) objectFunction.apply(type);
+        return (V) getObjectFunction().apply(type);
     }
 
     /**
      * Returns {@code true} if the payload has already been deserialized using the default type.
      */
     public boolean isDeserialized() {
-        return objectFunction.isCached(Object.class);
+        MemoizingFunction<Type, Object> result = objectFunction;
+        return result != null && result.isCached(Object.class);
     }
 
     /**
