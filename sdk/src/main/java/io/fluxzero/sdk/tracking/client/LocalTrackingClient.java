@@ -82,6 +82,8 @@ import java.util.function.Consumer;
  */
 @AllArgsConstructor
 public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMessageStore {
+    private static final String LOCAL_CLIENT_ID = ManagementFactory.getRuntimeMXBean().getName();
+
     @Getter
     private final MessageStore messageStore;
     private final PositionStore positionStore;
@@ -143,7 +145,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                                               lastIndex == null ? -1L : lastIndex,
                                               Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
                                                       .orElse(null)),
-                                     messageType, ManagementFactory.getRuntimeMXBean().getName(),
+                                     messageType, LOCAL_CLIENT_ID,
                                      null, result::complete), positionStore);
         return result;
     }
@@ -172,7 +174,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                              Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
                                      .orElse(null));
         getTrackingStrategy().claimSegment(
-                new WebSocketTracker(read, messageType, ManagementFactory.getRuntimeMXBean().getName(),
+                new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID,
                                      null, batch ->
                         result.complete(new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
                                                                      batch.getSegment()))), positionStore);

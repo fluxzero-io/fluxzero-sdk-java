@@ -531,11 +531,21 @@ public class DefaultTracking implements Tracking {
                                                                Map<String, ChunkedDeserializingMessage>
                                                                        activeChunkedMessages,
                                                                int recoveryMaxFetchSize) {
+        boolean hasChunkedMessages = false;
+        for (SerializedMessage message : serializedMessages) {
+            if (message.chunked()) {
+                hasChunkedMessages = true;
+                break;
+            }
+        }
+        if (!hasChunkedMessages) {
+            return deserializeNonChunkedMessages(serializedMessages, topic).stream();
+        }
         List<DeserializingMessage> result = new ArrayList<>();
         Map<String, List<SerializedMessage>> pendingContinuations = new HashMap<>();
         for (SerializedMessage message : serializedMessages) {
             if (!message.chunked()) {
-                serializer.deserializeMessages(Stream.of(message), messageType, topic).findAny().ifPresent(result::add);
+                deserializeNonChunkedMessage(message, topic).ifPresent(result::add);
                 continue;
             }
             if (!message.firstChunk()) {
@@ -569,6 +579,19 @@ public class DefaultTracking implements Tracking {
         }
         pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
         return result.stream();
+    }
+
+    private List<DeserializingMessage> deserializeNonChunkedMessages(List<SerializedMessage> serializedMessages,
+                                                                     String topic) {
+        List<DeserializingMessage> result = new ArrayList<>(serializedMessages.size());
+        for (SerializedMessage message : serializedMessages) {
+            deserializeNonChunkedMessage(message, topic).ifPresent(result::add);
+        }
+        return result;
+    }
+
+    private Optional<DeserializingMessage> deserializeNonChunkedMessage(SerializedMessage message, String topic) {
+        return serializer.deserializeMessages(Stream.of(message), messageType, topic).findAny();
     }
 
     private String chunkKey(String topic, SerializedMessage message) {
