@@ -87,12 +87,14 @@ public class TrackerIntegrationBenchmark {
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
              PublishMode publishMode) {
 
+        String runId = namespace.substring(0, Math.min(namespace.length(), 12));
+
         log.info("""
-                         Starting TrackerIntegrationBenchmark with port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
+                         Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
                          benchmarkTimeoutMs={}, publishMode={}
                          """.replaceAll("\\s+", " "),
-                 port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
+                 namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
                  distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
 
         int totalCount = consumerCount * messageCount;
@@ -102,9 +104,11 @@ public class TrackerIntegrationBenchmark {
         List<Fluxzero> clients = new ArrayList<>();
         for (int i = 0; i < clientCount; i++) {
             String clientName = "bench-client-" + i;
+            // Keep TestServer command-idempotency results from a previous benchmark JVM from matching this run.
+            String clientId = "client-" + i + "-" + runId;
             WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                     .name(clientName)
-                    .id("client-" + i)
+                    .id(clientId)
                     .namespace(namespace)
                     .runtimeBaseUrl("ws://localhost:" + port)
                     .build();
