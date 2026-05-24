@@ -25,6 +25,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -72,10 +74,11 @@ public class TrackerIntegrationBenchmark {
         PublishMode publishMode = PublishMode.valueOf(
                 System.getProperty("publishMode", concurrentPublish ? "CONCURRENT" : "BULK")
                         .toUpperCase(Locale.ROOT));
+        ClientMode clientMode = ClientMode.parse(ApplicationProperties.getProperty("clientMode", "WEBSOCKET"));
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
             port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
-            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
+            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode, clientMode);
         log.info("Shutting down");
         System.exit(0);
         log.info("Shutdown complete");
@@ -85,34 +88,29 @@ public class TrackerIntegrationBenchmark {
     void run(String namespace, int port, int clientCount, int consumerCount, int threadCount,
              int messageCount, int publisherCount,
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
-             PublishMode publishMode) {
+             PublishMode publishMode, ClientMode clientMode) {
 
         String runId = namespace.substring(0, Math.min(namespace.length(), 12));
 
         log.info("""
                          Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
-                         benchmarkTimeoutMs={}, publishMode={}
+                         benchmarkTimeoutMs={}, publishMode={}, clientMode={}
                          """.replaceAll("\\s+", " "),
                  namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
-                 distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
+                 distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode, clientMode);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);
         ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer = new ConcurrentHashMap<>();
 
+        // LocalClient namespaces have separate in-memory stores; use the root client so default consumers and publishers
+        // share the same message log.
+        Client localClient = clientMode == ClientMode.LOCAL ? LocalClient.newInstance(null) : null;
         List<Fluxzero> clients = new ArrayList<>();
         for (int i = 0; i < clientCount; i++) {
             String clientName = "bench-client-" + i;
-            // Keep TestServer command-idempotency results from a previous benchmark JVM from matching this run.
-            String clientId = "client-" + i + "-" + runId;
-            WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
-                    .name(clientName)
-                    .id(clientId)
-                    .namespace(namespace)
-                    .runtimeBaseUrl("ws://localhost:" + port)
-                    .build();
-            WebSocketClient wsClient = WebSocketClient.newInstance(clientConfig);
+            Client benchmarkClient = createClient(clientMode, localClient, namespace, port, i, clientName, runId);
             FluxzeroBuilder fluxzeroBuilder = DefaultFluxzero.builder()
                     .disableAutomaticTracking()
                     .disableTrackingMetrics()
@@ -132,7 +130,7 @@ public class TrackerIntegrationBenchmark {
                                 .build());
             }
 
-            Fluxzero fluxzero = fluxzeroBuilder.build(wsClient);
+            Fluxzero fluxzero = fluxzeroBuilder.build(benchmarkClient);
             clients.add(fluxzero);
         }
 
@@ -177,6 +175,22 @@ public class TrackerIntegrationBenchmark {
         log.info("Closing clients");
         clients.forEach(Fluxzero::close);
         log.info("Clients closed");
+    }
+
+    private static Client createClient(ClientMode clientMode, Client localClient, String namespace, int port,
+                                       int clientIndex, String clientName, String runId) {
+        if (clientMode == ClientMode.LOCAL) {
+            return localClient;
+        }
+        // Keep TestServer command-idempotency results from a previous benchmark JVM from matching this run.
+        String clientId = "client-" + clientIndex + "-" + runId;
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .name(clientName)
+                .id(clientId)
+                .namespace(namespace)
+                .runtimeBaseUrl("ws://localhost:" + port)
+                .build();
+        return WebSocketClient.newInstance(clientConfig);
     }
 
     @AllArgsConstructor
@@ -271,6 +285,19 @@ public class TrackerIntegrationBenchmark {
     enum PublishMode {
         BULK,
         CONCURRENT
+    }
+
+    enum ClientMode {
+        WEBSOCKET,
+        LOCAL;
+
+        static ClientMode parse(String value) {
+            return switch (value.toUpperCase(Locale.ROOT).replace("-", "").replace("_", "")) {
+                case "LOCAL", "LOCALCLIENT" -> LOCAL;
+                case "WEBSOCKET", "WEBSOCKETCLIENT", "WS" -> WEBSOCKET;
+                default -> throw new IllegalArgumentException("Unsupported clientMode: " + value);
+            };
+        }
     }
 
     record BenchEvent(int index, String payload) {
