@@ -205,6 +205,24 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Deserializes one {@link SerializedMessage} into the first resulting {@link DeserializingMessage}, or
+     * {@code null} if no result remains.
+     *
+     * <p>This preserves the same semantics as {@code deserializeMessages(Stream.of(message), ...).findAny()}:
+     * upcasters that drop a message return {@code null}, and upcasters that split a message contribute only
+     * their first result.
+     *
+     * @param message     the serialized message
+     * @param messageType the type of message (COMMAND, EVENT, etc.)
+     * @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}
+     * @return the first deserialized message, or {@code null}
+     */
+    default DeserializingMessage deserializeFirstMessageOrNull(SerializedMessage message, MessageType messageType,
+                                                               String topic) {
+        return deserializeMessages(Stream.of(message), messageType, topic).findAny().orElse(null);
+    }
+
+    /**
      * Deserializes one {@link SerializedMessage} into the first resulting {@link DeserializingMessage}.
      *
      * <p>This preserves the same semantics as {@code deserializeMessages(Stream.of(message), ...).findAny()}:
@@ -218,7 +236,7 @@ public interface Serializer extends ContentFilter {
      */
     default Optional<DeserializingMessage> deserializeFirstMessage(SerializedMessage message, MessageType messageType,
                                                                    String topic) {
-        return deserializeMessages(Stream.of(message), messageType, topic).findAny();
+        return Optional.ofNullable(deserializeFirstMessageOrNull(message, messageType, topic));
     }
 
     /**
@@ -230,7 +248,8 @@ public interface Serializer extends ContentFilter {
      * @return the deserialized message
      */
     default DeserializingMessage deserializeMessage(SerializedMessage message, MessageType messageType) {
-        return deserializeFirstMessage(message, messageType, null).orElseThrow(DeserializationException::new);
+        return Optional.ofNullable(deserializeFirstMessageOrNull(message, messageType, null))
+                .orElseThrow(DeserializationException::new);
     }
 
     /**

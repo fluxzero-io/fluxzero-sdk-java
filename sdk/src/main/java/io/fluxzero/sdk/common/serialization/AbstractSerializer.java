@@ -258,15 +258,22 @@ public abstract class AbstractSerializer<I> implements Serializer {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Optional<DeserializingMessage> deserializeFirstMessage(SerializedMessage message, MessageType messageType,
                                                                   String topic) {
+        return Optional.ofNullable(deserializeFirstMessageOrNull(message, messageType, topic));
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public DeserializingMessage deserializeFirstMessageOrNull(SerializedMessage message, MessageType messageType,
+                                                              String topic) {
         SerializedObject<?> casted = upcasterChain.castFirstOrNull(message, null);
         if (casted == null) {
-            return Optional.empty();
+            return null;
         }
         DeserializingObject<byte[], ?> object = deserializeFirstObject(casted, UnknownTypeStrategy.AS_INTERMEDIATE);
         if (object == null) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(new DeserializingMessage((DeserializingObject) object, messageType, topic, this));
+        return new DeserializingMessage((DeserializingObject) object, messageType, topic, this);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

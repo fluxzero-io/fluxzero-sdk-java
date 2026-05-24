@@ -46,6 +46,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -209,8 +210,8 @@ public class TrackerIntegrationBenchmark {
                 return;
             }
             DeserializingMessage.handleBatch(messages.stream()
-                    .map(message -> fluxzero.serializer().deserializeFirstMessage(message, MessageType.EVENT, null))
-                    .flatMap(Optional::stream)).forEach(message -> latch.countDown());
+                    .map(message -> fluxzero.serializer().deserializeFirstMessageOrNull(message, MessageType.EVENT, null))
+                    .filter(Objects::nonNull)).forEach(message -> latch.countDown());
         };
     }
 

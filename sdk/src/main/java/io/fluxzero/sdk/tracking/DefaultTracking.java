@@ -550,7 +550,10 @@ public class DefaultTracking implements Tracking {
         Map<String, List<SerializedMessage>> pendingContinuations = new HashMap<>();
         for (SerializedMessage message : serializedMessages) {
             if (!message.chunked()) {
-                deserializeNonChunkedMessage(message, topic).ifPresent(result::add);
+                DeserializingMessage deserializedMessage = deserializeNonChunkedMessageOrNull(message, topic);
+                if (deserializedMessage != null) {
+                    result.add(deserializedMessage);
+                }
                 continue;
             }
             if (!message.firstChunk()) {
@@ -590,13 +593,16 @@ public class DefaultTracking implements Tracking {
                                                                      String topic) {
         List<DeserializingMessage> result = new ArrayList<>(serializedMessages.size());
         for (SerializedMessage message : serializedMessages) {
-            deserializeNonChunkedMessage(message, topic).ifPresent(result::add);
+            DeserializingMessage deserializedMessage = deserializeNonChunkedMessageOrNull(message, topic);
+            if (deserializedMessage != null) {
+                result.add(deserializedMessage);
+            }
         }
         return result;
     }
 
-    private Optional<DeserializingMessage> deserializeNonChunkedMessage(SerializedMessage message, String topic) {
-        return serializer.deserializeFirstMessage(message, messageType, topic);
+    private DeserializingMessage deserializeNonChunkedMessageOrNull(SerializedMessage message, String topic) {
+        return serializer.deserializeFirstMessageOrNull(message, messageType, topic);
     }
 
     private String chunkKey(String topic, SerializedMessage message) {
