@@ -80,16 +80,20 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         return new Handler<>() {
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
-                Optional<HandlerInvoker> optionalInvoker = handler.getInvoker(message);
-                if (optionalInvoker.isEmpty()) {
-                    return Optional.empty();
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                HandlerInvoker invoker = handler.getInvokerOrNull(message);
+                if (invoker == null) {
+                    return null;
                 }
-                HandlerInvoker invoker = optionalInvoker.get();
                 HandlerErrorPolicy policy = policy(invoker);
                 if (policy.isLocalHandler(invoker, message)) {
-                    return optionalInvoker;
+                    return invoker;
                 }
-                return Optional.of(new DelegatingHandlerInvoker(invoker) {
+                return new DelegatingHandlerInvoker(invoker) {
                     @Override
                     public Object invoke(BiFunction<Object, Object, Object> combiner) {
                         try {
@@ -99,7 +103,7 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
                             throw e;
                         }
                     }
-                });
+                };
             }
 
             @Override

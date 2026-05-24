@@ -37,7 +37,12 @@ public class DefaultHandler<M> implements Handler<M> {
 
     @Override
     public Optional<HandlerInvoker> getInvoker(M message) {
-        return handlerMatcher.getInvoker(targetSupplier.apply(message), message);
+        return Optional.ofNullable(getInvokerOrNull(message));
+    }
+
+    @Override
+    public HandlerInvoker getInvokerOrNull(M message) {
+        return handlerMatcher.getInvokerOrNull(targetSupplier.apply(message), message);
     }
 
     @Override

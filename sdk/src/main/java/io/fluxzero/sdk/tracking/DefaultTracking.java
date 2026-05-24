@@ -407,6 +407,11 @@ public class DefaultTracking implements Tracking {
         return handler -> new Handler<>() {
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
                 var index = message.getIndex();
                 ConsumerConfiguration selected = null;
                 int highestPriority = Integer.MIN_VALUE;
@@ -417,7 +422,7 @@ public class DefaultTracking implements Tracking {
                         selected = config;
                     }
                 }
-                return Objects.equals(selected, currentConfig) ? handler.getInvoker(message) : Optional.empty();
+                return Objects.equals(selected, currentConfig) ? handler.getInvokerOrNull(message) : null;
             }
 
             @Override
@@ -664,12 +669,12 @@ public class DefaultTracking implements Tracking {
     protected Optional<HandlerInvoker> getInvoker(DeserializingMessage message, Handler<DeserializingMessage> handler,
                                                   ConsumerConfiguration config) {
         try {
-            return handler.getInvoker(message);
+            return Optional.ofNullable(handler.getInvokerOrNull(message));
         } catch (Throwable e) {
             try {
                 Object retryResult = config.getErrorHandler().handleError(
                         e, format("Failed to check if handler %s is able to handle %s", handler, message),
-                        () -> handler.getInvoker(message));
+                        () -> Optional.ofNullable(handler.getInvokerOrNull(message)));
                 return retryResult instanceof Optional<?> ? (Optional<HandlerInvoker>) retryResult : Optional.empty();
             } catch (Throwable e2) {
                 stopTracker(message, handler, e2);

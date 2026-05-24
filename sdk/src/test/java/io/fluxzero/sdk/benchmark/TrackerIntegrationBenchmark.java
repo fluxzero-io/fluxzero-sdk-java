@@ -316,6 +316,11 @@ public class TrackerIntegrationBenchmark {
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
             return Optional.of(invoker);
         }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+            return invoker;
+        }
     }
 
     @AllArgsConstructor

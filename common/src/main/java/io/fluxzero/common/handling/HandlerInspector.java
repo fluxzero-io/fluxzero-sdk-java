@@ -414,16 +414,21 @@ public class HandlerInspector {
 
         @Override
         public Optional<HandlerInvoker> getInvoker(Object target, M m) {
+            return Optional.ofNullable(getInvokerOrNull(target, m));
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(Object target, M m) {
             if (target == null
                     ? !(executable instanceof Constructor) && !staticMethod
                     : !(executable instanceof Method) || staticMethod) {
-                return Optional.empty();
+                return null;
             }
             if (getClass() == MethodHandlerMatcher.class) {
-                return Optional.ofNullable(createInvokerOrNull(target, m));
+                return createInvokerOrNull(target, m);
             }
             Function<Object, HandlerInvoker> preparedInvoker = prepareInvokerFunction(m);
-            return preparedInvoker == null ? Optional.empty() : Optional.of(preparedInvoker.apply(target));
+            return preparedInvoker == null ? null : preparedInvoker.apply(target);
         }
 
         private Function<Object, HandlerInvoker> prepareInvokerFunction(M m) {
@@ -622,30 +627,37 @@ public class HandlerInspector {
 
         @Override
         public Optional<HandlerInvoker> getInvoker(Object target, M message) {
+            return Optional.ofNullable(getInvokerOrNull(target, message));
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(Object target, M message) {
             if (invokeMultipleMethods) {
                 List<HandlerInvoker> invokers = new ArrayList<>();
                 for (HandlerMatcher<Object, M> d : methodHandlers) {
-                    var s = d.getInvoker(target, message);
-                    s.ifPresent(invokers::add);
+                    HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                    if (invoker != null) {
+                        invokers.add(invoker);
+                    }
                 }
-                return HandlerInvoker.join(invokers);
+                return HandlerInvoker.join(invokers).orElse(null);
             }
             if (methodHandlers.size() == 1) {
-                return methodHandlers.getFirst().getInvoker(target, message);
+                return methodHandlers.getFirst().getInvokerOrNull(target, message);
             }
             HandlerInvoker bestInvoker = null;
             MethodHandlerMatcher<M> bestMatcher = null;
             for (HandlerMatcher<Object, M> d : methodHandlers) {
-                var s = d.getInvoker(target, message);
-                if (s.isPresent()) {
+                HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                if (invoker != null) {
                     if (bestInvoker == null) {
-                        bestInvoker = s.get();
+                        bestInvoker = invoker;
                         if (d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
                             @SuppressWarnings("unchecked")
                             MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                             if (castMatcher.computeSpecificity(message).priority()
                                 <= castMatcher.lowestSpecificityPriority) {
-                                return s;
+                                return bestInvoker;
                             }
                             bestMatcher = castMatcher;
                         }
@@ -653,13 +665,13 @@ public class HandlerInspector {
                         @SuppressWarnings("unchecked")
                         MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                         if (castMatcher.compareForMessage(bestMatcher, message) < 0) {
-                            bestInvoker = s.get();
+                            bestInvoker = invoker;
                             bestMatcher = castMatcher;
                         }
                     }
                 }
             }
-            return Optional.ofNullable(bestInvoker);
+            return bestInvoker;
         }
 
     }

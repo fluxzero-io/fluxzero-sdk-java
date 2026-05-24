@@ -68,6 +68,19 @@ public interface HandlerMatcher<T, M> {
     Optional<HandlerInvoker> getInvoker(T target, M message);
 
     /**
+     * Attempts to resolve a {@link HandlerInvoker} for the given target instance and message.
+     *
+     * <p>This is a lower-allocation counterpart to {@link #getInvoker(Object, Object)} for internal hot paths.</p>
+     *
+     * @param target  the handler object
+     * @param message the message to be handled
+     * @return an invoker if the message is supported by the target; {@code null} otherwise
+     */
+    default HandlerInvoker getInvokerOrNull(T target, M message) {
+        return getInvoker(target, message).orElse(null);
+    }
+
+    /**
      * Combines this {@code HandlerMatcher} with another {@code HandlerMatcher} to form a composite matcher.
      * The resulting matcher is capable of delegating matching responsibilities to both the current
      * matcher and the provided next matcher.
@@ -90,7 +103,13 @@ public interface HandlerMatcher<T, M> {
 
             @Override
             public Optional<HandlerInvoker> getInvoker(T target, M message) {
-                return first.getInvoker(target, message).or(() -> next.getInvoker(target, message));
+                return Optional.ofNullable(getInvokerOrNull(target, message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(T target, M message) {
+                HandlerInvoker result = first.getInvokerOrNull(target, message);
+                return result == null ? next.getInvokerOrNull(target, message) : result;
             }
         };
     }

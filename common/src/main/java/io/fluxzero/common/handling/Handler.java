@@ -82,6 +82,19 @@ public interface Handler<M> {
     Optional<HandlerInvoker> getInvoker(M message);
 
     /**
+     * Returns a {@link HandlerInvoker} capable of processing the given message, or {@code null} when unavailable.
+     *
+     * <p>This is a lower-allocation counterpart to {@link #getInvoker(Object)} for internal hot paths. Implementations
+     * that can resolve an invoker without creating an {@link Optional} should override this method.</p>
+     *
+     * @param message the message to be handled
+     * @return an invoker if this handler can handle the message; {@code null} otherwise
+     */
+    default HandlerInvoker getInvokerOrNull(M message) {
+        return getInvoker(message).orElse(null);
+    }
+
+    /**
      * Creates a composite handler that executes the current handler and then delegates to the specified next handler if
      * the current handler cannot handle the message or does not provide an invoker.
      *
@@ -98,7 +111,13 @@ public interface Handler<M> {
 
             @Override
             public Optional<HandlerInvoker> getInvoker(M message) {
-                return first.getInvoker(message).or(() -> next.getInvoker(message));
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(M message) {
+                HandlerInvoker result = first.getInvokerOrNull(message);
+                return result == null ? next.getInvokerOrNull(message) : result;
             }
         };
     }
