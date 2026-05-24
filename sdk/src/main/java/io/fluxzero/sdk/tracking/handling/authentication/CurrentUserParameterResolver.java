@@ -34,4 +34,9 @@ public class CurrentUserParameterResolver extends TypedParameterResolver<Object>
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> User.getCurrent();
     }
+
+    @Override
+    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
 }

@@ -52,6 +52,11 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
     }
 
     @Override
+    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return resolve(parameter.getType());
+    }
+
+    @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object value) {
         return resolve(parameter.getType());
     }
@@ -71,13 +76,17 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
-        return HasMessage.class.isAssignableFrom(parameter.getType())
+        return DeserializingMessage.class.isAssignableFrom(parameter.getType())
+               || HasMessage.class.isAssignableFrom(parameter.getType())
                || SerializedMessage.class.isAssignableFrom(parameter.getType());
     }
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
+            if (DeserializingMessage.class.isAssignableFrom(parameter.getType())) {
+                return true;
+            }
             if (HasMessage.class.isAssignableFrom(parameter.getType())) {
                 return true;
             }

@@ -160,7 +160,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .methodInvocationValidator(methodInvocationValidator).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
-                .map(new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation)::wrap)
+                .map(handler -> messageType.isRequest()
+                        ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
+                        : handler)
                 .map(handlerDecorator::wrap);
     }
 

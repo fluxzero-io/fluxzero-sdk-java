@@ -64,6 +64,12 @@ public class TimestampParameterResolver implements ParameterResolver<Object> {
     }
 
     @Override
+    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return Instant.class.isAssignableFrom(parameter.getType()) || Clock.class.isAssignableFrom(parameter.getType())
+                ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return Instant.class.isAssignableFrom(parameter.getType())
                || Clock.class.isAssignableFrom(parameter.getType());

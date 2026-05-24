@@ -29,14 +29,18 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
+import java.lang.reflect.Executable;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.unwrapException;
-import static io.fluxzero.sdk.common.ClientUtils.isLocalHandler;
+import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
+import static io.fluxzero.sdk.common.ClientUtils.isSelfTracking;
 
 /**
  * {@link HandlerInterceptor} that reports exceptions to the configured {@link ErrorGateway}.
@@ -64,6 +68,12 @@ import static io.fluxzero.sdk.common.ClientUtils.isLocalHandler;
 public class ErrorReportingInterceptor implements HandlerInterceptor {
 
     private final ErrorGateway errorGateway;
+    private final ClassValue<ConcurrentHashMap<Executable, HandlerErrorPolicy>> policyCache = new ClassValue<>() {
+        @Override
+        protected ConcurrentHashMap<Executable, HandlerErrorPolicy> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
@@ -75,12 +85,13 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
                     return Optional.empty();
                 }
                 HandlerInvoker invoker = optionalInvoker.get();
+                HandlerErrorPolicy policy = policy(invoker);
+                if (policy.isLocalHandler(invoker, message)) {
+                    return optionalInvoker;
+                }
                 return Optional.of(new DelegatingHandlerInvoker(invoker) {
                     @Override
                     public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                        if (isLocalHandler(invoker, message)) {
-                            return invoker.invoke(combiner);
-                        }
                         try {
                             return monitorResult(invoker.invoke(combiner), invoker, message);
                         } catch (Throwable e) {
@@ -110,7 +121,7 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
     }
 
     private Object handle(DeserializingMessage message, HandlerInvoker invoker, Supplier<Object> action) {
-        if (isLocalHandler(invoker, message)) {
+        if (policy(invoker).isLocalHandler(invoker, message)) {
             return action.get();
         }
         try {
@@ -132,6 +143,16 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         return result;
     }
 
+    private HandlerErrorPolicy policy(HandlerInvoker invoker) {
+        Class<?> targetClass = invoker.getTargetClass();
+        Executable method = invoker.getMethod();
+        if (targetClass == null || method == null) {
+            return HandlerErrorPolicy.reportErrors;
+        }
+        return policyCache.get(targetClass).computeIfAbsent(method, key -> new HandlerErrorPolicy(
+                getLocalHandlerAnnotation(targetClass, key).isPresent(), !isSelfTracking(targetClass, key)));
+    }
+
     protected void reportError(Throwable e, HandlerInvoker invoker, DeserializingMessage cause) {
         e = unwrapException(e);
         Metadata metadata = cause.getMetadata();
@@ -141,5 +162,14 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
                     invoker.getTargetClass().getName(), cause.toString(), e));
         }
         errorGateway.report(new Message(e, metadata));
+    }
+
+    private record HandlerErrorPolicy(boolean localHandler, boolean reportSelfHandlers) {
+        private static final HandlerErrorPolicy reportErrors = new HandlerErrorPolicy(false, true);
+
+        private boolean isLocalHandler(HandlerInvoker invoker, DeserializingMessage message) {
+            return localHandler || !reportSelfHandlers
+                   && Objects.equals(invoker.getTargetClass(), message.getPayloadClass());
+        }
     }
 }

@@ -132,8 +132,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return new Handler<>() {
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                    return handler.getInvoker(message);
+                }
                 Optional<HandlerInvoker> optionalInvoker = handler.getInvoker(message);
-                if (optionalInvoker.isEmpty() || !message.getMetadata().containsKey(METADATA_KEY)) {
+                if (optionalInvoker.isEmpty()) {
                     return optionalInvoker;
                 }
                 HandlerInvoker invoker = optionalInvoker.get();

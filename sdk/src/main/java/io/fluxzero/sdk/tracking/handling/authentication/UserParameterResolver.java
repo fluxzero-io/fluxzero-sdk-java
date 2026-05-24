@@ -58,4 +58,9 @@ public class UserParameterResolver extends TypedParameterResolver<Object> {
                     .map(userProvider::fromMessage).orElseGet(User::getCurrent);
         };
     }
+
+    @Override
+    public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return User.class.isAssignableFrom(parameter.getType()) ? resolve(parameter, methodAnnotation) : null;
+    }
 }

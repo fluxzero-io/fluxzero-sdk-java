@@ -51,6 +51,23 @@ public interface ParameterResolver<M> {
     Function<M, Object> resolve(Parameter parameter, Annotation methodAnnotation);
 
     /**
+     * Prepares a resolver function when this resolver can determine compatibility from the parameter and method
+     * annotation alone.
+     * <p>
+     * The default returns {@code null}, which keeps resolution message-dependent. Implementations should override this
+     * only when {@link #matches(Parameter, Annotation, Object)} would always be {@code true} for the supplied parameter,
+     * regardless of the message instance. Dynamic resolvers such as payload, trigger, or entity resolvers should keep
+     * the default behavior.
+     *
+     * @param parameter        the parameter to resolve
+     * @param methodAnnotation the annotation present on the handler method
+     * @return a prepared resolver, or {@code null} when resolution must remain message-dependent
+     */
+    default Function<M, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
+        return null;
+    }
+
+    /**
      * Indicates whether the resolved value is compatible with the declared parameter type.
      * <p>
      * This method helps determine whether the parameter can be injected for a given message. It first invokes
