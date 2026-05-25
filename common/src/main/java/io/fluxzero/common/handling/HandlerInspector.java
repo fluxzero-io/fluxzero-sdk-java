@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.silentTest;
@@ -373,14 +374,7 @@ public class HandlerInspector {
         }
 
         private HandlerInvoker createUnvalidatedPreparedParameterInvoker(Object target, M m) {
-            return new MethodHandlerInvoker() {
-                @Override
-                public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                    return invoker.invoke(
-                            target, parameterCount,
-                            i -> parameterResolverPlans[i].getFirst().preparedResolver().apply(m));
-                }
-            };
+            return new UnvalidatedPreparedParameterInvoker(target, m);
         }
 
         private HandlerInvoker createDynamicParameterInvoker(
@@ -403,12 +397,7 @@ public class HandlerInspector {
 
         private HandlerInvoker createUnvalidatedDynamicParameterInvoker(
                 Object target, M m, Function<? super M, Object>[] matchingResolvers) {
-            return new MethodHandlerInvoker() {
-                @Override
-                public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                    return invoker.invoke(target, parameterCount, i -> matchingResolvers[i].apply(m));
-                }
-            };
+            return new UnvalidatedDynamicParameterInvoker(target, m, matchingResolvers);
         }
 
         @SuppressWarnings("unchecked")
@@ -619,6 +608,49 @@ public class HandlerInspector {
                     String simpleName = c.getSimpleName();
                     return String.format("\"%s\"", simpleName.isEmpty() ? c : simpleName);
                 }).orElse("MethodHandlerInvoker");
+            }
+        }
+
+        private class UnvalidatedPreparedParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
+            private final Object target;
+            private final M message;
+
+            private UnvalidatedPreparedParameterInvoker(Object target, M message) {
+                this.target = target;
+                this.message = message;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, parameterCount, this);
+            }
+
+            @Override
+            public Object apply(int i) {
+                return parameterResolverPlans[i].getFirst().preparedResolver().apply(message);
+            }
+        }
+
+        private class UnvalidatedDynamicParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
+            private final Object target;
+            private final M message;
+            private final Function<? super M, Object>[] matchingResolvers;
+
+            private UnvalidatedDynamicParameterInvoker(
+                    Object target, M message, Function<? super M, Object>[] matchingResolvers) {
+                this.target = target;
+                this.message = message;
+                this.matchingResolvers = matchingResolvers;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, parameterCount, this);
+            }
+
+            @Override
+            public Object apply(int i) {
+                return matchingResolvers[i].apply(message);
             }
         }
 
