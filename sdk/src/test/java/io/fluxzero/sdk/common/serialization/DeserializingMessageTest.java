@@ -154,6 +154,32 @@ class DeserializingMessageTest {
     }
 
     @Test
+    void forEachInBatchRestoresCurrentBetweenCustomIterableItems() {
+        DeserializingMessage first = message("first");
+        DeserializingMessage second = message("second");
+        Iterable<DeserializingMessage> iterable = () -> new java.util.Iterator<>() {
+            private int index;
+
+            @Override
+            public boolean hasNext() {
+                assertNull(DeserializingMessage.getCurrent());
+                return index < 2;
+            }
+
+            @Override
+            public DeserializingMessage next() {
+                assertNull(DeserializingMessage.getCurrent());
+                return index++ == 0 ? first : second;
+            }
+        };
+
+        DeserializingMessage.forEachInBatch(iterable, message ->
+                assertSame(message, DeserializingMessage.getCurrent()));
+
+        assertNull(DeserializingMessage.getCurrent());
+    }
+
+    @Test
     void withMetadataSharesMemoizedPayload() {
         JacksonSerializer serializer = new JacksonSerializer();
         SerializedMessage serializedMessage = new SerializedMessage(

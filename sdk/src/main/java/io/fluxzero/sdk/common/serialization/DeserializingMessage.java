@@ -41,6 +41,7 @@ import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -421,6 +422,12 @@ public class DeserializingMessage implements HasMessage {
     @SneakyThrows
     public static void forEachInBatch(Iterable<DeserializingMessage> batch,
                                       Consumer<? super DeserializingMessage> action) {
+        if (batch instanceof List<?> messages) {
+            @SuppressWarnings("unchecked")
+            List<DeserializingMessage> typedMessages = (List<DeserializingMessage>) messages;
+            forEachListInBatch(typedMessages, action);
+            return;
+        }
         DeserializingMessage previous = getCurrent();
         boolean completeOnSuccess = previous == null;
         try {
@@ -436,6 +443,28 @@ public class DeserializingMessage implements HasMessage {
             completeBatch(e);
             throw e;
         }
+        if (completeOnSuccess) {
+            completeBatch(null);
+        }
+    }
+
+    @SneakyThrows
+    private static void forEachListInBatch(List<DeserializingMessage> messages,
+                                           Consumer<? super DeserializingMessage> action) {
+        DeserializingMessage previous = getCurrent();
+        boolean completeOnSuccess = previous == null;
+        try {
+            for (int i = 0; i < messages.size(); i++) {
+                DeserializingMessage message = messages.get(i);
+                current.set(message);
+                action.accept(message);
+            }
+        } catch (Throwable e) {
+            current.set(previous);
+            completeBatch(e);
+            throw e;
+        }
+        current.set(previous);
         if (completeOnSuccess) {
             completeBatch(null);
         }

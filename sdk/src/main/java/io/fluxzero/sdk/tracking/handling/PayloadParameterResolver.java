@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
@@ -41,7 +42,7 @@ import java.util.function.Function;
  * @see HasMessage#getPayloadClass()
  * @see ParameterResolver
  */
-public class PayloadParameterResolver implements ParameterResolver<HasMessage> {
+public class PayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
     @Override
     public boolean matches(Parameter p, Annotation methodAnnotation, HasMessage value) {
         if (value instanceof ChunkedDeserializingMessage && InputStream.class.isAssignableFrom(p.getType())) {
@@ -56,6 +57,22 @@ public class PayloadParameterResolver implements ParameterResolver<HasMessage> {
             return m -> m.getPayloadAs(p.getParameterizedType());
         }
         return HasMessage::getPayload;
+    }
+
+    @Override
+    public Function<HasMessage, Object> resolveIfPossible(
+            Parameter parameter, Annotation methodAnnotation, HasMessage value) {
+        if (!matches(parameter, methodAnnotation, value)) {
+            return null;
+        }
+        if (InputStream.class.isAssignableFrom(parameter.getType())) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        if (value instanceof ChunkedDeserializingMessage) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        Object payload = value.getPayload();
+        return payload != null || ReflectionUtils.isNullable(parameter) ? ignored -> payload : null;
     }
 
     @Override
