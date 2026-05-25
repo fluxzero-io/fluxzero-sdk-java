@@ -20,6 +20,9 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
@@ -103,6 +106,27 @@ class PayloadParameterResolverTest {
         assertNotNull(prepared);
     }
 
+    @Test
+    void handlerSelectionKeepsSerializedPayloadLazyUntilInvocation() {
+        AtomicInteger payloadCalls = new AtomicInteger();
+        DeserializingMessage message = new DeserializingMessage(serializedStringMessage(),
+                                                                type -> {
+                                                                    payloadCalls.incrementAndGet();
+                                                                    return "value";
+                                                                }, MessageType.EVENT, null, new JacksonSerializer());
+        RecordingPayloadHandler target = new RecordingPayloadHandler();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, java.util.List.of(new PayloadParameterResolver()));
+
+        HandlerInvoker invoker = handler.getInvokerOrNull(message);
+
+        assertNotNull(invoker);
+        assertEquals(0, payloadCalls.get());
+        invoker.invoke();
+        assertEquals("value", target.payload);
+        assertEquals(1, payloadCalls.get());
+    }
+
     private static SerializedMessage serializedStringMessage() {
         return new SerializedMessage(
                 new Data<>("\"value\"".getBytes(), String.class.getName(), 0, Data.JSON_FORMAT),
@@ -121,6 +145,15 @@ class PayloadParameterResolverTest {
         }
 
         void handleNullableString(@Nullable String payload) {
+        }
+    }
+
+    private static class RecordingPayloadHandler {
+        private String payload;
+
+        @HandleEvent
+        void handle(String payload) {
+            this.payload = payload;
         }
     }
 

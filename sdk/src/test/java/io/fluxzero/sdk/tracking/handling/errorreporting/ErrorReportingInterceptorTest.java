@@ -26,13 +26,17 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.ErrorGateway;
+import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -61,11 +65,81 @@ class ErrorReportingInterceptorTest {
         assertInstanceOf(TechnicalException.class, errorGateway.errors.getFirst().getPayload());
     }
 
-    private static DeserializingMessage message(String payload) {
+    @Test
+    void reportsAsyncErrorsFromReusableHandlerMethod() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new AsyncThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = message("payload");
+
+        HandlerMethod<DeserializingMessage> method = wrapped.getHandlerMethodOrNull(message);
+        assertNotNull(method);
+
+        CompletionStage<?> result = (CompletionStage<?>) method.invoke(message);
+        assertThrows(CompletionException.class, () -> result.toCompletableFuture().join());
+        assertEquals(1, errorGateway.errors.size());
+        assertInstanceOf(TechnicalException.class, errorGateway.errors.getFirst().getPayload());
+    }
+
+    @Test
+    void localReusableHandlerMethodErrorsAreNotReported() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new LocalThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = message("payload");
+
+        HandlerMethod<DeserializingMessage> method = wrapped.getHandlerMethodOrNull(message);
+        assertNotNull(method);
+
+        assertThrows(IllegalStateException.class, () -> method.invoke(message));
+        assertEquals(0, errorGateway.errors.size());
+    }
+
+    @Test
+    void selfTrackingReusableHandlerMethodErrorsAreNotReportedForSelfMessages() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new SelfTrackingPayload(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = message(new SelfTrackingPayload());
+
+        HandlerMethod<DeserializingMessage> method = wrapped.getHandlerMethodOrNull(message);
+        assertNotNull(method);
+
+        assertThrows(IllegalStateException.class, () -> method.invoke(message));
+        assertEquals(0, errorGateway.errors.size());
+    }
+
+    private static DeserializingMessage message(Object payload) {
         return new DeserializingMessage(new Message(payload), MessageType.EVENT, null);
     }
 
     private static class ThrowingHandler {
+        @HandleEvent
+        void handle(DeserializingMessage ignored) {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    private static class AsyncThrowingHandler {
+        @HandleEvent
+        CompletionStage<Void> handle(DeserializingMessage ignored) {
+            return CompletableFuture.failedFuture(new IllegalStateException("boom"));
+        }
+    }
+
+    private static class LocalThrowingHandler {
+        @HandleEvent
+        @LocalHandler
+        void handle(DeserializingMessage ignored) {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    @TrackSelf
+    private static class SelfTrackingPayload {
         @HandleEvent
         void handle(DeserializingMessage ignored) {
             throw new IllegalStateException("boom");

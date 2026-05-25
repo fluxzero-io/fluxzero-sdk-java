@@ -163,7 +163,7 @@ public interface Handler<M> {
 
         @Override
         public HandlerMethod<M> getHandlerMethodOrNull(M message) {
-            return delegate.getHandlerMethodOrNull(message);
+            return null;
         }
 
         @Override
