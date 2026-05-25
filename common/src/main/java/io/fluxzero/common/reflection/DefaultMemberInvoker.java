@@ -35,7 +35,6 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
 import static java.lang.invoke.MethodHandles.privateLookupIn;
@@ -78,6 +77,7 @@ public class DefaultMemberInvoker implements MemberInvoker {
 
     private static final MethodHandles.Lookup lookup = MethodHandles.lookup();
     private static final boolean inNativeImage = inNativeImage();
+    private static final IntFunction<Object> NO_PARAMETERS = i -> null;
 
     private static boolean inNativeImage() {
         boolean result = System.getProperty("org.graalvm.nativeimage.imagecode") != null;
@@ -89,7 +89,7 @@ public class DefaultMemberInvoker implements MemberInvoker {
 
     @Getter
     private final Member member;
-    private final BiFunction<Object, IntFunction<?>, Object> invokeFunction;
+    private final InvokeFunctions invokeFunctions;
     private final FallbackFunction fallbackFunction;
     private final boolean staticMember;
     private final boolean returnsResult;
@@ -105,8 +105,32 @@ public class DefaultMemberInvoker implements MemberInvoker {
         parameterTypes = Collections.nCopies(lambdaParameterCount, Object.class).toArray(Class<?>[]::new);
         returnsResult = !(member instanceof Method && ((Method) member).getReturnType().equals(void.class));
         staticMember = Modifier.isStatic(member.getModifiers()) || member instanceof Constructor<?>;
-        invokeFunction = computeInvokeFunction();
-        fallbackFunction = invokeFunction == null ? computeFallbackFunction() : null;
+        invokeFunctions = computeInvokeFunctions();
+        fallbackFunction = invokeFunctions == null ? computeFallbackFunction() : null;
+    }
+
+    @Override
+    @SneakyThrows
+    public Object invoke(Object target) {
+        if (!staticMember && target == null) {
+            return null;
+        }
+        if (invokeFunctions != null && invokeFunctions.noParameterFunction() != null) {
+            return invokeFunctions.noParameterFunction().apply(target);
+        }
+        return invoke(target, 0, NO_PARAMETERS);
+    }
+
+    @Override
+    @SneakyThrows
+    public Object invoke(Object target, Object param) {
+        if (!staticMember && target == null) {
+            return null;
+        }
+        if (invokeFunctions != null && invokeFunctions.singleParameterFunction() != null) {
+            return invokeFunctions.singleParameterFunction().apply(target, param);
+        }
+        return invoke(target, 1, i -> param);
     }
 
     @Override
@@ -123,13 +147,13 @@ public class DefaultMemberInvoker implements MemberInvoker {
             }
         }
         if (staticMember && parameterCount > 0) {
-            return invokeFunction.apply(paramProvider.apply(0), i -> paramProvider.apply(i + 1));
+            return invokeFunctions.generalFunction().apply(paramProvider.apply(0), i -> paramProvider.apply(i + 1));
         }
-        return invokeFunction.apply(target, paramProvider);
+        return invokeFunctions.generalFunction().apply(target, paramProvider);
     }
 
     @SneakyThrows
-    private BiFunction<Object, IntFunction<?>, Object> computeInvokeFunction() {
+    private InvokeFunctions computeInvokeFunctions() {
         if (inNativeImage) {
             return null;
         }
@@ -158,66 +182,74 @@ public class DefaultMemberInvoker implements MemberInvoker {
                 switch (lambdaParameterCount) {
                     case 0 -> {
                         _Function0 delegate = (_Function0) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply();
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(),
+                                                   target -> delegate.apply(), null);
                     }
                     case 1 -> {
                         _Function1 delegate = (_Function1) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(target);
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(target),
+                                                   staticMember ? null : target -> delegate.apply(target),
+                                                   staticMember ? (target, param) -> delegate.apply(param) : null);
                     }
                     case 2 -> {
                         _Function2 delegate = (_Function2) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0));
+                        return new InvokeFunctions(
+                                (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0)),
+                                null,
+                                staticMember ? null : (target, param) -> delegate.apply(target, param));
                     }
                     case 3 -> {
                         _Function3 delegate = (_Function3) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0),
-                                                                         paramProvider.apply(1));
+                        return new InvokeFunctions(
+                                (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0),
+                                                                          paramProvider.apply(1)));
                     }
                     case 4 -> {
                         _Function4 delegate = (_Function4) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0),
-                                                                         paramProvider.apply(1),
-                                                                         paramProvider.apply(2));
+                        return new InvokeFunctions(
+                                (target, paramProvider) -> delegate.apply(target, paramProvider.apply(0),
+                                                                          paramProvider.apply(1),
+                                                                          paramProvider.apply(2)));
                     }
                     case 5 -> {
                         _Function5 delegate = (_Function5) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
-                                target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
-                                paramProvider.apply(3));
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
+                                target, paramProvider.apply(0), paramProvider.apply(1),
+                                paramProvider.apply(2), paramProvider.apply(3)));
                     }
                     case 6 -> {
                         _Function6 delegate = (_Function6) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
                                 target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
-                                paramProvider.apply(3), paramProvider.apply(4));
+                                paramProvider.apply(3), paramProvider.apply(4)));
                     }
                     case 7 -> {
                         _Function7 delegate = (_Function7) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
                                 target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
-                                paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5));
+                                paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5)));
                     }
                     case 8 -> {
                         _Function8 delegate = (_Function8) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
                                 target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                 paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
-                                paramProvider.apply(6));
+                                paramProvider.apply(6)));
                     }
                     case 9 -> {
                         _Function9 delegate = (_Function9) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
                                 target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                 paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
-                                paramProvider.apply(6), paramProvider.apply(7));
+                                paramProvider.apply(6), paramProvider.apply(7)));
                     }
                     case 10 -> {
                         _Function10 delegate = (_Function10) invokeFunction;
-                        return (target, paramProvider) -> delegate.apply(
+                        return new InvokeFunctions((target, paramProvider) -> delegate.apply(
                                 target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                 paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
                                 paramProvider.apply(6), paramProvider.apply(7),
-                                paramProvider.apply(8));
+                                paramProvider.apply(8)));
                     }
                     default -> throw new UnsupportedOperationException(
                             "Methods with more than 9 parameters aren't supported. Falling back on reflection.");
@@ -226,97 +258,115 @@ public class DefaultMemberInvoker implements MemberInvoker {
                 switch (lambdaParameterCount) {
                     case 0 -> {
                         _Consumer0 delegate = (_Consumer0) invokeFunction;
-                        return (target, paramProvider) -> {
+                        GeneralFunction general = (target, paramProvider) -> {
                             delegate.accept();
                             return null;
                         };
+                        return new InvokeFunctions(general, target -> {
+                            delegate.accept();
+                            return null;
+                        }, null);
                     }
                     case 1 -> {
                         _Consumer1 delegate = (_Consumer1) invokeFunction;
-                        return (target, paramProvider) -> {
+                        GeneralFunction general = (target, paramProvider) -> {
                             delegate.accept(target);
                             return null;
                         };
+                        return new InvokeFunctions(general,
+                                                   staticMember ? null : target -> {
+                                                       delegate.accept(target);
+                                                       return null;
+                                                   },
+                                                   staticMember ? (target, param) -> {
+                                                       delegate.accept(param);
+                                                       return null;
+                                                   } : null);
                     }
                     case 2 -> {
                         _Consumer2 delegate = (_Consumer2) invokeFunction;
-                        return (target, paramProvider) -> {
+                        GeneralFunction general = (target, paramProvider) -> {
                             delegate.accept(target, paramProvider.apply(0));
                             return null;
                         };
+                        return new InvokeFunctions(general, null,
+                                                   staticMember ? null : (target, param) -> {
+                                                       delegate.accept(target, param);
+                                                       return null;
+                                                   });
                     }
                     case 3 -> {
                         _Consumer3 delegate = (_Consumer3) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(target, paramProvider.apply(0), paramProvider.apply(1));
                             return null;
-                        };
+                        });
                     }
                     case 4 -> {
                         _Consumer4 delegate = (_Consumer4) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(target, paramProvider.apply(0), paramProvider.apply(1),
                                             paramProvider.apply(2));
                             return null;
-                        };
+                        });
                     }
                     case 5 -> {
                         _Consumer5 delegate = (_Consumer5) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3));
                             return null;
-                        };
+                        });
                     }
                     case 6 -> {
                         _Consumer6 delegate = (_Consumer6) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3), paramProvider.apply(4));
                             return null;
-                        };
+                        });
                     }
                     case 7 -> {
                         _Consumer7 delegate = (_Consumer7) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5));
                             return null;
-                        };
+                        });
                     }
                     case 8 -> {
                         _Consumer8 delegate = (_Consumer8) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
                                     paramProvider.apply(6));
                             return null;
-                        };
+                        });
                     }
                     case 9 -> {
                         _Consumer9 delegate = (_Consumer9) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
                                     paramProvider.apply(6), paramProvider.apply(7));
                             return null;
-                        };
+                        });
                     }
                     case 10 -> {
                         _Consumer10 delegate = (_Consumer10) invokeFunction;
-                        return (target, paramProvider) -> {
+                        return new InvokeFunctions((target, paramProvider) -> {
                             delegate.accept(
                                     target, paramProvider.apply(0), paramProvider.apply(1), paramProvider.apply(2),
                                     paramProvider.apply(3), paramProvider.apply(4), paramProvider.apply(5),
                                     paramProvider.apply(6), paramProvider.apply(7),
                                     paramProvider.apply(8));
                             return null;
-                        };
+                        });
                     }
                     default -> throw new UnsupportedOperationException(
                             "Methods with more than 9 parameters aren't supported. Falling back on reflection.");
@@ -380,6 +430,30 @@ public class DefaultMemberInvoker implements MemberInvoker {
             result[i] = paramSupplier.apply(i);
         }
         return result;
+    }
+
+    private record InvokeFunctions(
+            GeneralFunction generalFunction,
+            NoParameterFunction noParameterFunction,
+            SingleParameterFunction singleParameterFunction) {
+        private InvokeFunctions(GeneralFunction generalFunction) {
+            this(generalFunction, null, null);
+        }
+    }
+
+    @FunctionalInterface
+    private interface GeneralFunction {
+        Object apply(Object target, IntFunction<?> paramProvider);
+    }
+
+    @FunctionalInterface
+    private interface NoParameterFunction {
+        Object apply(Object target);
+    }
+
+    @FunctionalInterface
+    private interface SingleParameterFunction {
+        Object apply(Object target, Object param);
     }
 
     @FunctionalInterface
