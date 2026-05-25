@@ -129,7 +129,8 @@ public class HandlerInspector {
      */
     public static <M> Handler<M> createHandler(Object target, List<ParameterResolver<? super M>> parameterResolvers,
                                                HandlerConfiguration<? super M> config) {
-        return createHandler(m -> target, target.getClass(), parameterResolvers, config);
+        return DefaultHandler.forTarget(
+                target.getClass(), target, inspect(target.getClass(), parameterResolvers, config));
     }
 
     /**
@@ -449,6 +450,23 @@ public class HandlerInspector {
             return preparedInvoker == null ? null : preparedInvoker.apply(target);
         }
 
+        @Override
+        public HandlerMethod<M> bindHandlerMethod(Object target) {
+            if (getClass() != MethodHandlerMatcher.class
+                || !targetCanBeInvoked(target)
+                || validateMethodInvocation
+                || parameterCount != 0 && !onlyPreparedParameterResolvers) {
+                return null;
+            }
+            return new BoundHandlerMethod(target);
+        }
+
+        private boolean targetCanBeInvoked(Object target) {
+            return target == null
+                    ? executable instanceof Constructor || staticMethod
+                    : executable instanceof Method && !staticMethod;
+        }
+
         private Function<Object, HandlerInvoker> prepareInvokerFunction(M m) {
             return getClass() == MethodHandlerMatcher.class
                     ? prepareInvokerOrNull(m) : prepareInvoker(m).orElse(null);
@@ -611,6 +629,66 @@ public class HandlerInspector {
             }
         }
 
+        private class BoundHandlerMethod implements HandlerMethod<M> {
+            private final Object target;
+
+            private BoundHandlerMethod(Object target) {
+                this.target = target;
+            }
+
+            @Override
+            public boolean canHandle(M message) {
+                return messageFilter.test(message, executable, methodAnnotationType, targetClass);
+            }
+
+            @Override
+            public Object invoke(M message, BiFunction<Object, Object, Object> resultCombiner) {
+                if (parameterCount == 0) {
+                    return invoker.invoke(target);
+                }
+                if (parameterCount == 1) {
+                    return invoker.invoke(target, parameterResolverPlans[0].getFirst().preparedResolver()
+                            .apply(message));
+                }
+                return invoker.invoke(target, parameterCount, i -> parameterResolverPlans[i].getFirst()
+                        .preparedResolver().apply(message));
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Executable getMethod() {
+                return executable;
+            }
+
+            @SuppressWarnings("unchecked")
+            @Override
+            public <A extends Annotation> A getMethodAnnotation() {
+                return (A) methodAnnotation;
+            }
+
+            @Override
+            public boolean expectResult() {
+                return hasReturnType;
+            }
+
+            @Override
+            public boolean isPassive() {
+                return passive;
+            }
+
+            @Override
+            public String toString() {
+                return Optional.ofNullable(targetClass).map(c -> {
+                    String simpleName = c.getSimpleName();
+                    return String.format("\"%s\"", simpleName.isEmpty() ? c : simpleName);
+                }).orElse("BoundHandlerMethod");
+            }
+        }
+
         private class UnvalidatedPreparedParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
             private final Object target;
             private final M message;
@@ -733,6 +811,14 @@ public class HandlerInspector {
                 }
             }
             return bestInvoker;
+        }
+
+        @Override
+        public HandlerMethod<M> bindHandlerMethod(Object target) {
+            if (invokeMultipleMethods || methodHandlers.size() != 1) {
+                return null;
+            }
+            return methodHandlers.getFirst().bindHandlerMethod(target);
         }
 
     }

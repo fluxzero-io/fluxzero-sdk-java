@@ -16,7 +16,9 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.common.IdentityProvider;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -74,8 +76,9 @@ public class Invocation {
 
     private static final ThreadLocal<Invocation> current = new ThreadLocal<>();
     String handler;
-    @Getter(lazy = true)
-    String id = IdentityProvider.defaultIdentityProvider.nextTechnicalId();
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    String id;
     @Getter(AccessLevel.NONE)
     @NonFinal
     transient List<BiConsumer<Object, Throwable>> callbacks;
@@ -109,6 +112,44 @@ public class Invocation {
         return performInvocation(getHandlerName(handlerInvoker), callable);
     }
 
+    /**
+     * Wraps the given {@link Callable} in an invocation context for the supplied handler descriptor.
+     *
+     * @param handlerDescriptor the handler that is being invoked
+     * @param callable          the task to run
+     * @return the callable result
+     */
+    public static <V> V performInvocation(HandlerDescriptor handlerDescriptor, Callable<V> callable) {
+        return performInvocation(getHandlerName(handlerDescriptor), callable);
+    }
+
+    /**
+     * Invokes the supplied reusable handler method inside an invocation context without allocating a per-message
+     * {@link Callable} adapter.
+     *
+     * @param handlerMethod the handler method that is being invoked
+     * @param message       the message to handle
+     * @param <M>           the message type
+     * @return the handler result
+     */
+    public static <M> Object performInvocation(HandlerMethod<? super M> handlerMethod, M message) {
+        if (current.get() != null) {
+            return handlerMethod.invoke(message);
+        }
+        Invocation invocation = new Invocation(getHandlerName(handlerMethod));
+        current.set(invocation);
+        try {
+            Object result = handlerMethod.invoke(message);
+            current.set(null);
+            invocation.complete(result, null);
+            return result;
+        } catch (Throwable e) {
+            current.set(null);
+            invocation.complete(null, e);
+            throw e;
+        }
+    }
+
     @SneakyThrows
     private static <V> V performInvocation(String handler, Callable<V> callable) {
         if (current.get() != null) {
@@ -128,13 +169,20 @@ public class Invocation {
         }
     }
 
-    private static String getHandlerName(HandlerInvoker handlerInvoker) {
-        if (handlerInvoker == null) {
+    private static String getHandlerName(HandlerDescriptor handlerDescriptor) {
+        if (handlerDescriptor == null) {
             return null;
         }
-        Class<?> targetClass = handlerInvoker.getTargetClass();
+        Class<?> targetClass = handlerDescriptor.getTargetClass();
         return targetClass == null || HandlerInvoker.SimpleInvoker.class.equals(targetClass)
                 ? null : targetClass.getSimpleName();
+    }
+
+    public String getId() {
+        if (id == null) {
+            id = IdentityProvider.defaultIdentityProvider.nextTechnicalId();
+        }
+        return id;
     }
 
     /**

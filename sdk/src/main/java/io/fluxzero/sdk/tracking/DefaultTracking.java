@@ -21,8 +21,10 @@ import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
@@ -65,6 +67,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -645,6 +648,30 @@ public class DefaultTracking implements Tracking {
 
     protected void tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,
                              ConsumerConfiguration config, boolean reportResult) {
+        HandlerMethod<? super DeserializingMessage> method = getHandlerMethodOrNull(message, handler, config);
+        if (method != null) {
+            Object result;
+            try {
+                result = handle(message, method, handler, config);
+            } catch (Throwable e) {
+                try {
+                    stopTracker(message, handler, e);
+                    return;
+                } finally {
+                    if (reportResult) {
+                        reportResult(e, method, message, config);
+                    }
+                }
+            }
+            try {
+                if (reportResult) {
+                    reportResult(result, method, message, config);
+                }
+            } catch (Throwable e) {
+                stopTracker(message, handler, e);
+            }
+            return;
+        }
         Optional<HandlerInvoker> optionalInvoker = getInvoker(message, handler, config);
         if (optionalInvoker.isEmpty()) {
             return;
@@ -669,6 +696,25 @@ public class DefaultTracking implements Tracking {
             }
         } catch (Throwable e) {
             stopTracker(message, handler, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected HandlerMethod<? super DeserializingMessage> getHandlerMethodOrNull(
+            DeserializingMessage message, Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
+        try {
+            return handler.getHandlerMethodOrNull(message);
+        } catch (Throwable e) {
+            try {
+                Object retryResult = config.getErrorHandler().handleError(
+                        e, format("Failed to check if handler %s is able to handle %s", handler, message),
+                        () -> handler.getHandlerMethodOrNull(message));
+                return retryResult instanceof HandlerMethod<?> ? (HandlerMethod<? super DeserializingMessage>) retryResult
+                        : null;
+            } catch (Throwable e2) {
+                stopTracker(message, handler, e2);
+                return null;
+            }
         }
     }
 
@@ -706,6 +752,21 @@ public class DefaultTracking implements Tracking {
     }
 
     @SuppressWarnings("unchecked")
+    protected Object handle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
+                            Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
+        if (message instanceof ChunkedDeserializingMessage) {
+            Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
+            Tracker tracker = Tracker.current().orElse(null);
+            User user = User.getCurrent();
+            return supplyAsync(
+                    () -> withHandlerContext(message, fluxzero, tracker, user,
+                                             () -> doHandle(message, h, handler, config)),
+                    chunkedMessageHandlerExecutor);
+        }
+        return doHandle(message, h, handler, config);
+    }
+
+    @SuppressWarnings("unchecked")
     protected Object doHandle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                               ConsumerConfiguration config) {
         try {
@@ -713,7 +774,20 @@ public class DefaultTracking implements Tracking {
             return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
                     .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config))) : result;
         } catch (Throwable e) {
-            return processError(e, message, h, handler, config);
+            return processError(e, message, h, handler, config, h::invoke);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Object doHandle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
+                              Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
+        try {
+            Object result = Invocation.performInvocation(h, message);
+            return result instanceof CompletionStage<?> ? ((CompletionStage<Object>) result)
+                    .exceptionally(e -> message.apply(m -> processError(e, message, h, handler, config,
+                                                                         () -> h.invoke(message)))) : result;
+        } catch (Throwable e) {
+            return processError(e, message, h, handler, config, () -> h.invoke(message));
         }
     }
 
@@ -744,12 +818,18 @@ public class DefaultTracking implements Tracking {
 
     protected Object processError(Throwable e, DeserializingMessage message, HandlerInvoker h,
                                   Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
-        return config.getErrorHandler().handleError(
-                unwrapException(e), format("Handler %s failed to handle a %s", handler, message),
-                () -> Invocation.performInvocation(h, h::invoke));
+        return processError(e, message, h, handler, config, h::invoke);
     }
 
-    protected CompletionStage<Void> reportResult(Object result, HandlerInvoker h, DeserializingMessage message,
+    protected Object processError(Throwable e, DeserializingMessage message, HandlerDescriptor h,
+                                  Handler<DeserializingMessage> handler, ConsumerConfiguration config,
+                                  Callable<Object> retry) {
+        return config.getErrorHandler().handleError(
+                unwrapException(e), format("Handler %s failed to handle a %s", handler, message),
+                () -> Invocation.performInvocation(h, retry));
+    }
+
+    protected CompletionStage<Void> reportResult(Object result, HandlerDescriptor h, DeserializingMessage message,
                                                  ConsumerConfiguration config) {
         if (result instanceof CompletionStage<?> s) {
             CompletableFuture<Void> completion = new CompletableFuture<>();
@@ -794,7 +874,7 @@ public class DefaultTracking implements Tracking {
         }
     }
 
-    protected boolean shouldSendResponse(HandlerInvoker invoker, DeserializingMessage request,
+    protected boolean shouldSendResponse(HandlerDescriptor invoker, DeserializingMessage request,
                                          Object result, ConsumerConfiguration config) {
         if (!request.getMessageType().isRequest() || config.passive() || invoker.isPassive()) {
             return false;

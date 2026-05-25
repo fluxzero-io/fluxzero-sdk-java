@@ -95,6 +95,21 @@ public interface Handler<M> {
     }
 
     /**
+     * Returns a reusable {@link HandlerMethod} capable of processing the given message, or {@code null} when
+     * unavailable.
+     *
+     * <p>This is an optional lower-allocation path for handlers whose target and method plan can be reused across
+     * messages. Implementations that cannot expose a stable method should return {@code null} and rely on
+     * {@link #getInvokerOrNull(Object)}.</p>
+     *
+     * @param message the message to be handled
+     * @return a handler method if this handler can handle the message through a reusable method; {@code null} otherwise
+     */
+    default HandlerMethod<M> getHandlerMethodOrNull(M message) {
+        return null;
+    }
+
+    /**
      * Creates a composite handler that executes the current handler and then delegates to the specified next handler if
      * the current handler cannot handle the message or does not provide an invoker.
      *
@@ -119,6 +134,12 @@ public interface Handler<M> {
                 HandlerInvoker result = first.getInvokerOrNull(message);
                 return result == null ? next.getInvokerOrNull(message) : result;
             }
+
+            @Override
+            public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+                HandlerMethod<M> result = first.getHandlerMethodOrNull(message);
+                return result == null ? next.getHandlerMethodOrNull(message) : result;
+            }
         };
     }
 
@@ -138,6 +159,11 @@ public interface Handler<M> {
         @Override
         public Class<?> getTargetClass() {
             return delegate.getTargetClass();
+        }
+
+        @Override
+        public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+            return delegate.getHandlerMethodOrNull(message);
         }
 
         @Override

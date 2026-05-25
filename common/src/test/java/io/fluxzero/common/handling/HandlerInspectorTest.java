@@ -25,9 +25,13 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Executable;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,6 +112,41 @@ class HandlerInspectorTest {
         assertEquals(1, second.preparedTestCount);
     }
 
+    @Test
+    void fixedSingleMethodHandlerExposesReusableHandlerMethod() {
+        Handler<Object> handler = HandlerInspector.createHandler(
+                new SingleMethod(), List.of(new PreparedIdentityResolver()),
+                HandlerConfiguration.<Object>builder()
+                        .methodAnnotation(Handle.class)
+                        .messageFilter((message, executable, annotation, targetClass) -> message instanceof String)
+                        .build());
+
+        HandlerMethod<Object> first = handler.getHandlerMethodOrNull("first");
+        HandlerMethod<Object> second = handler.getHandlerMethodOrNull("second");
+
+        assertNotNull(first);
+        assertSame(first, second);
+        assertEquals("first!", first.invoke("first"));
+        assertEquals("second!", first.invoke("second"));
+        assertNull(handler.getHandlerMethodOrNull(42));
+    }
+
+    @Test
+    void multiMethodHandlerKeepsUsingPerMessageInvokers() {
+        assertNull(subject.getHandlerMethodOrNull(100L));
+        assertEquals(100L, subject.getInvoker(100L).orElseThrow().invoke());
+    }
+
+    @Test
+    void dynamicTargetHandlerDoesNotExposeReusableHandlerMethod() {
+        Handler<Object> handler = HandlerInspector.createHandler(
+                message -> new SingleMethod(), SingleMethod.class, List.of(new PreparedIdentityResolver()),
+                HandlerConfiguration.builder().methodAnnotation(Handle.class).build());
+
+        assertNull(handler.getHandlerMethodOrNull("first"));
+        assertEquals("first!", handler.getInvoker("first").orElseThrow().invoke());
+    }
+
     private static class Foo extends Bar implements SomeInterface {
         @Handle
         @Override
@@ -153,6 +192,27 @@ class HandlerInspectorTest {
         @Handle
         String handle(String value) {
             return value;
+        }
+    }
+
+    private static class SingleMethod {
+        @Handle
+        String handle(String value) {
+            return value + "!";
+        }
+    }
+
+    private static class PreparedIdentityResolver implements ParameterResolver<Object> {
+        @Override
+        public Function<Object, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                java.lang.annotation.Annotation methodAnnotation) {
+            return message -> message;
+        }
+
+        @Override
+        public Function<Object, Object> prepare(java.lang.reflect.Parameter parameter,
+                                                java.lang.annotation.Annotation methodAnnotation) {
+            return message -> message;
         }
     }
 

@@ -81,6 +81,19 @@ public interface HandlerMatcher<T, M> {
     }
 
     /**
+     * Binds this matcher to a stable target instance, if it can expose a reusable method plan.
+     *
+     * <p>Most matcher implementations may return {@code null}. Returning a method is only appropriate when the method
+     * metadata and target are stable for all matching messages.</p>
+     *
+     * @param target the handler object
+     * @return a reusable handler method, or {@code null} when the matcher requires per-message invokers
+     */
+    default HandlerMethod<M> bindHandlerMethod(T target) {
+        return null;
+    }
+
+    /**
      * Combines this {@code HandlerMatcher} with another {@code HandlerMatcher} to form a composite matcher.
      * The resulting matcher is capable of delegating matching responsibilities to both the current
      * matcher and the provided next matcher.

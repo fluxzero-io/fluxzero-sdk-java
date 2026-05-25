@@ -19,8 +19,10 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -132,27 +134,41 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return new Handler<>() {
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
                 if (!message.getMetadata().containsKey(METADATA_KEY)) {
-                    return handler.getInvoker(message);
+                    return handler.getInvokerOrNull(message);
                 }
-                Optional<HandlerInvoker> optionalInvoker = handler.getInvoker(message);
-                if (optionalInvoker.isEmpty()) {
-                    return optionalInvoker;
+                HandlerInvoker invoker = handler.getInvokerOrNull(message);
+                if (invoker == null) {
+                    return null;
                 }
-                HandlerInvoker invoker = optionalInvoker.get();
-                return Optional.of(new DelegatingHandlerInvoker(invoker) {
+                return new DelegatingHandlerInvoker(invoker) {
                     @Override
                     public Object invoke(BiFunction<Object, Object, Object> combiner) {
                         DeserializingMessage handledMessage = restoreProtectedData(message, invoker);
                         if (handledMessage != message) {
-                            HandlerInvoker restoredInvoker = handler.getInvoker(handledMessage)
-                                    .orElseThrow(() -> new UnsupportedOperationException(
-                                            "Restoring protected data changed the payload type in an unsupported way."));
+                            HandlerInvoker restoredInvoker = handler.getInvokerOrNull(handledMessage);
+                            if (restoredInvoker == null) {
+                                throw new UnsupportedOperationException(
+                                        "Restoring protected data changed the payload type in an unsupported way.");
+                            }
                             return handledMessage.apply(m -> restoredInvoker.invoke(combiner));
                         }
                         return invoker.invoke(combiner);
                     }
-                });
+                };
+            }
+
+            @Override
+            public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
+                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                    return handler.getHandlerMethodOrNull(message);
+                }
+                return null;
             }
 
             @Override
@@ -181,7 +197,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     @SuppressWarnings("unchecked")
-    private DeserializingMessage restoreProtectedData(DeserializingMessage m, HandlerInvoker invoker) {
+    private DeserializingMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
         if (!m.getMetadata().containsKey(METADATA_KEY)) {
             return m;
         }

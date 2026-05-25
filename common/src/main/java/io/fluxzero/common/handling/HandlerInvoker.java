@@ -39,7 +39,7 @@ import static io.fluxzero.common.ObjectUtils.asCallable;
  *
  * @see Handler
  */
-public interface HandlerInvoker {
+public interface HandlerInvoker extends HandlerDescriptor {
 
     /**
      * Returns a no-op invoker that performs no action and returns {@code null}.
