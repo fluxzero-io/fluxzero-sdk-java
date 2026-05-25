@@ -153,8 +153,15 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
         if (targetClass == null || method == null) {
             return HandlerErrorPolicy.reportErrors;
         }
-        return policyCache.get(targetClass).computeIfAbsent(method, key -> new HandlerErrorPolicy(
-                getLocalHandlerAnnotation(targetClass, key).isPresent(), !isSelfTracking(targetClass, key)));
+        ConcurrentHashMap<Executable, HandlerErrorPolicy> policies = policyCache.get(targetClass);
+        HandlerErrorPolicy cached = policies.get(method);
+        if (cached != null) {
+            return cached;
+        }
+        HandlerErrorPolicy computed = new HandlerErrorPolicy(
+                getLocalHandlerAnnotation(targetClass, method).isPresent(), !isSelfTracking(targetClass, method));
+        HandlerErrorPolicy existing = policies.putIfAbsent(method, computed);
+        return existing != null ? existing : computed;
     }
 
     protected void reportError(Throwable e, HandlerInvoker invoker, DeserializingMessage cause) {
