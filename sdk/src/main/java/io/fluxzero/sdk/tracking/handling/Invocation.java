@@ -118,11 +118,11 @@ public class Invocation {
         current.set(invocation);
         try {
             V result = callable.call();
-            current.remove();
+            current.set(null);
             invocation.complete(result, null);
             return result;
         } catch (Throwable e) {
-            current.remove();
+            current.set(null);
             invocation.complete(null, e);
             throw e;
         }
