@@ -116,6 +116,44 @@ class DeserializingMessageTest {
     }
 
     @Test
+    void forEachInBatchSetsCurrentMessageAndCompletesBatchOnce() {
+        DeserializingMessage first = message("first");
+        DeserializingMessage second = message("second");
+        List<String> payloads = new ArrayList<>();
+        List<Throwable> completions = new ArrayList<>();
+
+        DeserializingMessage.forEachInBatch(List.of(first, second), message -> {
+            assertSame(message, DeserializingMessage.getCurrent());
+            DeserializingMessage.whenBatchCompletes(completions::add);
+            payloads.add(message.getPayloadAs(String.class));
+            assertEquals(List.of(), completions);
+        });
+
+        assertEquals(List.of("first", "second"), payloads);
+        assertNull(DeserializingMessage.getCurrent());
+        assertEquals(2, completions.size());
+        assertNull(completions.getFirst());
+        assertNull(completions.get(1));
+    }
+
+    @Test
+    void forEachInBatchCompletesBatchWithErrorWhenActionFails() {
+        DeserializingMessage message = message("payload");
+        List<Throwable> completions = new ArrayList<>();
+        IllegalStateException failure = new IllegalStateException("boom");
+
+        IllegalStateException result = assertThrows(IllegalStateException.class, () ->
+                DeserializingMessage.forEachInBatch(List.of(message), current -> {
+                    DeserializingMessage.whenBatchCompletes(completions::add);
+                    throw failure;
+                }));
+
+        assertSame(failure, result);
+        assertNull(DeserializingMessage.getCurrent());
+        assertEquals(List.of(failure), completions);
+    }
+
+    @Test
     void withMetadataSharesMemoizedPayload() {
         JacksonSerializer serializer = new JacksonSerializer();
         SerializedMessage serializedMessage = new SerializedMessage(

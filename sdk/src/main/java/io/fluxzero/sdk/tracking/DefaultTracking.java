@@ -85,7 +85,6 @@ import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
-import static io.fluxzero.sdk.common.serialization.DeserializingMessage.handleBatch;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
@@ -519,18 +518,17 @@ public class DefaultTracking implements Tracking {
             TrackingClient trackingClient = Fluxzero.get().client().forNamespace(config.getNamespace())
                     .getTrackingClient(messageType, topic);
             try {
-                handleBatch(deserializeMessages(serializedMessages, topic, trackingClient, activeChunkedMessages,
-                                                config.getMaxFetchSize()))
-                        .forEach(m -> handlers.forEach(h -> tryHandle(m, h, config, true)));
+                DeserializingMessage.forEachInBatch(deserializeMessageList(
+                        serializedMessages, topic, trackingClient, activeChunkedMessages, config.getMaxFetchSize()),
+                                                     m -> tryHandle(m, handlers, config, true));
             } catch (BatchProcessingException e) {
                 throw e;
             } catch (Throwable e) {
                 config.getErrorHandler().handleError(
                         e, format("Failed to handle batch of consumer %s", config.getName()),
-                        () -> handleBatch(
-                                        deserializeMessages(serializedMessages, topic, trackingClient,
-                                                            activeChunkedMessages, config.getMaxFetchSize()))
-                                .forEach(m -> handlers.forEach(h -> tryHandle(m, h, config, false))));
+                        () -> DeserializingMessage.forEachInBatch(deserializeMessageList(
+                                serializedMessages, topic, trackingClient, activeChunkedMessages,
+                                config.getMaxFetchSize()), m -> tryHandle(m, handlers, config, false)));
             }
         };
     }
@@ -540,6 +538,13 @@ public class DefaultTracking implements Tracking {
                                                                Map<String, ChunkedDeserializingMessage>
                                                                        activeChunkedMessages,
                                                                int recoveryMaxFetchSize) {
+        return deserializeMessageList(
+                serializedMessages, topic, trackingClient, activeChunkedMessages, recoveryMaxFetchSize).stream();
+    }
+
+    protected List<DeserializingMessage> deserializeMessageList(
+            List<SerializedMessage> serializedMessages, String topic, TrackingClient trackingClient,
+            Map<String, ChunkedDeserializingMessage> activeChunkedMessages, int recoveryMaxFetchSize) {
         boolean hasChunkedMessages = false;
         for (SerializedMessage message : serializedMessages) {
             if (message.chunked()) {
@@ -548,7 +553,7 @@ public class DefaultTracking implements Tracking {
             }
         }
         if (!hasChunkedMessages) {
-            return deserializeNonChunkedMessages(serializedMessages, topic).stream();
+            return deserializeNonChunkedMessages(serializedMessages, topic);
         }
         List<DeserializingMessage> result = new ArrayList<>();
         Map<String, List<SerializedMessage>> pendingContinuations = new HashMap<>();
@@ -590,7 +595,7 @@ public class DefaultTracking implements Tracking {
             result.add(chunkedMessage);
         }
         pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
-        return result.stream();
+        return result;
     }
 
     private List<DeserializingMessage> deserializeNonChunkedMessages(List<SerializedMessage> serializedMessages,
@@ -644,6 +649,13 @@ public class DefaultTracking implements Tracking {
                  + "(firstChunk={}, finalChunk={}, chunkIndex={})",
                  messageType, message.getMessageId(), message.getIndex(),
                  message.firstChunk(), message.lastChunk(), message.getMetadata().get(HasMetadata.CHUNK_INDEX));
+    }
+
+    private void tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
+                           ConsumerConfiguration config, boolean reportResult) {
+        for (int i = 0; i < handlers.size(); i++) {
+            tryHandle(message, handlers.get(i), config, reportResult);
+        }
     }
 
     protected void tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,

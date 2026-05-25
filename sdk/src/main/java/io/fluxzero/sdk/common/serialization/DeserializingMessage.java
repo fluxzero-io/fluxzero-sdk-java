@@ -413,6 +413,34 @@ public class DeserializingMessage implements HasMessage {
         return StreamSupport.stream(new MessageSpliterator(batch.spliterator()), false);
     }
 
+    /**
+     * Processes messages while exposing each message through {@link #getCurrent()} and completing batch-scoped
+     * callbacks after the last message. This is the lower-allocation counterpart to {@link #handleBatch(Stream)} for
+     * callers that already have an iterable batch.
+     */
+    @SneakyThrows
+    public static void forEachInBatch(Iterable<DeserializingMessage> batch,
+                                      Consumer<? super DeserializingMessage> action) {
+        DeserializingMessage previous = getCurrent();
+        boolean completeOnSuccess = previous == null;
+        try {
+            for (DeserializingMessage message : batch) {
+                try {
+                    current.set(message);
+                    action.accept(message);
+                } finally {
+                    current.set(previous);
+                }
+            }
+        } catch (Throwable e) {
+            completeBatch(e);
+            throw e;
+        }
+        if (completeOnSuccess) {
+            completeBatch(null);
+        }
+    }
+
     @SneakyThrows
     public static void whenBatchCompletes(ThrowingConsumer<Throwable> executable) {
         if (current.get() == null) {

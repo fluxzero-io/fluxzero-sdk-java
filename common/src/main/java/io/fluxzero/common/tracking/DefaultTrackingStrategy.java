@@ -223,9 +223,18 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected List<SerializedMessage> filter(List<SerializedMessage> messages, int[] segmentRange,
                                              Position position, Tracker tracker) {
-        return messages.stream().filter(
-                m -> tracker.canHandle(ensureMessageSegment(m), segmentRange)
-                     && (tracker.ignoreSegment() || position.isNewMessage(m))).toList();
+        List<SerializedMessage> result = null;
+        for (int i = 0; i < messages.size(); i++) {
+            SerializedMessage message = ensureMessageSegment(messages.get(i));
+            if (tracker.canHandle(message, segmentRange)
+                && (tracker.ignoreSegment() || position.isNewMessage(message))) {
+                if (result == null) {
+                    result = new ArrayList<>(messages.size() - i);
+                }
+                result.add(message);
+            }
+        }
+        return result == null ? emptyList() : result;
     }
 
     protected SerializedMessage ensureMessageSegment(SerializedMessage message) {

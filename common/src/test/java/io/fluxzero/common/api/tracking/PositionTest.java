@@ -67,6 +67,8 @@ class PositionTest {
         Position position = parse("[[0,64],100,[64,128],200]");
         assertTrue(position.isNewIndex(32, 101L));
         assertFalse(position.isNewIndex(32, 100L));
+        assertTrue(position.isNewIndex(32, null));
+        assertTrue(position.isNewIndex(128, 1L));
         assertTrue(position.isNewMessage(serializedMessage(32, 101L)));
         assertFalse(position.isNewMessage(serializedMessage(33, 100L)));
     }

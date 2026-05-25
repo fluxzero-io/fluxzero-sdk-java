@@ -96,7 +96,8 @@ public class Position {
      * Returns the last known index for a specific segment.
      */
     public Optional<Long> getIndex(int segment) {
-        for (SegmentRange range : segmentRanges) {
+        for (int i = 0; i < segmentRanges.size(); i++) {
+            SegmentRange range = segmentRanges.get(i);
             if (range.segmentStart() > segment) {
                 break;
             }
@@ -112,7 +113,8 @@ public class Position {
      */
     public boolean isNew(int[] segment) {
         int start = segment[0], end = segment[1];
-        for (SegmentRange range : segmentRanges) {
+        for (int i = 0; i < segmentRanges.size(); i++) {
+            SegmentRange range = segmentRanges.get(i);
             if (range.segmentStart() >= end) {
                 break;
             }
@@ -129,7 +131,8 @@ public class Position {
     public Optional<Long> lowestIndexForSegment(int[] segment) {
         int start = segment[0], end = segment[1];
         Long lowest = null;
-        for (SegmentRange range : segmentRanges) {
+        for (int i = 0; i < segmentRanges.size(); i++) {
+            SegmentRange range = segmentRanges.get(i);
             if (range.segmentStart() >= end) {
                 break;
             }
@@ -154,8 +157,19 @@ public class Position {
      * Indicates whether the provided message index is newer than what is currently tracked for a segment.
      */
     public boolean isNewIndex(int segment, Long messageIndex) {
-        Optional<Long> lastIndex = getIndex(segment);
-        return lastIndex.isEmpty() || messageIndex == null || lastIndex.get() < messageIndex;
+        if (messageIndex == null) {
+            return true;
+        }
+        for (int i = 0; i < segmentRanges.size(); i++) {
+            SegmentRange range = segmentRanges.get(i);
+            if (range.segmentStart() > segment) {
+                break;
+            }
+            if (segment < range.segmentEnd()) {
+                return range.index() < messageIndex;
+            }
+        }
+        return true;
     }
 
     /**
