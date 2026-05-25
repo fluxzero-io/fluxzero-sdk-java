@@ -20,6 +20,14 @@
     "annotations" : [ ],
     "documentation" : " A marker used to denote specific log entries that should be ignored or treated differently, typically to bypass\n error handling in logging frameworks.\n <p>\n This marker is created using the {@code MarkerFactory} with the identifier \"ignoreError\". It can be useful in\n scenarios where certain log messages need to be flagged for exclusion from error-reporting workflows.\n",
     "constantValue" : null
+  }, {
+    "name" : "localHandlerAnnotationCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils.localHandlerAnnotationCache",
+    "type" : "java.lang.ClassValue<io.fluxzero.sdk.common.ClientUtils.LocalHandlerAnnotationCache>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ClientUtils",
@@ -33,6 +41,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "computeLocalHandlerAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#computeLocalHandlerAnnotation",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computeOrder",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#computeOrder",
     "returnType" : "int",
@@ -576,5 +605,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "LocalHandlerAnnotationCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

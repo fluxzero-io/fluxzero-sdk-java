@@ -7,7 +7,7 @@
   "annotations" : [ {
     "annotationType" : "lombok.ToString",
     "values" : {
-      "exclude" : "\"objectFunction\""
+      "exclude" : "\"payload\",\"objectFunction\""
     }
   } ],
   "documentation" : " A wrapper around a {@link SerializedObject} that supports lazy deserialization of its payload.\n <p>\n This class defers the deserialization of the underlying object until it is first accessed via {@link #getPayload()}\n or {@link #getPayloadAs(Type)}. The result is then memoized to avoid repeated deserialization.\n\n <p>\n This is typically used for messages that may not require full deserialization (e.g. for routing or filtering). It is\n extended by {@link DeserializingMessage} which adds additional context and metadata.\n\n @param <T> The raw data type of the serialized object (e.g., String or byte[])\n @param <S> The specific {@link SerializedObject} type used to represent the serialized payload\n",
@@ -18,6 +18,14 @@
     "name" : "objectFunction",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.objectFunction",
     "type" : "io.fluxzero.common.MemoizingFunction<java.lang.reflect.Type,java.lang.Object>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.payload",
+    "type" : "java.util.function.Function<java.lang.reflect.Type,java.lang.Object>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -158,5 +166,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "PayloadMemoizingFunction",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject$PayloadMemoizingFunction",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

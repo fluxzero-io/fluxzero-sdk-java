@@ -230,6 +230,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter$HandleAnnotation",
     "kind" : "class"
   }, {
+    "file" : "PayloadFilter.PreparedPayloadFilter.json",
+    "name" : "PayloadFilter.PreparedPayloadFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter$PreparedPayloadFilter",
+    "kind" : "record"
+  }, {
     "file" : "PayloadParameterResolver.json",
     "name" : "PayloadParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadParameterResolver",
@@ -259,6 +264,11 @@
     "name" : "SegmentFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter",
     "kind" : "class"
+  }, {
+    "file" : "SegmentFilter.PreparedSegmentFilter.json",
+    "name" : "SegmentFilter.PreparedSegmentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter$PreparedSegmentFilter",
+    "kind" : "record"
   }, {
     "file" : "Stateful.json",
     "name" : "Stateful",

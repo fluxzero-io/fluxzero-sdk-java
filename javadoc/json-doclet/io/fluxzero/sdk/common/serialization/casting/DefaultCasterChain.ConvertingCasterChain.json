@@ -1,0 +1,142 @@
+{
+  "name" : "ConvertingCasterChain",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain",
+  "packageName" : "io.fluxzero.sdk.common.serialization.casting",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "BEFORE", "INTERNAL" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.serialization.casting.CasterChain<io.fluxzero.common.api.SerializedObject<BEFORE>,io.fluxzero.common.api.SerializedObject<?>>" ],
+  "fields" : [ {
+    "name" : "converter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain.converter",
+    "type" : "io.fluxzero.common.serialization.Converter<BEFORE,INTERNAL>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain.delegate",
+    "type" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain<INTERNAL,io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain.ConvertingSerializedObject<BEFORE,INTERNAL>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConvertingCasterChain",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#ConvertingCasterChain",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain<INTERNAL,io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain.ConvertingSerializedObject<BEFORE,INTERNAL>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "converter",
+      "type" : "io.fluxzero.common.serialization.Converter<BEFORE,INTERNAL>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#cast",
+    "returnType" : "java.util.stream.Stream<? extends io.fluxzero.common.api.SerializedObject<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputStream",
+      "type" : "java.util.stream.Stream<? extends io.fluxzero.common.api.SerializedObject<BEFORE>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "castFirstOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#castFirstOrNull",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "convertFormat",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#convertFormat",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerCasterCandidates",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#registerCasterCandidates",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidates",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

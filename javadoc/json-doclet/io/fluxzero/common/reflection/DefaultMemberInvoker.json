@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.reflection.MemberInvoker" ],
   "fields" : [ {
+    "name" : "NO_PARAMETERS",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.NO_PARAMETERS",
+    "type" : "java.util.function.IntFunction<java.lang.Object>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "fallbackFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.fallbackFunction",
     "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.FallbackFunction",
@@ -29,9 +37,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "invokeFunction",
-    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.invokeFunction",
-    "type" : "java.util.function.BiFunction<java.lang.Object,java.util.function.IntFunction<?>,java.lang.Object>",
+    "name" : "invokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.invokeFunctions",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.InvokeFunctions",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -179,9 +187,9 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "computeInvokeFunction",
-    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#computeInvokeFunction",
-    "returnType" : "java.util.function.BiFunction<java.lang.Object,java.util.function.IntFunction<?>,java.lang.Object>",
+    "name" : "computeInvokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#computeInvokeFunctions",
+    "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.InvokeFunctions",
     "modifiers" : [ "private" ],
     "annotations" : [ {
       "annotationType" : "lombok.SneakyThrows",
@@ -258,6 +266,28 @@
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
       "name" : "parameterCount",
       "type" : "int",
@@ -272,12 +302,72 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "param",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
     "name" : "FallbackFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FallbackFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "GeneralFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$GeneralFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "InvokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "NoParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$NoParameterFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "SingleParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$SingleParameterFunction",
     "kind" : "interface",
     "modifiers" : [ "abstract", "private", "static" ],
     "annotations" : [ {

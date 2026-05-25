@@ -46,32 +46,6 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "getOrCompute",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata#getOrCompute",
-    "returnType" : "V",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "K", "V" ],
-    "parameters" : [ {
-      "name" : "cache",
-      "type" : "java.util.concurrent.ConcurrentHashMap<K,V>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "key",
-      "type" : "K",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "loader",
-      "type" : "java.util.function.Function<K,V>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "of",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver$TriggerMetadata#of",
     "returnType" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver.TriggerMetadata",

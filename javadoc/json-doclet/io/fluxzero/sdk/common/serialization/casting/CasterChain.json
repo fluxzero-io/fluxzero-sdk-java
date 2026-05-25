@@ -12,6 +12,27 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "castFirstOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#castFirstOrNull",
+    "returnType" : "O",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "I",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Casts a single input and returns the first resulting output, or {@code null} if the input is dropped.\n\n <p>This is equivalent to {@code cast(Stream.of(input), rev).findAny().orElse(null)}, but implementations may\n optimize the common no-caster path without constructing a stream pipeline.\n\n @param input the input value\n @param rev   the target revision number (nullable)\n @return the first casted result, or {@code null} when no result is produced\n"
+  }, {
     "name" : "intercept",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#intercept",
     "returnType" : "io.fluxzero.sdk.common.serialization.casting.CasterChain<BEFORE,AFTER>",

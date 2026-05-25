@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.common",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " A default implementation of the {@link MemoizingFunction} interface that provides caching functionality for computed\n function results. The results are cached by key, and can be optionally configured with a time-based expiration\n policy.\n <p>\n This class uses a {@link ConcurrentHashMap} internally for thread-safe storage of cached entries.\n\n @param <K> the type of input keys\n @param <V> the type of values produced by applying the delegate function\n",
   "typeParameters" : [ "K", "V" ],
   "superClass" : "java.lang.Object",
@@ -40,7 +37,7 @@
     "name" : "map",
     "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction.map",
     "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,io.fluxzero.common.DefaultMemoizingFunction.Entry>",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -60,8 +57,63 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "map",
+      "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,io.fluxzero.common.DefaultMemoizingFunction.Entry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "delegate",
       "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultMemoizingFunction",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#DefaultMemoizingFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultMemoizingFunction",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#DefaultMemoizingFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -179,6 +231,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingFunction#map",
+    "returnType" : "java.util.concurrent.ConcurrentHashMap<java.lang.Object,io.fluxzero.common.DefaultMemoizingFunction.Entry>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

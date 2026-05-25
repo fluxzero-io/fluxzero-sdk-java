@@ -73,6 +73,27 @@
     "varArgs" : false,
     "documentation" : " Returns {@code true} if this resolver might apply to the given method. Implementations should perform only\n inexpensive checks and never throw.\n\n @param method      the handler method or constructor\n @param targetClass the declaring or target class\n @return {@code true} if this resolver could apply, {@code false} otherwise\n"
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#prepare",
+    "returnType" : "java.util.function.Function<M,java.lang.Object>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares a resolver function when this resolver can determine compatibility from the parameter and method\n annotation alone.\n <p>\n The default returns {@code null}, which keeps resolution message-dependent. Implementations should override this\n only when {@link #matches(Parameter, Annotation, Object)} would always be {@code true} for the supplied parameter,\n regardless of the message instance. Dynamic resolvers such as payload, trigger, or entity resolvers should keep\n the default behavior.\n\n @param parameter        the parameter to resolve\n @param methodAnnotation the annotation present on the handler method\n @return a prepared resolver, or {@code null} when resolution must remain message-dependent\n"
+  }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.common.handling.ParameterResolver#resolve",
     "returnType" : "java.util.function.Function<M,java.lang.Object>",

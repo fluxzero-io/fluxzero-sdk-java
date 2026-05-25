@@ -319,6 +319,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "completeBatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#completeBatch",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computeContextIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeContextIfAbsent",
     "returnType" : "T",
@@ -393,6 +409,54 @@
     }, {
       "name" : "function",
       "type" : "java.util.function.Function<? super K,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forEachInBatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#forEachInBatch",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "java.lang.Iterable<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "action",
+      "type" : "java.util.function.Consumer<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Processes messages while exposing each message through {@link #getCurrent()} and completing batch-scoped\n callbacks after the last message. This is the lower-allocation counterpart to {@link #handleBatch(Stream)} for\n callers that already have an iterable batch.\n"
+  }, {
+    "name" : "forEachListInBatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#forEachListInBatch",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "action",
+      "type" : "java.util.function.Consumer<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

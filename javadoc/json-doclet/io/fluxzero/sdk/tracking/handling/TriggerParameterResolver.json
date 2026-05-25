@@ -302,6 +302,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#prepare",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<? super io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.TriggerParameterResolver#resolve",
     "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.HasMessage,java.lang.Object>",

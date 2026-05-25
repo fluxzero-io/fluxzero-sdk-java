@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.tracking.HasMessageStore", "io.fluxzero.sdk.publishing.client.GatewayClient", "io.fluxzero.sdk.tracking.client.TrackingClient" ],
   "fields" : [ {
+    "name" : "LOCAL_CLIENT_ID",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.LOCAL_CLIENT_ID",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "messageLogMaintenance",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.messageLogMaintenance",
     "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",

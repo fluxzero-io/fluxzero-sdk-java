@@ -15,6 +15,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils",
     "kind" : "class"
   }, {
+    "file" : "ClientUtils.LocalHandlerAnnotationCache.json",
+    "name" : "ClientUtils.LocalHandlerAnnotationCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache",
+    "kind" : "class"
+  }, {
     "file" : "Entry.json",
     "name" : "Entry",
     "qualifiedName" : "io.fluxzero.sdk.common.Entry",

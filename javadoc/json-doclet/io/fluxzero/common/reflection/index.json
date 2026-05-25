@@ -15,6 +15,26 @@
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FallbackFunction",
     "kind" : "interface"
   }, {
+    "file" : "DefaultMemberInvoker.GeneralFunction.json",
+    "name" : "DefaultMemberInvoker.GeneralFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$GeneralFunction",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker.InvokeFunctions.json",
+    "name" : "DefaultMemberInvoker.InvokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultMemberInvoker.NoParameterFunction.json",
+    "name" : "DefaultMemberInvoker.NoParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$NoParameterFunction",
+    "kind" : "interface"
+  }, {
+    "file" : "DefaultMemberInvoker.SingleParameterFunction.json",
+    "name" : "DefaultMemberInvoker.SingleParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$SingleParameterFunction",
+    "kind" : "interface"
+  }, {
     "file" : "DefaultMemberInvoker._Consumer0.json",
     "name" : "DefaultMemberInvoker._Consumer0",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$_Consumer0",

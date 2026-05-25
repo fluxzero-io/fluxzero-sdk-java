@@ -8,7 +8,7 @@
   "documentation" : " Represents an invocable handler method.\n <p>\n A {@code HandlerInvoker} is typically resolved by a {@link Handler} for a specific message, and is responsible for\n invoking the actual handler method, including any surrounding interceptors or decorators.\n </p>\n\n @see Handler\n",
   "typeParameters" : [ ],
   "superClass" : null,
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerDescriptor" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

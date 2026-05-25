@@ -41,6 +41,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "bindHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#bindHandlerMethod",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#canHandle",
     "returnType" : "boolean",
@@ -63,6 +82,30 @@
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvokerOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$ObjectHandlerMatcher#getInvokerOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",

@@ -12,9 +12,33 @@
   "typeParameters" : [ "M" ],
   "superClass" : null,
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "ALLOW_ALL",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter.ALLOW_ALL",
+    "type" : "io.fluxzero.common.handling.MessageFilter<java.lang.Object>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "allowAll",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#allowAll",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "and",
     "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#and",
     "returnType" : "io.fluxzero.common.handling.MessageFilter<M>",
@@ -54,6 +78,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Provides the least specific class type that is allowed to match this filter for a given method and annotation.\n <p>\n This can be used to restrict or optimize handler matching, especially when working with inheritance or interface\n hierarchies.\n\n @param executable        the candidate handler method\n @param handlerAnnotation the annotation present on the handler method\n @return an optional type indicating the base class that messages must extend or implement\n"
+  }, {
+    "name" : "isAlwaysTrue",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#isAlwaysTrue",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this filter accepts every message without inspecting runtime state.\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#prepare",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<? super M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a filter prepared for the supplied handler method.\n <p>\n Implementations may use this hook to precompute annotation or reflection metadata once when a handler is\n constructed, instead of repeating that work for every message.\n"
   }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#test",

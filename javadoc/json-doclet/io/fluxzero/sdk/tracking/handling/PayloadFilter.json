@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "ALLOW_ALL",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter.ALLOW_ALL",
+    "type" : "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "PayloadFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#PayloadFilter",
@@ -22,6 +30,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "allowed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#allowed",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "allowedClasses",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getLeastSpecificAllowedClass",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#getLeastSpecificAllowedClass",
     "returnType" : "java.util.Optional<java.lang.Class<?>>",
@@ -39,6 +68,56 @@
     }, {
       "name" : "handlerAnnotation",
       "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lookupHandleAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#lookupHandleAnnotation",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.PayloadFilter.HandleAnnotation",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter#prepare",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<? super io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -91,5 +170,11 @@
       "annotationType" : "lombok.Value",
       "values" : {}
     } ]
+  }, {
+    "name" : "PreparedPayloadFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.PayloadFilter$PreparedPayloadFilter",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   } ]
 }

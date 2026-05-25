@@ -117,6 +117,58 @@
     "varArgs" : false,
     "documentation" : " Upcasts and deserializes a stream of serialized objects. Each result in the output stream contains both a\n provider for the deserialized object and the serialized object after upcasting that is used as the source of the\n deserialized object.\n <p>\n Deserialization is performed lazily. This means that actual conversion for a given result in the output stream\n only happens if {@link DeserializingObject#getPayload()} is invoked on the result. This has the advantage that a\n caller can inspect what type will be returned via {@link DeserializingObject#getSerializedObject()} before\n deciding to go through with the deserialization.\n <p>\n You can specify whether deserialization of a result in the output stream should fail with a\n {@link DeserializationException} if a type is unknown (not a class). It is up to the implementation to determine\n what should happen if a type is unknown but the {@code failOnUnknownType} flag is false.\n\n @param dataStream          data input stream to deserialize\n @param unknownTypeStrategy value that determines what to do when encountering unknown types\n @param <I>                 the type of the serialized object\n @return a stream containing deserialization results\n"
   }, {
+    "name" : "deserializeFirstMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#deserializeFirstMessage",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes one {@link SerializedMessage} into the first resulting {@link DeserializingMessage}.\n\n <p>This preserves the same semantics as {@code deserializeMessages(Stream.of(message), ...).findAny()}:\n upcasters that drop a message return {@link Optional#empty()}, and upcasters that split a message contribute only\n their first result.\n\n @param message     the serialized message\n @param messageType the type of message (COMMAND, EVENT, etc.)\n @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @return the first deserialized message, if any\n"
+  }, {
+    "name" : "deserializeFirstMessageOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#deserializeFirstMessageOrNull",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes one {@link SerializedMessage} into the first resulting {@link DeserializingMessage}, or\n {@code null} if no result remains.\n\n <p>This preserves the same semantics as {@code deserializeMessages(Stream.of(message), ...).findAny()}:\n upcasters that drop a message return {@code null}, and upcasters that split a message contribute only\n their first result.\n\n @param message     the serialized message\n @param messageType the type of message (COMMAND, EVENT, etc.)\n @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @return the first deserialized message, or {@code null}\n"
+  }, {
     "name" : "deserializeMessage",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#deserializeMessage",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",

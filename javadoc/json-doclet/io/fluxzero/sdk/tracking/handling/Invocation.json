@@ -17,7 +17,15 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.callbacks",
     "type" : "java.util.List<java.util.function.BiConsumer<java.lang.Object,java.lang.Throwable>>",
     "modifiers" : [ "transient" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -44,8 +52,11 @@
     "annotations" : [ {
       "annotationType" : "lombok.Getter",
       "values" : {
-        "lazy" : "true"
+        "value" : "NONE"
       }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -53,15 +64,41 @@
   "constructors" : [ {
     "name" : "Invocation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#Invocation",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "complete",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#complete",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getCurrent",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getCurrent",
     "returnType" : "io.fluxzero.sdk.tracking.handling.Invocation",
@@ -80,14 +117,46 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "handlerInvoker",
-      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "name" : "handlerDescriptor",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getId",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#getId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "performInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "handlerDescriptor",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callable",
+      "type" : "java.util.concurrent.Callable<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Wraps the given {@link Callable} in an invocation context for the supplied handler descriptor.\n\n @param handlerDescriptor the handler that is being invoked\n @param callable          the task to run\n @return the callable result\n"
   }, {
     "name" : "performInvocation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
@@ -109,6 +178,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Wraps the given {@link Callable} in an invocation context for the supplied handler.\n\n @param handlerInvoker the handler that is being invoked\n @param callable       the task to run\n @return the callable result\n"
+  }, {
+    "name" : "performInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "handlerMethod",
+      "type" : "io.fluxzero.common.handling.HandlerMethod<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes the supplied reusable handler method inside an invocation context without allocating a per-message\n {@link Callable} adapter.\n\n @param handlerMethod the handler method that is being invoked\n @param message       the message to handle\n @param <M>           the message type\n @return the handler result\n"
   }, {
     "name" : "performInvocation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",

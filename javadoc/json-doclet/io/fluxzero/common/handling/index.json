@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration",
     "kind" : "class"
   }, {
+    "file" : "HandlerDescriptor.json",
+    "name" : "HandlerDescriptor",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor",
+    "kind" : "interface"
+  }, {
     "file" : "HandlerFilter.json",
     "name" : "HandlerFilter",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter",
@@ -40,15 +45,40 @@
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher",
     "kind" : "class"
   }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.BoundHandlerMethod.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.BoundHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$BoundHandlerMethod",
+    "kind" : "class"
+  }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.MethodHandlerInvoker.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.MethodHandlerInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$MethodHandlerInvoker",
     "kind" : "class"
   }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.ParameterResolverPlan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$ParameterResolverPlan",
+    "kind" : "record"
+  }, {
     "file" : "HandlerInspector.MethodHandlerMatcher.Specificity.json",
     "name" : "HandlerInspector.MethodHandlerMatcher.Specificity",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$Specificity",
     "kind" : "record"
+  }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedDynamicParameterInvoker.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedDynamicParameterInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$UnvalidatedDynamicParameterInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedPreparedParameterInvoker.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedPreparedParameterInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$UnvalidatedPreparedParameterInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedSingleDynamicParameterInvoker.json",
+    "name" : "HandlerInspector.MethodHandlerMatcher.UnvalidatedSingleDynamicParameterInvoker",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$UnvalidatedSingleDynamicParameterInvoker",
+    "kind" : "class"
   }, {
     "file" : "HandlerInspector.ObjectHandlerMatcher.json",
     "name" : "HandlerInspector.ObjectHandlerMatcher",
@@ -74,6 +104,16 @@
     "name" : "HandlerMatcher",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher",
     "kind" : "interface"
+  }, {
+    "file" : "HandlerMethod.json",
+    "name" : "HandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod",
+    "kind" : "interface"
+  }, {
+    "file" : "HandlerMethod.DelegatingHandlerMethod.json",
+    "name" : "HandlerMethod.DelegatingHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod$DelegatingHandlerMethod",
+    "kind" : "class"
   }, {
     "file" : "MessageFilter.json",
     "name" : "MessageFilter",

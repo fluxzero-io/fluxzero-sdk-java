@@ -60,6 +60,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject",
     "kind" : "class"
   }, {
+    "file" : "DeserializingObject.PayloadMemoizingFunction.json",
+    "name" : "DeserializingObject.PayloadMemoizingFunction",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject$PayloadMemoizingFunction",
+    "kind" : "class"
+  }, {
     "file" : "FilterContent.json",
     "name" : "FilterContent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.FilterContent",

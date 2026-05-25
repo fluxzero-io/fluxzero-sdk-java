@@ -33,6 +33,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "getHandlerMethodOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler#getHandlerMethodOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getTargetClass",
     "qualifiedName" : "io.fluxzero.common.handling.Handler$DelegatingHandler#getTargetClass",
     "returnType" : "java.lang.Class<?>",

@@ -189,6 +189,100 @@
     "varArgs" : false,
     "documentation" : " Deserializes a stream of {@link SerializedObject} values into deserialized objects. Applies upcasters, format\n detection, and lazy deserialization as needed.\n"
   }, {
+    "name" : "deserializeFirstMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserializeFirstMessage",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deserializeFirstMessageOrNull",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserializeFirstMessageOrNull",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deserializeFirstObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserializeFirstObject",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingObject<byte[],?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unknownTypeStrategy",
+      "type" : "io.fluxzero.sdk.common.serialization.UnknownTypeStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeOtherFormat",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserializeOtherFormat",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingObject<byte[],?>>",

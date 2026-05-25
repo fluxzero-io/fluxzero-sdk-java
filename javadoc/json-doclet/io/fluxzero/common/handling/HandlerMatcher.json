@@ -12,6 +12,22 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "bindHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#bindHandlerMethod",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Binds this matcher to a stable target instance, if it can expose a reusable method plan.\n\n <p>Most matcher implementations may return {@code null}. Returning a method is only appropriate when the method\n metadata and target are stable for all matching messages.</p>\n\n @param target the handler object\n @return a reusable handler method, or {@code null} when the matcher requires per-message invokers\n"
+  }, {
     "name" : "canHandle",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#canHandle",
     "returnType" : "boolean",
@@ -48,6 +64,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Attempts to resolve a {@link HandlerInvoker} for the given target instance and message.\n\n @param target  the handler object\n @param message the message to be handled\n @return an optional invoker if the message is supported by the target; empty otherwise\n"
+  }, {
+    "name" : "getInvokerOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#getInvokerOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to resolve a {@link HandlerInvoker} for the given target instance and message.\n\n <p>This is a lower-allocation counterpart to {@link #getInvoker(Object, Object)} for internal hot paths.</p>\n\n @param target  the handler object\n @param message the message to be handled\n @return an invoker if the message is supported by the target; {@code null} otherwise\n"
   }, {
     "name" : "matchingMethods",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMatcher#matchingMethods",

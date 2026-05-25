@@ -12,6 +12,22 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "getHandlerMethodOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler#getHandlerMethodOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a reusable {@link HandlerMethod} capable of processing the given message, or {@code null} when\n unavailable.\n\n <p>This is an optional lower-allocation path for handlers whose target and method plan can be reused across\n messages. Implementations that cannot expose a stable method should return {@code null} and rely on\n {@link #getInvokerOrNull(Object)}.</p>\n\n @param message the message to be handled\n @return a handler method if this handler can handle the message through a reusable method; {@code null} otherwise\n"
+  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.Handler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -27,6 +43,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a {@link HandlerInvoker} capable of processing the given message, if available.\n\n @param message the message to be handled\n @return an optional {@code HandlerInvoker} if this handler can handle the message; otherwise\n {@code Optional.empty()}\n"
+  }, {
+    "name" : "getInvokerOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.Handler#getInvokerOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a {@link HandlerInvoker} capable of processing the given message, or {@code null} when unavailable.\n\n <p>This is a lower-allocation counterpart to {@link #getInvoker(Object)} for internal hot paths. Implementations\n that can resolve an invoker without creating an {@link Optional} should override this method.</p>\n\n @param message the message to be handled\n @return an invoker if this handler can handle the message; {@code null} otherwise\n"
   }, {
     "name" : "getTargetClass",
     "qualifiedName" : "io.fluxzero.common.handling.Handler#getTargetClass",

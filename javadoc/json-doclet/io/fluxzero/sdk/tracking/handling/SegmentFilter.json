@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "ALLOW_ALL",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter.ALLOW_ALL",
+    "type" : "io.fluxzero.common.handling.MessageFilter<io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "SegmentFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter#SegmentFilter",
@@ -22,6 +30,35 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter#prepare",
+    "returnType" : "io.fluxzero.common.handling.MessageFilter<? super io.fluxzero.sdk.common.HasMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerAnnotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "test",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter#test",
     "returnType" : "boolean",
@@ -58,5 +95,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "PreparedSegmentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.SegmentFilter$PreparedSegmentFilter",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
@@ -19,6 +16,14 @@
     "name" : "handlerMatcher",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.handlerMatcher",
     "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler.handlerMethod",
+    "type" : "io.fluxzero.common.handling.HandlerMethod<M>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -46,15 +51,124 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetSupplier",
+      "type" : "java.util.function.Function<M,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultHandler",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#DefaultHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetSupplier",
+      "type" : "java.util.function.Function<M,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMethod",
+      "type" : "io.fluxzero.common.handling.HandlerMethod<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forTarget",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#forTarget",
+    "returnType" : "io.fluxzero.common.handling.DefaultHandler<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerMatcher",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getHandlerMethodOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getHandlerMethodOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethod<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvokerOrNull",
+    "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getInvokerOrNull",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",

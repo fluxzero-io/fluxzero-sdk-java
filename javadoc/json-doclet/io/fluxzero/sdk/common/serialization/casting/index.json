@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain",
     "kind" : "class"
   }, {
+    "file" : "DefaultCasterChain.ConvertingCasterChain.json",
+    "name" : "DefaultCasterChain.ConvertingCasterChain",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain",
+    "kind" : "class"
+  }, {
     "file" : "DefaultCasterChain.ConvertingSerializedObject.json",
     "name" : "DefaultCasterChain.ConvertingSerializedObject",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingSerializedObject",

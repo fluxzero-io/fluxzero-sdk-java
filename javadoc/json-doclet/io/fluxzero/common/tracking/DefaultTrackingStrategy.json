@@ -87,7 +87,7 @@
   }, {
     "name" : "waitingTrackers",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.waitingTrackers",
-    "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.DefaultTrackingStrategy.WaitingTracker>",
+    "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.DefaultTrackingStrategy.WaitingTracker>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -461,6 +461,22 @@
     "parameters" : [ {
       "name" : "delay",
       "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeWaitingTracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#removeWaitingTracker",
+    "returnType" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.WaitingTracker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

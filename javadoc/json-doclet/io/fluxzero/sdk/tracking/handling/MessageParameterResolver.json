@@ -8,8 +8,32 @@
   "documentation" : " Resolves handler method parameters of type {@link DeserializingMessage}.\n <p>\n This allows handler methods to access the deserialization context, including message metadata, payload, and raw\n serialized content.\n <p>\n Useful when advanced information about the message is needed, such as the Fluxzero-assigned message index.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
-  "fields" : [ ],
+  "interfaces" : [ "io.fluxzero.common.handling.PreparedParameterResolver<java.lang.Object>" ],
+  "fields" : [ {
+    "name" : "DESERIALIZING_MESSAGE_RESOLVER",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver.DESERIALIZING_MESSAGE_RESOLVER",
+    "type" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "HAS_MESSAGE_RESOLVER",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver.HAS_MESSAGE_RESOLVER",
+    "type" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SERIALIZED_MESSAGE_RESOLVER",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver.SERIALIZED_MESSAGE_RESOLVER",
+    "type" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "MessageParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver#MessageParameterResolver",
@@ -75,6 +99,46 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver#prepare",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver#resolve",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver#resolve",
     "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
@@ -92,6 +156,35 @@
     }, {
       "name" : "methodAnnotation",
       "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveIfPossible",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.MessageParameterResolver#resolveIfPossible",
+    "returnType" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

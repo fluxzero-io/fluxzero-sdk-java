@@ -9,6 +9,16 @@
     "name" : "ErrorReportingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor",
     "kind" : "class"
+  }, {
+    "file" : "ErrorReportingInterceptor.HandlerErrorPolicy.json",
+    "name" : "ErrorReportingInterceptor.HandlerErrorPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$HandlerErrorPolicy",
+    "kind" : "record"
+  }, {
+    "file" : "ErrorReportingInterceptor.ReportingHandlerMethod.json",
+    "name" : "ErrorReportingInterceptor.ReportingHandlerMethod",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.errorreporting.ErrorReportingInterceptor$ReportingHandlerMethod",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }
