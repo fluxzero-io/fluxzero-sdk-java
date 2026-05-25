@@ -293,6 +293,12 @@ public class HandlerInspector {
                 return target -> createPreparedParameterInvoker(target, m);
             }
 
+            if (!validateMethodInvocation && parameterCount == 1) {
+                Function<? super M, Object> matchingResolver = resolveDynamicParameterResolver(m, 0);
+                return matchingResolver == null ? null : target -> createSingleDynamicParameterInvoker(
+                        target, m, matchingResolver);
+            }
+
             Function<? super M, Object>[] matchingResolvers = resolveDynamicParameterResolvers(m);
             return matchingResolvers == null ? null : target -> createDynamicParameterInvoker(target, m,
                                                                                               matchingResolvers);
@@ -308,6 +314,11 @@ public class HandlerInspector {
             if (onlyPreparedParameterResolvers) {
                 return createPreparedParameterInvoker(target, m);
             }
+            if (!validateMethodInvocation && parameterCount == 1) {
+                Function<? super M, Object> matchingResolver = resolveDynamicParameterResolver(m, 0);
+                return matchingResolver == null ? null
+                        : createSingleDynamicParameterInvoker(target, m, matchingResolver);
+            }
             Function<? super M, Object>[] matchingResolvers = resolveDynamicParameterResolvers(m);
             return matchingResolvers == null ? null : createDynamicParameterInvoker(target, m, matchingResolvers);
         }
@@ -316,36 +327,38 @@ public class HandlerInspector {
         private Function<? super M, Object>[] resolveDynamicParameterResolvers(M m) {
             Function<? super M, Object>[] matchingResolvers = new Function[parameterCount];
             for (int i = 0; i < parameterCount; i++) {
-                Parameter p = parameters[i];
-                for (ParameterResolverPlan<M> plan : parameterResolverPlans[i]) {
-                    if (plan.preparedResolver() != null) {
-                        matchingResolvers[i] = plan.preparedResolver();
-                        break;
-                    }
-                    ParameterResolver<? super M> r = plan.resolver();
-                    if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
-                        Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
-                                p, methodAnnotation, m);
-                        if (preparedResolver != null) {
-                            matchingResolvers[i] = preparedResolver;
-                            break;
-                        }
-                        if (r.matches(p, methodAnnotation, m)) {
-                            return null;
-                        }
-                    } else if (r.matches(p, methodAnnotation, m)) {
-                        if (!r.test(m, p)) {
-                            return null;
-                        }
-                        matchingResolvers[i] = r.resolve(p, methodAnnotation);
-                        break;
-                    }
-                }
+                matchingResolvers[i] = resolveDynamicParameterResolver(m, i);
                 if (matchingResolvers[i] == null) {
                     return null;
                 }
             }
             return matchingResolvers;
+        }
+
+        private Function<? super M, Object> resolveDynamicParameterResolver(M m, int parameterIndex) {
+            Parameter p = parameters[parameterIndex];
+            for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                if (plan.preparedResolver() != null) {
+                    return plan.preparedResolver();
+                }
+                ParameterResolver<? super M> r = plan.resolver();
+                if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
+                    Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
+                            p, methodAnnotation, m);
+                    if (preparedResolver != null) {
+                        return preparedResolver;
+                    }
+                    if (r.matches(p, methodAnnotation, m)) {
+                        return null;
+                    }
+                } else if (r.matches(p, methodAnnotation, m)) {
+                    if (!r.test(m, p)) {
+                        return null;
+                    }
+                    return r.resolve(p, methodAnnotation);
+                }
+            }
+            return null;
         }
 
         private HandlerInvoker createNoParameterInvoker(Object target) {
@@ -376,6 +389,11 @@ public class HandlerInspector {
 
         private HandlerInvoker createUnvalidatedPreparedParameterInvoker(Object target, M m) {
             return new UnvalidatedPreparedParameterInvoker(target, m);
+        }
+
+        private HandlerInvoker createSingleDynamicParameterInvoker(
+                Object target, M m, Function<? super M, Object> matchingResolver) {
+            return new UnvalidatedSingleDynamicParameterInvoker(target, m, matchingResolver);
         }
 
         private HandlerInvoker createDynamicParameterInvoker(
@@ -729,6 +747,24 @@ public class HandlerInspector {
             @Override
             public Object apply(int i) {
                 return matchingResolvers[i].apply(message);
+            }
+        }
+
+        private class UnvalidatedSingleDynamicParameterInvoker extends MethodHandlerInvoker {
+            private final Object target;
+            private final M message;
+            private final Function<? super M, Object> matchingResolver;
+
+            private UnvalidatedSingleDynamicParameterInvoker(
+                    Object target, M message, Function<? super M, Object> matchingResolver) {
+                this.target = target;
+                this.message = message;
+                this.matchingResolver = matchingResolver;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, matchingResolver.apply(message));
             }
         }
 
