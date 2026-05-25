@@ -23,6 +23,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Parameter;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +54,23 @@ class PayloadParameterResolverTest {
         assertEquals(1, message.payloadCalls);
         assertSame(message.payload, prepared.apply(message));
         assertEquals(1, message.payloadCalls);
+    }
+
+    @Test
+    void preparedResolverKeepsSerializedPayloadLazyUntilInvocation() throws Exception {
+        AtomicInteger payloadCalls = new AtomicInteger();
+        DeserializingMessage message = new DeserializingMessage(serializedStringMessage(),
+                                                                type -> {
+                                                                    payloadCalls.incrementAndGet();
+                                                                    return "value";
+                                                                }, MessageType.EVENT, null, new JacksonSerializer());
+
+        Function<HasMessage, Object> prepared = resolver.resolveIfPossible(parameter("handleString"), null, message);
+
+        assertNotNull(prepared);
+        assertEquals(0, payloadCalls.get());
+        assertEquals("value", prepared.apply(message));
+        assertEquals(1, payloadCalls.get());
     }
 
     @Test
@@ -82,6 +101,14 @@ class PayloadParameterResolverTest {
                 parameter("handleString"), null, new PayloadFailingChunkedMessage());
 
         assertNotNull(prepared);
+    }
+
+    private static SerializedMessage serializedStringMessage() {
+        return new SerializedMessage(
+                new Data<>("\"value\"".getBytes(), String.class.getName(), 0, Data.JSON_FORMAT),
+                Metadata.empty(),
+                "message-id",
+                0L);
     }
 
     private static Parameter parameter(String methodName) throws NoSuchMethodException {

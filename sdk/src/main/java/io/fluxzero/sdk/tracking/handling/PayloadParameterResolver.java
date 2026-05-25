@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -43,6 +44,8 @@ import java.util.function.Function;
  * @see ParameterResolver
  */
 public class PayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
+    private static final Object UNRESOLVED_PAYLOAD = new Object();
+
     @Override
     public boolean matches(Parameter p, Annotation methodAnnotation, HasMessage value) {
         if (value instanceof ChunkedDeserializingMessage && InputStream.class.isAssignableFrom(p.getType())) {
@@ -71,8 +74,11 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
         if (value instanceof ChunkedDeserializingMessage) {
             return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
         }
-        Object payload = value.getPayload();
-        return payload != null || ReflectionUtils.isNullable(parameter) ? ignored -> payload : null;
+        Object payload = getPayloadIfAvailable(value);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || ReflectionUtils.isNullable(parameter) ? ignored -> payload : null;
+        }
+        return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
     }
 
     @Override
@@ -80,7 +86,16 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
         if (message instanceof ChunkedDeserializingMessage) {
             return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
         }
-        return message.getPayload() != null || ReflectionUtils.isNullable(parameter); //may be the case after upcasting
+        Object payload = getPayloadIfAvailable(message);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || ReflectionUtils.isNullable(parameter);
+        }
+        return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+    }
+
+    private Object getPayloadIfAvailable(HasMessage message) {
+        return message instanceof DeserializingMessage deserializingMessage && !deserializingMessage.isDeserialized()
+                ? UNRESOLVED_PAYLOAD : message.getPayload();
     }
 
     /**
