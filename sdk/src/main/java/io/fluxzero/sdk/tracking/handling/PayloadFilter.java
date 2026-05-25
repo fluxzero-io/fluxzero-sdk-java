@@ -54,9 +54,7 @@ import java.util.Optional;
  */
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
-    private static final Class<?>[] NO_ALLOWED_CLASSES = new Class<?>[0];
-    private static final MessageFilter<HasMessage> ALLOW_ALL =
-            new PreparedPayloadFilter(NO_ALLOWED_CLASSES, null);
+    private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
 
     @Override
     public MessageFilter<? super HasMessage> prepare(Executable executable,

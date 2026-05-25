@@ -37,6 +37,31 @@ import java.util.Optional;
  */
 @FunctionalInterface
 public interface MessageFilter<M> {
+    MessageFilter<Object> ALLOW_ALL = new MessageFilter<>() {
+        @Override
+        public boolean test(Object message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                            Class<?> targetClass) {
+            return true;
+        }
+
+        @Override
+        public boolean isAlwaysTrue() {
+            return true;
+        }
+
+        @Override
+        public MessageFilter<? super Object> prepare(Executable executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+            return this;
+        }
+    };
+
+    @SuppressWarnings("unchecked")
+    static <M> MessageFilter<M> allowAll() {
+        return (MessageFilter<M>) ALLOW_ALL;
+    }
+
     /**
      * Evaluates whether a message should be handled by a given method annotated with a specific handler annotation.
      *
@@ -47,6 +72,13 @@ public interface MessageFilter<M> {
      * @return {@code true} if the message is accepted by this filter for the given handler method
      */
     boolean test(M message, Executable executable, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass);
+
+    /**
+     * Returns whether this filter accepts every message without inspecting runtime state.
+     */
+    default boolean isAlwaysTrue() {
+        return false;
+    }
 
     /**
      * Returns a filter prepared for the supplied handler method.
@@ -82,6 +114,14 @@ public interface MessageFilter<M> {
      */
     default MessageFilter<M> and(@NonNull MessageFilter<? super M> second) {
         var first = this;
+        if (first.isAlwaysTrue()) {
+            @SuppressWarnings("unchecked")
+            MessageFilter<M> result = (MessageFilter<M>) second;
+            return result;
+        }
+        if (second.isAlwaysTrue()) {
+            return first;
+        }
         return new MessageFilter<>() {
             @Override
             public boolean test(M m, Executable e, Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
@@ -105,6 +145,12 @@ public interface MessageFilter<M> {
                 @SuppressWarnings("unchecked")
                 MessageFilter<? super M> preparedSecond =
                         (MessageFilter<? super M>) second.prepare(executable, handlerAnnotation, targetClass);
+                if (preparedFirst.isAlwaysTrue()) {
+                    return preparedSecond;
+                }
+                if (preparedSecond.isAlwaysTrue()) {
+                    return preparedFirst;
+                }
                 return new MessageFilter<>() {
                     @Override
                     public boolean test(M m, Executable e, Class<? extends Annotation> a, Class<?> t) {
