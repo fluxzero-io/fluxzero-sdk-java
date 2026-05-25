@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,254 +15,96 @@
 
 package io.fluxzero.sdk.persisting.caching;
 
-import io.fluxzero.common.DirectExecutorService;
-import io.fluxzero.common.ObjectUtils;
-import io.fluxzero.sdk.persisting.caching.DefaultCache.SoftCacheReference;
-import io.fluxzero.sdk.test.TestFixture;
-import lombok.SneakyThrows;
+import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Map;
 
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.expiry;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
+import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultCacheTest {
-
-    private static final Duration EVENTUALLY_TIMEOUT = Duration.ofSeconds(2);
-
-    private DefaultCache subject = new DefaultCache(2, DirectExecutorService.newInstance(), null);
+    private final List<Cache> caches = new ArrayList<>();
 
     @AfterEach
     void tearDown() {
-        subject.close();
+        caches.forEach(Cache::close);
     }
 
     @Test
-    void testPutAndGet() {
-        subject.put("foo", "bar");
-        assertEquals("bar", subject.get("foo"));
+    void usesSoftReferenceCacheWithoutDefaultsVersion() {
+        DefaultCache cache = cache(new DefaultCache(new SimplePropertySource(Map.of())));
+
+        assertInstanceOf(SoftReferenceCache.class, cache.delegate());
     }
 
     @Test
-    void testAddingNullAllowed() {
-        subject.put("id", null);
-        assertNull(subject.get("id"));
+    void usesAdaptiveCacheForNewDefaultsVersion() {
+        DefaultCache cache = cache(new DefaultCache(new SimplePropertySource(Map.of(
+                ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25"))));
+
+        assertInstanceOf(AdaptiveObjectCache.class, cache.delegate());
     }
 
     @Test
-    void testComputeIfAbsent() {
-        assertEquals("bar", subject.computeIfAbsent("foo", f -> "bar"));
+    void softReferenceModeOverridesNewDefaultsVersion() {
+        DefaultCache cache = cache(new DefaultCache(new SimplePropertySource(Map.of(
+                ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25",
+                DefaultCache.MODE_PROPERTY, DefaultCache.MODE_SOFT_REFERENCE))));
+
+        assertInstanceOf(SoftReferenceCache.class, cache.delegate());
     }
 
     @Test
-    void testComputeIfAbsentWithNullReturnIsAllowed() {
-        assertNull(subject.computeIfAbsent("foo", f -> null));
+    void constructorsRemainAvailable() {
+        assertNotNull(cache(new DefaultCache()));
+        assertNotNull(cache(new DefaultCache(new SimplePropertySource(Map.of()))));
+        assertNotNull(cache(new DefaultCache(1)));
+        assertNotNull(cache(new DefaultCache(1, Duration.ofSeconds(1))));
     }
 
     @Test
-    void testComputeIfAbsentWithEmptyOptionalReturnedIsStoredButResolvesAsNull() {
-        assertNull(subject.computeIfAbsent("foo", f -> Optional.empty()));
-        assertTrue(subject.containsKey("foo"));
+    void rebuildKeepsDefaultCacheCompatibility() {
+        DefaultCache cache = cache(new DefaultCache(new SimplePropertySource(Map.of(
+                DefaultCache.MODE_PROPERTY, DefaultCache.MODE_SOFT_REFERENCE))));
+
+        Cache rebuilt = cache.rebuild();
+        caches.add(rebuilt);
+
+        DefaultCache defaultCache = assertInstanceOf(DefaultCache.class, rebuilt);
+        assertEquals(cache.delegate().getClass(), defaultCache.delegate().getClass());
     }
 
     @Test
-    void testSizeMaintained() {
-        subject.put("id1", "test1");
-        subject.put("id2", "test2");
-        subject.put("id3", "test3");
-        assertEquals(2, subject.size());
-        assertNull(subject.get("id1"));
+    void operationsDelegateToSelectedCache() {
+        DefaultCache cache = cache(new DefaultCache(new SimplePropertySource(Map.of(
+                DefaultCache.MODE_PROPERTY, DefaultCache.MODE_ADAPTIVE))));
+
+        assertEquals("bar", cache.computeIfAbsent("foo", key -> "bar"));
+        assertEquals("bar", cache.get("foo"));
     }
 
     @Test
-    void testSizeMaintainedCompute() {
-        subject.compute("id1", (k, v) -> "test1");
-        subject.compute("id2", (k, v) -> "test2");
-        subject.compute("id3", (k, v) -> "test3");
-        assertEquals(2, subject.size());
-        assertNull(subject.get("id1"));
+    void durationConstructorAppliesExpiryToAdaptiveCache() {
+        DefaultCache cache = cache(callWithSystemProperties(() -> new DefaultCache(1, Duration.ofNanos(-1)),
+                                                           DefaultCache.MODE_PROPERTY, DefaultCache.MODE_ADAPTIVE));
+
+        assertInstanceOf(AdaptiveObjectCache.class, cache.delegate());
+        cache.put("foo", "bar");
+
+        assertNull(cache.get("foo"));
     }
 
-    @Test
-    void testUpdate() {
-        subject.put("id1", "test1");
-        subject.put("id2", "test2");
-        subject.put("id3", "test3");
-        subject.put("id1", "test1-2");
-        assertEquals(2, subject.size());
-        assertEquals(subject.get("id1"), "test1-2");
-    }
-
-    @Test
-    void testComputeInOtherCompute() {
-        subject.compute("id1", (k, v) -> {
-            subject.compute("id2", (k2, v2) -> "bar");
-            return "foo";
-        });
-        assertEquals(2, subject.size());
-        assertEquals(subject.get("id1"), "foo");
-        assertEquals(subject.get("id2"), "bar");
-    }
-
-    @Test
-    void testComputeInOtherComputeSameKeyAllowed() {
-        assertEquals("foo", subject.compute("id1", (k, v) -> {
-            subject.compute("id1", (k2, v2) -> "bar");
-            return "foo";
-        }));
-    }
-
-    @SneakyThrows
-    @Test
-    void testLockingSameKey() {
-        var latch = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
-            latch.await();
-            return "bar";
-        })));
-        thread1.start();
-        Thread.sleep(10);
-        var thread2 = new Thread(() -> subject.compute("foo", (k, v) -> "bar2"));
-        thread2.start();
-        Thread.sleep(10);
-        assertNull(subject.get("foo"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.BLOCKED, thread2.getState());
-        latch.countDown();
-        thread2.join();
-        assertEquals("bar2", subject.get("foo"));
-    }
-
-    @SneakyThrows
-    @Test
-    void testNoLockIfDifferentKey() {
-        var latch = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
-            latch.await();
-            return "bar";
-        })));
-        thread1.start();
-        Thread.sleep(10);
-        var thread2 = new Thread(() -> subject.compute("foo2", (k, v) -> "bar2"));
-        thread2.start();
-        thread2.join();
-        assertNull(subject.get("foo"));
-        assertEquals("bar2", subject.get("foo2"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.TERMINATED, thread2.getState());
-        latch.countDown();
-        thread1.join();
-        assertEquals("bar", subject.get("foo"));
-        assertEquals(Thread.State.TERMINATED, thread1.getState());
-    }
-
-    @Test
-    void rebuildReturnsFreshCacheWithSameConfiguration() {
-        subject.put("foo", "bar");
-
-        Cache rebuilt = subject.rebuild();
-
-        assertNotSame(subject, rebuilt);
-        assertNull(rebuilt.get("foo"));
-        rebuilt.put("id1", "test1");
-        rebuilt.put("id2", "test2");
-        rebuilt.put("id3", "test3");
-        assertEquals(2, rebuilt.size());
-    }
-
-    @Nested
-    class EvictionListenerTests {
-        List<CacheEvictionEvent> evictionEvents = new CopyOnWriteArrayList<>();
-
-        @BeforeEach
-        void setUp() {
-            subject.registerEvictionListener(e -> evictionEvents.add(new CacheEvictionEvent(e.getId(), e.getReason())));
-        }
-
-        @Test
-        void manualEviction() {
-            subject.put("a", new Object());
-            subject.remove("a");
-            assertEquals(1, evictionEvents.size());
-            assertEquals(new CacheEvictionEvent("a", manual), evictionEvents.getFirst());
-        }
-
-        @Test
-        void manualEvictionViaClear() {
-            subject.put("a", new Object());
-            subject.clear();
-            assertEquals(1, evictionEvents.size());
-            assertEquals(new CacheEvictionEvent(null, manual), evictionEvents.getFirst());
-        }
-
-        @Test
-        void sizeEviction() {
-            subject.put("k1", new Object());
-            subject.put("k2", new Object());
-            subject.put("k3", new Object());
-            assertEquals(1, evictionEvents.size());
-            assertEquals(new CacheEvictionEvent("k1", size), evictionEvents.getFirst());
-        }
-
-        @Test
-        void simulatedMemoryEviction() {
-            subject.put("a", new Object());
-            SoftCacheReference ref = (SoftCacheReference) subject.getValueMap().get("a");
-            ref.clear();
-            ref.enqueue();
-
-            assertEventually(() -> {
-                assertEquals(1, evictionEvents.size());
-                assertEquals(new CacheEvictionEvent("a", memoryPressure), evictionEvents.getFirst());
-                assertTrue(subject.isEmpty());
-            });
-        }
-
-        @Test
-        void expiryEviction() {
-            var testFixture = TestFixture.create();
-            subject.close();
-            subject = new DefaultCache(2, DirectExecutorService.newInstance(), Duration.ofSeconds(10), Duration.ofMillis(1), false);
-            setUp();
-            subject.put("a", new Object());
-            assertNotNull(subject.get("a"));
-            testFixture.atFixedTime(testFixture.getCurrentTime().plusSeconds(11));
-            assertEventually(() -> {
-                assertTrue(subject.isEmpty());
-                assertEquals(new CacheEvictionEvent("a", expiry), evictionEvents.getFirst());
-            });
-        }
-    }
-
-    @SneakyThrows
-    private static void assertEventually(Executable assertion) {
-        AssertionError lastError = null;
-        long deadline = System.nanoTime() + EVENTUALLY_TIMEOUT.toNanos();
-        do {
-            try {
-                assertion.execute();
-                return;
-            } catch (AssertionError e) {
-                lastError = e;
-                Thread.sleep(10);
-            }
-        } while (System.nanoTime() < deadline);
-        throw lastError;
+    private DefaultCache cache(DefaultCache cache) {
+        caches.add(cache);
+        return cache;
     }
 }

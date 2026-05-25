@@ -92,7 +92,20 @@ public class ApplicationProperties {
      *         deadline: fixed-delay schedules first run after {@code delay}, and cron schedules first run at the next
      *         cron match. Use {@code initialDelay = 0} for an immediate first run.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.05.25}</td>
+     *         <td>{@code fluxzero.cache.mode = adaptive}</td>
+     *         <td>The default aggregate cache uses a count-bounded hard-reference cache. Applications can keep the old
+     *         behavior with {@code fluxzero.cache.mode = softRef}. Tracking caches are not changed by this defaults
+     *         version and require an explicit {@code fluxzero.tracking.cache.mode} setting.</td>
+     *     </tr>
      * </table>
+     * <p>
+     * Memory-aware cache pressure can be tuned with
+     * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},
+     * {@code fluxzero.cache.memoryPressure.gcTimeThresholdPercent}, and
+     * {@code fluxzero.cache.memoryPressure.trimRatioPercent}. The amount evicted in a single pass is also capped by
+     * {@code fluxzero.cache.memoryPressure.maxTrimWeight}.
      */
     public static final String DEFAULTS_VERSION_PROPERTY = "fluxzero.defaults.version";
 

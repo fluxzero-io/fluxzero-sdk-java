@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.caching;
 
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -23,28 +24,29 @@ import lombok.experimental.Delegate;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static io.fluxzero.sdk.Fluxzero.loadAggregateFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class SelectiveCacheTest {
     private static final String aggregateId = "test";
     private final Cache
-            stringCache = spy(new DefaultCache()),
-            booleanCache = spy(new DefaultCache()),
-            defaultCache = spy(new DefaultCache());
+            stringCache = defaultCache(),
+            booleanCache = defaultCache(),
+            fallbackCache = defaultCache();
 
     @Nested
     class CommonTests {
         private final Cache subject = new SelectiveCache(
                 stringCache, v -> v instanceof String,
-                new SelectiveCache(booleanCache, v -> v instanceof Boolean, defaultCache));
+                new SelectiveCache(booleanCache, v -> v instanceof Boolean, fallbackCache));
 
         @Test
         void testPut() {
@@ -52,7 +54,7 @@ class SelectiveCacheTest {
             subject.put("number", 342443);
             assertFalse(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertFalse(defaultCache.isEmpty());
+            assertFalse(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(2, subject.size());
         }
@@ -62,7 +64,7 @@ class SelectiveCacheTest {
             subject.put("string", null);
             assertTrue(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertFalse(defaultCache.isEmpty());
+            assertFalse(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(1, subject.size());
         }
@@ -74,7 +76,7 @@ class SelectiveCacheTest {
             subject.putIfAbsent("string", "bar");
             assertFalse(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertFalse(defaultCache.isEmpty());
+            assertFalse(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(2, subject.size());
             assertEquals("foo", subject.get("string"));
@@ -88,7 +90,7 @@ class SelectiveCacheTest {
             subject.computeIfAbsent("string", k -> "bar");
             assertFalse(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertFalse(defaultCache.isEmpty());
+            assertFalse(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(2, subject.size());
             assertEquals("foo", subject.get("string"));
@@ -102,7 +104,7 @@ class SelectiveCacheTest {
             subject.computeIfPresent("string", (k, v) -> "bar");
             assertFalse(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertTrue(defaultCache.isEmpty());
+            assertTrue(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(1, subject.size());
             assertEquals("bar", subject.get("string"));
@@ -116,7 +118,7 @@ class SelectiveCacheTest {
             subject.compute("string", (k, v) -> "bar");
             assertFalse(stringCache.isEmpty());
             assertTrue(booleanCache.isEmpty());
-            assertFalse(defaultCache.isEmpty());
+            assertFalse(fallbackCache.isEmpty());
             assertFalse(subject.isEmpty());
             assertEquals(2, subject.size());
             assertEquals("bar", subject.get("string"));
@@ -156,7 +158,23 @@ class SelectiveCacheTest {
             assertEquals(true, subject.get("id2"));
             assertFalse(stringCache.isEmpty());
             assertFalse(booleanCache.isEmpty());
-            assertTrue(defaultCache.isEmpty());
+            assertTrue(fallbackCache.isEmpty());
+        }
+
+        @Test
+        void convenienceConstructorUsesDefaultDelegateCache() {
+            Cache subject = new SelectiveCache(fallbackCache, v -> v instanceof String);
+            try {
+                subject.put("string", "foo");
+                subject.put("number", 342443);
+
+                assertEquals("foo", subject.get("string"));
+                assertEquals(Integer.valueOf(342443), subject.get("number"));
+                assertEquals(2, subject.size());
+                assertFalse(fallbackCache.isEmpty());
+            } finally {
+                subject.close();
+            }
         }
     }
 
@@ -164,12 +182,12 @@ class SelectiveCacheTest {
     class AggregateTests {
         private final RebuildAwareCache stringCache = new RebuildAwareCache();
         private final RebuildAwareCache booleanCache = new RebuildAwareCache();
-        private final RebuildAwareCache defaultCache = new RebuildAwareCache();
+        private final RebuildAwareCache fallbackCache = new RebuildAwareCache();
 
         private final TestFixture testFixture = TestFixture.create(
                 DefaultFluxzero.builder()
                         .disableAutomaticAggregateCaching()
-                        .replaceCache(defaultCache)
+                        .replaceCache(fallbackCache)
                         .withAggregateCache(StringModel.class, stringCache)
                         .withAggregateCache(BooleanModel.class, booleanCache),
                 new MockCommandHandler()).spy();
@@ -179,7 +197,7 @@ class SelectiveCacheTest {
             testFixture.whenCommand("testCommand").expectEvents("testCommand")
                     .expectFalse(fc -> stringCache.isEmpty())
                     .expectTrue(fc -> booleanCache.isEmpty())
-                    .expectTrue(fc -> defaultCache.isEmpty())
+                    .expectTrue(fc -> fallbackCache.isEmpty())
                     .expectFalse(fc -> fc.cache().isEmpty())
                     .expectFalse(fc -> loadAggregate(aggregateId, StringModel.class).get() == null);
         }
@@ -189,16 +207,16 @@ class SelectiveCacheTest {
             testFixture.whenCommand(true).expectEvents(true)
                     .expectTrue(fc -> stringCache.isEmpty())
                     .expectFalse(fc -> booleanCache.isEmpty())
-                    .expectTrue(fc -> defaultCache.isEmpty())
+                    .expectTrue(fc -> fallbackCache.isEmpty())
                     .expectFalse(fc -> fc.cache().isEmpty());
         }
 
         @Test
-        void testAggregateStoredInDefaultCache() {
+        void testAggregateStoredInFallbackCache() {
             testFixture.whenCommand(1).expectEvents(1)
                     .expectTrue(fc -> stringCache.isEmpty())
                     .expectTrue(fc -> booleanCache.isEmpty())
-                    .expectFalse(fc -> defaultCache.isEmpty())
+                    .expectFalse(fc -> fallbackCache.isEmpty())
                     .expectFalse(fc -> fc.cache().isEmpty());
         }
 
@@ -247,7 +265,7 @@ class SelectiveCacheTest {
                     .given(fc -> fc.cache().clear())
                     .whenApplying(fc -> loadAggregateFor(aggregateId))
                     .expectResult(e -> e.get() instanceof NumberModel)
-                    .expectFalse(fc -> defaultCache.isEmpty())
+                    .expectFalse(fc -> fallbackCache.isEmpty())
                     .expectThat(fc -> verify(fc.client().getEventStoreClient(), times(1))
                             .getEvents(aggregateId, -1L, -1));
         }
@@ -271,13 +289,17 @@ class SelectiveCacheTest {
 
         private static class RebuildAwareCache implements Cache {
             @Delegate
-            private Cache active = new DefaultCache();
+            private Cache active = defaultCache();
 
             @Override
             public Cache rebuild() {
-                return active = new DefaultCache();
+                return active = defaultCache();
             }
         }
+    }
+
+    private static Cache defaultCache() {
+        return new DefaultCache(new SimplePropertySource(Map.of()));
     }
 
     @Aggregate

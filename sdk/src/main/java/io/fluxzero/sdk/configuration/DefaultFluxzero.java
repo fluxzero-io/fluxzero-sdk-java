@@ -260,6 +260,7 @@ public class DefaultFluxzero implements Fluxzero {
     @Accessors(fluent = true)
     public static class Builder implements FluxzeroBuilder {
         private static final String MAX_PUBLICATION_DEPTH_PROPERTY = "fluxzero.maxPublicationDepth";
+        private static final int RELATIONSHIPS_CACHE_MAX_SIZE = 100_000;
 
         private Serializer serializer = new JacksonSerializer();
         private Serializer snapshotSerializer = serializer;
@@ -291,8 +292,9 @@ public class DefaultFluxzero implements Fluxzero {
                 "FluxzeroTaskScheduler", clock,
                 newWorkerPool("FluxzeroTaskScheduler-worker", 8));
         private ForwardingWebConsumer forwardingWebConsumer;
-        private Cache cache = new DefaultCache();
-        private Cache relationshipsCache = new DefaultCache(100_000);
+        private Cache cache;
+        private boolean cacheConfigured;
+        private Cache relationshipsCache;
         private ResponseMapper defaultResponseMapper = new DefaultResponseMapper();
         private WebResponseMapper webResponseMapper = new DefaultWebResponseMapper();
         private boolean disableErrorReporting;
@@ -462,6 +464,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder replaceCache(@NonNull Cache cache) {
             this.cache = cache;
+            this.cacheConfigured = true;
             return this;
         }
 
@@ -494,24 +497,25 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache) {
-            this.cache = new SelectiveCache(cache, SelectiveCache.aggregateSelector(aggregateType), this.cache);
+            this.cache = new SelectiveCache(cache, SelectiveCache.aggregateSelector(aggregateType), initialCache());
+            this.cacheConfigured = true;
             return this;
         }
 
         @Override
         public FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction) {
-            relationshipsCache = replaceFunction.apply(relationshipsCache);
+            relationshipsCache = replaceFunction.apply(initialRelationshipsCache());
             return this;
         }
 
         @Override
         public Cache cache() {
-            return cache;
+            return initialCache();
         }
 
         @Override
         public Cache relationshipsCache() {
-            return relationshipsCache;
+            return initialRelationshipsCache();
         }
 
         @Override
@@ -628,8 +632,11 @@ public class DefaultFluxzero implements Fluxzero {
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }
-            Cache cache = this.cache.isEmpty() ? this.cache : this.cache.rebuild();
-            Cache relationshipsCache = this.relationshipsCache.isEmpty() ? this.relationshipsCache : this.relationshipsCache.rebuild();
+            Cache configuredCache = resolveCache();
+            Cache cache = configuredCache.isEmpty() ? configuredCache : configuredCache.rebuild();
+            Cache configuredRelationshipsCache = initialRelationshipsCache();
+            Cache relationshipsCache = configuredRelationshipsCache.isEmpty()
+                    ? configuredRelationshipsCache : configuredRelationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =
@@ -980,6 +987,27 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             return fluxzero;
+        }
+
+        private Cache resolveCache() {
+            if (cacheConfigured) {
+                return cache;
+            }
+            return initialCache();
+        }
+
+        private Cache initialCache() {
+            if (cache == null) {
+                cache = new DefaultCache(propertySource);
+            }
+            return cache;
+        }
+
+        private Cache initialRelationshipsCache() {
+            if (relationshipsCache == null) {
+                relationshipsCache = new DefaultCache(propertySource, RELATIONSHIPS_CACHE_MAX_SIZE);
+            }
+            return relationshipsCache;
         }
 
         protected Fluxzero doBuild(Map<MessageType, ? extends Tracking> trackingSupplier,

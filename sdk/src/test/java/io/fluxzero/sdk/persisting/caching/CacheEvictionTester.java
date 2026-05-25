@@ -25,7 +25,7 @@ public class CacheEvictionTester {
      */
     @SneakyThrows
     public static void main(final String[] args) {
-        try (DefaultCache subject = new DefaultCache(2, DirectExecutorService.newInstance(), null)) {
+        try (SoftReferenceCache subject = new SoftReferenceCache(2, DirectExecutorService.newInstance(), null)) {
             subject.put("foo", new Object());
 
             try {

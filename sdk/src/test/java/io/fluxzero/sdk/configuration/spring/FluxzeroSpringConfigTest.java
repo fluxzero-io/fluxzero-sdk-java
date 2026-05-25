@@ -23,7 +23,6 @@ import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.persisting.caching.Cache;
-import io.fluxzero.sdk.persisting.caching.CacheEviction;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.TrackSelf;
@@ -48,12 +47,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -119,7 +118,7 @@ public class FluxzeroSpringConfigTest {
     }
 
     @Test
-    void testDefaultCacheReplaced() {
+    void testCacheReplaced() {
         assertTrue(fluxzero.cache() instanceof CustomCache);
     }
 

@@ -118,8 +118,8 @@ io.fluxzero.sdk.persisting.caching.CacheEviction
 io.fluxzero.sdk.persisting.caching.CacheEviction.Reason
 io.fluxzero.sdk.persisting.caching.CacheEvictionEvent
 io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger
-io.fluxzero.sdk.persisting.caching.DefaultCache
-io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference
+io.fluxzero.sdk.persisting.caching.SoftReferenceCache
+io.fluxzero.sdk.persisting.caching.SoftReferenceCache.CacheReference
 io.fluxzero.sdk.persisting.caching.NamedCache
 io.fluxzero.sdk.persisting.caching.NoOpCache
 io.fluxzero.sdk.persisting.caching.SelectiveCache

@@ -14,13 +14,23 @@
 
 package io.fluxzero.sdk.configuration;
 
+import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache;
+import io.fluxzero.sdk.persisting.caching.Cache;
+import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.QUERY;
 import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class FluxzeroConfigTest {
@@ -61,4 +71,89 @@ public class FluxzeroConfigTest {
 
         assertEquals(37, configuration.maxPublicationDepth());
     }
+
+    @Test
+    void compatibilityDefaultsUseSoftReferenceCache() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of()))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.cache(), SoftReferenceCache.class);
+        }
+    }
+
+    @Test
+    void compatibilityDefaultsUseSoftReferenceRelationshipsCache() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of()))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.configuration().relationshipsCache(), SoftReferenceCache.class);
+        }
+    }
+
+    @Test
+    void adaptiveCacheCanBeEnabledExplicitly() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        DefaultCache.MODE_PROPERTY, DefaultCache.MODE_ADAPTIVE)).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.cache(), AdaptiveObjectCache.class);
+        }
+    }
+
+    @Test
+    void defaultsVersionEnablesAdaptiveCache() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.cache(), AdaptiveObjectCache.class);
+        }
+    }
+
+    @Test
+    void defaultsVersionEnablesAdaptiveRelationshipsCache() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.configuration().relationshipsCache(), AdaptiveObjectCache.class);
+        }
+    }
+
+    @Test
+    void softRefCacheModeOverridesDefaultsVersion() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25",
+                        DefaultCache.MODE_PROPERTY, DefaultCache.MODE_SOFT_REFERENCE)).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertDefaultCacheDelegate(fluxzero.cache(), SoftReferenceCache.class);
+        }
+    }
+
+    @Test
+    void cacheModePropertyRequiresSupportedValue() {
+        assertThrows(IllegalArgumentException.class, () -> DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        DefaultCache.MODE_PROPERTY, "sometimes")).andThen(existing))
+                .build(LocalClient.newInstance()));
+    }
+
+    @Test
+    void defaultsVersionEnablesAdaptiveCacheUnlessCacheWasConfiguredExplicitly() {
+        Cache customCache = new DefaultCache(1);
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.05.25")).andThen(existing))
+                .replaceCache(customCache)
+                .build(LocalClient.newInstance())) {
+            assertEquals(customCache, fluxzero.cache());
+        }
+    }
+
+    private static <T extends Cache> T assertDefaultCacheDelegate(Cache cache, Class<T> delegateType) {
+        DefaultCache defaultCache = assertInstanceOf(DefaultCache.class, cache);
+        return assertInstanceOf(delegateType, defaultCache.delegate());
+    }
+
 }

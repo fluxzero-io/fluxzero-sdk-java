@@ -40,7 +40,7 @@ import java.util.function.Predicate;
  * <p><strong>Example use case:</strong> Route aggregates to one cache and all other entities to a fallback cache:
  * <pre>{@code
  * Predicate<Object> aggregateSelector = SelectiveCache.aggregateSelector(MyAggregate.class);
- * Cache aggregateCache = new DefaultCache();
+ * Cache aggregateCache = new AdaptiveObjectCache();
  * Cache fallbackCache = new DefaultCache();
  * Cache selectiveCache = new SelectiveCache(aggregateCache, aggregateSelector, fallbackCache);
  * }</pre>
@@ -66,10 +66,10 @@ public class SelectiveCache implements Cache {
     private final Cache nextCache;
 
     /**
-     * Constructs a {@code SelectiveCache} with a default in-memory delegate cache.
+     * Constructs a {@code SelectiveCache} with the current {@link DefaultCache} as delegate.
      *
-     * @param nextCache The fallback cache used when {@code selector} does not match a value
-     * @param selector  A predicate to decide which cache a value should go into
+     * @param nextCache the fallback cache used when {@code selector} does not match a value
+     * @param selector  a predicate to decide which cache a value should go into
      */
     public SelectiveCache(Cache nextCache, Predicate<Object> selector) {
         this(new DefaultCache(), selector, nextCache);
