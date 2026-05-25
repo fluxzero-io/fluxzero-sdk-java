@@ -22,9 +22,9 @@ import lombok.SneakyThrows;
 import lombok.ToString;
 
 import java.lang.reflect.Type;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
-
-import static io.fluxzero.common.ObjectUtils.memoize;
 
 /**
  * A wrapper around a {@link SerializedObject} that supports lazy deserialization of its payload.
@@ -59,7 +59,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
             synchronized (this) {
                 result = objectFunction;
                 if (result == null) {
-                    result = memoize(payload);
+                    result = new PayloadMemoizingFunction(payload);
                     objectFunction = result;
                 }
             }
@@ -136,5 +136,107 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     public Class<?> getPayloadClass() {
         String type = getType();
         return type == null ? null : ReflectionUtils.classForName(type);
+    }
+
+    private static class PayloadMemoizingFunction implements MemoizingFunction<Type, Object> {
+        private static final Object UNCACHED = new Object();
+        private static final Object NULL_VALUE = new Object();
+        private static final Object NULL_KEY = new Object();
+
+        private final Function<Type, Object> delegate;
+        private volatile Object objectPayload = UNCACHED;
+        private volatile ConcurrentHashMap<Object, Object> typedPayloads;
+
+        private PayloadMemoizingFunction(Function<Type, Object> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Object apply(Type type) {
+            if (Object.class.equals(type)) {
+                Object result = objectPayload;
+                if (result == UNCACHED) {
+                    synchronized (this) {
+                        result = objectPayload;
+                        if (result == UNCACHED) {
+                            result = wrap(delegate.apply(type));
+                            objectPayload = result;
+                        }
+                    }
+                }
+                return unwrap(result);
+            }
+            Object normalizedType = normalizeKey(type);
+            return unwrap(typedPayloads().computeIfAbsent(normalizedType, ignored -> wrap(delegate.apply(type))));
+        }
+
+        @Override
+        public void clear() {
+            objectPayload = UNCACHED;
+            ConcurrentHashMap<Object, Object> currentTypedPayloads = typedPayloads;
+            if (currentTypedPayloads != null) {
+                currentTypedPayloads.clear();
+            }
+        }
+
+        @Override
+        public Object remove(Type type) {
+            if (Object.class.equals(type)) {
+                synchronized (this) {
+                    Object result = objectPayload;
+                    objectPayload = UNCACHED;
+                    return result == UNCACHED ? null : unwrap(result);
+                }
+            }
+            ConcurrentHashMap<Object, Object> currentTypedPayloads = typedPayloads;
+            return currentTypedPayloads == null ? null : unwrap(currentTypedPayloads.remove(normalizeKey(type)));
+        }
+
+        @Override
+        public boolean isCached(Type type) {
+            if (Object.class.equals(type)) {
+                return objectPayload != UNCACHED;
+            }
+            ConcurrentHashMap<Object, Object> currentTypedPayloads = typedPayloads;
+            return currentTypedPayloads != null && currentTypedPayloads.containsKey(normalizeKey(type));
+        }
+
+        @Override
+        public void forEach(Consumer<? super Object> consumer) {
+            Object cachedObjectPayload = objectPayload;
+            if (cachedObjectPayload != UNCACHED) {
+                consumer.accept(unwrap(cachedObjectPayload));
+            }
+            ConcurrentHashMap<Object, Object> currentTypedPayloads = typedPayloads;
+            if (currentTypedPayloads != null) {
+                currentTypedPayloads.values().forEach(value -> consumer.accept(unwrap(value)));
+            }
+        }
+
+        private ConcurrentHashMap<Object, Object> typedPayloads() {
+            ConcurrentHashMap<Object, Object> result = typedPayloads;
+            if (result == null) {
+                synchronized (this) {
+                    result = typedPayloads;
+                    if (result == null) {
+                        result = new ConcurrentHashMap<>();
+                        typedPayloads = result;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private Object normalizeKey(Type type) {
+            return type == null ? NULL_KEY : type;
+        }
+
+        private Object wrap(Object value) {
+            return value == null ? NULL_VALUE : value;
+        }
+
+        private Object unwrap(Object value) {
+            return value == NULL_VALUE ? null : value;
+        }
     }
 }

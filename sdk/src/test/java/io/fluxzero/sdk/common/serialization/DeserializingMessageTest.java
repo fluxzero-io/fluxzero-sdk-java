@@ -179,6 +179,24 @@ class DeserializingMessageTest {
         assertTrue(withMetadata.isDeserialized());
     }
 
+    @Test
+    void deserializingObjectCachesDefaultAndTypedPayloads() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        SerializedMessage serializedMessage = new SerializedMessage(
+                serializer.serialize("serialized"), Metadata.empty(), "message-id", 0L);
+        AtomicInteger calls = new AtomicInteger();
+        DeserializingObject<byte[], SerializedMessage> object = new DeserializingObject<>(
+                serializedMessage, type -> "%s-%d".formatted(type, calls.incrementAndGet()));
+
+        assertFalse(object.isDeserialized());
+        assertEquals("class java.lang.Object-1", object.getPayload());
+        assertEquals("class java.lang.Object-1", object.getPayload());
+        assertTrue(object.isDeserialized());
+        assertEquals("class java.lang.String-2", object.getPayloadAs(String.class));
+        assertEquals("class java.lang.String-2", object.getPayloadAs(String.class));
+        assertEquals(2, calls.get());
+    }
+
     private static DeserializingMessage message(String payload) {
         JacksonSerializer serializer = new JacksonSerializer();
         SerializedMessage serializedMessage = new SerializedMessage(
