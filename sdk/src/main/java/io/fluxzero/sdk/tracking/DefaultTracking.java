@@ -126,6 +126,7 @@ import static java.util.stream.Collectors.toMap;
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
+    private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
 
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
             .map(LocalHandler::allowExternalMessages).orElse(true);
@@ -789,7 +790,7 @@ public class DefaultTracking implements Tracking {
                             () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
                 }
             }
-            return CompletableFuture.completedFuture(null);
+            return completedReport;
         }
     }
 

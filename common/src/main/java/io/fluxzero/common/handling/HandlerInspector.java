@@ -229,6 +229,7 @@ public class HandlerInspector {
         private final MessageFilter<? super M> messageFilter;
         private final List<ParameterResolverPlan<M>>[] parameterResolverPlans;
         private final boolean onlyPreparedParameterResolvers;
+        private final boolean validateMethodInvocation;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private final Optional<Object> emptyResult = Optional.of(void.class);
 
@@ -251,6 +252,7 @@ public class HandlerInspector {
             this.messageFilter = config.messageFilter().prepare(this.executable, this.methodAnnotationType, targetClass);
             this.parameterResolverPlans = prepareParameterResolvers();
             this.onlyPreparedParameterResolvers = onlyPreparedParameterResolvers(this.parameterResolverPlans);
+            this.validateMethodInvocation = config.methodInvocationValidator() != MethodInvocationValidator.noOp();
             this.classForSpecificity = computeClassForSpecificity();
             this.lowestSpecificityPriority = this.parameterResolvers.stream()
                     .filter(ParameterResolver::determinesSpecificity)
@@ -354,6 +356,9 @@ public class HandlerInspector {
         }
 
         private HandlerInvoker createPreparedParameterInvoker(Object target, M m) {
+            if (!validateMethodInvocation) {
+                return createUnvalidatedPreparedParameterInvoker(target, m);
+            }
             return new MethodHandlerInvoker() {
                 @Override
                 public Object invoke(BiFunction<Object, Object, Object> combiner) {
@@ -367,8 +372,22 @@ public class HandlerInspector {
             };
         }
 
+        private HandlerInvoker createUnvalidatedPreparedParameterInvoker(Object target, M m) {
+            return new MethodHandlerInvoker() {
+                @Override
+                public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                    return invoker.invoke(
+                            target, parameterCount,
+                            i -> parameterResolverPlans[i].getFirst().preparedResolver().apply(m));
+                }
+            };
+        }
+
         private HandlerInvoker createDynamicParameterInvoker(
                 Object target, M m, Function<? super M, Object>[] matchingResolvers) {
+            if (!validateMethodInvocation) {
+                return createUnvalidatedDynamicParameterInvoker(target, m, matchingResolvers);
+            }
             return new MethodHandlerInvoker() {
                 @Override
                 public Object invoke(BiFunction<Object, Object, Object> combiner) {
@@ -378,6 +397,16 @@ public class HandlerInspector {
                     }
                     config.methodInvocationValidator().validate(m, target, executable, args);
                     return invoker.invoke(target, parameterCount, i -> args[i]);
+                }
+            };
+        }
+
+        private HandlerInvoker createUnvalidatedDynamicParameterInvoker(
+                Object target, M m, Function<? super M, Object>[] matchingResolvers) {
+            return new MethodHandlerInvoker() {
+                @Override
+                public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                    return invoker.invoke(target, parameterCount, i -> matchingResolvers[i].apply(m));
                 }
             };
         }
