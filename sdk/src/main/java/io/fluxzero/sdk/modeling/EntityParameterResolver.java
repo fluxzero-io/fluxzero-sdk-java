@@ -16,12 +16,17 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.handling.PreparedParameterResolver;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleMessage;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -63,12 +68,26 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         this(true);
     }
 
+    @Override
+    public boolean mayApply(Executable method, Class<?> targetClass) {
+        return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class)
+                .map(EntityParameterResolver::supportsMessageEntityInjection)
+                .orElse(true);
+    }
+
+    private static boolean supportsMessageEntityInjection(Annotation methodAnnotation) {
+        if (methodAnnotation == null || methodAnnotation.annotationType().getAnnotation(HandleMessage.class) == null) {
+            return true;
+        }
+        return methodAnnotation instanceof HandleEvent || methodAnnotation instanceof HandleNotification;
+    }
+
     /**
      * Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will
      * recursively traverse parent entities if needed.
      *
      * @param parameter        the parameter for which a value must be injected
-     * @param methodAnnotation the annotation on the handler method (unused here)
+     * @param methodAnnotation the annotation on the handler method
      * @return a function that supplies the resolved value
      */
     @Override
@@ -81,7 +100,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      * value can be found in the message or entity context.
      *
      * @param parameter        the method parameter
-     * @param methodAnnotation the annotation on the handler method (unused here)
+     * @param methodAnnotation the annotation on the handler method
      * @param input            the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})
      * @return true if the parameter can be resolved from the input, false otherwise
      */
@@ -120,8 +139,11 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             var type = Entity.getAggregateType(message);
             String aggregateId = Entity.getAggregateId(message);
             if (aggregateId != null) {
+                if (!isCompatibleAggregateParameter(parameter, type)) {
+                    return null;
+                }
                 return Fluxzero.getOptionally()
-                        .map(fc -> loadAggregate(aggregateId, type, parameter))
+                        .map(fc -> loadAggregate(aggregateId, type))
                         .filter(e -> isAssignable(parameter, e))
                         .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
                         .orElse(null);
@@ -140,13 +162,16 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType, Parameter parameter) {
-        Class<?> parameterType = getEntityParameterType(parameter);
-        Class<?> type = aggregateType;
-        if (type == null && !Object.class.equals(parameterType)) {
-            type = parameterType;
+    private Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
+        return Fluxzero.loadAggregate(aggregateId, (Class) aggregateType);
+    }
+
+    private boolean isCompatibleAggregateParameter(Parameter parameter, Class<?> aggregateType) {
+        if (aggregateType == null) {
+            return false;
         }
-        return type == null ? Fluxzero.loadAggregate(aggregateId) : Fluxzero.loadAggregate(aggregateId, (Class) type);
+        Class<?> parameterType = getEntityParameterType(parameter);
+        return parameterType.isAssignableFrom(aggregateType);
     }
 
     /**

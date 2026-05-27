@@ -17,11 +17,14 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.logging.ConsoleError;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -32,13 +35,16 @@ import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import lombok.Builder;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
@@ -47,6 +53,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.MessageType.ERROR;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -128,6 +137,75 @@ class AggregatePlaybackTest {
             assertNotNull(resolved.previous());
             assertNull(resolved.previous().get().primaryValue());
         }).expectNoErrors();
+    }
+
+    @Test
+    void aggregateMetadataDoesNotLoadAggregateForIncompatiblePayloadParameter() throws NoSuchMethodException {
+        Method method = IncompatibleErrorHandler.class.getDeclaredMethod("handle", SetPrimaryValue.class);
+        Parameter parameter = method.getParameters()[0];
+        HandleError handleError = method.getAnnotation(HandleError.class);
+        EntityParameterResolver resolver = new EntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            storeUnknownEvent(fc, "legacy", SampleAggregate.class);
+            Message error = new Message(new ConsoleError(), Metadata.of(
+                    Entity.AGGREGATE_ID_METADATA_KEY, "legacy",
+                    Entity.AGGREGATE_TYPE_METADATA_KEY, SampleAggregate.class.getName()));
+            DeserializingMessage message = fc.serializer().deserializeMessage(error.serialize(fc.serializer()), ERROR);
+
+            assertEquals(ConsoleError.class, message.getPayloadClass());
+            assertFalse(resolver.matches(parameter, handleError, message));
+        }).expectNoErrors();
+    }
+
+    @Test
+    void aggregateMetadataDoesNotInferAggregateTypeWhenMetadataTypeCannotResolve() throws NoSuchMethodException {
+        Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
+        Parameter parameter = method.getParameters()[0];
+        HandleEvent handleEvent = method.getAnnotation(HandleEvent.class);
+        EntityParameterResolver resolver = new EntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            storeUnknownEvent(fc, "legacy", SampleAggregate.class);
+            Message event = new Message(new SetPrimaryValue("value-1"), Metadata.of(
+                    Entity.AGGREGATE_ID_METADATA_KEY, "legacy",
+                    Entity.AGGREGATE_TYPE_METADATA_KEY, "com.example.MovedAggregate"));
+            DeserializingMessage message = fc.serializer().deserializeMessage(event.serialize(fc.serializer()), EVENT);
+
+            assertNull(Entity.getAggregateType(message));
+            assertFalse(resolver.matches(parameter, handleEvent, message));
+        }).expectNoErrors();
+    }
+
+    @Test
+    void aggregateMetadataDoesNotInjectEntityIntoCommandHandler() throws NoSuchMethodException {
+        Method method = CommandEntityHandler.class.getDeclaredMethod("handle", Entity.class);
+        EntityParameterResolver resolver = new EntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            storeUnknownEvent(fc, "legacy", SampleAggregate.class);
+            Message command = new Message(new SetPrimaryValue("value-1"), Metadata.of(
+                    Entity.AGGREGATE_ID_METADATA_KEY, "legacy",
+                    Entity.AGGREGATE_TYPE_METADATA_KEY, SampleAggregate.class.getName()));
+            DeserializingMessage message = fc.serializer().deserializeMessage(command.serialize(fc.serializer()), COMMAND);
+
+            assertFalse(resolver.mayApply(method, CommandEntityHandler.class));
+            assertFalse(HandlerInspector.createHandler(new CommandEntityHandler(), HandleCommand.class, List.of(resolver))
+                                .getInvoker(message).isPresent());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void entityResolverMayApplyOnlyToEventAndNotificationMessageHandlers() throws NoSuchMethodException {
+        EntityParameterResolver resolver = new EntityParameterResolver();
+
+        assertTrue(resolver.mayApply(entityMethod("handleEvent"), EntityInjectionEligibilityHandler.class));
+        assertTrue(resolver.mayApply(entityMethod("handleNotification"), EntityInjectionEligibilityHandler.class));
+        assertTrue(resolver.mayApply(entityMethod("validate"), EntityInjectionEligibilityHandler.class));
+        assertFalse(resolver.mayApply(entityMethod("handleCommand"), EntityInjectionEligibilityHandler.class));
+        assertFalse(resolver.mayApply(entityMethod("handleError"), EntityInjectionEligibilityHandler.class));
+        assertFalse(resolver.mayApply(OverridingCommandEntityHandler.class.getDeclaredMethod("handle", Entity.class),
+                                      OverridingCommandEntityHandler.class));
     }
 
     @Test
@@ -590,6 +668,10 @@ class AggregatePlaybackTest {
         return "$Aggregate:" + aggregateId;
     }
 
+    private static Method entityMethod(String methodName) throws NoSuchMethodException {
+        return EntityInjectionEligibilityHandler.class.getDeclaredMethod(methodName, Entity.class);
+    }
+
     private static void storeLegacyEvent(Fluxzero fluxzero, String aggregateId, Object payload, String source) throws Exception {
         SerializedMessage serializedMessage = new Message(payload).serialize(fluxzero.serializer());
         serializedMessage.setSource(source);
@@ -611,6 +693,16 @@ class AggregatePlaybackTest {
         fluxzero.client().getEventStoreClient().storeEvents(aggregateId, List.of(serializedMessage), false).get();
     }
 
+    private static void storeUnknownEvent(Fluxzero fluxzero, String aggregateId, Class<?> aggregateType) throws Exception {
+        SerializedMessage serializedMessage = new SerializedMessage(
+                new Data<>("{}".getBytes(StandardCharsets.UTF_8),
+                           aggregateType.getPackageName() + ".MissingHistoricalEvent", 0, Data.JSON_FORMAT),
+                Metadata.empty(), "unknown-event", System.currentTimeMillis());
+        serializedMessage.setSource("legacy-client");
+        serializedMessage.setSegment(ConsistentHashing.computeSegment(aggregateId));
+        fluxzero.client().getEventStoreClient().storeEvents(aggregateId, List.of(serializedMessage), false).get();
+    }
+
     private static void storeForeignCreateEvent(io.fluxzero.sdk.Fluxzero fluxzero) throws Exception {
         storeEvent(fluxzero, AsyncPlaybackScenario.aggregateId, AsyncSampleAggregate.class,
                    new CreateSampleAggregateEvent(AsyncPlaybackScenario.aggregateId), "foreign-client", 0L);
@@ -618,6 +710,51 @@ class AggregatePlaybackTest {
 
     static class ProbeHandler {
         @HandleEvent
+        void handle(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class IncompatibleErrorHandler {
+        @HandleError
+        void handle(SetPrimaryValue event) {
+        }
+    }
+
+    static class CommandEntityHandler {
+        @HandleCommand
+        void handle(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class EntityInjectionEligibilityHandler {
+        @HandleEvent
+        void handleEvent(Entity<SampleAggregate> entity) {
+        }
+
+        @HandleNotification
+        void handleNotification(Entity<SampleAggregate> entity) {
+        }
+
+        @HandleCommand
+        void handleCommand(Entity<SampleAggregate> entity) {
+        }
+
+        @HandleError
+        void handleError(Entity<SampleAggregate> entity) {
+        }
+
+        void validate(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class BaseCommandEntityHandler {
+        @HandleCommand
+        void handle(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class OverridingCommandEntityHandler extends BaseCommandEntityHandler {
+        @Override
         void handle(Entity<SampleAggregate> entity) {
         }
     }
