@@ -52,6 +52,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.REPAIR_GITHUB_TOKEN || github.token }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CODEX_HOME: /tmp/codex-home
       CODEX_MODEL: gpt-5.5
       CODEX_REASONING_EFFORT: xhigh
       FAILED_RUN_ID: ${{ inputs.run_id }}
@@ -195,7 +196,23 @@ jobs:
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
         run: npm install -g @openai/codex@0.130.0
 
+      - name: Configure Codex API auth
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          mkdir -p "$CODEX_HOME"
+          chmod 700 "$CODEX_HOME"
+          cat > "$CODEX_HOME/config.toml" <<'TOML'
+          cli_auth_credentials_store = "file"
+          forced_login_method = "api"
+          TOML
+
+          printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key \
+            -c 'cli_auth_credentials_store="file"' \
+            -c 'forced_login_method="api"'
+
       - name: Run Codex repair agent
+        id: codex
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
         run: |
           set -euo pipefail
@@ -237,10 +254,12 @@ jobs:
             --ephemeral \
             -c shell_environment_policy.inherit=all \
             -c "model_reasoning_effort=\"$CODEX_REASONING_EFFORT\"" \
+            -c 'forced_login_method="api"' \
             --dangerously-bypass-approvals-and-sandbox \
             --output-last-message /tmp/codex-repair-report.md \
             - < /tmp/codex-repair-prompt.md | tee /tmp/codex-repair-events.jsonl
           status="${PIPESTATUS[0]}"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
           set -e
           if [ "$status" -ne 0 ]; then
             echo "::warning::Codex exited with status $status. Continuing only if it left a usable diff."
@@ -254,6 +273,10 @@ jobs:
           if [ -n "$(git status --porcelain)" ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
             git status --short
+          elif [ "${{ steps.codex.outputs.status }}" != "0" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Codex failed and did not leave repository changes."
+            exit 1
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "Codex did not leave repository changes."
