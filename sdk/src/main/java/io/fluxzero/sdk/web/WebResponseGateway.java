@@ -116,11 +116,17 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
         }
         if (response.getPayload() instanceof InputStream inputStream) {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
+            boolean[] firstChunk = {true};
+            long[] chunkIndex = {0L};
             try (OutputStreamCapturer capturer = new OutputStreamCapturer(MAX_RESPONSE_SIZE, (chunk, last) -> {
-                Metadata metadata = response.getMetadata().with(HasMetadata.FINAL_CHUNK, last.toString());
+                Metadata metadata = response.getMetadata()
+                        .with(HasMetadata.CHUNK_INDEX, Long.toString(chunkIndex[0]++))
+                        .with(HasMetadata.FIRST_CHUNK, Boolean.toString(firstChunk[0]))
+                        .with(HasMetadata.FINAL_CHUNK, last.toString());
                 SerializedMessage message = new SerializedMessage(new Data<>(chunk, null, 0),
                                                                   metadata, response.getMessageId(),
                                                                   response.getTimestamp().toEpochMilli());
+                firstChunk[0] = false;
                 futures.add(dispatcher.apply(message));
             })) {
                 try (inputStream) {

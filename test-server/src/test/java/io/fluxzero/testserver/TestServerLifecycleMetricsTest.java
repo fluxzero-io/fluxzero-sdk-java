@@ -67,11 +67,15 @@ class TestServerLifecycleMetricsTest {
 
             assertLifecyclePhase(metricsStore, STARTED, port);
 
+            client.shutDown();
+            client = null;
             server.stop();
 
             assertLifecyclePhase(metricsStore, STOPPING, port);
         } finally {
-            client.shutDown();
+            if (client != null) {
+                client.shutDown();
+            }
             if (server.isRunning()) {
                 server.stop();
             }

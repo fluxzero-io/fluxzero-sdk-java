@@ -26,7 +26,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +42,6 @@ import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static java.lang.System.currentTimeMillis;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.synchronizedMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -65,7 +63,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final MessageStore source;
     private final TaskScheduler scheduler;
     private final int segments;
-    private final Map<Tracker, WaitingTracker> waitingTrackers = synchronizedMap(new HashMap<>());
+    private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
     private final AtomicBoolean updateNotificationPending = new AtomicBoolean();
     private final AtomicBoolean updateNotificationRunning = new AtomicBoolean();
@@ -190,15 +188,14 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         }
 
         Registration scheduleToken = scheduler.schedule(tracker.getDeadline(), () -> {
-            if (waitingTrackers.keySet().removeIf(t -> t == tracker)) {
+            if (removeWaitingTracker(tracker) != null) {
                 clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
                         ? cluster.withActiveTracker(tracker) : cluster);
                 tracker.send(emptyBatch);
             }
         });
-        WaitingTracker existing = waitingTrackers.remove(tracker);
-        waitingTrackers.put(tracker, new WaitingTracker(tracker, scheduleToken, followUp,
-                                                        updateNotificationVersion.get()));
+        WaitingTracker existing = waitingTrackers.put(
+                tracker, new WaitingTracker(tracker, scheduleToken, followUp, updateNotificationVersion.get()));
         if (existing != null) {
             log.warn("Tracker replaced another waiting tracker. This should normally not happen. New tracker: {}",
                      tracker);
@@ -226,9 +223,18 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected List<SerializedMessage> filter(List<SerializedMessage> messages, int[] segmentRange,
                                              Position position, Tracker tracker) {
-        return messages.stream().filter(
-                m -> tracker.canHandle(ensureMessageSegment(m), segmentRange)
-                     && (tracker.ignoreSegment() || position.isNewMessage(m))).toList();
+        List<SerializedMessage> result = null;
+        for (int i = 0; i < messages.size(); i++) {
+            SerializedMessage message = ensureMessageSegment(messages.get(i));
+            if (tracker.canHandle(message, segmentRange)
+                && (tracker.ignoreSegment() || position.isNewMessage(message))) {
+                if (result == null) {
+                    result = new ArrayList<>(messages.size() - i);
+                }
+                result.add(message);
+            }
+        }
+        return result == null ? emptyList() : result;
     }
 
     protected SerializedMessage ensureMessageSegment(SerializedMessage message) {
@@ -261,10 +267,9 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected void onClusterUpdate(TrackerCluster cluster) {
         if (!stopped) {
-            synchronized (waitingTrackers) {
-                waitingTrackers.entrySet().stream().filter(e -> cluster.contains(e.getKey())).map(
-                        Map.Entry::getValue).toList().forEach(WaitingTracker::run);
-            }
+            List<WaitingTracker> trackers = cluster.getTrackers().stream().map(waitingTrackers::get)
+                    .filter(Objects::nonNull).toList();
+            trackers.forEach(WaitingTracker::run);
         }
     }
 
@@ -274,26 +279,23 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         Set<Tracker> removedAndWaiting = new HashSet<>();
         Set<TrackerCluster> updatedClusters = new HashSet<>();
         try {
-            synchronized (waitingTrackers) {
-                waitingTrackers.keySet().removeIf(tracker -> {
-                    boolean match = predicate.test(tracker);
-                    if (match) {
-                        removedAndWaiting.add(tracker);
-                    }
-                    return match;
-                });
-                clusters.replaceAll((key, cluster) -> {
-                    var updatedCluster = cluster.purgeTrackers(predicate);
-                    if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
-                        updatedClusters.add(updatedCluster);
-                    }
-                    var removedTrackers = new HashSet<>(cluster.getTrackers());
-                    removedTrackers.removeAll(updatedCluster.getTrackers());
-                    removed.addAll(removedTrackers);
-                    return updatedCluster;
-                });
-                clusters.values().removeIf(TrackerCluster::isEmpty);
-            }
+            waitingTrackers.forEach((tracker, waitingTracker) -> {
+                if ((predicate.test(tracker) || predicate.test(waitingTracker.tracker))
+                    && waitingTrackers.remove(tracker, waitingTracker)) {
+                    removedAndWaiting.add(waitingTracker.tracker);
+                }
+            });
+            clusters.replaceAll((key, cluster) -> {
+                var updatedCluster = cluster.purgeTrackers(predicate);
+                if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
+                    updatedClusters.add(updatedCluster);
+                }
+                var removedTrackers = new HashSet<>(cluster.getTrackers());
+                removedTrackers.removeAll(updatedCluster.getTrackers());
+                removed.addAll(removedTrackers);
+                return updatedCluster;
+            });
+            clusters.values().removeIf(TrackerCluster::isEmpty);
             updatedClusters.forEach(this::onClusterUpdate);
             return removed;
         } finally {
@@ -340,10 +342,8 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 updateNotificationPending.set(false);
                 long currentUpdateNotificationVersion;
                 List<WaitingTracker> trackers;
-                synchronized (waitingTrackers) {
-                    currentUpdateNotificationVersion = updateNotificationVersion.get();
-                    trackers = new ArrayList<>(waitingTrackers.values());
-                }
+                currentUpdateNotificationVersion = updateNotificationVersion.get();
+                trackers = new ArrayList<>(waitingTrackers.values());
                 trackers.forEach(t -> t.runIfBehind(currentUpdateNotificationVersion));
 
                 if (!updateNotificationPending.get()) {
@@ -358,6 +358,15 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             updateNotificationRunning.set(false);
             throw e;
         }
+    }
+
+    private WaitingTracker removeWaitingTracker(Tracker tracker) {
+        WaitingTracker waitingTracker = waitingTrackers.get(tracker);
+        if (waitingTracker != null && waitingTracker.tracker == tracker
+            && waitingTrackers.remove(tracker, waitingTracker)) {
+            return waitingTracker;
+        }
+        return null;
     }
 
     private static long indexFromMillis(long millisSinceEpoch) {

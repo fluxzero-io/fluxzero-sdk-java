@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,14 @@
 package io.fluxzero.proxy;
 
 import com.sun.net.httpserver.HttpServer;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -49,9 +52,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -63,12 +71,14 @@ import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,6 +89,7 @@ import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -86,8 +97,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Slf4j
 class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
-    private final ProxyRequestHandler proxyRequestHandler =
-            new ProxyRequestHandler(testFixture.getFluxzero().client());
+    private final TestProxyRequestHandler proxyRequestHandler =
+            new TestProxyRequestHandler(testFixture.getFluxzero().client());
     private final ProxyServer proxyServer = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
     private final int proxyPort = proxyServer.getPort();
 
@@ -596,6 +607,438 @@ class ProxyServerTest {
         }
 
         @Test
+        void largeRequestBodyIsChunkedAndPreservedForInputStreamHandlers() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(97);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunked-stream")
+                        String handle(InputStream body, DeserializingMessage message, WebRequest request)
+                                throws Exception {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            assertEquals("yes", request.getHeader("X-Chunked-Test"));
+                            assertArrayEquals(payload, body.readAllBytes());
+                            return "stream:" + payload.length;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunked-stream", proxyPort)))
+                                    .header("X-Chunked-Test", "yes")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("stream:" + payload.length, response.body());
+                    });
+        }
+
+        @Test
+        void largeRequestBodyIsAggregatedForTypedHandlers() {
+            enableRequestChunking(proxyRequestHandler, 11);
+            String payload = "Fluxzero request chunking over Jetty";
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunked-string")
+                        String handle(String body, DeserializingMessage message) {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            return body;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunked-string", proxyPort)))
+                                    .POST(BodyPublishers.ofString(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(payload, response.body());
+                    });
+        }
+
+        @Test
+        void largeBinaryRequestBodyIsAggregatedForByteArrayHandlers() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(73);
+            String expected = Base64.getEncoder().encodeToString(payload);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunked-bytes")
+                        String handle(byte[] body, DeserializingMessage message) {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            return Base64.getEncoder().encodeToString(body);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunked-bytes", proxyPort)))
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(expected, response.body());
+                    });
+        }
+
+        @Test
+        void largeRequestBodyIsAggregatedForWebRequestHandlers() {
+            enableRequestChunking(proxyRequestHandler, 9);
+            String payload = "webrequest payload stays usable";
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunked-webrequest")
+                        String handle(WebRequest request, DeserializingMessage message) {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            return request.getPayloadAs(String.class);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunked-webrequest", proxyPort)))
+                                    .POST(BodyPublishers.ofString(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(payload, response.body());
+                    });
+        }
+
+        @Test
+        void unknownLengthRequestBodyIsChunkedAndPreserved() {
+            enableRequestChunking(proxyRequestHandler, 13);
+            byte[] payload = requestPayload(53);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/unknown-length")
+                        String handle(InputStream body, DeserializingMessage message) throws Exception {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            assertArrayEquals(payload, body.readAllBytes());
+                            return "unknown:" + payload.length;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/unknown-length", proxyPort)))
+                                    .version(HttpClient.Version.HTTP_1_1)
+                                    .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("unknown:" + payload.length, response.body());
+                    });
+        }
+
+        @Test
+        void unknownLengthRequestBodyBelowChunkSizeUsesRegularRequestPath() {
+            enableRequestChunking(proxyRequestHandler, 64);
+            byte[] payload = requestPayload(17);
+            String expected = Base64.getEncoder().encodeToString(payload);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/unknown-length-small")
+                        String handle(byte[] body, DeserializingMessage message) {
+                            assertFalse(message instanceof ChunkedDeserializingMessage);
+                            return Base64.getEncoder().encodeToString(body);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/unknown-length-small", proxyPort)))
+                                    .version(HttpClient.Version.HTTP_1_1)
+                                    .header("Content-Type", "application/octet-stream")
+                                    .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(expected, response.body());
+                    });
+        }
+
+        @Test
+        void requestBodyBelowChunkBoundaryUsesRegularRequestPath() {
+            assertChunkedFlagForPayloadSize(16, false);
+        }
+
+        @Test
+        void requestBodyAtChunkBoundaryUsesRegularRequestPath() {
+            String payload = "exactly-sixteen!";
+            enableRequestChunking(proxyRequestHandler, payload.getBytes(StandardCharsets.UTF_8).length);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunk-boundary")
+                        String handle(String body, DeserializingMessage message) {
+                            assertFalse(message instanceof ChunkedDeserializingMessage);
+                            return body;
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunk-boundary", proxyPort)))
+                                    .POST(BodyPublishers.ofString(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(payload, response.body());
+                    });
+        }
+
+        @Test
+        void requestBodyAboveChunkBoundaryIsChunked() {
+            assertChunkedFlagForPayloadSize(18, true);
+        }
+
+        @Test
+        void largeRequestBodyAtChunkMultipleUsesFinalDataChunk() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(34);
+            AtomicInteger webRequestDispatches = new AtomicInteger();
+            var registration = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                    .registerMonitor(messages -> webRequestDispatches.addAndGet(messages.size()));
+            try {
+                testFixture.registerHandlers(new Object() {
+                            @HandlePost("/chunk-multiple")
+                            String handle(InputStream body, DeserializingMessage message) throws Exception {
+                                assertTrue(message instanceof ChunkedDeserializingMessage);
+                                assertArrayEquals(payload, body.readAllBytes());
+                                return "multiple:" + payload.length;
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format("http://localhost:%s/chunk-multiple", proxyPort)))
+                                        .POST(BodyPublishers.ofByteArray(payload))
+                                        .build(), BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(200, response.statusCode());
+                            assertEquals("multiple:" + payload.length, response.body());
+                            assertEquals(2, webRequestDispatches.get());
+                        });
+            } finally {
+                registration.cancel();
+            }
+        }
+
+        @Test
+        void smallPublisherPartsAreBufferedIntoRequestChunks() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(29);
+            AtomicInteger webRequestDispatches = new AtomicInteger();
+            var registration = testFixture.getFluxzero().client().getGatewayClient(MessageType.WEBREQUEST)
+                    .registerMonitor(messages -> webRequestDispatches.addAndGet(messages.size()));
+            try {
+                testFixture.registerHandlers(new Object() {
+                            @HandlePost("/chunked-small-parts")
+                            String handle(InputStream body, DeserializingMessage message) throws Exception {
+                                assertTrue(message instanceof ChunkedDeserializingMessage);
+                                assertArrayEquals(payload, body.readAllBytes());
+                                return "parts:" + payload.length;
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format("http://localhost:%s/chunked-small-parts", proxyPort)))
+                                        .POST(chunkedBodyPublisher(payload, 3))
+                                        .build(), BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(200, response.statusCode());
+                            assertEquals("parts:" + payload.length, response.body());
+                            assertEquals(2, webRequestDispatches.get());
+                        });
+            } finally {
+                registration.cancel();
+            }
+        }
+
+        @Test
+        void chunkedUploadCanReturnAsyncResponse() {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(73);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunked-async")
+                        CompletionStage<String> handle(InputStream body, DeserializingMessage message) {
+                            assertTrue(message instanceof ChunkedDeserializingMessage);
+                            return CompletableFuture.supplyAsync(() -> {
+                                try {
+                                    return "async:" + body.readAllBytes().length;
+                                } catch (Exception e) {
+                                    throw new CompletionException(e);
+                                }
+                            });
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunked-async", proxyPort)))
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("async:" + payload.length, response.body());
+                    });
+        }
+
+        @Test
+        void disconnectedChunkedUploadDoesNotInvokeTypedPayloadHandler() throws Exception {
+            enableRequestChunking(proxyRequestHandler, 1024);
+            CountDownLatch handled = new CountDownLatch(1);
+            CountDownLatch failedBeforeDispatch = new CountDownLatch(1);
+            proxyRequestHandler.expectResponseFailure(failedBeforeDispatch);
+            testFixture.registerHandlers(new Object() {
+                @HandlePost("/disconnect-upload")
+                String handle(byte[] body) {
+                    handled.countDown();
+                    return String.valueOf(body.length);
+                }
+            });
+
+            try (Socket socket = new Socket("localhost", proxyPort)) {
+                OutputStream output = socket.getOutputStream();
+                output.write(("POST /disconnect-upload HTTP/1.1\r\n"
+                              + "Host: localhost\r\n"
+                              + "Content-Type: application/octet-stream\r\n"
+                              + "Content-Length: 2048\r\n"
+                              + "\r\n").getBytes(StandardCharsets.UTF_8));
+                output.write(new byte[1024]);
+                output.flush();
+            }
+
+            assertTrue(failedBeforeDispatch.await(1, TimeUnit.SECONDS),
+                       "Expected proxy to complete the disconnected upload as a failed request");
+            assertEquals(1L, handled.getCount(),
+                         "Typed payload handler should not be invoked for a disconnected chunked upload");
+        }
+
+        @Test
+        @ResourceLock(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY)
+        @ResourceLock(ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY)
+        void requestChunkSizeCanBeConfigured() throws Exception {
+            String previousChunkSize = System.getProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY);
+            String previousEnabled = System.getProperty(ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            try {
+                System.setProperty(ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY, "true");
+                System.setProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, "5");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+                String payload = "configured chunks";
+
+                testFixture.registerHandlers(new Object() {
+                            @HandlePost("/configured-chunks")
+                            String handle(String body, DeserializingMessage message) {
+                                assertTrue(message instanceof ChunkedDeserializingMessage);
+                                return body;
+                            }
+                        })
+                        .whenApplying(fc -> httpClient.send(
+                                newBuilder(URI.create(format(
+                                        "http://localhost:%s/configured-chunks", configuredPort)))
+                                        .POST(BodyPublishers.ofString(payload))
+                                        .build(), BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(200, response.statusCode());
+                            assertEquals(payload, response.body());
+                        });
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, previousChunkSize);
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY, previousEnabled);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY)
+        void invalidRequestChunkSizePropertyIsRejected() {
+            String previousValue = System.getProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY);
+            try {
+                System.setProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, "0");
+                IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                                                              () -> new ProxyRequestHandler(
+                                                                      testFixture.getFluxzero().client()));
+                assertEquals(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY
+                             + " must be greater than 0 and at most " + Integer.MAX_VALUE, error.getMessage());
+            } finally {
+                restoreProperty(ProxyRequestHandler.REQUEST_CHUNK_SIZE_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyServer.MAX_REQUEST_BODY_SIZE_PROPERTY)
+        void unknownLengthChunkedRequestCannotBypassTotalBodyLimit() throws Exception {
+            String previousValue = System.getProperty(ProxyServer.MAX_REQUEST_BODY_SIZE_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            AtomicInteger invocations = new AtomicInteger();
+            try {
+                System.setProperty(ProxyServer.MAX_REQUEST_BODY_SIZE_PROPERTY, "64");
+                TestProxyRequestHandler configuredHandler =
+                        new TestProxyRequestHandler(testFixture.getFluxzero().client());
+                enableRequestChunking(configuredHandler, 16);
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(0, configuredHandler);
+                int configuredPort = configuredProxyServer.getPort();
+                byte[] payload = requestPayload(96);
+
+                testFixture.registerHandlers(new Object() {
+                    @HandlePost("/limited-unknown")
+                    String handle(InputStream body) throws Exception {
+                        invocations.incrementAndGet();
+                        return String.valueOf(body.readAllBytes().length);
+                    }
+                });
+
+                var response = httpClient.send(
+                        newBuilder(URI.create(format("http://localhost:%s/limited-unknown", configuredPort)))
+                                .version(HttpClient.Version.HTTP_1_1)
+                                .POST(BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(payload)))
+                                .build(), BodyHandlers.ofString());
+
+                assertTrue(response.statusCode() >= 400,
+                           "Expected oversized request to be rejected, got HTTP " + response.statusCode());
+                assertEquals(0, invocations.get());
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyServer.MAX_REQUEST_BODY_SIZE_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY)
+        void stalledChunkedUploadClosesWithoutInvokingTypedPayloadHandler() throws Exception {
+            String previousValue = System.getProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            CountDownLatch handled = new CountDownLatch(1);
+            try {
+                System.setProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY, "200");
+                TestProxyRequestHandler configuredHandler =
+                        new TestProxyRequestHandler(testFixture.getFluxzero().client());
+                enableRequestChunking(configuredHandler, 1024);
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(0, configuredHandler);
+                int configuredPort = configuredProxyServer.getPort();
+                testFixture.registerHandlers(new Object() {
+                    @HandlePost("/stalled-upload")
+                    String handle(byte[] body) {
+                        handled.countDown();
+                        return String.valueOf(body.length);
+                    }
+                });
+
+                try (Socket socket = new Socket("localhost", configuredPort)) {
+                    socket.setSoTimeout(3000);
+                    OutputStream output = socket.getOutputStream();
+                    output.write(("POST /stalled-upload HTTP/1.1\r\n"
+                                  + "Host: localhost\r\n"
+                                  + "Content-Type: application/octet-stream\r\n"
+                                  + "Content-Length: 2048\r\n"
+                                  + "\r\n").getBytes(StandardCharsets.UTF_8));
+                    output.write(new byte[1024]);
+                    output.flush();
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(),
+                                                                                     StandardCharsets.UTF_8));
+                    String statusLine = reader.readLine();
+                    assertTrue(statusLine == null || statusLine.startsWith("HTTP/1.1 4")
+                               || statusLine.startsWith("HTTP/1.1 5"),
+                               () -> "Expected stalled upload to close or fail, got: " + statusLine);
+                }
+
+                assertEquals(1L, handled.getCount(),
+                             "Typed payload handler should not be invoked for a stalled chunked upload");
+            } finally {
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
         void cancelReleasesListeningPort() throws Exception {
             proxyServer.cancel();
             try (ServerSocket serverSocket = new ServerSocket()) {
@@ -610,6 +1053,25 @@ class ProxyServerTest {
 
         private URI baseUri() {
             return URI.create(format("http://localhost:%s/", proxyPort));
+        }
+
+        private void assertChunkedFlagForPayloadSize(int size, boolean expectedChunked) {
+            enableRequestChunking(proxyRequestHandler, 17);
+            byte[] payload = requestPayload(size);
+            testFixture.registerHandlers(new Object() {
+                        @HandlePost("/chunk-flag")
+                        String handle(InputStream body, DeserializingMessage message) throws Exception {
+                            return body.readAllBytes().length + ":" + (message instanceof ChunkedDeserializingMessage);
+                        }
+                    })
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/chunk-flag", proxyPort)))
+                                    .POST(BodyPublishers.ofByteArray(payload))
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals(payload.length + ":" + expectedChunked, response.body());
+                    });
         }
     }
 
@@ -1210,6 +1672,76 @@ class ProxyServerTest {
         byte[] payload = new byte[WebResponseGateway.MAX_RESPONSE_SIZE + 17];
         for (int i = 0; i < payload.length; i++) {
             payload[i] = (byte) (i % 251);
+        }
+        return payload;
+    }
+
+    private static HttpRequest.BodyPublisher chunkedBodyPublisher(byte[] payload, int publisherChunkSize) {
+        return new HttpRequest.BodyPublisher() {
+            @Override
+            public long contentLength() {
+                return payload.length;
+            }
+
+            @Override
+            public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
+                subscriber.onSubscribe(new Flow.Subscription() {
+                    private int offset;
+                    private boolean completed;
+
+                    @Override
+                    public void request(long n) {
+                        long remainingDemand = n;
+                        while (remainingDemand-- > 0 && offset < payload.length && !completed) {
+                            int length = Math.min(publisherChunkSize, payload.length - offset);
+                            subscriber.onNext(ByteBuffer.wrap(Arrays.copyOfRange(payload, offset, offset + length)));
+                            offset += length;
+                        }
+                        if (offset >= payload.length && !completed) {
+                            completed = true;
+                            subscriber.onComplete();
+                        }
+                    }
+
+                    @Override
+                    public void cancel() {
+                        completed = true;
+                    }
+                });
+            }
+        };
+    }
+
+    private static class TestProxyRequestHandler extends ProxyRequestHandler {
+        private volatile CountDownLatch responseFailure = new CountDownLatch(0);
+
+        TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client) {
+            super(client);
+        }
+
+        void expectResponseFailure(CountDownLatch responseFailure) {
+            this.responseFailure = responseFailure;
+        }
+
+        @Override
+        protected void completeResponse(io.fluxzero.common.api.SerializedMessage response, Throwable error,
+                                        WebRequest webRequest, JettyExchange exchange) {
+            super.completeResponse(response, error, webRequest, exchange);
+            if (error != null) {
+                responseFailure.countDown();
+            }
+        }
+    }
+
+    private static void enableRequestChunking(ProxyRequestHandler handler, int chunkSize) {
+        handler.setRequestChunkingEnabled(true);
+        handler.setRequestChunkSize(chunkSize);
+    }
+
+    private static byte[] requestPayload(int length) {
+        byte[] payload = new byte[length];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 127);
         }
         return payload;
     }

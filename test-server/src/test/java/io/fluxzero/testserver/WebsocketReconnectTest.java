@@ -139,6 +139,11 @@ class WebsocketReconnectTest {
             super.handleClose(session, closeReason);
         }
 
+        @Override
+        protected Duration retryOutstandingRequestsDelay() {
+            return Duration.ZERO;
+        }
+
         boolean awaitReconnect(long timeout, TimeUnit unit) throws InterruptedException {
             return reconnected.await(timeout, unit);
         }

@@ -18,7 +18,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.HandlerInvoker.DelegatingHandlerInvoker;
+import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -32,6 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -124,42 +130,99 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     @Override
+    public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
+        return new Handler<>() {
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                    return handler.getInvokerOrNull(message);
+                }
+                HandlerInvoker invoker = handler.getInvokerOrNull(message);
+                if (invoker == null) {
+                    return null;
+                }
+                return new DelegatingHandlerInvoker(invoker) {
+                    @Override
+                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                        DeserializingMessage handledMessage = restoreProtectedData(message, invoker);
+                        if (handledMessage != message) {
+                            HandlerInvoker restoredInvoker = handler.getInvokerOrNull(handledMessage);
+                            if (restoredInvoker == null) {
+                                throw new UnsupportedOperationException(
+                                        "Restoring protected data changed the payload type in an unsupported way.");
+                            }
+                            return handledMessage.apply(m -> restoredInvoker.invoke(combiner));
+                        }
+                        return invoker.invoke(combiner);
+                    }
+                };
+            }
+
+            @Override
+            public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
+                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                    return handler.getHandlerMethodOrNull(message);
+                }
+                return null;
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return handler.getTargetClass();
+            }
+
+            @Override
+            public String toString() {
+                return handler.toString();
+            }
+        };
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
         return m -> {
-            if (m.getMetadata().containsKey(METADATA_KEY)) {
-                Object payload = m.getPayload();
-                Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
-                boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
-                if (payload != null && payload.getClass().isRecord()) {
-                    JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-                    protectedFields.forEach((fieldName, key) -> {
-                        try {
-                            writeProperty(fieldName, payloadTree, keyValueStore.get(key));
-                        } catch (Exception e) {
-                            log.warn("Failed to set field {}", fieldName, e);
-                        }
-                        if (dropProtectedData) {
-                            keyValueStore.delete(key);
-                        }
-                    });
-                    m = m.withPayload(serializer.convert(payloadTree, payload.getClass()));
-                    return function.apply(m);
-                }
-                protectedFields.forEach((fieldName, key) -> {
-                    try {
-                        writeProperty(fieldName, payload, keyValueStore.get(key));
-                    } catch (Exception e) {
-                        log.warn("Failed to set field {}", fieldName, e);
-                    }
-                    if (dropProtectedData) {
-                        keyValueStore.delete(key);
-                    }
-                });
+            DeserializingMessage handledMessage = restoreProtectedData(m, invoker);
+            if (handledMessage != m) {
+                return handledMessage.apply(function::apply);
             }
             return function.apply(m);
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private DeserializingMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
+        if (!m.getMetadata().containsKey(METADATA_KEY)) {
+            return m;
+        }
+        Object payload = m.getPayload();
+        Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
+        boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
+        if (payload != null && payload.getClass().isRecord()) {
+            JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
+            protectedFields.forEach((fieldName, key) -> restoreProtectedField(payloadTree, fieldName, key,
+                                                                              dropProtectedData));
+            return m.withPayload(serializer.convert(payloadTree, payload.getClass()));
+        }
+        protectedFields.forEach((fieldName, key) -> restoreProtectedField(payload, fieldName, key, dropProtectedData));
+        return m;
+    }
+
+    private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
+        try {
+            writeProperty(fieldName, payload, keyValueStore.get(key));
+        } catch (Exception e) {
+            log.warn("Failed to set field {}", fieldName, e);
+        }
+        if (dropProtectedData) {
+            keyValueStore.delete(key);
+        }
     }
 
     private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {

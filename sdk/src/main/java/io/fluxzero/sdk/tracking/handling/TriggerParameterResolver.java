@@ -97,6 +97,18 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         return TriggerMetadata.of(targetClass).triggerFilter(executable).test(message);
     }
 
+    @Override
+    public MessageFilter<? super HasMessage> prepare(Executable executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        Trigger trigger = TriggerMetadata.of(targetClass).trigger(executable).orElse(null);
+        if (trigger == null) {
+            return MessageFilter.allowAll();
+        }
+        Predicate<HasMessage> filter = triggerFilter(trigger);
+        return (message, e, a, t) -> filter.test(message);
+    }
+
     /**
      * Checks if the given method parameter should be resolved by this resolver.
      *
@@ -235,21 +247,22 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         }
 
         private Predicate<HasMessage> triggerFilter(Executable executable) {
-            return getOrCompute(triggerFilter, executable,
-                                key -> TriggerParameterResolver.triggerFilter(trigger(key).orElse(null)));
-        }
-
-        private Optional<Trigger> trigger(Executable executable) {
-            return getOrCompute(trigger, executable, key -> ReflectionUtils.getAnnotation(key, Trigger.class));
-        }
-
-        private static <K, V> V getOrCompute(ConcurrentHashMap<K, V> cache, K key, Function<K, V> loader) {
-            V cached = cache.get(key);
+            Predicate<HasMessage> cached = triggerFilter.get(executable);
             if (cached != null) {
                 return cached;
             }
-            V computed = loader.apply(key);
-            V existing = cache.putIfAbsent(key, computed);
+            Predicate<HasMessage> computed = TriggerParameterResolver.triggerFilter(trigger(executable).orElse(null));
+            Predicate<HasMessage> existing = triggerFilter.putIfAbsent(executable, computed);
+            return existing != null ? existing : computed;
+        }
+
+        private Optional<Trigger> trigger(Executable executable) {
+            Optional<Trigger> cached = trigger.get(executable);
+            if (cached != null) {
+                return cached;
+            }
+            Optional<Trigger> computed = ReflectionUtils.getAnnotation(executable, Trigger.class);
+            Optional<Trigger> existing = trigger.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }
     }

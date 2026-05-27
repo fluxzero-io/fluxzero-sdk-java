@@ -59,6 +59,7 @@ import java.util.Optional;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -94,6 +95,13 @@ import static java.time.temporal.ChronoUnit.DAYS;
  */
 @Slf4j
 public class ClientUtils {
+    private static final ClassValue<LocalHandlerAnnotationCache> localHandlerAnnotationCache = new ClassValue<>() {
+        @Override
+        protected LocalHandlerAnnotationCache computeValue(Class<?> type) {
+            return new LocalHandlerAnnotationCache(type);
+        }
+    };
+
     /**
      * A marker used to denote specific log entries that should be ignored or treated differently, typically to bypass
      * error handling in logging frameworks.
@@ -164,6 +172,14 @@ public class ClientUtils {
      */
     public static Optional<LocalHandler> getLocalHandlerAnnotation(Class<?> target,
                                                                    java.lang.reflect.Executable method) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        return localHandlerAnnotationCache.get(target).get(method);
+    }
+
+    private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
+                                                                        java.lang.reflect.Executable method) {
         return getAnnotation(method, LocalHandler.class)
                 .or(() -> Optional.ofNullable(getTypeAnnotation(target, LocalHandler.class)))
                 .or(() -> getPackageAnnotation(target.getPackage(), LocalHandler.class))
@@ -174,6 +190,27 @@ public class ClientUtils {
         return getAnnotation(method, TrackSelf.class)
                 .or(() -> Optional.ofNullable(getTypeAnnotation(target, TrackSelf.class)))
                 .or(() -> getPackageAnnotation(target.getPackage(), TrackSelf.class));
+    }
+
+    private static class LocalHandlerAnnotationCache {
+        private final Class<?> target;
+        private final Optional<LocalHandler> classAnnotation;
+        private final ConcurrentHashMap<Executable, Optional<LocalHandler>> methodAnnotations =
+                new ConcurrentHashMap<>();
+        private final Function<Executable, Optional<LocalHandler>> computer = this::compute;
+
+        private LocalHandlerAnnotationCache(Class<?> target) {
+            this.target = target;
+            this.classAnnotation = computeLocalHandlerAnnotation(target, null);
+        }
+
+        Optional<LocalHandler> get(Executable method) {
+            return method == null ? classAnnotation : methodAnnotations.computeIfAbsent(method, computer);
+        }
+
+        private Optional<LocalHandler> compute(Executable method) {
+            return computeLocalHandlerAnnotation(target, method);
+        }
     }
 
     /**

@@ -16,15 +16,21 @@ package io.fluxzero.sdk.publishing.dataprotection;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
+import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,6 +41,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -195,6 +202,21 @@ class DataProtectionInterceptorTest {
                     assertTrue(handler.getLastMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class)
                             .containsKey("details/socialSecurityNumber"));
                 });
+    }
+
+    @Test
+    void protectedMessagesDoNotExposeReusableHandlerMethodBeforeDataIsRestored() {
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new SomeHandler(), HandleEvent.class,
+                java.util.List.of(new MessageParameterResolver(), new PayloadParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new DataProtectionInterceptor(null, null).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new SomeEvent(null), Metadata.of(DataProtectionInterceptor.METADATA_KEY,
+                                                             Map.of("sensitiveData", "key"))),
+                MessageType.EVENT, null);
+
+        assertNull(wrapped.getHandlerMethodOrNull(message));
+        assertNotNull(wrapped.getInvokerOrNull(message));
     }
 
     @Value

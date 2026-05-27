@@ -35,6 +35,7 @@ import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -109,6 +110,24 @@ class UpcasterChainTest {
         Data<String> input = new Data<>("input", "splitData", 0, null);
         Stream<? extends Data<String>> result = subject.cast(Stream.of(input));
         assertEquals(upcasterStub.splitData(input).collect(toList()), result.collect(toList()));
+    }
+
+    @Test
+    void castFirstOrNullReturnsFirstSplitResult() {
+        CasterChain<Data<String>, Data<String>> subject = DefaultCasterChain.createUpcaster(
+                Collections.singleton(upcasterStub), String.class);
+        Data<String> input = new Data<>("input", "splitData", 0, null);
+
+        assertEquals(upcasterStub.splitData(input).findAny().orElseThrow(), subject.castFirstOrNull(input, null));
+    }
+
+    @Test
+    void castFirstOrNullReturnsNullWhenInputIsDropped() {
+        CasterChain<Data<String>, Data<String>> subject = DefaultCasterChain.createUpcaster(
+                Collections.singleton(upcasterStub), String.class);
+        Data<String> input = new Data<>("input", "dropData", 0, null);
+
+        assertNull(subject.castFirstOrNull(input, null));
     }
 
     /*

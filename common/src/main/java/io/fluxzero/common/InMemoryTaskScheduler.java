@@ -22,7 +22,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,7 +54,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     private final ExecutorService workerPool;
     private final Clock clock;
     private final Registration clockChangeRegistration;
-    private final Set<Task> tasks = new CopyOnWriteArraySet<>();
+    private final Set<Task> tasks = ConcurrentHashMap.newKeySet();
 
     public InMemoryTaskScheduler() {
         this(defaultclock);

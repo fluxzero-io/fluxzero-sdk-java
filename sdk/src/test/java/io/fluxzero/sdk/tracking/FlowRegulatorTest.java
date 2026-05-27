@@ -34,8 +34,8 @@ class FlowRegulatorTest {
         @Test
         void consumerIsPaused() {
             testFixture
-                    .consumerTimeout(Duration.ofMillis(200))
-                    .registerHandlers(PauseOnceHandler.class)
+                    .consumerTimeout(Duration.ofMillis(20))
+                    .registerHandlers(PausePastConsumerTimeoutHandler.class)
                     .whenEvent("123")
                     .expectNoMetricsLike(HandleMessageEvent.class);
         }
@@ -43,24 +43,42 @@ class FlowRegulatorTest {
         @Test
         void consumerIsContinuedAfterDelay() {
             testFixture
-                    .registerHandlers(PauseOnceHandler.class)
+                    .registerHandlers(PauseBrieflyHandler.class)
                     .whenEvent("123")
                     .expectMetrics(HandleMessageEvent.class);
         }
 
-        @Consumer(name = "MyHandler", flowRegulator = PauseOnce.class)
-        static class PauseOnceHandler {
+        @Consumer(name = "PausedHandler", flowRegulator = PausePastConsumerTimeout.class)
+        static class PausePastConsumerTimeoutHandler {
             @HandleEvent
             void handle(String ignored) {
             }
         }
 
-        static class PauseOnce implements FlowRegulator {
+        @Consumer(name = "ResumedHandler", flowRegulator = PauseBriefly.class)
+        static class PauseBrieflyHandler {
+            @HandleEvent
+            void handle(String ignored) {
+            }
+        }
+
+        static class PausePastConsumerTimeout implements FlowRegulator {
             final AtomicBoolean pausedOnce = new AtomicBoolean();
             @Override
             public Optional<Duration> pauseDuration() {
                 if (pausedOnce.compareAndSet(false, true)) {
-                    return Optional.of(Duration.ofMillis(1000));
+                    return Optional.of(Duration.ofMillis(100));
+                }
+                return Optional.empty();
+            }
+        }
+
+        static class PauseBriefly implements FlowRegulator {
+            final AtomicBoolean pausedOnce = new AtomicBoolean();
+            @Override
+            public Optional<Duration> pauseDuration() {
+                if (pausedOnce.compareAndSet(false, true)) {
+                    return Optional.of(Duration.ofMillis(50));
                 }
                 return Optional.empty();
             }

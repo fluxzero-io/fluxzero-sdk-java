@@ -54,16 +54,51 @@ import java.lang.reflect.Executable;
  * @see HasMessage#getRoutingKey(String)
  */
 public class SegmentFilter implements MessageFilter<HasMessage> {
+    private static final MessageFilter<HasMessage> ALLOW_ALL = MessageFilter.allowAll();
+
+    @Override
+    public MessageFilter<? super HasMessage> prepare(Executable executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        RoutingKey routingKey = ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
+                .orElse(null);
+        return routingKey == null ? ALLOW_ALL : new PreparedSegmentFilter(routingKey.value());
+    }
+
     @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
-        return message instanceof DeserializingMessage dm
-               && Tracker.current().filter(tracker -> tracker.getConfiguration().ignoreSegment())
-                       .map(tracker -> ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
-                               .map(routingKey -> message.getRoutingKey(routingKey.value())
-                                       .or(message::computeRoutingKey)
-                                       .orElseGet(message::getMessageId))
-                               .map(routingValue -> tracker.canHandle(dm, routingValue))
-                               .orElse(true)).orElse(true);
+        Tracker tracker = Tracker.current.get();
+        if (!(message instanceof DeserializingMessage dm)
+            || tracker == null
+            || !tracker.getConfiguration().ignoreSegment()) {
+            return true;
+        }
+        RoutingKey routingKey = ReflectionUtils.<RoutingKey>getMethodAnnotation(executable, RoutingKey.class)
+                .orElse(null);
+        if (routingKey == null) {
+            return true;
+        }
+        String routingValue = message.getRoutingKey(routingKey.value())
+                .or(message::computeRoutingKey)
+                .orElseGet(message::getMessageId);
+        return tracker.canHandle(dm, routingValue);
+    }
+
+    private record PreparedSegmentFilter(String routingKey) implements MessageFilter<HasMessage> {
+        @Override
+        public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                            Class<?> targetClass) {
+            Tracker tracker = Tracker.current.get();
+            if (!(message instanceof DeserializingMessage dm)
+                || tracker == null
+                || !tracker.getConfiguration().ignoreSegment()) {
+                return true;
+            }
+            String routingValue = message.getRoutingKey(routingKey)
+                    .or(message::computeRoutingKey)
+                    .orElseGet(message::getMessageId);
+            return tracker.canHandle(dm, routingValue);
+        }
     }
 }

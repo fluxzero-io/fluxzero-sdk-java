@@ -18,6 +18,8 @@ package io.fluxzero.sdk.benchmark;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TimingUtils;
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.UuidFactory;
@@ -25,18 +27,27 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import jdk.jfr.Configuration;
+import jdk.jfr.Recording;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -68,14 +79,16 @@ public class TrackerIntegrationBenchmark {
         int port = ApplicationProperties.getIntegerProperty(
                 "FLUXZERO_PORT", ApplicationProperties.getIntegerProperty(
                         "FLUX_PORT", ApplicationProperties.getIntegerProperty("port", 8888)));
-        boolean concurrentPublish = ApplicationProperties.getBooleanProperty("concurrentPublish", true);
-        PublishMode publishMode = PublishMode.valueOf(
-                System.getProperty("publishMode", concurrentPublish ? "CONCURRENT" : "BULK")
-                        .toUpperCase(Locale.ROOT));
+        BenchmarkMode mode = BenchmarkMode.parse(ApplicationProperties.getProperty("mode", "CONCURRENT"));
+        ClientMode clientMode = ClientMode.parse(ApplicationProperties.getProperty("clientMode", "WEBSOCKET"));
+        PipelineMode pipelineMode = PipelineMode.parse(ApplicationProperties.getProperty("pipelineMode", "BENCHMARK"));
+        String jfrFile = ApplicationProperties.getProperty("jfrFile", null);
+        String jfrSettings = ApplicationProperties.getProperty("jfrSettings", "profile");
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
             port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
-            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
+            publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile,
+            jfrSettings);
         log.info("Shutting down");
         System.exit(0);
         log.info("Shutdown complete");
@@ -85,30 +98,30 @@ public class TrackerIntegrationBenchmark {
     void run(String namespace, int port, int clientCount, int consumerCount, int threadCount,
              int messageCount, int publisherCount,
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
-             PublishMode publishMode) {
+             BenchmarkMode mode, ClientMode clientMode, PipelineMode pipelineMode, String jfrFile,
+             String jfrSettings) {
+
+        String runId = namespace.substring(0, Math.min(namespace.length(), 12));
 
         log.info("""
-                         Starting TrackerIntegrationBenchmark with port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
+                         Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
                          publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
-                         benchmarkTimeoutMs={}, publishMode={}
+                         benchmarkTimeoutMs={}, mode={}, clientMode={}, pipelineMode={}, jfrFile={}
                          """.replaceAll("\\s+", " "),
-                 port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
-                 distinctKeys, payloadBytes, benchmarkTimeoutMs, publishMode);
+                 namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
+                 distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);
         ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer = new ConcurrentHashMap<>();
 
+        // LocalClient namespaces have separate in-memory stores; use the root client so default consumers and publishers
+        // share the same message log.
+        Client localClient = clientMode == ClientMode.LOCAL ? LocalClient.newInstance(null) : null;
         List<Fluxzero> clients = new ArrayList<>();
         for (int i = 0; i < clientCount; i++) {
             String clientName = "bench-client-" + i;
-            WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
-                    .name(clientName)
-                    .id("client-" + i)
-                    .namespace(namespace)
-                    .runtimeBaseUrl("ws://localhost:" + port)
-                    .build();
-            WebSocketClient wsClient = WebSocketClient.newInstance(clientConfig);
+            Client benchmarkClient = createClient(clientMode, localClient, namespace, port, i, clientName, runId);
             FluxzeroBuilder fluxzeroBuilder = DefaultFluxzero.builder()
                     .disableAutomaticTracking()
                     .disableTrackingMetrics()
@@ -118,17 +131,10 @@ public class TrackerIntegrationBenchmark {
 
             for (int j = 0; j < consumerCount; j++) {
                 String consumerName = "consumer-%d".formatted(j);
-                fluxzeroBuilder.addConsumerConfiguration(
-                        ConsumerConfiguration.builder().name(consumerName)
-                                .handlerFilter(o -> true)
-                                .maxWaitDuration(Duration.ofSeconds(10))
-                                .exclusive(false)
-                                .minIndex(-1L)
-                                .threads(threadCount)
-                                .build());
+                fluxzeroBuilder.addConsumerConfiguration(consumerConfiguration(consumerName, threadCount));
             }
 
-            Fluxzero fluxzero = fluxzeroBuilder.build(wsClient);
+            Fluxzero fluxzero = fluxzeroBuilder.build(benchmarkClient);
             clients.add(fluxzero);
         }
 
@@ -145,38 +151,201 @@ public class TrackerIntegrationBenchmark {
         warmUp(clients);
         log.info("Warming up complete");
 
-        log.info("Registering handlers");
         List<Fluxzero> publishers = clients.subList(0, Math.min(publisherCount, clients.size()));
-        clients.forEach(c -> c.registerHandlers(new Handler(latch, deliveriesPerConsumer)));
-        Thread.sleep(1000);
 
-        log.info("Waiting for benchmark to complete");
-        TimingUtils.time(() -> {
-            switch (publishMode) {
-                case BULK -> publishEventsBulk(publishers.getFirst(), messageCount, distinctKeys, payloadBytes);
-                case CONCURRENT -> publishEventsConcurrently(publishers, messageCount, publishBatchSize, distinctKeys,
-                                                             payloadBytes);
-            }
-            if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
-                log.error("Benchmark timed out after {} ms with {} events remaining",
-                          benchmarkTimeoutMs, latch.getCount());
-                logMissingConsumers(messageCount, deliveriesPerConsumer);
-                throw new IllegalStateException("Timed out with %s events remaining".formatted(latch.getCount()));
-            }
-            return null;
-        }, millis -> {
-            log.info("Consumed {} events in {} ms across {} consumers ({} events/s)", messageCount, millis,
-                     consumerCount,
-                     millis == 0 ? totalCount : (totalCount * 1000L) / millis);
-        });
+        if (mode == BenchmarkMode.PRELOAD) {
+            publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys, payloadBytes);
+            log.info("Waiting for benchmark to complete");
+            timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            jfrFile, jfrSettings,
+                            () -> registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch,
+                                                    deliveriesPerConsumer));
+        } else {
+            registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch, deliveriesPerConsumer);
+            Thread.sleep(1000);
+            log.info("Waiting for benchmark to complete");
+            timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
+                            jfrFile, jfrSettings,
+                            () -> publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys,
+                                                payloadBytes));
+        }
 
         log.info("Closing clients");
         clients.forEach(Fluxzero::close);
         log.info("Clients closed");
     }
 
+    private static void registerConsumers(PipelineMode pipelineMode, List<Fluxzero> clients, int consumerCount,
+                                          int threadCount, CountDownLatch latch,
+                                          ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer) {
+        log.info("Registering {} consumers", pipelineMode);
+        switch (pipelineMode) {
+            case TRACKER_ONLY, DESERIALIZE_ONLY ->
+                    registerRawTrackers(pipelineMode, clients, consumerCount, threadCount, latch);
+            case DIRECT_HANDLER -> clients.forEach(c -> c.tracking(MessageType.EVENT).start(c, new DirectHandler(latch)));
+            case NOOP_HANDLER -> clients.forEach(c -> c.registerHandlers(new NoopHandler(latch)));
+            case PAYLOAD_HANDLER -> clients.forEach(c -> c.registerHandlers(new PayloadHandler(latch)));
+            case BENCHMARK_HANDLER ->
+                    clients.forEach(c -> c.registerHandlers(new BenchmarkHandler(latch, deliveriesPerConsumer)));
+        }
+    }
+
+    private static void registerRawTrackers(PipelineMode pipelineMode, List<Fluxzero> clients, int consumerCount,
+                                            int threadCount, CountDownLatch latch) {
+        clients.forEach(client -> {
+            for (int i = 0; i < consumerCount; i++) {
+                String consumerName = "consumer-%d".formatted(i);
+                ConsumerConfiguration configuration = consumerConfiguration(consumerName, threadCount);
+                DefaultTracker.start(createRawConsumer(pipelineMode, client, latch),
+                                     MessageType.EVENT, configuration, client);
+            }
+        });
+    }
+
+    private static java.util.function.Consumer<List<SerializedMessage>> createRawConsumer(
+            PipelineMode pipelineMode, Fluxzero fluxzero, CountDownLatch latch) {
+        return messages -> {
+            if (pipelineMode == PipelineMode.TRACKER_ONLY) {
+                countDown(latch, messages.size());
+                return;
+            }
+            DeserializingMessage.handleBatch(messages.stream()
+                    .map(message -> fluxzero.serializer().deserializeFirstMessageOrNull(message, MessageType.EVENT, null))
+                    .filter(Objects::nonNull)).forEach(message -> latch.countDown());
+        };
+    }
+
+    private static ConsumerConfiguration consumerConfiguration(String consumerName, int threadCount) {
+        return ConsumerConfiguration.builder().name(consumerName)
+                .handlerFilter(o -> true)
+                .maxWaitDuration(Duration.ofSeconds(10))
+                .exclusive(false)
+                .minIndex(-1L)
+                .threads(threadCount)
+                .build();
+    }
+
+    private static void countDown(CountDownLatch latch, int count) {
+        for (int i = 0; i < count; i++) {
+            latch.countDown();
+        }
+    }
+
+    private static void timeConsumption(int totalCount, int consumerCount, int messageCount, int benchmarkTimeoutMs,
+                                        CountDownLatch latch,
+                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer, String jfrFile,
+                                        String jfrSettings, Runnable setup) {
+        Recording recording = startRecording(jfrFile, jfrSettings);
+        try {
+            TimingUtils.time(() -> {
+                setup.run();
+                if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
+                    log.error("Benchmark timed out after {} ms with {} events remaining",
+                              benchmarkTimeoutMs, latch.getCount());
+                    logMissingConsumers(messageCount, deliveriesPerConsumer);
+                    throw new IllegalStateException("Timed out with %s events remaining".formatted(latch.getCount()));
+                }
+                return null;
+            }, millis -> {
+                log.info("Consumed {} events in {} ms across {} consumers ({} events/s)", messageCount, millis,
+                         consumerCount,
+                         millis == 0 ? totalCount : (totalCount * 1000L) / millis);
+            });
+        } finally {
+            stopRecording(recording, jfrFile);
+        }
+    }
+
+    @SneakyThrows
+    private static Recording startRecording(String jfrFile, String jfrSettings) {
+        if (jfrFile == null || jfrFile.isBlank()) {
+            return null;
+        }
+        Path destination = Path.of(jfrFile).toAbsolutePath();
+        Files.createDirectories(destination.getParent());
+        Recording result = new Recording(Configuration.getConfiguration(jfrSettings));
+        result.setName("tracker-integration-consumption");
+        result.start();
+        log.info("Started JFR recording with settings={} to {}", jfrSettings, destination);
+        return result;
+    }
+
+    @SneakyThrows
+    private static void stopRecording(Recording recording, String jfrFile) {
+        if (recording == null) {
+            return;
+        }
+        Path destination = Path.of(jfrFile).toAbsolutePath();
+        try {
+            recording.stop();
+            recording.dump(destination);
+            log.info("JFR recording written to {}", destination);
+        } finally {
+            recording.close();
+        }
+    }
+
+    private static Client createClient(ClientMode clientMode, Client localClient, String namespace, int port,
+                                       int clientIndex, String clientName, String runId) {
+        if (clientMode == ClientMode.LOCAL) {
+            return localClient;
+        }
+        // Keep TestServer command-idempotency results from a previous benchmark JVM from matching this run.
+        String clientId = "client-" + clientIndex + "-" + runId;
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .name(clientName)
+                .id(clientId)
+                .namespace(namespace)
+                .runtimeBaseUrl("ws://localhost:" + port)
+                .build();
+        return WebSocketClient.newInstance(clientConfig);
+    }
+
+    static class DirectHandler implements io.fluxzero.common.handling.Handler<DeserializingMessage> {
+        private final HandlerInvoker invoker;
+
+        DirectHandler(CountDownLatch latch) {
+            this.invoker = HandlerInvoker.run(latch::countDown);
+        }
+
+        @Override
+        public Class<?> getTargetClass() {
+            return DirectHandler.class;
+        }
+
+        @Override
+        public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+            return Optional.of(invoker);
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+            return invoker;
+        }
+    }
+
     @AllArgsConstructor
-    static class Handler {
+    static class NoopHandler {
+        private final CountDownLatch latch;
+
+        @HandleEvent
+        void handle(DeserializingMessage event) {
+            latch.countDown();
+        }
+    }
+
+    @AllArgsConstructor
+    static class PayloadHandler {
+        private final CountDownLatch latch;
+
+        @HandleEvent
+        void handle(BenchEvent event) {
+            latch.countDown();
+        }
+    }
+
+    @AllArgsConstructor
+    static class BenchmarkHandler {
         private final CountDownLatch latch;
         private final ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer;
 
@@ -188,6 +357,27 @@ public class TrackerIntegrationBenchmark {
             deliveriesPerConsumer.computeIfAbsent(Tracker.current().orElseThrow().getName(), ignored -> new LongAdder())
                     .increment();
             latch.countDown();
+        }
+    }
+
+    enum PipelineMode {
+        TRACKER_ONLY,
+        DESERIALIZE_ONLY,
+        DIRECT_HANDLER,
+        NOOP_HANDLER,
+        PAYLOAD_HANDLER,
+        BENCHMARK_HANDLER;
+
+        static PipelineMode parse(String value) {
+            return switch (value.toUpperCase(Locale.ROOT).replace("-", "").replace("_", "")) {
+                case "TRACKER", "TRACKERONLY", "RAW", "RAWTRACKER" -> TRACKER_ONLY;
+                case "DESERIALIZE", "DESERIALIZEONLY", "DESERIALIZATIONONLY" -> DESERIALIZE_ONLY;
+                case "DIRECT", "DIRECTHANDLER", "RAWHANDLER" -> DIRECT_HANDLER;
+                case "NOOP", "NOOPHANDLER" -> NOOP_HANDLER;
+                case "PAYLOAD", "PAYLOADHANDLER" -> PAYLOAD_HANDLER;
+                case "BENCHMARK", "BENCHMARKHANDLER", "NORMAL", "DEFAULT" -> BENCHMARK_HANDLER;
+                default -> throw new IllegalArgumentException("Unsupported pipelineMode: " + value);
+            };
         }
     }
 
@@ -245,6 +435,15 @@ public class TrackerIntegrationBenchmark {
         log.info("Append events complete in {} ms", millis);
     }
 
+    static void publishEvents(BenchmarkMode mode, List<Fluxzero> publishers, int messageCount,
+                              int publishBatchSize, int distinctKeys, int payloadBytes) {
+        switch (mode) {
+            case PRELOAD, BULK -> publishEventsBulk(publishers.getFirst(), messageCount, distinctKeys, payloadBytes);
+            case CONCURRENT -> publishEventsConcurrently(publishers, messageCount, publishBatchSize, distinctKeys,
+                                                         payloadBytes);
+        }
+    }
+
     static void publishEventsBulk(Fluxzero publisher, int messageCount, int distinctKeys, int payloadBytes) {
         log.info("Append events in one bulk");
         long start = System.nanoTime();
@@ -264,9 +463,32 @@ public class TrackerIntegrationBenchmark {
         return String.valueOf(c).repeat(Math.max(0, count));
     }
 
-    enum PublishMode {
+    enum ClientMode {
+        WEBSOCKET,
+        LOCAL;
+
+        static ClientMode parse(String value) {
+            return switch (value.toUpperCase(Locale.ROOT).replace("-", "").replace("_", "")) {
+                case "LOCAL", "LOCALCLIENT" -> LOCAL;
+                case "WEBSOCKET", "WEBSOCKETCLIENT", "WS" -> WEBSOCKET;
+                default -> throw new IllegalArgumentException("Unsupported clientMode: " + value);
+            };
+        }
+    }
+
+    enum BenchmarkMode {
+        PRELOAD,
         BULK,
-        CONCURRENT
+        CONCURRENT;
+
+        static BenchmarkMode parse(String value) {
+            return switch (value.toUpperCase(Locale.ROOT).replace("-", "").replace("_", "")) {
+                case "PRELOAD", "PRELOADED" -> PRELOAD;
+                case "BULK" -> BULK;
+                case "CONCURRENT" -> CONCURRENT;
+                default -> throw new IllegalArgumentException("Unsupported mode: " + value);
+            };
+        }
     }
 
     record BenchEvent(int index, String payload) {

@@ -17,13 +17,19 @@ package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
@@ -62,7 +68,7 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
-            Object payload = m.getPayloadAs(p.getParameterizedType());
+            Object payload = resolvePayload(m, p, p.getParameterizedType());
             if (payload != null) {
                 if (validatePayload) {
                     assertValid(payload);
@@ -77,13 +83,17 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
 
     @Override
     public boolean test(HasMessage m, Parameter p) {
-        if (authoriseUser) {
-            Object payload = m.getPayloadAs(p.getParameterizedType());
+        if (authoriseUser && !hasStreamingPayload(m)) {
+            Object payload = resolvePayload(m, p, p.getParameterizedType());
             if (payload != null && ignoreSilently(payload.getClass(), User.getCurrent())) {
                 return false;
             }
         }
         return ParameterResolver.super.test(m, p);
+    }
+
+    private boolean hasStreamingPayload(HasMessage message) {
+        return message.toMessage().getPayload() instanceof InputStream;
     }
 
     /**
@@ -103,5 +113,43 @@ public class WebPayloadParameterResolver implements ParameterResolver<HasMessage
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         return ReflectionUtils.isMethodAnnotationPresent(method, HandleWeb.class);
+    }
+
+    Object resolvePayload(HasMessage message, Parameter parameter, Type type) {
+        if (message instanceof DeserializingMessage m && shouldBindFormPayload(m, parameter)) {
+            var formObject = DefaultWebRequestContext.getWebRequestContext(m).formObject();
+            return formObject.isEmpty() ? null : JsonUtils.convertValue(formObject, type);
+        }
+        return message.getPayloadAs(type);
+    }
+
+    boolean shouldBindFormPayload(DeserializingMessage message, Parameter parameter) {
+        String contentType = WebRequest.getHeader(message.getMetadata(), "Content-Type").orElse(null);
+        Class<?> type = parameter.getType();
+        return isFormContentType(contentType)
+               && !type.isPrimitive()
+               && !type.isArray()
+               && !type.isEnum()
+               && !String.class.isAssignableFrom(type)
+               && !Number.class.isAssignableFrom(type)
+               && !Boolean.class.isAssignableFrom(type)
+               && !Character.class.isAssignableFrom(type)
+               && !Collection.class.isAssignableFrom(type)
+               && !InputStream.class.isAssignableFrom(type)
+               && !WebFormPart.class.isAssignableFrom(type)
+               && !type.getPackageName().startsWith("java.");
+    }
+
+    private static boolean isFormContentType(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String normalized = contentType.toLowerCase(Locale.ROOT);
+        int separatorIndex = normalized.indexOf(';');
+        if (separatorIndex >= 0) {
+            normalized = normalized.substring(0, separatorIndex);
+        }
+        normalized = normalized.trim();
+        return "application/x-www-form-urlencoded".equals(normalized) || "multipart/form-data".equals(normalized);
     }
 }

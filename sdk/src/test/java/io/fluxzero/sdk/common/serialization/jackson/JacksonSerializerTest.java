@@ -25,12 +25,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.common.search.SearchInclude;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingObject;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
@@ -64,6 +68,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JacksonSerializerTest {
     private static final String TYPE =
             "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$RevisedObject";
+    private static final String FIRST_MESSAGE_TYPE =
+            "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$FirstMessageObject";
+    private static final String DROPPED_MESSAGE_TYPE =
+            "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializerTest$DroppedMessageObject";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JacksonSerializer serializer = new JacksonSerializer(List.of(new CasterStub()));
@@ -96,6 +104,35 @@ class JacksonSerializerTest {
                 .map(DeserializingObject::getPayload)
                 .collect(Collectors.toList());
         assertEquals(expected, actual);
+    }
+
+    @Test
+    void deserializeFirstMessageKeepsFirstSplitUpcastResultOnly() throws JsonProcessingException {
+        JacksonSerializer subject = new JacksonSerializer(List.of(new FirstMessageCaster()));
+        SerializedMessage message = message(createMessageData(FIRST_MESSAGE_TYPE, "first"));
+
+        DeserializingMessage expected =
+                subject.deserializeMessages(Stream.of(message), MessageType.EVENT).findAny().orElseThrow();
+        DeserializingMessage actual =
+                subject.deserializeFirstMessage(message, MessageType.EVENT, null).orElseThrow();
+
+        assertEquals(List.of(new FirstMessageObject("first"), new FirstMessageObject("second")),
+                     subject.deserializeMessages(Stream.of(message), MessageType.EVENT)
+                             .map(DeserializingMessage::getPayload).toList());
+        FirstMessageObject expectedPayload = expected.getPayloadAs(FirstMessageObject.class);
+        FirstMessageObject actualPayload = actual.getPayloadAs(FirstMessageObject.class);
+        assertEquals(expectedPayload, actualPayload);
+    }
+
+    @Test
+    void deserializeFirstMessageReturnsEmptyWhenUpcasterDropsMessage() throws JsonProcessingException {
+        JacksonSerializer subject = new JacksonSerializer(List.of(new FirstMessageCaster()));
+        SerializedMessage message = message(createMessageData(DROPPED_MESSAGE_TYPE, "dropped"));
+
+        assertTrue(subject.deserializeMessages(Stream.of(message), MessageType.EVENT).findAny().isEmpty());
+        assertTrue(subject.deserializeFirstMessage(message, MessageType.EVENT, null).isEmpty());
+        assertThrows(DeserializationException.class,
+                     () -> subject.deserializeMessage(message, MessageType.EVENT));
     }
 
     @Test
@@ -384,11 +421,29 @@ class JacksonSerializerTest {
         return new Data<>(objectMapper.writeValueAsBytes(rev0Payload), TYPE, 0, Data.JSON_FORMAT);
     }
 
+    private Data<byte[]> createMessageData(String type, String value) throws JsonProcessingException {
+        ObjectNode payload = new ObjectNode(objectMapper.getNodeFactory());
+        payload.put("value", value);
+        return new Data<>(objectMapper.writeValueAsBytes(payload), type, 0, Data.JSON_FORMAT);
+    }
+
+    private static SerializedMessage message(Data<byte[]> data) {
+        return new SerializedMessage(data, Metadata.empty(), "message-id", 0L);
+    }
+
     @Revision(3)
     @Value
     private static class RevisedObject {
         String name;
         int someInteger;
+    }
+
+    @Revision(1)
+    private record FirstMessageObject(String value) {
+    }
+
+    @Revision(1)
+    private record DroppedMessageObject(String value) {
     }
 
     public static class CasterStub {
@@ -420,6 +475,21 @@ class JacksonSerializerTest {
         @Downcast(type = TYPE, revision = 1)
         public ObjectNode downcastFrom1(ObjectNode input) {
             return input.without("someInteger");
+        }
+    }
+
+    public static class FirstMessageCaster {
+        @Upcast(type = FIRST_MESSAGE_TYPE, revision = 0)
+        public Stream<Data<JsonNode>> split(Data<JsonNode> input) {
+            ObjectNode second = input.getValue().deepCopy();
+            second.put("value", "second");
+            return Stream.of(new Data<>(input.getValue(), input.getType(), 1, input.getFormat()),
+                             new Data<>(second, input.getType(), 1, input.getFormat()));
+        }
+
+        @Upcast(type = DROPPED_MESSAGE_TYPE, revision = 0)
+        public Stream<Data<JsonNode>> drop(Data<JsonNode> input) {
+            return Stream.empty();
         }
     }
 

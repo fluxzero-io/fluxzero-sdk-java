@@ -112,9 +112,24 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
                 .orElseGet(() -> value instanceof HasMessage m ? m.getPayload().toString() : value.toString());
         Instant firstDeadline = PeriodicSchedulingDefaults.schedulePeriodicDeadline(periodic, Fluxzero.currentTime());
         if (firstDeadline != null) {
-            schedule(value, effectiveScheduleId, firstDeadline);
+            schedule(periodicSchedule(value, effectiveScheduleId, firstDeadline, periodic));
         }
         return effectiveScheduleId;
+    }
+
+    private static Schedule periodicSchedule(Object value, String scheduleId, Instant deadline, Periodic periodic) {
+        if (value instanceof Message message) {
+            return new Schedule(message.getPayload(), periodicCronMetadata(message.getMetadata(), periodic),
+                                message.getMessageId(), message.getTimestamp(), scheduleId, deadline);
+        }
+        return new Schedule(value, periodicCronMetadata(Metadata.empty(), periodic), scheduleId, deadline);
+    }
+
+    private static Metadata periodicCronMetadata(Metadata metadata, Periodic periodic) {
+        return PeriodicSchedulingDefaults.isCronBased(periodic)
+                ? metadata.with(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY,
+                                PeriodicSchedulingDefaults.cronSchema(periodic))
+                : metadata.without(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY);
     }
 
     /**

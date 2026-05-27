@@ -103,6 +103,34 @@ class AggregatePlaybackTest {
     }
 
     @Test
+    void aggregateMetadataLoadsAggregateRootWhenLegacyEventsHaveNoRelationships() throws NoSuchMethodException {
+        Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
+        Parameter parameter = method.getParameters()[0];
+        HandleEvent handleEvent = method.getAnnotation(HandleEvent.class);
+        EntityParameterResolver resolver = new EntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            storeLegacyEvent(fc, "legacy", new CreateSampleAggregate(), "legacy-client");
+            storeEvent(fc, "legacy", SampleAggregate.class, new SetPrimaryValue("value-1"), "legacy-client", 1L);
+
+            assertTrue(fc.aggregateRepository().getAggregatesFor("legacy").isEmpty());
+
+            DeserializingMessage primaryValueEvent = fc.eventStore().getEvents("legacy").toList().get(1);
+            assertEquals(SampleAggregate.class, Entity.getAggregateType(primaryValueEvent));
+            assertTrue(resolver.matches(parameter, handleEvent, primaryValueEvent));
+
+            Entity<SampleAggregate> resolved = primaryValueEvent.apply(message ->
+                    resolveEntity(resolver, parameter, handleEvent, message));
+
+            assertNotNull(resolved);
+            assertEquals(1L, resolved.sequenceNumber());
+            assertEquals("value-1", resolved.get().primaryValue());
+            assertNotNull(resolved.previous());
+            assertNull(resolved.previous().get().primaryValue());
+        }).expectNoErrors();
+    }
+
+    @Test
     void sameClientTrackerBatchWithInterleavedOtherAggregateStillRewindsInjectedEntity() throws Exception {
         Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
         Parameter parameter = method.getParameters()[0];
@@ -560,6 +588,13 @@ class AggregatePlaybackTest {
 
     private static String aggregateCacheKey(String aggregateId) {
         return "$Aggregate:" + aggregateId;
+    }
+
+    private static void storeLegacyEvent(Fluxzero fluxzero, String aggregateId, Object payload, String source) throws Exception {
+        SerializedMessage serializedMessage = new Message(payload).serialize(fluxzero.serializer());
+        serializedMessage.setSource(source);
+        serializedMessage.setSegment(ConsistentHashing.computeSegment(aggregateId));
+        fluxzero.client().getEventStoreClient().storeEvents(aggregateId, List.of(serializedMessage), false).get();
     }
 
     private static void storeEvent(Fluxzero fluxzero, String aggregateId, Class<?> aggregateType,

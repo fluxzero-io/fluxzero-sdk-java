@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExpiredRequestDecoratorTest {
@@ -127,6 +128,13 @@ class ExpiredRequestDecoratorTest {
             assertFalse(handler.getInvoker(expiredMessage(MessageType.QUERY, true, BarQuery.class)).isPresent());
             return null;
         }).expectNoMetricsLike(IgnoreMessageEvent.class);
+    }
+
+    @Test
+    void decoratorDoesNotExposeReusableHandlerMethodThatCouldBypassExpiryCheck() {
+        Handler<DeserializingMessage> handler = handler(MessageType.QUERY, new QueryHandler());
+
+        assertNull(handler.getHandlerMethodOrNull(expiredMessage(MessageType.QUERY, true)));
     }
 
     private static Handler<DeserializingMessage> handler(MessageType messageType, Object target) {

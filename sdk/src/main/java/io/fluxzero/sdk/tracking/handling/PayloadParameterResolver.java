@@ -16,9 +16,13 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
 import java.util.function.Function;
@@ -39,20 +43,59 @@ import java.util.function.Function;
  * @see HasMessage#getPayloadClass()
  * @see ParameterResolver
  */
-public class PayloadParameterResolver implements ParameterResolver<HasMessage> {
+public class PayloadParameterResolver implements PreparedParameterResolver<HasMessage> {
+    private static final Object UNRESOLVED_PAYLOAD = new Object();
+
     @Override
     public boolean matches(Parameter p, Annotation methodAnnotation, HasMessage value) {
+        if (value instanceof ChunkedDeserializingMessage && InputStream.class.isAssignableFrom(p.getType())) {
+            return true;
+        }
         return p.getType().isAssignableFrom(value.getPayloadClass());
     }
 
     @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
+        if (InputStream.class.isAssignableFrom(p.getType())) {
+            return m -> m.getPayloadAs(p.getParameterizedType());
+        }
         return HasMessage::getPayload;
     }
 
     @Override
+    public Function<HasMessage, Object> resolveIfPossible(
+            Parameter parameter, Annotation methodAnnotation, HasMessage value) {
+        if (!matches(parameter, methodAnnotation, value)) {
+            return null;
+        }
+        if (InputStream.class.isAssignableFrom(parameter.getType())) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        if (value instanceof ChunkedDeserializingMessage) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        Object payload = getPayloadIfAvailable(value);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || ReflectionUtils.isNullable(parameter) ? ignored -> payload : null;
+        }
+        return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
     public boolean test(HasMessage message, Parameter parameter) {
-        return message.getPayload() != null || ReflectionUtils.isNullable(parameter); //may be the case after upcasting
+        if (message instanceof ChunkedDeserializingMessage) {
+            return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+        }
+        Object payload = getPayloadIfAvailable(message);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || ReflectionUtils.isNullable(parameter);
+        }
+        return message.getPayloadClass() != Void.class || ReflectionUtils.isNullable(parameter);
+    }
+
+    private Object getPayloadIfAvailable(HasMessage message) {
+        return message instanceof DeserializingMessage deserializingMessage && !deserializingMessage.isDeserialized()
+                ? UNRESOLVED_PAYLOAD : message.getPayload();
     }
 
     /**

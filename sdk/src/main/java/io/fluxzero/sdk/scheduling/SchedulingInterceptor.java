@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
@@ -124,9 +125,22 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
             Metadata metadata = ofNullable(fluxzero.userProvider()).flatMap(
                             p -> ofNullable(p.getSystemUser()).map(u -> p.addToMetadata(Metadata.empty(), u)))
                     .orElse(Metadata.empty());
-            fluxzero.messageScheduler().schedule(new Schedule(
-                    payload, metadata, scheduleId, firstDeadline), true);
+            Schedule schedule = new Schedule(payload, markCron(metadata, periodic), scheduleId, firstDeadline);
+            initializePeriodicSchedule(fluxzero.messageScheduler(), schedule, periodic);
         }
+    }
+
+    protected void initializePeriodicSchedule(MessageScheduler messageScheduler, Schedule schedule, Periodic periodic) {
+        Optional<Schedule> currentSchedule = messageScheduler.getSchedule(schedule.getScheduleId());
+        if (currentSchedule.isEmpty()) {
+            messageScheduler.schedule(schedule, true);
+        } else if (shouldReplacePeriodicSchedule(currentSchedule.get(), periodic)) {
+            messageScheduler.schedule(schedule);
+        }
+    }
+
+    protected boolean shouldReplacePeriodicSchedule(Schedule currentSchedule, Periodic periodic) {
+        return wasCronScheduled(currentSchedule.getMetadata()) && !hasCronSchema(currentSchedule.getMetadata(), periodic);
     }
 
     protected Instant firstDeadline(Periodic periodic, Instant now) {
@@ -214,13 +228,13 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                         schedule(nextPayload, metadata, now.plus(Duration.of(1, MINUTES)));
                     }
                 } else {
-                    schedule(nextPayload, metadata, nextDeadline(periodic, now));
+                    schedule(nextPayload, metadata, nextDeadline(periodic, now), periodic);
                 }
             } else if (periodic != null) {
-                schedule(schedule, nextDeadline(periodic, now));
+                schedule(schedule, nextDeadline(periodic, now), periodic);
             }
         } else if (periodic != null) {
-            schedule(schedule, nextDeadline(periodic, now));
+            schedule(schedule, nextDeadline(periodic, now), periodic);
         }
         return result;
     }
@@ -240,28 +254,61 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
             if (periodic.delayAfterError() >= 0) {
                 schedule(schedule, now.plusMillis(periodic.timeUnit().toMillis(periodic.delayAfterError())));
             } else {
-                schedule(schedule, nextDeadline(periodic, now));
+                schedule(schedule, nextDeadline(periodic, now), periodic);
             }
         }
         throw result;
     }
 
     private void schedule(DeserializingMessage message, Instant instant) {
-        schedule(message.getPayload(), message.getMetadata(), instant);
+        schedule(message.getPayload(), clearCron(message.getMetadata()), instant);
+    }
+
+    private void schedule(DeserializingMessage message, Instant instant, Periodic periodic) {
+        schedule(message.getPayload(), message.getMetadata(), instant, periodic);
     }
 
     private void schedule(Object payload, Metadata metadata, Instant instant) {
         if (instant != null) {
-            schedule(new Schedule(payload, metadata, metadata.getOrDefault(
+            scheduleInternal(new Schedule(payload, metadata, metadata.getOrDefault(
                     Schedule.scheduleIdMetadataKey, currentIdentityProvider().nextTechnicalId()), instant));
         }
     }
 
+    private void schedule(Object payload, Metadata metadata, Instant instant, Periodic periodic) {
+        schedule(payload, markCron(metadata, periodic), instant);
+    }
+
     private void schedule(Schedule schedule) {
+        scheduleInternal(schedule.withMetadata(clearCron(schedule.getMetadata())));
+    }
+
+    private void scheduleInternal(Schedule schedule) {
         try {
             Fluxzero.get().messageScheduler().schedule(schedule);
         } catch (Exception e) {
             log.error("Failed to reschedule a {}", schedule.getPayloadClass(), e);
         }
+    }
+
+    private static Metadata markCron(Metadata metadata, Periodic periodic) {
+        return PeriodicSchedulingDefaults.isCronBased(periodic)
+                ? metadata.with(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY,
+                                PeriodicSchedulingDefaults.cronSchema(periodic))
+                : clearCron(metadata);
+    }
+
+    private static Metadata clearCron(Metadata metadata) {
+        return metadata.without(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY);
+    }
+
+    private static boolean wasCronScheduled(Metadata metadata) {
+        return metadata.containsKey(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY);
+    }
+
+    private static boolean hasCronSchema(Metadata metadata, Periodic periodic) {
+        return PeriodicSchedulingDefaults.isCronBased(periodic)
+               && Objects.equals(metadata.get(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY),
+                                 PeriodicSchedulingDefaults.cronSchema(periodic));
     }
 }

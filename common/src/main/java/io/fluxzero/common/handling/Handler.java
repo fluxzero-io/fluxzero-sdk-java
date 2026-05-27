@@ -82,6 +82,34 @@ public interface Handler<M> {
     Optional<HandlerInvoker> getInvoker(M message);
 
     /**
+     * Returns a {@link HandlerInvoker} capable of processing the given message, or {@code null} when unavailable.
+     *
+     * <p>This is a lower-allocation counterpart to {@link #getInvoker(Object)} for internal hot paths. Implementations
+     * that can resolve an invoker without creating an {@link Optional} should override this method.</p>
+     *
+     * @param message the message to be handled
+     * @return an invoker if this handler can handle the message; {@code null} otherwise
+     */
+    default HandlerInvoker getInvokerOrNull(M message) {
+        return getInvoker(message).orElse(null);
+    }
+
+    /**
+     * Returns a reusable {@link HandlerMethod} capable of processing the given message, or {@code null} when
+     * unavailable.
+     *
+     * <p>This is an optional lower-allocation path for handlers whose target and method plan can be reused across
+     * messages. Implementations that cannot expose a stable method should return {@code null} and rely on
+     * {@link #getInvokerOrNull(Object)}.</p>
+     *
+     * @param message the message to be handled
+     * @return a handler method if this handler can handle the message through a reusable method; {@code null} otherwise
+     */
+    default HandlerMethod<M> getHandlerMethodOrNull(M message) {
+        return null;
+    }
+
+    /**
      * Creates a composite handler that executes the current handler and then delegates to the specified next handler if
      * the current handler cannot handle the message or does not provide an invoker.
      *
@@ -98,7 +126,19 @@ public interface Handler<M> {
 
             @Override
             public Optional<HandlerInvoker> getInvoker(M message) {
-                return first.getInvoker(message).or(() -> next.getInvoker(message));
+                return Optional.ofNullable(getInvokerOrNull(message));
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(M message) {
+                HandlerInvoker result = first.getInvokerOrNull(message);
+                return result == null ? next.getInvokerOrNull(message) : result;
+            }
+
+            @Override
+            public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+                HandlerMethod<M> result = first.getHandlerMethodOrNull(message);
+                return result == null ? next.getHandlerMethodOrNull(message) : result;
             }
         };
     }
@@ -119,6 +159,11 @@ public interface Handler<M> {
         @Override
         public Class<?> getTargetClass() {
             return delegate.getTargetClass();
+        }
+
+        @Override
+        public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+            return null;
         }
 
         @Override

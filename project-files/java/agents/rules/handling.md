@@ -584,6 +584,12 @@ Use annotations to inject specific parts of the HTTP request:
 For multipart uploads, use `@FormParam String` for text fields, `@FormParam byte[]` or `@FormParam InputStream` for file
 contents, or `@FormParam WebFormPart` when the handler needs the filename, content type, or part headers.
 
+Large request-body chunking in `fluxzero-proxy` is opt-in via `FLUXZERO_PROXY_REQUEST_CHUNKING_ENABLED=true`; tune the
+chunk size with `FLUXZERO_PROXY_REQUEST_CHUNK_SIZE`. Leave chunking disabled for deployments that may still route web
+requests to older SDK clients. When enabled, `InputStream` handlers can consume chunked request bodies incrementally;
+typed parameters, `@BodyParam`, `@FormParam`, form objects, and multipart parameters aggregate before invocation and
+remain bounded by the configured request-body limits.
+
 These injected parameters can also use standard validation annotations directly, for example
 `@PathParam @Positive Long id` or `@QueryParam @NotBlank String search`.
 

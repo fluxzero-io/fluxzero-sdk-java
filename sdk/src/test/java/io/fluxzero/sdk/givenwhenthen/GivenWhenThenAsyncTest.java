@@ -101,7 +101,9 @@ class GivenWhenThenAsyncTest {
 
     @Test
     void testExpectPassiveHandling() {
-        testFixture.whenCommand(new PassivelyHandled()).expectExceptionalResult(TimeoutException.class);
+        TestFixture.createAsync(new MixedHandler(), new AsyncCommandHandler(), new ScheduleHandler())
+                .resultTimeout(Duration.ofMillis(50))
+                .whenCommand(new PassivelyHandled()).expectExceptionalResult(TimeoutException.class);
     }
 
     @Test

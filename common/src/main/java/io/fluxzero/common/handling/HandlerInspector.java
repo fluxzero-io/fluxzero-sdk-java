@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.silentTest;
@@ -128,7 +129,8 @@ public class HandlerInspector {
      */
     public static <M> Handler<M> createHandler(Object target, List<ParameterResolver<? super M>> parameterResolvers,
                                                HandlerConfiguration<? super M> config) {
-        return createHandler(m -> target, target.getClass(), parameterResolvers, config);
+        return DefaultHandler.forTarget(
+                target.getClass(), target, inspect(target.getClass(), parameterResolvers, config));
     }
 
     /**
@@ -226,6 +228,10 @@ public class HandlerInspector {
         private final Class<?> targetClass;
         private final List<ParameterResolver<? super M>> parameterResolvers;
         private final HandlerConfiguration<? super M> config;
+        private final MessageFilter<? super M> messageFilter;
+        private final List<ParameterResolverPlan<M>>[] parameterResolverPlans;
+        private final boolean onlyPreparedParameterResolvers;
+        private final boolean validateMethodInvocation;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private final Optional<Object> emptyResult = Optional.of(void.class);
 
@@ -245,6 +251,10 @@ public class HandlerInspector {
             this.methodAnnotation = config.getAnnotation(executable).orElse(null);
             this.methodAnnotationType = Optional.ofNullable(this.methodAnnotation).map(Annotation::annotationType)
                     .orElse(null);
+            this.messageFilter = config.messageFilter().prepare(this.executable, this.methodAnnotationType, targetClass);
+            this.parameterResolverPlans = prepareParameterResolvers();
+            this.onlyPreparedParameterResolvers = onlyPreparedParameterResolvers(this.parameterResolverPlans);
+            this.validateMethodInvocation = config.methodInvocationValidator() != MethodInvocationValidator.noOp();
             this.classForSpecificity = computeClassForSpecificity();
             this.lowestSpecificityPriority = this.parameterResolvers.stream()
                     .filter(ParameterResolver::determinesSpecificity)
@@ -256,7 +266,7 @@ public class HandlerInspector {
 
         @Override
         public boolean canHandle(M message) {
-            return prepareInvoker(message).isPresent();
+            return prepareInvokerFunction(message) != null;
         }
 
         @Override
@@ -266,46 +276,132 @@ public class HandlerInspector {
 
         @SuppressWarnings("unchecked")
         protected Optional<Function<Object, HandlerInvoker>> prepareInvoker(M m) {
-            if (!config.messageFilter().test(m, executable, methodAnnotationType, targetClass)) {
-                return Optional.empty();
+            return Optional.ofNullable(prepareInvokerOrNull(m));
+        }
+
+        @SuppressWarnings("unchecked")
+        protected Function<Object, HandlerInvoker> prepareInvokerOrNull(M m) {
+            if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
+                return null;
             }
 
             if (parameterCount == 0) {
-                return Optional.of(target -> new MethodHandlerInvoker() {
-                    @Override
-                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
-                        return invoker.invoke(target);
-                    }
-                });
+                return this::createNoParameterInvoker;
             }
 
+            if (onlyPreparedParameterResolvers) {
+                return target -> createPreparedParameterInvoker(target, m);
+            }
+
+            if (!validateMethodInvocation && parameterCount == 1) {
+                Function<? super M, Object> matchingResolver = resolveDynamicParameterResolver(m, 0);
+                return matchingResolver == null ? null : target -> createSingleDynamicParameterInvoker(
+                        target, m, matchingResolver);
+            }
+
+            Function<? super M, Object>[] matchingResolvers = resolveDynamicParameterResolvers(m);
+            return matchingResolvers == null ? null : target -> createDynamicParameterInvoker(target, m,
+                                                                                              matchingResolvers);
+        }
+
+        private HandlerInvoker createInvokerOrNull(Object target, M m) {
+            if (!messageFilter.test(m, executable, methodAnnotationType, targetClass)) {
+                return null;
+            }
+            if (parameterCount == 0) {
+                return createNoParameterInvoker(target);
+            }
+            if (onlyPreparedParameterResolvers) {
+                return createPreparedParameterInvoker(target, m);
+            }
+            if (!validateMethodInvocation && parameterCount == 1) {
+                Function<? super M, Object> matchingResolver = resolveDynamicParameterResolver(m, 0);
+                return matchingResolver == null ? null
+                        : createSingleDynamicParameterInvoker(target, m, matchingResolver);
+            }
+            Function<? super M, Object>[] matchingResolvers = resolveDynamicParameterResolvers(m);
+            return matchingResolvers == null ? null : createDynamicParameterInvoker(target, m, matchingResolvers);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Function<? super M, Object>[] resolveDynamicParameterResolvers(M m) {
             Function<? super M, Object>[] matchingResolvers = new Function[parameterCount];
             for (int i = 0; i < parameterCount; i++) {
-                Parameter p = parameters[i];
-                for (ParameterResolver<? super M> r : parameterResolvers) {
-                    if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
-                        Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
-                                p, methodAnnotation, m);
-                        if (preparedResolver != null) {
-                            matchingResolvers[i] = preparedResolver;
-                            break;
-                        }
-                        if (r.matches(p, methodAnnotation, m)) {
-                            return Optional.empty();
-                        }
-                    } else if (r.matches(p, methodAnnotation, m)) {
-                        if (!r.test(m, p)) {
-                            return Optional.empty();
-                        }
-                        matchingResolvers[i] = r.resolve(p, methodAnnotation);
-                        break;
-                    }
-                }
+                matchingResolvers[i] = resolveDynamicParameterResolver(m, i);
                 if (matchingResolvers[i] == null) {
-                    return Optional.empty();
+                    return null;
                 }
             }
-            return Optional.of(target -> new MethodHandlerInvoker() {
+            return matchingResolvers;
+        }
+
+        private Function<? super M, Object> resolveDynamicParameterResolver(M m, int parameterIndex) {
+            Parameter p = parameters[parameterIndex];
+            for (ParameterResolverPlan<M> plan : parameterResolverPlans[parameterIndex]) {
+                if (plan.preparedResolver() != null) {
+                    return plan.preparedResolver();
+                }
+                ParameterResolver<? super M> r = plan.resolver();
+                if (r instanceof PreparedParameterResolver<? super M> preparedParameterResolver) {
+                    Function<? super M, Object> preparedResolver = preparedParameterResolver.resolveIfPossible(
+                            p, methodAnnotation, m);
+                    if (preparedResolver != null) {
+                        return preparedResolver;
+                    }
+                    if (r.matches(p, methodAnnotation, m)) {
+                        return null;
+                    }
+                } else if (r.matches(p, methodAnnotation, m)) {
+                    if (!r.test(m, p)) {
+                        return null;
+                    }
+                    return r.resolve(p, methodAnnotation);
+                }
+            }
+            return null;
+        }
+
+        private HandlerInvoker createNoParameterInvoker(Object target) {
+            return new MethodHandlerInvoker() {
+                @Override
+                public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                    return invoker.invoke(target);
+                }
+            };
+        }
+
+        private HandlerInvoker createPreparedParameterInvoker(Object target, M m) {
+            if (!validateMethodInvocation) {
+                return createUnvalidatedPreparedParameterInvoker(target, m);
+            }
+            return new MethodHandlerInvoker() {
+                @Override
+                public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                    Object[] args = new Object[parameterCount];
+                    for (int i = 0; i < parameterCount; i++) {
+                        args[i] = parameterResolverPlans[i].getFirst().preparedResolver().apply(m);
+                    }
+                    config.methodInvocationValidator().validate(m, target, executable, args);
+                    return invoker.invoke(target, parameterCount, i -> args[i]);
+                }
+            };
+        }
+
+        private HandlerInvoker createUnvalidatedPreparedParameterInvoker(Object target, M m) {
+            return new UnvalidatedPreparedParameterInvoker(target, m);
+        }
+
+        private HandlerInvoker createSingleDynamicParameterInvoker(
+                Object target, M m, Function<? super M, Object> matchingResolver) {
+            return new UnvalidatedSingleDynamicParameterInvoker(target, m, matchingResolver);
+        }
+
+        private HandlerInvoker createDynamicParameterInvoker(
+                Object target, M m, Function<? super M, Object>[] matchingResolvers) {
+            if (!validateMethodInvocation) {
+                return createUnvalidatedDynamicParameterInvoker(target, m, matchingResolvers);
+            }
+            return new MethodHandlerInvoker() {
                 @Override
                 public Object invoke(BiFunction<Object, Object, Object> combiner) {
                     Object[] args = new Object[parameterCount];
@@ -315,21 +411,87 @@ public class HandlerInspector {
                     config.methodInvocationValidator().validate(m, target, executable, args);
                     return invoker.invoke(target, parameterCount, i -> args[i]);
                 }
-            });
+            };
+        }
+
+        private HandlerInvoker createUnvalidatedDynamicParameterInvoker(
+                Object target, M m, Function<? super M, Object>[] matchingResolvers) {
+            return new UnvalidatedDynamicParameterInvoker(target, m, matchingResolvers);
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<ParameterResolverPlan<M>>[] prepareParameterResolvers() {
+            List<ParameterResolverPlan<M>>[] result = new List[parameterCount];
+            for (int i = 0; i < parameterCount; i++) {
+                Parameter p = parameters[i];
+                List<ParameterResolverPlan<M>> plans = new ArrayList<>();
+                for (ParameterResolver<? super M> resolver : parameterResolvers) {
+                    Function<? super M, Object> preparedResolver = resolver.prepare(p, methodAnnotation);
+                    plans.add(new ParameterResolverPlan<>(resolver, preparedResolver));
+                    if (preparedResolver != null) {
+                        break;
+                    }
+                }
+                result[i] = List.copyOf(plans);
+            }
+            return result;
+        }
+
+        private boolean onlyPreparedParameterResolvers(List<ParameterResolverPlan<M>>[] plans) {
+            if (plans.length == 0) {
+                return false;
+            }
+            for (List<ParameterResolverPlan<M>> plan : plans) {
+                if (plan.size() != 1 || plan.getFirst().preparedResolver() == null) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override
         public Optional<HandlerInvoker> getInvoker(Object target, M m) {
+            return Optional.ofNullable(getInvokerOrNull(target, m));
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(Object target, M m) {
             if (target == null
                     ? !(executable instanceof Constructor) && !staticMethod
                     : !(executable instanceof Method) || staticMethod) {
-                return Optional.empty();
+                return null;
             }
-            return prepareInvoker(m).map(f -> f.apply(target));
+            if (getClass() == MethodHandlerMatcher.class) {
+                return createInvokerOrNull(target, m);
+            }
+            Function<Object, HandlerInvoker> preparedInvoker = prepareInvokerFunction(m);
+            return preparedInvoker == null ? null : preparedInvoker.apply(target);
+        }
+
+        @Override
+        public HandlerMethod<M> bindHandlerMethod(Object target) {
+            if (getClass() != MethodHandlerMatcher.class
+                || !targetCanBeInvoked(target)
+                || validateMethodInvocation
+                || parameterCount != 0 && !onlyPreparedParameterResolvers) {
+                return null;
+            }
+            return new BoundHandlerMethod(target);
+        }
+
+        private boolean targetCanBeInvoked(Object target) {
+            return target == null
+                    ? executable instanceof Constructor || staticMethod
+                    : executable instanceof Method && !staticMethod;
+        }
+
+        private Function<Object, HandlerInvoker> prepareInvokerFunction(M m) {
+            return getClass() == MethodHandlerMatcher.class
+                    ? prepareInvokerOrNull(m) : prepareInvoker(m).orElse(null);
         }
 
         protected Class<?> computeClassForSpecificity() {
-            Class<?> handlerType = config.messageFilter().getLeastSpecificAllowedClass(
+            Class<?> handlerType = messageFilter.getLeastSpecificAllowedClass(
                     executable, methodAnnotationType).orElse(null);
             for (Parameter p : parameters) {
                 for (ParameterResolver<? super M> r : parameterResolvers) {
@@ -484,6 +646,132 @@ public class HandlerInspector {
                 }).orElse("MethodHandlerInvoker");
             }
         }
+
+        private class BoundHandlerMethod implements HandlerMethod<M> {
+            private final Object target;
+
+            private BoundHandlerMethod(Object target) {
+                this.target = target;
+            }
+
+            @Override
+            public boolean canHandle(M message) {
+                return messageFilter.test(message, executable, methodAnnotationType, targetClass);
+            }
+
+            @Override
+            public Object invoke(M message, BiFunction<Object, Object, Object> resultCombiner) {
+                if (parameterCount == 0) {
+                    return invoker.invoke(target);
+                }
+                if (parameterCount == 1) {
+                    return invoker.invoke(target, parameterResolverPlans[0].getFirst().preparedResolver()
+                            .apply(message));
+                }
+                return invoker.invoke(target, parameterCount, i -> parameterResolverPlans[i].getFirst()
+                        .preparedResolver().apply(message));
+            }
+
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Executable getMethod() {
+                return executable;
+            }
+
+            @SuppressWarnings("unchecked")
+            @Override
+            public <A extends Annotation> A getMethodAnnotation() {
+                return (A) methodAnnotation;
+            }
+
+            @Override
+            public boolean expectResult() {
+                return hasReturnType;
+            }
+
+            @Override
+            public boolean isPassive() {
+                return passive;
+            }
+
+            @Override
+            public String toString() {
+                return Optional.ofNullable(targetClass).map(c -> {
+                    String simpleName = c.getSimpleName();
+                    return String.format("\"%s\"", simpleName.isEmpty() ? c : simpleName);
+                }).orElse("BoundHandlerMethod");
+            }
+        }
+
+        private class UnvalidatedPreparedParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
+            private final Object target;
+            private final M message;
+
+            private UnvalidatedPreparedParameterInvoker(Object target, M message) {
+                this.target = target;
+                this.message = message;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, parameterCount, this);
+            }
+
+            @Override
+            public Object apply(int i) {
+                return parameterResolverPlans[i].getFirst().preparedResolver().apply(message);
+            }
+        }
+
+        private class UnvalidatedDynamicParameterInvoker extends MethodHandlerInvoker implements IntFunction<Object> {
+            private final Object target;
+            private final M message;
+            private final Function<? super M, Object>[] matchingResolvers;
+
+            private UnvalidatedDynamicParameterInvoker(
+                    Object target, M message, Function<? super M, Object>[] matchingResolvers) {
+                this.target = target;
+                this.message = message;
+                this.matchingResolvers = matchingResolvers;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, parameterCount, this);
+            }
+
+            @Override
+            public Object apply(int i) {
+                return matchingResolvers[i].apply(message);
+            }
+        }
+
+        private class UnvalidatedSingleDynamicParameterInvoker extends MethodHandlerInvoker {
+            private final Object target;
+            private final M message;
+            private final Function<? super M, Object> matchingResolver;
+
+            private UnvalidatedSingleDynamicParameterInvoker(
+                    Object target, M message, Function<? super M, Object> matchingResolver) {
+                this.target = target;
+                this.message = message;
+                this.matchingResolver = matchingResolver;
+            }
+
+            @Override
+            public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                return invoker.invoke(target, matchingResolver.apply(message));
+            }
+        }
+
+        private record ParameterResolverPlan<M>(
+                ParameterResolver<? super M> resolver,
+                Function<? super M, Object> preparedResolver) {
+        }
     }
 
     /**
@@ -514,30 +802,37 @@ public class HandlerInspector {
 
         @Override
         public Optional<HandlerInvoker> getInvoker(Object target, M message) {
+            return Optional.ofNullable(getInvokerOrNull(target, message));
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(Object target, M message) {
             if (invokeMultipleMethods) {
                 List<HandlerInvoker> invokers = new ArrayList<>();
                 for (HandlerMatcher<Object, M> d : methodHandlers) {
-                    var s = d.getInvoker(target, message);
-                    s.ifPresent(invokers::add);
+                    HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                    if (invoker != null) {
+                        invokers.add(invoker);
+                    }
                 }
-                return HandlerInvoker.join(invokers);
+                return HandlerInvoker.join(invokers).orElse(null);
             }
             if (methodHandlers.size() == 1) {
-                return methodHandlers.getFirst().getInvoker(target, message);
+                return methodHandlers.getFirst().getInvokerOrNull(target, message);
             }
             HandlerInvoker bestInvoker = null;
             MethodHandlerMatcher<M> bestMatcher = null;
             for (HandlerMatcher<Object, M> d : methodHandlers) {
-                var s = d.getInvoker(target, message);
-                if (s.isPresent()) {
+                HandlerInvoker invoker = d.getInvokerOrNull(target, message);
+                if (invoker != null) {
                     if (bestInvoker == null) {
-                        bestInvoker = s.get();
+                        bestInvoker = invoker;
                         if (d instanceof MethodHandlerMatcher<?> methodHandlerMatcher) {
                             @SuppressWarnings("unchecked")
                             MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                             if (castMatcher.computeSpecificity(message).priority()
                                 <= castMatcher.lowestSpecificityPriority) {
-                                return s;
+                                return bestInvoker;
                             }
                             bestMatcher = castMatcher;
                         }
@@ -545,13 +840,21 @@ public class HandlerInspector {
                         @SuppressWarnings("unchecked")
                         MethodHandlerMatcher<M> castMatcher = (MethodHandlerMatcher<M>) methodHandlerMatcher;
                         if (castMatcher.compareForMessage(bestMatcher, message) < 0) {
-                            bestInvoker = s.get();
+                            bestInvoker = invoker;
                             bestMatcher = castMatcher;
                         }
                     }
                 }
             }
-            return Optional.ofNullable(bestInvoker);
+            return bestInvoker;
+        }
+
+        @Override
+        public HandlerMethod<M> bindHandlerMethod(Object target) {
+            if (invokeMultipleMethods || methodHandlers.size() != 1) {
+                return null;
+            }
+            return methodHandlers.getFirst().bindHandlerMethod(target);
         }
 
     }

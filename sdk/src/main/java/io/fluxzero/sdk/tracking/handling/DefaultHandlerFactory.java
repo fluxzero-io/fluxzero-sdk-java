@@ -160,7 +160,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         .methodInvocationValidator(methodInvocationValidator).build())
                 .filter(config -> isHandler(targetClass, config))
                 .map(config -> buildHandler(target, config))
-                .map(new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation)::wrap)
+                .map(handler -> messageType.isRequest()
+                        ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
+                        : handler)
                 .map(handlerDecorator::wrap);
     }
 
@@ -255,7 +257,9 @@ public class DefaultHandlerFactory implements HandlerFactory {
             HandlerConfiguration<DeserializingMessage> config) {
         Class<?> targetClass = asClass(target);
         Handler<DeserializingMessage> handler
-                = new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config));
+                = target instanceof Class<?>
+                  ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
+                  : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {

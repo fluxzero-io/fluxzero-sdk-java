@@ -14,7 +14,6 @@
 
 package io.fluxzero.common.handling;
 
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -23,12 +22,31 @@ import java.util.function.Function;
 /**
  * Default implementation of the {@link Handler} interface.
  */
-@AllArgsConstructor
 @Slf4j
 public class DefaultHandler<M> implements Handler<M> {
     private final Class<?> targetClass;
     private final Function<M, ?> targetSupplier;
     private final HandlerMatcher<Object, M> handlerMatcher;
+    private final HandlerMethod<M> handlerMethod;
+
+    public DefaultHandler(Class<?> targetClass, Function<M, ?> targetSupplier,
+                          HandlerMatcher<Object, M> handlerMatcher) {
+        this(targetClass, targetSupplier, handlerMatcher, null);
+    }
+
+    public static <M> DefaultHandler<M> forTarget(Class<?> targetClass, Object target,
+                                                  HandlerMatcher<Object, M> handlerMatcher) {
+        return new DefaultHandler<>(targetClass, ignored -> target, handlerMatcher,
+                                    handlerMatcher.bindHandlerMethod(target));
+    }
+
+    private DefaultHandler(Class<?> targetClass, Function<M, ?> targetSupplier, HandlerMatcher<Object, M> handlerMatcher,
+                           HandlerMethod<M> handlerMethod) {
+        this.targetClass = targetClass;
+        this.targetSupplier = targetSupplier;
+        this.handlerMatcher = handlerMatcher;
+        this.handlerMethod = handlerMethod;
+    }
 
     @Override
     public Class<?> getTargetClass() {
@@ -37,7 +55,17 @@ public class DefaultHandler<M> implements Handler<M> {
 
     @Override
     public Optional<HandlerInvoker> getInvoker(M message) {
-        return handlerMatcher.getInvoker(targetSupplier.apply(message), message);
+        return Optional.ofNullable(getInvokerOrNull(message));
+    }
+
+    @Override
+    public HandlerInvoker getInvokerOrNull(M message) {
+        return handlerMatcher.getInvokerOrNull(targetSupplier.apply(message), message);
+    }
+
+    @Override
+    public HandlerMethod<M> getHandlerMethodOrNull(M message) {
+        return handlerMethod != null && handlerMethod.canHandle(message) ? handlerMethod : null;
     }
 
     @Override

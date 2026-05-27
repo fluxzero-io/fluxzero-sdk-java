@@ -72,6 +72,21 @@ public class HandlerInspectorParameterResolverTest {
         assertEquals("payload", result);
     }
 
+    @Test
+    void preparedParameterResolverIsPreparedOncePerHandlerMethod() {
+        PreparedCountingResolver resolver = new PreparedCountingResolver();
+        Handler<Message> handler = HandlerInspector.createHandler(
+                new PreparedHandler(), Handle.class, List.of(resolver));
+
+        assertEquals(1, resolver.prepareCount);
+        assertEquals("first", handler.getInvoker(new Message("first")).orElseThrow().invoke());
+        assertEquals("second", handler.getInvoker(new Message("second")).orElseThrow().invoke());
+
+        assertEquals(1, resolver.prepareCount);
+        assertEquals(0, resolver.matchesCount);
+        assertEquals(0, resolver.resolveCount);
+    }
+
     private static class Foo {
         @Handle
         public Object handle(String o, Instant time) {
@@ -106,6 +121,43 @@ public class HandlerInspectorParameterResolverTest {
         @Handle
         Object handle(CreatePayment payment) {
             return "payload";
+        }
+    }
+
+    private static class PreparedHandler {
+        @Handle
+        Object handle(String value) {
+            return value;
+        }
+    }
+
+    private static class PreparedCountingResolver implements ParameterResolver<Message> {
+        private int prepareCount;
+        private int matchesCount;
+        private int resolveCount;
+
+        @Override
+        public Function<Message, Object> resolve(java.lang.reflect.Parameter parameter,
+                                                 java.lang.annotation.Annotation methodAnnotation) {
+            resolveCount++;
+            return null;
+        }
+
+        @Override
+        public Function<Message, Object> prepare(java.lang.reflect.Parameter parameter,
+                                                 java.lang.annotation.Annotation methodAnnotation) {
+            if (String.class.equals(parameter.getType())) {
+                prepareCount++;
+                return Message::getPayload;
+            }
+            return null;
+        }
+
+        @Override
+        public boolean matches(java.lang.reflect.Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
+                               Message value) {
+            matchesCount++;
+            return false;
         }
     }
 
