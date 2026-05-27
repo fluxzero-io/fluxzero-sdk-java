@@ -105,6 +105,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isCompatibleAggregateParameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#isCompatibleAggregateParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadAggregate",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#loadAggregate",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
@@ -124,11 +145,6 @@
     }, {
       "name" : "aggregateType",
       "type" : "java.lang.Class<?>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "parameter",
-      "type" : "java.lang.reflect.Parameter",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -184,7 +200,31 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Determines whether the parameter can be resolved from the given input. The match succeeds if a suitable entity or\n value can be found in the message or entity context.\n\n @param parameter        the method parameter\n @param methodAnnotation the annotation on the handler method (unused here)\n @param input            the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})\n @return true if the parameter can be resolved from the input, false otherwise\n"
+    "documentation" : " Determines whether the parameter can be resolved from the given input. The match succeeds if a suitable entity or\n value can be found in the message or entity context.\n\n @param parameter        the method parameter\n @param methodAnnotation the annotation on the handler method\n @param input            the handler input (e.g., {@link DeserializingMessage} or {@link HasEntity})\n @return true if the parameter can be resolved from the input, false otherwise\n"
+  }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolve",
@@ -229,7 +269,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will\n recursively traverse parent entities if needed.\n\n @param parameter        the parameter for which a value must be injected\n @param methodAnnotation the annotation on the handler method (unused here)\n @return a function that supplies the resolved value\n"
+    "documentation" : " Provides a {@link Supplier} that returns the matching entity or its value for the given parameter. Will\n recursively traverse parent entities if needed.\n\n @param parameter        the parameter for which a value must be injected\n @param methodAnnotation the annotation on the handler method\n @return a function that supplies the resolved value\n"
   }, {
     "name" : "resolveIfPossible",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolveIfPossible",
@@ -253,6 +293,22 @@
     }, {
       "name" : "input",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsMessageEntityInjection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#supportsMessageEntityInjection",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
