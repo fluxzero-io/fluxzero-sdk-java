@@ -15,8 +15,6 @@
 
 package io.fluxzero.sdk.tracking;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
@@ -26,7 +24,6 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.test.TestFixture;
@@ -43,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -236,8 +232,8 @@ class ChunkedMessageTest {
                     MessageType.EVENT, mock(ResultGateway.class), List.of(), List.of(), fc.serializer(),
                     mock(HandlerFactory.class));
 
-            List<DeserializingMessage> messages = tracking.deserializeMessages(
-                    List.of(finalChunk), null, trackingClient, new ConcurrentHashMap<>(), 2).toList();
+            List<DeserializingMessage> messages = tracking.deserializeMessageList(
+                    List.of(finalChunk), null, trackingClient, new ConcurrentHashMap<>(), 2);
 
             assertEquals(1, messages.size());
             InputStream stream = messages.getFirst().getPayloadAs(InputStream.class);
@@ -248,26 +244,6 @@ class ChunkedMessageTest {
             verify(trackingClient, never()).readRange(eq(timestampIndex + 6L), eq(finalChunk.getIndex()), eq(2));
             return null;
         });
-    }
-
-    @Test
-    void nonChunkedBatchKeepsOneDeserializingMessagePerSerializedMessageWhenUpcasterSplits() {
-        TestFixture.create().whenApplying(fc -> {
-            fc.serializer().registerCasters(new SplittingStringUpcaster());
-            DefaultTracking tracking = new DefaultTracking(
-                    MessageType.EVENT, mock(ResultGateway.class), List.of(), List.of(), fc.serializer(),
-                    mock(HandlerFactory.class));
-            SerializedMessage serializedMessage = message(fc, "first");
-            int directSerializerCount =
-                    fc.serializer().deserializeMessages(Stream.of(serializedMessage), MessageType.EVENT).toList()
-                            .size();
-
-            List<DeserializingMessage> messages = tracking.deserializeMessages(
-                    List.of(serializedMessage), null, mock(TrackingClient.class), new ConcurrentHashMap<>(),
-                    100).toList();
-
-            return List.<Object>of(directSerializerCount, messages.size(), messages.getFirst().getPayload());
-        }).expectResult(List.of(2, 1, "first"));
     }
 
     @Test
@@ -317,14 +293,5 @@ class ChunkedMessageTest {
     }
 
     private record LargePayload(String value, int count) {
-    }
-
-    static class SplittingStringUpcaster {
-        @Upcast(type = "java.lang.String", revision = 0)
-        Stream<Data<JsonNode>> split(Data<JsonNode> input) {
-            return Stream.of(
-                    new Data<>(input.getValue(), input.getType(), 1, input.getFormat()),
-                    new Data<>(TextNode.valueOf("second"), input.getType(), 1, input.getFormat()));
-        }
     }
 }

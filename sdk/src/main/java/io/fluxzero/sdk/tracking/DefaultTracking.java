@@ -533,15 +533,6 @@ public class DefaultTracking implements Tracking {
         };
     }
 
-    protected Stream<DeserializingMessage> deserializeMessages(List<SerializedMessage> serializedMessages, String topic,
-                                                               TrackingClient trackingClient,
-                                                               Map<String, ChunkedDeserializingMessage>
-                                                                       activeChunkedMessages,
-                                                               int recoveryMaxFetchSize) {
-        return deserializeMessageList(
-                serializedMessages, topic, trackingClient, activeChunkedMessages, recoveryMaxFetchSize).stream();
-    }
-
     protected List<DeserializingMessage> deserializeMessageList(
             List<SerializedMessage> serializedMessages, String topic, TrackingClient trackingClient,
             Map<String, ChunkedDeserializingMessage> activeChunkedMessages, int recoveryMaxFetchSize) {
@@ -555,16 +546,15 @@ public class DefaultTracking implements Tracking {
         if (!hasChunkedMessages) {
             return deserializeNonChunkedMessages(serializedMessages, topic);
         }
-        List<DeserializingMessage> result = new ArrayList<>();
+        List<DeserializingMessage> result = new ArrayList<>(serializedMessages.size());
+        List<SerializedMessage> pendingNonChunkedMessages = new ArrayList<>();
         Map<String, List<SerializedMessage>> pendingContinuations = new HashMap<>();
         for (SerializedMessage message : serializedMessages) {
             if (!message.chunked()) {
-                DeserializingMessage deserializedMessage = deserializeNonChunkedMessageOrNull(message, topic);
-                if (deserializedMessage != null) {
-                    result.add(deserializedMessage);
-                }
+                pendingNonChunkedMessages.add(message);
                 continue;
             }
+            flushNonChunkedMessages(pendingNonChunkedMessages, topic, result);
             if (!message.firstChunk()) {
                 String key = chunkKey(topic, message);
                 ChunkedDeserializingMessage chunkedMessage = activeChunkedMessages.get(key);
@@ -594,24 +584,22 @@ public class DefaultTracking implements Tracking {
             trackActiveChunkedMessage(activeChunkedMessages, chunkKey, chunkedMessage);
             result.add(chunkedMessage);
         }
+        flushNonChunkedMessages(pendingNonChunkedMessages, topic, result);
         pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
         return result;
     }
 
     private List<DeserializingMessage> deserializeNonChunkedMessages(List<SerializedMessage> serializedMessages,
                                                                      String topic) {
-        List<DeserializingMessage> result = new ArrayList<>(serializedMessages.size());
-        for (SerializedMessage message : serializedMessages) {
-            DeserializingMessage deserializedMessage = deserializeNonChunkedMessageOrNull(message, topic);
-            if (deserializedMessage != null) {
-                result.add(deserializedMessage);
-            }
-        }
-        return result;
+        return serializer.deserializeMessages(serializedMessages.stream(), messageType, topic).toList();
     }
 
-    private DeserializingMessage deserializeNonChunkedMessageOrNull(SerializedMessage message, String topic) {
-        return serializer.deserializeFirstMessageOrNull(message, messageType, topic);
+    private void flushNonChunkedMessages(List<SerializedMessage> messages, String topic,
+                                         List<DeserializingMessage> result) {
+        if (!messages.isEmpty()) {
+            result.addAll(deserializeNonChunkedMessages(messages, topic));
+            messages.clear();
+        }
     }
 
     private String chunkKey(String topic, SerializedMessage message) {
