@@ -56,6 +56,7 @@ jobs:
       CODEX_HOME: /tmp/codex-home
       CODEX_MODEL: gpt-5.5
       CODEX_REASONING_EFFORT: xhigh
+      CODEX_REPAIR_TIMEOUT: 35m
       FAILED_RUN_ID: ${{ inputs.run_id }}
       FAILED_RUN_URL: ${{ inputs.run_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
       FAILED_RUN_HEAD_SHA: ${{ inputs.head_sha || '' }}
@@ -270,6 +271,7 @@ jobs:
           - When the log shows a JUnit nested class such as ProxyServerTest\$Basic, run the outer class first. If you need an exact nested method selector, quote it like -Dtest='ProxyServerTest\$Basic#methodName' so the shell does not expand \$Basic.
           - Do not start with the full deploy command. Reserve it for final verification after a focused reproduction and fix.
           - For suspected flakes, first confirm the targeted command runs the intended test, then stress that same command with a short loop.
+          - The workflow will run the full deploy verification after Codex exits with changes.
 
           ## Failure Summary
           EOF
@@ -327,7 +329,7 @@ jobs:
           - Reproduce the observed failure locally with the narrowest useful command.
           - If the failure is flaky, first make the failure deterministic or gather concrete race/order evidence.
           - Apply the minimal safe fix.
-          - Run targeted verification and the relevant Maven CI command.
+          - Run targeted verification only.
           - Leave the final code changes uncommitted in the worktree.
 
           Constraints:
@@ -337,7 +339,7 @@ jobs:
           - Do not push, commit, or open a PR; the workflow will do that.
           - If there is no safe minimal fix, leave the worktree unchanged and explain why.
           - Prefer fixing tests only when the evidence shows a test race rather than a production defect.
-          - The main Deploy build command is ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy.
+          - Do not run the full deploy command yourself. The workflow will run ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy after Codex exits with repository changes.
 
           Efficiency guidance:
           - Use the pre-collected failure context before spending tokens or time on broad log searches.
@@ -345,8 +347,10 @@ jobs:
           - Prefer module-scoped Maven commands such as ./mvnw -pl proxy -am -Dtest=ProxyServerTest test.
           - If Surefire reports a nested class like io.fluxzero.proxy.ProxyServerTest\$Websocket, use -Dtest=ProxyServerTest in the proxy module before trying exact method filters.
           - For JUnit nested classes in logs, run the outer test class first. If an exact nested method selector is needed, quote it like -Dtest='ProxyServerTest\$Websocket#closeProxy' so the shell does not expand \$Websocket.
-          - When stress testing a flaky failure, stress the already-confirmed targeted command. Keep loops short until the failure signature is understood.
-          - Do not run the full Deploy command before a targeted reproduction or a concrete fix.
+          - When stress testing a flaky failure, stress the already-confirmed targeted command. Use at most 5 iterations unless the first 5 produce new evidence.
+          - After applying a plausible minimal fix, run one targeted verification command. If it passes and the diff is coherent, stop and write the report.
+          - Do not run full-module, full-reactor, or deploy verification repeatedly. The outer workflow owns final verification.
+          - Avoid broad source exploration after you have identified the failing test and a plausible root cause. Prefer one small diff plus targeted verification.
 
           Failing run:
           - Run id: ${FAILED_RUN_ID}
@@ -360,7 +364,7 @@ jobs:
           PROMPT
 
           set +e
-          codex exec \
+          timeout "$CODEX_REPAIR_TIMEOUT" codex exec \
             --cd "$GITHUB_WORKSPACE" \
             --model "$CODEX_MODEL" \
             --sandbox danger-full-access \
@@ -377,6 +381,9 @@ jobs:
           set -e
           if [ "$status" -ne 0 ]; then
             echo "::warning::Codex exited with status $status. Continuing only if it left a usable diff."
+            if [ "$status" -eq 124 ]; then
+              echo "::warning::Codex hit the ${CODEX_REPAIR_TIMEOUT} repair timeout."
+            fi
           fi
 
       - name: Check for changes
