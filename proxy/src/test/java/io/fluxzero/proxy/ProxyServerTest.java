@@ -50,6 +50,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.io.BufferedReader;
@@ -106,7 +107,11 @@ class ProxyServerTest {
 
     @AfterEach
     void tearDown() {
-        proxyServer.cancel();
+        try {
+            proxyServer.cancel();
+        } finally {
+            httpClient.shutdownNow();
+        }
     }
 
     @Nested
@@ -1159,6 +1164,7 @@ class ProxyServerTest {
     }
 
     @Nested
+    @Isolated
     class Websocket {
         @Test
         void openSocket() {
