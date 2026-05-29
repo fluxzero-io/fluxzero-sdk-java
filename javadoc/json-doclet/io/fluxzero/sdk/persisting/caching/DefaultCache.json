@@ -4,106 +4,73 @@
   "packageName" : "io.fluxzero.sdk.persisting.caching",
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
-    "annotationType" : "lombok.extern.slf4j.Slf4j",
-    "values" : {}
-  } ],
-  "documentation" : " Default implementation of the {@link Cache} interface using key-level synchronized access and soft references for\n value storage.\n <p>\n This cache is optimized for concurrent environments and provides built-in support for:\n <ul>\n     <li><strong>Automatic eviction</strong> based on max size (LRU policy)</li>\n     <li><strong>Reference-based eviction</strong> when values are no longer strongly reachable (via {@link SoftReference})</li>\n     <li><strong>Expiration</strong> after a configurable duration</li>\n     <li><strong>Eviction notification</strong> via registered {@link CacheEviction} listeners</li>\n </ul>\n\n <p>\n The cache ensures thread safety through synchronized access on its internal {@link LinkedHashMap} and per-key locking\n using {@code intern()} on a string prefix plus key combination. While this does introduce some memory overhead due to\n string interning, it ensures atomic updates for concurrent access to the same key.\n\n <p><strong>Threading:</strong> Eviction listeners and expiration polling run on background threads.\n The {@code valueMap} itself is backed by a synchronized {@link LinkedHashMap} with LRU eviction behavior.</p>\n\n @see Cache\n @see CacheEviction\n",
+  "annotations" : [ ],
+  "documentation" : " Default aggregate cache facade that selects the current SDK cache implementation from Fluxzero cache properties.\n <p>\n Existing applications without a defaults version or explicit {@link #MODE_PROPERTY} keep the legacy\n {@link SoftReferenceCache}. Newer applications that use Fluxzero defaults {@code >= 2026.05.25}, or set\n {@code fluxzero.cache.mode = adaptive}, use {@link AdaptiveObjectCache}.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache", "java.lang.AutoCloseable" ],
   "fields" : [ {
-    "name" : "clock",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.clock",
-    "type" : "java.time.Clock",
-    "modifiers" : [ "final", "private" ],
+    "name" : "ADAPTIVE_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.ADAPTIVE_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Fluxzero defaults version from which {@link DefaultCache} uses {@link AdaptiveObjectCache} by default.\n",
+    "constantValue" : null
+  }, {
+    "name" : "DEFAULTS_VERSION_FORMAT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.DEFAULTS_VERSION_FORMAT",
+    "type" : "java.time.format.DateTimeFormatter",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "evictionListeners",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.evictionListeners",
-    "type" : "java.util.Collection<java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "evictionNotifier",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.evictionNotifier",
-    "type" : "java.util.concurrent.Executor",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "expiry",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.expiry",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "expiryCheckDelay",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.expiryCheckDelay",
-    "type" : "java.time.Duration",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "maxSize",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.maxSize",
+    "name" : "DEFAULT_MAX_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.DEFAULT_MAX_SIZE",
     "type" : "int",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : null
+    "constantValue" : 1000000
   }, {
-    "name" : "mutexPrecursor",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.mutexPrecursor",
+    "name" : "MAX_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MAX_SIZE_PROPERTY",
     "type" : "java.lang.String",
-    "modifiers" : [ "final", "protected", "static" ],
+    "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : "$DC$"
+    "documentation" : " Property that configures the maximum entry count for {@link AdaptiveObjectCache} when selected by\n {@link DefaultCache}.\n",
+    "constantValue" : "fluxzero.cache.maxSize"
   }, {
-    "name" : "referencePurger",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.referencePurger",
-    "type" : "java.util.concurrent.ScheduledExecutorService",
+    "name" : "MODE_ADAPTIVE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_ADAPTIVE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " {@link #MODE_PROPERTY} value that selects {@link AdaptiveObjectCache}.\n",
+    "constantValue" : "adaptive"
+  }, {
+    "name" : "MODE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property that selects the cache implementation used by {@link DefaultCache}.\n",
+    "constantValue" : "fluxzero.cache.mode"
+  }, {
+    "name" : "MODE_SOFT_REFERENCE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_SOFT_REFERENCE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " {@link #MODE_PROPERTY} value that selects {@link SoftReferenceCache}.\n",
+    "constantValue" : "softRef"
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.delegate",
+    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "referenceQueue",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.referenceQueue",
-    "type" : "java.lang.ref.ReferenceQueue<java.lang.Object>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "softReferences",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.softReferences",
-    "type" : "boolean",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "valueMap",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.valueMap",
-    "type" : "java.util.Map<java.lang.Object,io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Getter",
-      "values" : {}
-    } ],
     "documentation" : null,
     "constantValue" : null
   } ],
@@ -116,7 +83,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a cache with a default maximum size of 1,000,000 entries and no expiration.\n"
+    "documentation" : " Constructs a cache using the active Fluxzero property source, or the default property source when no Fluxzero\n instance is active.\n"
   }, {
     "name" : "DefaultCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
@@ -131,7 +98,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a cache with a specified max size and no expiration.\n"
+    "documentation" : " Constructs a cache with a specified max size for the selected implementation.\n"
   }, {
     "name" : "DefaultCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
@@ -151,7 +118,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a cache with specified size and expiration. Uses a single-threaded executor for eviction\n notifications.\n"
+    "documentation" : " Constructs a cache with specified size and expiration for the selected implementation.\n"
   }, {
     "name" : "DefaultCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
@@ -159,24 +126,14 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "maxSize",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "evictionNotifier",
-      "type" : "java.util.concurrent.Executor",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "expiry",
-      "type" : "java.time.Duration",
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a cache with specified size, executor for eviction notifications and expiration.\n"
+    "documentation" : " Constructs a cache using the given property source for cache mode and defaults-version selection.\n"
   }, {
     "name" : "DefaultCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
@@ -184,34 +141,19 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "maxSize",
       "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "evictionNotifier",
-      "type" : "java.util.concurrent.Executor",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "expiry",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "expiryCheckDelay",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "softReferences",
-      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a cache with full configuration of size, eviction executor, expiration delay, and expiration check\n frequency.\n"
+    "documentation" : " Constructs a cache using the given property source for cache mode and defaults-version selection, with a custom\n max size for the selected implementation.\n"
   }, {
     "name" : "DefaultCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
@@ -219,13 +161,43 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "maxSize",
-      "type" : "int",
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "evictionNotifier",
-      "type" : "java.util.concurrent.Executor",
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -233,19 +205,19 @@
       "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "expiryCheckDelay",
-      "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "softReferences",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "clock",
-      "type" : "java.time.Clock",
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -304,7 +276,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns a synchronized computation that adds, removes, or updates a cache entry. Internally uses per-key\n {@link String#intern()} synchronization to prevent race conditions.\n"
+    "documentation" : null
   }, {
     "name" : "computeIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#computeIfAbsent",
@@ -373,6 +345,71 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "currentPropertySource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#currentPropertySource",
+    "returnType" : "io.fluxzero.common.application.PropertySource",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultEvictionNotifier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultEvictionNotifier",
+    "returnType" : "java.util.concurrent.Executor",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultsVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultsVersion",
+    "returnType" : "java.time.LocalDate",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultsVersionUsesAdaptiveCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultsVersionUsesAdaptiveCache",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#delegate",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the selected cache implementation.\n"
+  }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#get",
     "returnType" : "T",
@@ -411,13 +448,44 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "pollReferenceQueue",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#pollReferenceQueue",
-    "returnType" : "void",
-    "modifiers" : [ "protected" ],
+    "name" : "newAdaptiveCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#newAdaptiveCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newSoftReferenceCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#newSoftReferenceCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -484,27 +552,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "registerEviction",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#registerEviction",
-    "returnType" : "void",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "reference",
-      "type" : "io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "reason",
-      "type" : "io.fluxzero.sdk.persisting.caching.CacheEviction.Reason",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "registerEvictionListener",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#registerEvictionListener",
     "returnType" : "io.fluxzero.common.Registration",
@@ -543,13 +590,33 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "removeExpiredReferences",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#removeExpiredReferences",
-    "returnType" : "void",
-    "modifiers" : [ "protected" ],
+    "name" : "selectDelegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#selectDelegate",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -567,74 +634,8 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
-  }, {
-    "name" : "unwrap",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#unwrap",
-    "returnType" : "T",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"unchecked\""
-      }
-    } ],
-    "typeParameters" : [ "T" ],
-    "parameters" : [ {
-      "name" : "ref",
-      "type" : "io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "wrap",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#wrap",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "id",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "value",
-      "type" : "java.lang.Object",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ {
-    "name" : "CacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference",
-    "kind" : "interface",
-    "modifiers" : [ "abstract", "protected", "static" ],
-    "annotations" : [ ]
-  }, {
-    "name" : "HardCacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference",
-    "kind" : "class",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Value",
-      "values" : {}
-    } ]
-  }, {
-    "name" : "SoftCacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$SoftCacheReference",
-    "kind" : "class",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.Getter",
-      "values" : {}
-    } ]
-  } ]
+  "nestedTypes" : [ ]
 }

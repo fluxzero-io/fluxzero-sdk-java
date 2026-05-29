@@ -1,6 +1,6 @@
 {
   "name" : "CacheReference",
-  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference",
   "packageName" : "io.fluxzero.sdk.persisting.caching",
   "kind" : "interface",
   "modifiers" : [ "abstract", "protected", "static" ],
@@ -13,7 +13,7 @@
   "constructors" : [ ],
   "methods" : [ {
     "name" : "get",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference#get",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#get",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
@@ -24,7 +24,7 @@
     "documentation" : null
   }, {
     "name" : "getDeadline",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference#getDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#getDeadline",
     "returnType" : "java.time.Instant",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
@@ -35,7 +35,7 @@
     "documentation" : null
   }, {
     "name" : "getId",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference#getId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#getId",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
@@ -46,7 +46,7 @@
     "documentation" : null
   }, {
     "name" : "hasExpired",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference#hasExpired",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#hasExpired",
     "returnType" : "boolean",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],

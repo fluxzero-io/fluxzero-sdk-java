@@ -217,6 +217,9 @@
     "name" : "application",
     "path" : "application"
   }, {
+    "name" : "caching",
+    "path" : "caching"
+  }, {
     "name" : "encryption",
     "path" : "encryption"
   }, {

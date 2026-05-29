@@ -10,6 +10,7 @@ io.fluxzero.common.api.search.bulkupdate
 io.fluxzero.common.api.search.constraints
 io.fluxzero.common.api.tracking
 io.fluxzero.common.application
+io.fluxzero.common.caching
 io.fluxzero.common.encryption
 io.fluxzero.common.handling
 io.fluxzero.common.reflection

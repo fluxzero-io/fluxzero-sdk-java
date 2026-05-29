@@ -1,0 +1,44 @@
+{
+  "package" : {
+    "name" : "caching",
+    "qualifiedName" : "io.fluxzero.common.caching",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "MemoryAwareCacheSupport.json",
+    "name" : "MemoryAwareCacheSupport",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport",
+    "kind" : "class"
+  }, {
+    "file" : "MemoryAwareCacheSupport.Entry.json",
+    "name" : "MemoryAwareCacheSupport.Entry",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry",
+    "kind" : "class"
+  }, {
+    "file" : "MemoryAwareCacheSupport.MemoryPressureEvictionCandidate.json",
+    "name" : "MemoryAwareCacheSupport.MemoryPressureEvictionCandidate",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate",
+    "kind" : "record"
+  }, {
+    "file" : "MemoryAwareCacheSupportEviction.json",
+    "name" : "MemoryAwareCacheSupportEviction",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction",
+    "kind" : "record"
+  }, {
+    "file" : "MemoryAwareCacheSupportEviction.Reason.json",
+    "name" : "MemoryAwareCacheSupportEviction.Reason",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction$Reason",
+    "kind" : "enum"
+  }, {
+    "file" : "MemoryPressureController.json",
+    "name" : "MemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController",
+    "kind" : "interface"
+  }, {
+    "file" : "MemoryPressureController.JvmMemoryPressureController.json",
+    "name" : "MemoryPressureController.JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

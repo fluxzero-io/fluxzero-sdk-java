@@ -1,0 +1,483 @@
+{
+  "name" : "JvmMemoryPressureController",
+  "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController",
+  "packageName" : "io.fluxzero.common.caching",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.caching.MemoryPressureController" ],
+  "fields" : [ {
+    "name" : "DEFAULT_GC_TIME_THRESHOLD_PERCENT",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_GC_TIME_THRESHOLD_PERCENT",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 20
+  }, {
+    "name" : "DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 85
+  }, {
+    "name" : "DEFAULT_MAX_TRIM_WEIGHT",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_MAX_TRIM_WEIGHT",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1073741824
+  }, {
+    "name" : "DEFAULT_TRIM_RATIO_PERCENT",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_TRIM_RATIO_PERCENT",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 20
+  }, {
+    "name" : "MIN_GC_SAMPLE_WINDOW_MILLIS",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.MIN_GC_SAMPLE_WINDOW_MILLIS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 100
+  }, {
+    "name" : "collectionMillisSupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.collectionMillisSupplier",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gcTimeThresholdPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.gcTimeThresholdPercent",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "heapUsageThresholdPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.heapUsageThresholdPercent",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastCheckNanos",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.lastCheckNanos",
+    "type" : "long",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastCollectionMillis",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.lastCollectionMillis",
+    "type" : "long",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxMemorySupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.maxMemorySupplier",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxTrimWeight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.maxTrimWeight",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nanoTimeSupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.nanoTimeSupplier",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trimRatioPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.trimRatioPercent",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "usedMemorySupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.usedMemorySupplier",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#JvmMemoryPressureController",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#JvmMemoryPressureController",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#JvmMemoryPressureController",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nanoTimeSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "usedMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionMillisSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#JvmMemoryPressureController",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nanoTimeSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "usedMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionMillisSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#JvmMemoryPressureController",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nanoTimeSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "usedMemorySupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionMillisSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "heapUsageThresholdPercent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gcTimeThresholdPercent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trimRatioPercent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTrimWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collectionMillisSupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#collectionMillisSupplier",
+    "returnType" : "java.util.function.LongSupplier",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "garbageCollectors",
+      "type" : "java.util.List<java.lang.management.GarbageCollectorMXBean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "gcTimeLooksHigh",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#gcTimeLooksHigh",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "heapUsageLooksHigh",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#heapUsageLooksHigh",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxTrimWeight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#maxTrimWeight",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "propertyLong",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#propertyLong",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "propertyPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#propertyPercent",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldEvict",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#shouldEvict",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldEvictAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#shouldEvictAll",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trimRatioPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#trimRatioPercent",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validatePercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#validatePercent",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validatePositiveLong",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#validatePositiveLong",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

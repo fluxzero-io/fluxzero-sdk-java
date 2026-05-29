@@ -1,0 +1,148 @@
+{
+  "name" : "MemoryPressureController",
+  "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController",
+  "packageName" : "io.fluxzero.common.caching",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Determines whether caches should proactively shed entries.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " GC-time percentage over the sampling window that triggers JVM-wide memory-aware cache trimming. Defaults to\n {@code 20}.\n",
+    "constantValue" : "fluxzero.cache.memoryPressure.gcTimeThresholdPercent"
+  }, {
+    "name" : "MEMORY_PRESSURE_HEAP_THRESHOLD_PERCENT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_HEAP_THRESHOLD_PERCENT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.\n",
+    "constantValue" : "fluxzero.cache.memoryPressure.heapThresholdPercent"
+  }, {
+    "name" : "MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Maximum cache weight to evict per observed memory-pressure pass. For byte-weighted caches this is bytes; for\n count-weighted caches this is entries. Defaults to {@code 1 GiB}.\n",
+    "constantValue" : "fluxzero.cache.memoryPressure.maxTrimWeight"
+  }, {
+    "name" : "MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Percentage of the registered memory-aware cache weight to evict per observed memory-pressure pass. Defaults to\n {@code 20}.\n",
+    "constantValue" : "fluxzero.cache.memoryPressure.trimRatioPercent"
+  }, {
+    "name" : "NONE",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.NONE",
+    "type" : "io.fluxzero.common.caching.MemoryPressureController",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "jvm",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#jvm",
+    "returnType" : "io.fluxzero.common.caching.MemoryPressureController",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "jvm",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#jvm",
+    "returnType" : "io.fluxzero.common.caching.MemoryPressureController",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxTrimWeight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#maxTrimWeight",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "none",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#none",
+    "returnType" : "io.fluxzero.common.caching.MemoryPressureController",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldEvict",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#shouldEvict",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trimRatioPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#trimRatioPercent",
+    "returnType" : "int",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "JvmMemoryPressureController",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,6 +1,6 @@
 {
   "name" : "HardCacheReference",
-  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference",
   "packageName" : "io.fluxzero.sdk.persisting.caching",
   "kind" : "class",
   "modifiers" : [ "public" ],
@@ -11,10 +11,10 @@
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.DefaultCache.CacheReference" ],
+  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.SoftReferenceCache.CacheReference" ],
   "fields" : [ {
     "name" : "deadline",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.deadline",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference.deadline",
     "type" : "java.time.Instant",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -22,7 +22,7 @@
     "constantValue" : null
   }, {
     "name" : "id",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.id",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference.id",
     "type" : "java.lang.Object",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -30,7 +30,7 @@
     "constantValue" : null
   }, {
     "name" : "value",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference.value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference.value",
     "type" : "java.lang.Object",
     "modifiers" : [ ],
     "annotations" : [ ],
@@ -39,7 +39,7 @@
   } ],
   "constructors" : [ {
     "name" : "HardCacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference#HardCacheReference",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference#HardCacheReference",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -50,7 +50,7 @@
   } ],
   "methods" : [ {
     "name" : "get",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference#get",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference#get",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "public" ],
     "annotations" : [ {

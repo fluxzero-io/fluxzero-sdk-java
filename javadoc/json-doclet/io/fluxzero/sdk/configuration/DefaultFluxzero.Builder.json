@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : "fluxzero.maxPublicationDepth"
   }, {
+    "name" : "RELATIONSHIPS_CACHE_MAX_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.RELATIONSHIPS_CACHE_MAX_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 100000
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.batchInterceptors",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>>",
@@ -37,6 +45,14 @@
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.cache",
     "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cacheConfigured",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.cacheConfigured",
+    "type" : "boolean",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1045,6 +1061,28 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "initialCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#initialCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initialRelationshipsCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#initialRelationshipsCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "localHandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#localHandlerRegistry",
     "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
@@ -1471,6 +1509,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveCache",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#resolveCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

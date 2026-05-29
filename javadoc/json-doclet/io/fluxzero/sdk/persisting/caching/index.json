@@ -5,6 +5,16 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "AdaptiveObjectCache.json",
+    "name" : "AdaptiveObjectCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache",
+    "kind" : "class"
+  }, {
+    "file" : "AdaptiveObjectCache.CacheEntry.json",
+    "name" : "AdaptiveObjectCache.CacheEntry",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache$CacheEntry",
+    "kind" : "record"
+  }, {
     "file" : "Cache.json",
     "name" : "Cache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.Cache",
@@ -35,21 +45,6 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache",
     "kind" : "class"
   }, {
-    "file" : "DefaultCache.CacheReference.json",
-    "name" : "DefaultCache.CacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$CacheReference",
-    "kind" : "interface"
-  }, {
-    "file" : "DefaultCache.HardCacheReference.json",
-    "name" : "DefaultCache.HardCacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$HardCacheReference",
-    "kind" : "class"
-  }, {
-    "file" : "DefaultCache.SoftCacheReference.json",
-    "name" : "DefaultCache.SoftCacheReference",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache$SoftCacheReference",
-    "kind" : "class"
-  }, {
     "file" : "NamedCache.json",
     "name" : "NamedCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache",
@@ -63,6 +58,26 @@
     "file" : "SelectiveCache.json",
     "name" : "SelectiveCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache",
+    "kind" : "class"
+  }, {
+    "file" : "SoftReferenceCache.json",
+    "name" : "SoftReferenceCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache",
+    "kind" : "class"
+  }, {
+    "file" : "SoftReferenceCache.CacheReference.json",
+    "name" : "SoftReferenceCache.CacheReference",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference",
+    "kind" : "interface"
+  }, {
+    "file" : "SoftReferenceCache.HardCacheReference.json",
+    "name" : "SoftReferenceCache.HardCacheReference",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$HardCacheReference",
+    "kind" : "class"
+  }, {
+    "file" : "SoftReferenceCache.SoftCacheReference.json",
+    "name" : "SoftReferenceCache.SoftCacheReference",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$SoftCacheReference",
     "kind" : "class"
   } ],
   "subdirectories" : [ ]
