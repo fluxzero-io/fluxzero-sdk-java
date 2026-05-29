@@ -51,6 +51,7 @@ jobs:
 
     env:
       GH_TOKEN: ${{ secrets.REPAIR_GITHUB_TOKEN || github.token }}
+      REPAIR_GITHUB_TOKEN: ${{ secrets.REPAIR_GITHUB_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CODEX_HOME: /tmp/codex-home
       CODEX_MODEL: gpt-5.5
@@ -66,6 +67,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.REPAIR_GITHUB_TOKEN || github.token }}
 
       - name: Resolve failed run
         id: failed_run
@@ -120,9 +122,14 @@ jobs:
         id: gate
         run: |
           set -euo pipefail
-          build_conclusion="$(gh run view "$FAILED_RUN_ID" \
+          build_fields="$(gh run view "$FAILED_RUN_ID" \
             --json jobs \
-            --jq '.jobs[] | select(.name == "build-and-test") | .conclusion' | head -n 1)"
+            --jq '.jobs[] | select(.name == "build-and-test") | [.conclusion, (.databaseId | tostring), .url] | @tsv' | head -n 1 || true)"
+
+          IFS=$'\t' read -r build_conclusion build_job_id build_job_url <<< "$build_fields" || true
+          build_conclusion="${build_conclusion:-}"
+          build_job_id="${build_job_id:-}"
+          build_job_url="${build_job_url:-}"
 
           case "$build_conclusion" in
             failure|timed_out) ;;
@@ -137,6 +144,9 @@ jobs:
               exit 0
               ;;
           esac
+
+          echo "build_job_id=$build_job_id" >> "$GITHUB_OUTPUT"
+          echo "build_job_url=$build_job_url" >> "$GITHUB_OUTPUT"
 
           git fetch origin main
           current_main_sha="$(git rev-parse origin/main)"
@@ -155,6 +165,9 @@ jobs:
           if [ -z "${OPENAI_API_KEY:-}" ]; then
             echo "::error::Set the OPENAI_API_KEY repository secret before enabling Repair Main CI."
             exit 1
+          fi
+          if [ -z "${REPAIR_GITHUB_TOKEN:-}" ]; then
+            echo "::warning::REPAIR_GITHUB_TOKEN is not set. Repair PRs can still be created with GITHUB_TOKEN, but their PR checks may not start automatically."
           fi
 
       - name: Avoid duplicate repair PR
@@ -177,6 +190,95 @@ jobs:
         run: |
           set -euo pipefail
           git switch -c "${{ steps.duplicate.outputs.branch }}"
+
+      - name: Collect failed build context
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        env:
+          FAILED_BUILD_JOB_ID: ${{ steps.gate.outputs.build_job_id }}
+          FAILED_BUILD_JOB_URL: ${{ steps.gate.outputs.build_job_url }}
+        run: |
+          set -euo pipefail
+          : > /tmp/failed-build.log
+          if [ -n "${FAILED_BUILD_JOB_ID:-}" ]; then
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/jobs/${FAILED_BUILD_JOB_ID}/logs" > /tmp/failed-build.log \
+              || gh run view "$FAILED_RUN_ID" --job "$FAILED_BUILD_JOB_ID" --log > /tmp/failed-build.log \
+              || gh run view "$FAILED_RUN_ID" --log-failed > /tmp/failed-build.log \
+              || true
+          else
+            gh run view "$FAILED_RUN_ID" --log-failed > /tmp/failed-build.log || true
+          fi
+
+          if [ -s /tmp/failed-build.log ]; then
+            rg -n -C 35 '<<< FAILURE!|\[ERROR\] (Failures:|Errors:|Failed to execute|There are test failures|Tests run:)|Tests run: [0-9]+, Failures: [1-9]|Tests run: [0-9]+, Failures: [0-9]+, Errors: [1-9]|BUILD FAILURE|Too many bytes in request body' \
+              /tmp/failed-build.log > /tmp/failed-build-summary.log || true
+          else
+            : > /tmp/failed-build-summary.log
+          fi
+
+          failed_test_class="$(rg -o '\[ERROR\] Tests run: [^[:cntrl:]]+ -- in [A-Za-z0-9_.$]+' \
+            /tmp/failed-build-summary.log | head -n 1 | sed -E 's/.* -- in ([A-Za-z0-9_.$]+)$/\1/' || true)"
+          failed_test_method="$(rg -o '\[ERROR\] [A-Za-z0-9_.$]+ -- Time elapsed:' \
+            /tmp/failed-build-summary.log | head -n 1 | sed -E 's/^\[ERROR\] [A-Za-z0-9_.$]+\.([A-Za-z_][A-Za-z0-9_]*) --.*/\1/' || true)"
+          failed_test_module=""
+          failed_test_simple=""
+          failed_test_outer=""
+          if [ -n "$failed_test_class" ]; then
+            failed_test_simple="${failed_test_class##*.}"
+            failed_test_outer="${failed_test_simple%%\$*}"
+            case "$failed_test_class" in
+              io.fluxzero.proxy.*) failed_test_module="proxy" ;;
+              io.fluxzero.sdk.*) failed_test_module="sdk" ;;
+              io.fluxzero.common.*) failed_test_module="common" ;;
+              io.fluxzero.testserver.*) failed_test_module="test-server" ;;
+            esac
+          fi
+
+          cat > /tmp/codex-repair-context.md <<EOF
+          # Repair Context
+
+          ## Failing Run
+          - Run id: ${FAILED_RUN_ID}
+          - Run URL: ${FAILED_RUN_URL}
+          - Head SHA: ${FAILED_RUN_HEAD_SHA}
+          - Build job id: ${FAILED_BUILD_JOB_ID:-unknown}
+          - Build job URL: ${FAILED_BUILD_JOB_URL:-unknown}
+
+          ## Available Files
+          - Full failed build log: /tmp/failed-build.log
+          - Failure-focused excerpt: /tmp/failed-build-summary.log
+
+          ## Suggested Targeted Commands
+          EOF
+
+          if [ -n "$failed_test_module" ] && [ -n "$failed_test_outer" ]; then
+            echo "- Class-level first pass: ./mvnw -pl ${failed_test_module} -am -Dtest=${failed_test_outer} test" >> /tmp/codex-repair-context.md
+            if [ -n "$failed_test_method" ]; then
+              echo "- Exact nested/method selector if needed: ./mvnw -pl ${failed_test_module} -am -Dtest='${failed_test_simple}#${failed_test_method}' -Dsurefire.failIfNoSpecifiedTests=false test" >> /tmp/codex-repair-context.md
+            fi
+          else
+            echo "- No command could be inferred automatically. Use the failure summary to choose the smallest module-scoped Maven command." >> /tmp/codex-repair-context.md
+          fi
+
+          cat >> /tmp/codex-repair-context.md <<EOF
+
+          ## Efficient Reproduction Guidance
+          - Read /tmp/failed-build-summary.log before querying GitHub again.
+          - Try the suggested targeted command above before inventing Maven selector variants.
+          - Start with the Maven module and test class shown in the failure summary.
+          - If a Surefire failure line names package.Outer\$Nested, use the owning Maven module and -Dtest=Outer first.
+          - Use module-scoped commands first, for example: ./mvnw -pl proxy -am -Dtest=ProxyServerTest test
+          - When the log shows a JUnit nested class such as ProxyServerTest\$Basic, run the outer class first. If you need an exact nested method selector, quote it like -Dtest='ProxyServerTest\$Basic#methodName' so the shell does not expand \$Basic.
+          - Do not start with the full deploy command. Reserve it for final verification after a focused reproduction and fix.
+          - For suspected flakes, first confirm the targeted command runs the intended test, then stress that same command with a short loop.
+
+          ## Failure Summary
+          EOF
+
+          if [ -s /tmp/failed-build-summary.log ]; then
+            sed -n '1,240p' /tmp/failed-build-summary.log >> /tmp/codex-repair-context.md
+          else
+            echo "No failure-focused excerpt could be extracted. Inspect /tmp/failed-build.log and the GitHub run." >> /tmp/codex-repair-context.md
+          fi
 
       - name: Install Java and Maven
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
@@ -220,7 +322,8 @@ jobs:
           You are repairing a failing main-branch GitHub Actions build for fluxzero-io/fluxzero-sdk-java.
 
           Goal:
-          - Inspect the failing GitHub Actions run and logs.
+          - Start by reading /tmp/codex-repair-context.md and /tmp/failed-build-summary.log.
+          - Inspect the failing GitHub Actions run only if the local context files are missing or insufficient.
           - Reproduce the observed failure locally with the narrowest useful command.
           - If the failure is flaky, first make the failure deterministic or gather concrete race/order evidence.
           - Apply the minimal safe fix.
@@ -236,13 +339,24 @@ jobs:
           - Prefer fixing tests only when the evidence shows a test race rather than a production defect.
           - The main Deploy build command is ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy.
 
+          Efficiency guidance:
+          - Use the pre-collected failure context before spending tokens or time on broad log searches.
+          - If /tmp/codex-repair-context.md contains suggested targeted commands, try those before inventing Maven selector variants.
+          - Prefer module-scoped Maven commands such as ./mvnw -pl proxy -am -Dtest=ProxyServerTest test.
+          - If Surefire reports a nested class like io.fluxzero.proxy.ProxyServerTest\$Websocket, use -Dtest=ProxyServerTest in the proxy module before trying exact method filters.
+          - For JUnit nested classes in logs, run the outer test class first. If an exact nested method selector is needed, quote it like -Dtest='ProxyServerTest\$Websocket#closeProxy' so the shell does not expand \$Websocket.
+          - When stress testing a flaky failure, stress the already-confirmed targeted command. Keep loops short until the failure signature is understood.
+          - Do not run the full Deploy command before a targeted reproduction or a concrete fix.
+
           Failing run:
           - Run id: ${FAILED_RUN_ID}
           - Run URL: ${FAILED_RUN_URL}
           - Head SHA: ${FAILED_RUN_HEAD_SHA}
+          - Context file: /tmp/codex-repair-context.md
 
           Output:
           - End with a concise report that includes the root cause, reproduction evidence, files changed, and verification commands/results.
+          - The workflow commits and opens the PR after your run, so describe changed files as ready for the workflow commit rather than saying they were left uncommitted.
           PROMPT
 
           set +e
@@ -283,11 +397,15 @@ jobs:
           fi
 
       - name: Upload Codex report
-        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        if: ${{ always() && steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' }}
         uses: actions/upload-artifact@v7
         with:
           name: codex-repair-main-ci-${{ env.FAILED_RUN_ID }}
           path: |
+            /tmp/codex-repair-prompt.md
+            /tmp/codex-repair-context.md
+            /tmp/failed-build.log
+            /tmp/failed-build-summary.log
             /tmp/codex-repair-report.md
             /tmp/codex-repair-events.jsonl
           if-no-files-found: ignore
