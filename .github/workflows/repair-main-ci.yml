@@ -55,7 +55,7 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       CODEX_HOME: /tmp/codex-home
       CODEX_MODEL: gpt-5.5
-      CODEX_REASONING_EFFORT: xhigh
+      CODEX_REASONING_EFFORT: high
       CODEX_REPAIR_TIMEOUT: 35m
       FAILED_RUN_ID: ${{ inputs.run_id }}
       FAILED_RUN_URL: ${{ inputs.run_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
