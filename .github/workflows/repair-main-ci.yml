@@ -359,6 +359,10 @@ jobs:
           - Context file: /tmp/codex-repair-context.md
 
           Output:
+          - Write a one-line Conventional Commit title to /tmp/codex-repair-commit-title.txt.
+          - The title must follow AGENTS.md format: <type>(<domain>): <short imperative summary>.
+          - Describe the actual fix, not the automation. For example: fix(proxy): stabilize websocket close test cleanup.
+          - Prefer fix(<domain>) for production fixes or test fixes that repair main; use test(<domain>) only for test-only assertion/fixture changes.
           - End with a concise report that includes the root cause, reproduction evidence, files changed, and verification commands/results.
           - The workflow commits and opens the PR after your run, so describe changed files as ready for the workflow commit rather than saying they were left uncommitted.
           PROMPT
@@ -403,6 +407,45 @@ jobs:
             echo "Codex did not leave repository changes."
           fi
 
+      - name: Prepare repair commit message
+        id: repair_metadata
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          title="fix(ci): repair failing main build"
+          if [ -s /tmp/codex-repair-commit-title.txt ]; then
+            candidate="$(sed -n '1p' /tmp/codex-repair-commit-title.txt | tr -d '\r' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+            if [[ "$candidate" =~ ^(feat|fix|refactor|test|docs|build|ci|deps|perf|chore)\([a-z0-9-]+\):[[:space:]].+ ]] && [ "${#candidate}" -le 120 ]; then
+              title="$candidate"
+            else
+              echo "::warning::Ignoring invalid repair commit title: ${candidate}"
+            fi
+          else
+            echo "::warning::Codex did not write /tmp/codex-repair-commit-title.txt; using fallback title."
+          fi
+
+          {
+            echo "$title"
+            echo
+            echo "Automated Codex repair for failing main build."
+            echo
+            echo "Failing run: ${FAILED_RUN_URL}"
+            echo "Run id: ${FAILED_RUN_ID}"
+            echo "Head SHA: ${FAILED_RUN_HEAD_SHA}"
+            if [ -f /tmp/codex-repair-report.md ]; then
+              echo
+              echo "Codex report:"
+              echo
+              sed -n '1,160p' /tmp/codex-repair-report.md
+            fi
+          } > /tmp/codex-repair-commit-message.txt
+
+          {
+            echo "title<<EOF"
+            echo "$title"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload Codex report
         if: ${{ always() && steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' }}
         uses: actions/upload-artifact@v7
@@ -413,6 +456,8 @@ jobs:
             /tmp/codex-repair-context.md
             /tmp/failed-build.log
             /tmp/failed-build-summary.log
+            /tmp/codex-repair-commit-title.txt
+            /tmp/codex-repair-commit-message.txt
             /tmp/codex-repair-report.md
             /tmp/codex-repair-events.jsonl
           if-no-files-found: ignore
@@ -428,11 +473,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix(ci): repair failing main build"
+          git commit -F /tmp/codex-repair-commit-message.txt
           git push --set-upstream origin "${{ steps.duplicate.outputs.branch }}"
 
       - name: Open draft PR
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
+        env:
+          REPAIR_TITLE: ${{ steps.repair_metadata.outputs.title }}
         run: |
           set -euo pipefail
           {
@@ -455,5 +502,5 @@ jobs:
             --draft \
             --base main \
             --head "${{ steps.duplicate.outputs.branch }}" \
-            --title "fix(ci): repair failing main build" \
+            --title "$REPAIR_TITLE" \
             --body-file /tmp/pr-body.md
