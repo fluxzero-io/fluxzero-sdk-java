@@ -14,6 +14,9 @@
 
 package io.fluxzero.common.serialization.compression;
 
+import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdCompressCtx;
+import com.github.luben.zstd.ZstdDecompressCtx;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import net.jpountz.lz4.LZ4Compressor;
@@ -23,7 +26,7 @@ import net.jpountz.util.Native;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
@@ -37,6 +40,7 @@ import static net.jpountz.lz4.LZ4Factory.nativeInsecureInstance;
  * Supports multiple algorithms including:
  * <ul>
  *   <li>{@link CompressionAlgorithm#LZ4} – fast compression optimized for speed</li>
+ *   <li>{@link CompressionAlgorithm#ZSTD} – Zstandard compression using the Fluxzero runtime header format</li>
  *   <li>{@link CompressionAlgorithm#GZIP} – standard GZIP format for interoperability</li>
  *   <li>{@link CompressionAlgorithm#NONE} – pass-through mode (no compression)</li>
  * </ul>
@@ -58,8 +62,19 @@ import static net.jpountz.lz4.LZ4Factory.nativeInsecureInstance;
  */
 public class CompressionUtils {
 
+    private static final byte[] FLUXZERO_COMPRESSION_MAGIC = {(byte) 0xFF, 0x00};
+    private static final int FLUXZERO_COMPRESSION_HEADER_LENGTH = FLUXZERO_COMPRESSION_MAGIC.length + 1 + Integer.BYTES;
+    private static final byte FLUXZERO_COMPRESSION_NONE_ID = 0;
+    private static final byte FLUXZERO_COMPRESSION_LZ4_ID = 1;
+    private static final byte FLUXZERO_COMPRESSION_ZSTD_ID = 2;
+    private static final int ZSTD_COMPRESSION_LEVEL = 1;
+
     private static final LZ4Compressor lz4Compressor = fastestInstance().fastCompressor();
     private static final LZ4FastDecompressor lz4Decompressor = fastestInstance().fastDecompressor();
+    private static final ThreadLocal<ZstdCompressCtx> zstdCompressors =
+            ThreadLocal.withInitial(() -> new ZstdCompressCtx().setLevel(ZSTD_COMPRESSION_LEVEL));
+    private static final ThreadLocal<ZstdDecompressCtx> zstdDecompressors =
+            ThreadLocal.withInitial(ZstdDecompressCtx::new);
 
     /**
      * Returns the fastest available {@link LZ4Factory} instance. If the class
@@ -107,9 +122,14 @@ public class CompressionUtils {
         return switch (algorithm) {
             case NONE -> uncompressed;
             case LZ4 -> {
-                byte[] compressed = lz4Compressor.compress(uncompressed);
-                yield ByteBuffer.allocate(compressed.length + 4).putInt(uncompressed.length).put(compressed).array();
+                byte[] compressedPayload = lz4Compressor.compress(uncompressed);
+                byte[] compressed = new byte[compressedPayload.length + Integer.BYTES];
+                writeInt(compressed, 0, uncompressed.length);
+                System.arraycopy(compressedPayload, 0, compressed, Integer.BYTES, compressedPayload.length);
+                yield compressed;
             }
+            case ZSTD -> withFluxzeroCompressionHeader(
+                    uncompressed.length, FLUXZERO_COMPRESSION_ZSTD_ID, zstdCompressors.get().compress(uncompressed));
             case GZIP -> {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 try (GZIPOutputStream zipStream = new GZIPOutputStream(byteStream)) {
@@ -142,10 +162,24 @@ public class CompressionUtils {
         return switch (algorithm) {
             case NONE -> compressed;
             case LZ4 -> {
-                ByteBuffer buffer = ByteBuffer.wrap(compressed);
-                ByteBuffer result = ByteBuffer.allocate(buffer.getInt());
-                lz4Decompressor.decompress(buffer, result);
-                yield result.array();
+                if (hasFluxzeroCompressionHeader(compressed)) {
+                    yield decompressFluxzeroCompressionHeader(compressed);
+                }
+                int uncompressedLength = readInt(compressed, 0);
+                byte[] result = new byte[uncompressedLength];
+                lz4Decompressor.decompress(compressed, Integer.BYTES, result, 0, uncompressedLength);
+                yield result;
+            }
+            case ZSTD -> {
+                if (hasFluxzeroCompressionHeader(compressed)) {
+                    yield decompressFluxzeroCompressionHeader(compressed);
+                }
+                long uncompressedLength = Zstd.decompressedSize(compressed);
+                if (uncompressedLength < 0 || uncompressedLength > Integer.MAX_VALUE) {
+                    throw new IllegalArgumentException("Unable to determine ZSTD uncompressed size: "
+                                                       + uncompressedLength);
+                }
+                yield Zstd.decompress(compressed, (int) uncompressedLength);
             }
             case GZIP -> {
                 try (var gzipStream = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
@@ -155,6 +189,55 @@ public class CompressionUtils {
                 }
             }
         };
+    }
+
+    private static byte[] withFluxzeroCompressionHeader(int uncompressedLength, byte algorithmId, byte[] payload) {
+        byte[] compressed = new byte[FLUXZERO_COMPRESSION_HEADER_LENGTH + payload.length];
+        compressed[0] = FLUXZERO_COMPRESSION_MAGIC[0];
+        compressed[1] = FLUXZERO_COMPRESSION_MAGIC[1];
+        compressed[2] = algorithmId;
+        writeInt(compressed, 3, uncompressedLength);
+        System.arraycopy(payload, 0, compressed, FLUXZERO_COMPRESSION_HEADER_LENGTH, payload.length);
+        return compressed;
+    }
+
+    private static byte[] decompressFluxzeroCompressionHeader(byte[] compressed) {
+        byte algorithmId = compressed[2];
+        int uncompressedLength = readInt(compressed, 3);
+        int offset = FLUXZERO_COMPRESSION_HEADER_LENGTH;
+        int length = compressed.length - offset;
+        return switch (algorithmId) {
+            case FLUXZERO_COMPRESSION_NONE_ID -> Arrays.copyOfRange(compressed, offset, compressed.length);
+            case FLUXZERO_COMPRESSION_LZ4_ID -> {
+                byte[] result = new byte[uncompressedLength];
+                lz4Decompressor.decompress(compressed, offset, result, 0, uncompressedLength);
+                yield result;
+            }
+            case FLUXZERO_COMPRESSION_ZSTD_ID ->
+                    zstdDecompressors.get().decompress(compressed, offset, length, uncompressedLength);
+            default -> throw new IllegalArgumentException(
+                    "Unknown Fluxzero compression algorithm id: " + (algorithmId & 0xff));
+        };
+    }
+
+    private static boolean hasFluxzeroCompressionHeader(byte[] compressed) {
+        return compressed.length >= FLUXZERO_COMPRESSION_HEADER_LENGTH
+               && compressed[0] == FLUXZERO_COMPRESSION_MAGIC[0]
+               && compressed[1] == FLUXZERO_COMPRESSION_MAGIC[1];
+    }
+
+    private static void writeInt(byte[] bytes, int offset, int value) {
+        bytes[offset] = (byte) (value >>> 24);
+        bytes[offset + 1] = (byte) (value >>> 16);
+        bytes[offset + 2] = (byte) (value >>> 8);
+        bytes[offset + 3] = (byte) value;
+    }
+
+    private static int readInt(byte[] bytes, int offset) {
+        return ((bytes[offset] & 0xff) << 24)
+                | ((bytes[offset + 1] & 0xff) << 16)
+                | ((bytes[offset + 2] & 0xff) << 8)
+                | (bytes[offset + 3] & 0xff);
     }
 
 }

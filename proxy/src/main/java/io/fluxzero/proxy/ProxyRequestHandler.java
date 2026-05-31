@@ -203,6 +203,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 sendPayloadTooLarge(exchange);
                 return true;
             }
+            if (isWebsocketUpgrade(exchange)) {
+                sendWebRequest(exchange, createWebRequest(exchange, new byte[0]), false);
+                return true;
+            }
             if (shouldChunkRequest(exchange)) {
                 WebRequest webRequest = createWebRequest(exchange, new byte[0]);
                 sendWebRequest(exchange, webRequest, true);
@@ -280,6 +284,12 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         long contentLength = exchange.getRequestBodyLength();
         return contentLength > requestChunkSize
                || contentLength < 0 && methodMayHaveRequestBody(exchange.getMethod());
+    }
+
+    protected boolean isWebsocketUpgrade(JettyExchange exchange) {
+        return HttpRequestMethod.GET.equals(exchange.getMethod())
+               && headerContainsToken(exchange.getRequestHeader("Connection"), "Upgrade")
+               && "websocket".equalsIgnoreCase(exchange.getRequestHeader("Upgrade"));
     }
 
     private static boolean methodMayHaveRequestBody(String method) {

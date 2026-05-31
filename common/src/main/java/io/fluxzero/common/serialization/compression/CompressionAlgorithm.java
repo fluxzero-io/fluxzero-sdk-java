@@ -21,6 +21,7 @@ package io.fluxzero.common.serialization.compression;
  * <ul>
  *   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>
  *   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>
+ *   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>
  *   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>
  * </ul>
  *
@@ -36,6 +37,11 @@ public enum CompressionAlgorithm {
      * Fast compression using the LZ4 codec. Includes original size prefix in output.
      */
     LZ4,
+
+    /**
+     * Zstandard compression using the Fluxzero compression header format.
+     */
+    ZSTD,
 
     /**
      * GZIP compression using standard Java APIs. Produces .gz-compatible output.

@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.websocket;
@@ -20,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Minimal websocket session contract needed by the Fluxzero runtime clients.
@@ -29,6 +31,11 @@ import java.util.Set;
  * to transport races.</p>
  */
 public interface WebsocketSession {
+    /**
+     * Default upper bound for one physical WebSocket binary frame when a message is sent as fragments.
+     */
+    int DEFAULT_MAX_BINARY_FRAGMENT_BYTES = 256 * 1024;
+
     /**
      * Returns the URI used to open this session.
      */
@@ -64,6 +71,40 @@ public interface WebsocketSession {
      * @throws IOException when the frame cannot be sent
      */
     void sendBinary(ByteBuffer data) throws IOException;
+
+    /**
+     * Sends one complete binary WebSocket message asynchronously.
+     *
+     * <p>Implementations may override this with a non-blocking transport send. The default keeps existing test doubles
+     * and simple implementations working by delegating to {@link #sendBinary(ByteBuffer)}.</p>
+     *
+     * @param data bytes from the buffer's current position to its limit
+     * @return a future that completes when the transport accepts or fails the frame
+     */
+    default CompletableFuture<Void> sendBinaryAsync(ByteBuffer data) {
+        try {
+            sendBinary(data);
+            return CompletableFuture.completedFuture(null);
+        } catch (Throwable e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Sends one complete binary WebSocket message asynchronously, allowing implementations to split the message into
+     * WebSocket continuation frames.
+     *
+     * <p>The default delegates to {@link #sendBinaryAsync(ByteBuffer)} so existing simple implementations keep working.
+     * Implementations that support native WebSocket fragmentation should preserve message ordering and complete the
+     * returned future only after the final fragment has been accepted by the transport.</p>
+     *
+     * @param data bytes from the buffer's current position to its limit
+     * @param maxFragmentBytes maximum payload bytes per physical WebSocket frame; non-positive values mean no split
+     * @return a future that completes when the full WebSocket message has been accepted or failed
+     */
+    default CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
+        return sendBinaryAsync(data);
+    }
 
     /**
      * Sends a ping frame.

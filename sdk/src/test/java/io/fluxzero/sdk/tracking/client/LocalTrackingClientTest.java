@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.client;
@@ -27,6 +28,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -109,8 +111,9 @@ class LocalTrackingClientTest {
 
     @Test
     @Timeout(10)
-    void cachedTrackerFallsBackToDelegateWhileWaiting() throws Exception {
-        try (LocalTrackingClient delegate = new LocalTrackingClient(CUSTOM, "cached", Duration.ofMinutes(5))) {
+    void cachedTrackerWaitsUntilMaxWaitWhenAnchorIsCached() throws Exception {
+        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+                CUSTOM, "cached", Duration.ofMinutes(5))) {
             try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
                 SerializedMessage anchor = message("anchor");
                 delegate.append(STORED, anchor).join();
@@ -118,16 +121,14 @@ class LocalTrackingClientTest {
 
                 CompletableFuture<MessageBatch> waitingBatch = client.read(
                         "cached-tracker", anchor.getIndex(), config("cached-consumer").toBuilder()
-                                .maxWaitDuration(Duration.ofSeconds(30)).build());
+                                .maxWaitDuration(Duration.ofMillis(250)).build());
                 Thread.sleep(100L);
                 assertFalse(waitingBatch.isDone());
 
-                delegate.truncate(STORED).join();
-
                 MessageBatch finalBatch = waitingBatch.get(2, TimeUnit.SECONDS);
                 assertEquals(0, finalBatch.getSize());
-                assertArrayEquals(new int[]{0, 0}, finalBatch.getSegment());
                 assertTrue(finalBatch.isCaughtUp());
+                assertEquals(0, delegate.cachedTrackerReadCalls.get());
             }
         }
     }
@@ -177,6 +178,124 @@ class LocalTrackingClientTest {
         }
     }
 
+    @Test
+    @Timeout(10)
+    void cachedTrackerWaitsForCacheUpdateBeforeDelegateFallback() throws Exception {
+        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+                CUSTOM, "cached-update", Duration.ofMinutes(5))) {
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
+                SerializedMessage anchor = message("anchor");
+                delegate.append(STORED, anchor).join();
+                client.cache(anchor);
+
+                CompletableFuture<MessageBatch> waitingBatch = client.read(
+                        "cached-tracker", anchor.getIndex(), config("cached-update-consumer").toBuilder()
+                                .maxWaitDuration(Duration.ofSeconds(5)).build());
+
+                SerializedMessage next = message("next");
+                Thread.sleep(100L);
+                delegate.append(STORED, next).join();
+                client.cache(next);
+
+                MessageBatch batch = waitingBatch.get(2, TimeUnit.SECONDS);
+                assertEquals(List.of(next), batch.getMessages());
+                assertEquals(0, delegate.cachedTrackerReadCalls.get());
+            }
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void cachedTrackerUsesDelegateWhenAnchorIsNotCachedYet() throws Exception {
+        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+                CUSTOM, "cached-anchor-update", Duration.ofMinutes(5))) {
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
+                SerializedMessage anchor = message("anchor");
+                delegate.append(STORED, anchor).join();
+
+                CompletableFuture<MessageBatch> waitingBatch = client.read(
+                        "cached-tracker", anchor.getIndex(), config("cached-anchor-update-consumer").toBuilder()
+                                .maxWaitDuration(Duration.ofSeconds(5)).build());
+
+                SerializedMessage next = message("next");
+                Thread.sleep(100L);
+                delegate.append(STORED, next).join();
+
+                MessageBatch batch = waitingBatch.get(2, TimeUnit.SECONDS);
+                assertEquals(List.of(next), batch.getMessages());
+                assertEquals(1, delegate.cachedTrackerReadCalls.get());
+            }
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void cachedTrackerDeliversAllCachedMessagesAcrossBatches() throws Exception {
+        try (LocalTrackingClient delegate = new LocalTrackingClient(CUSTOM, "cached-many", Duration.ofMinutes(5))) {
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate, 10_000)) {
+                SerializedMessage[] messages = java.util.stream.IntStream.range(0, 5_000)
+                        .mapToObj(i -> message("message-" + i))
+                        .toArray(SerializedMessage[]::new);
+                delegate.append(STORED, messages).join();
+                client.cache(messages);
+
+                ConsumerConfiguration config = config("cached-many-consumer").toBuilder()
+                        .maxFetchSize(256)
+                        .maxWaitDuration(Duration.ZERO)
+                        .build();
+                String trackerId = "cached-many-tracker";
+                Long lastIndex = null;
+                int consumed = 0;
+                for (int i = 0; i < 100 && consumed < messages.length; i++) {
+                    MessageBatch batch = client.read(trackerId, lastIndex, config).get(2, TimeUnit.SECONDS);
+                    if (!batch.isEmpty()) {
+                        consumed += batch.getSize();
+                        lastIndex = batch.getLastIndex();
+                        client.storePosition(config.getName(), batch.getSegment(), batch.getLastIndex()).join();
+                    }
+                }
+
+                assertEquals(messages.length, consumed);
+            }
+        }
+    }
+
+    @Test
+    @Timeout(15)
+    void cachedTrackerCompletesManyLiveConsumers() throws Exception {
+        int consumerCount = 20;
+        int messageCount = 2_000;
+        CountDownLatch latch = new CountDownLatch(consumerCount * messageCount);
+        try (LocalTrackingClient delegate = new LocalTrackingClient(CUSTOM, "cached-live", Duration.ofMinutes(5))) {
+            try (CachingTrackingClient client = new CachingTrackingClient(delegate, 20_000)) {
+                List<io.fluxzero.common.Registration> registrations = java.util.stream.IntStream.range(
+                                0, consumerCount)
+                        .mapToObj(i -> DefaultTracker.start(
+                                messages -> countDown(latch, messages.size()),
+                                config("cached-live-consumer-" + i).toBuilder()
+                                        .maxFetchSize(128)
+                                        .maxWaitDuration(Duration.ofSeconds(2))
+                                        .exclusive(false)
+                                        .minIndex(-1L)
+                                        .build(),
+                                client))
+                        .toList();
+                try {
+                    Thread.sleep(100L);
+                    SerializedMessage[] messages = java.util.stream.IntStream.range(0, messageCount)
+                            .mapToObj(i -> message("live-message-" + i))
+                            .toArray(SerializedMessage[]::new);
+                    delegate.append(STORED, messages).join();
+
+                    assertTrue(latch.await(10, TimeUnit.SECONDS),
+                               "Timed out with " + latch.getCount() + " messages remaining");
+                } finally {
+                    registrations.forEach(io.fluxzero.common.Registration::cancel);
+                }
+            }
+        }
+    }
+
     private static MessageBatch read(LocalTrackingClient client, String consumer) {
         return client.readAndWait("tracker-" + UUID.randomUUID(), null, config(consumer));
     }
@@ -191,9 +310,19 @@ class LocalTrackingClientTest {
                                      Instant.now().toEpochMilli());
     }
 
+    private static void countDown(CountDownLatch latch, int count) {
+        for (int i = 0; i < count; i++) {
+            latch.countDown();
+        }
+    }
+
     private static class TestCachingTrackingClient extends CachingTrackingClient {
         private TestCachingTrackingClient(TrackingClient delegate) {
             super(delegate, 10);
+        }
+
+        private TestCachingTrackingClient(TrackingClient delegate, int maxCacheSize) {
+            super(delegate, maxCacheSize);
         }
 
         private void cache(SerializedMessage... messages) {

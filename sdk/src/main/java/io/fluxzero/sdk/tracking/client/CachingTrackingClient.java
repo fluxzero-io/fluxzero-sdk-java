@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.client;
@@ -87,6 +88,8 @@ import static java.util.stream.Collectors.toMap;
  * @see Fluxzero
  */
 public class CachingTrackingClient implements TrackingClient {
+    private static final Duration cacheBatchCoalesceWait = Duration.ofMillis(50);
+
     @Getter
     private final TrackingClient delegate;
     private final int maxCacheSize;
@@ -95,6 +98,7 @@ public class CachingTrackingClient implements TrackingClient {
     private volatile Registration registration;
 
     private final ConcurrentSkipListMap<Long, SerializedMessage> cache = new ConcurrentSkipListMap<>();
+    private final Object cacheMonitor = new Object();
 
     public CachingTrackingClient(WebsocketTrackingClient delegate) {
         this(delegate, 1024);
@@ -118,22 +122,17 @@ public class CachingTrackingClient implements TrackingClient {
                                                     delegate.getTopic(), cacheFillerConfig, fc))
                     .orElseGet(() -> DefaultTracker.start(this::cacheNewMessages, cacheFillerConfig, delegate));
         }
-        if (!config.clientControlledIndex() && lastIndex != null && cache.containsKey(lastIndex)) {
+        boolean returnImmediately = config.getMaxWaitDuration().compareTo(Duration.ZERO) <= 0;
+        if (!config.clientControlledIndex() && lastIndex != null && canReadFromCache(lastIndex)) {
             Instant deadline = now().plus(config.getMaxWaitDuration());
             return delegate.claimSegment(trackerId, lastIndex, config).thenCompose(r -> {
-                boolean returnImmediately = config.getMaxWaitDuration().compareTo(Duration.ZERO) <= 0;
                 Long minIndex = r.getPosition().lowestIndexForSegment(r.getSegment()).orElse(null);
                 if (minIndex != null) {
                     MessageBatch messageBatch = getMessageBatch(config, minIndex, r);
-                    if (!messageBatch.isEmpty() || returnImmediately) {
+                    if (returnImmediately) {
                         return CompletableFuture.completedFuture(messageBatch);
-                    } else {
-                        Duration remaining = Duration.between(now(), deadline);
-                        ConsumerConfiguration delegateConfig = config.toBuilder()
-                                .maxWaitDuration(remaining.compareTo(Duration.ZERO) <= 0 ? Duration.ZERO : remaining)
-                                .build();
-                        return delegate.read(trackerId, lastIndex, delegateConfig);
                     }
+                    return waitForCachedBatch(config, minIndex, r, deadline);
                 }
                 if (returnImmediately) {
                     return CompletableFuture.completedFuture(
@@ -145,13 +144,81 @@ public class CachingTrackingClient implements TrackingClient {
         return delegate.read(trackerId, lastIndex, config);
     }
 
+    private boolean canReadFromCache(long lastIndex) {
+        synchronized (cacheMonitor) {
+            return cache.containsKey(lastIndex);
+        }
+    }
+
+    protected CompletableFuture<MessageBatch> waitForCachedBatch(ConsumerConfiguration config, long minIndex,
+                                                                 ClaimSegmentResult claim, Instant deadline) {
+        CompletableFuture<MessageBatch> result = new CompletableFuture<>();
+        Thread.startVirtualThread(() -> {
+            try {
+                result.complete(doWaitForCachedBatch(config, minIndex, claim, deadline));
+            } catch (Throwable e) {
+                result.completeExceptionally(e);
+            }
+        });
+        return result;
+    }
+
+    protected MessageBatch doWaitForCachedBatch(ConsumerConfiguration config, long minIndex,
+                                                ClaimSegmentResult claim, Instant deadline)
+            throws InterruptedException {
+        MessageBatch messageBatch = getMessageBatch(config, minIndex, claim);
+        Instant waitUntil = waitUntil(deadline, messageBatch);
+        while (true) {
+            if (isReady(config, messageBatch)) {
+                return messageBatch;
+            }
+            long millisToWait = Duration.between(now(), waitUntil).toMillis();
+            if (millisToWait <= 0L) {
+                return messageBatch;
+            }
+            synchronized (cacheMonitor) {
+                messageBatch = getMessageBatch(config, minIndex, claim);
+                if (isReady(config, messageBatch)) {
+                    return messageBatch;
+                }
+                millisToWait = Duration.between(now(), waitUntil).toMillis();
+                if (millisToWait <= 0L) {
+                    return messageBatch;
+                }
+                cacheMonitor.wait(millisToWait);
+            }
+            MessageBatch updatedBatch = getMessageBatch(config, minIndex, claim);
+            if (messageBatch.isEmpty() && !updatedBatch.isEmpty()) {
+                waitUntil = waitUntil(deadline, updatedBatch);
+            }
+            messageBatch = updatedBatch;
+        }
+    }
+
+    private static boolean isReady(ConsumerConfiguration config, MessageBatch messageBatch) {
+        return !messageBatch.isEmpty() && messageBatch.getSize() >= config.getMaxFetchSize();
+    }
+
+    private static Instant waitUntil(Instant deadline, MessageBatch messageBatch) {
+        if (messageBatch.isEmpty()) {
+            return deadline;
+        }
+        return minInstant(deadline, now().plus(cacheBatchCoalesceWait));
+    }
+
+    private static Instant minInstant(Instant first, Instant second) {
+        return first.compareTo(second) <= 0 ? first : second;
+    }
+
     protected MessageBatch getMessageBatch(ConsumerConfiguration config, long minIndex, ClaimSegmentResult claim) {
-        List<SerializedMessage> unfiltered = cache.tailMap(minIndex, false).values().stream().limit(
-                config.getMaxFetchSize()).collect(toList());
-        Long lastIndex = unfiltered.isEmpty() ? null : unfiltered.getLast().getIndex();
-        return new MessageBatch(claim.getSegment(), filterMessages(
-                unfiltered, claim.getSegment(), claim.getPosition(), config), lastIndex, claim.getPosition(),
-                                unfiltered.size() < config.getMaxFetchSize());
+        synchronized (cacheMonitor) {
+            List<SerializedMessage> unfiltered = cache.tailMap(minIndex, false).values().stream().limit(
+                    config.getMaxFetchSize()).collect(toList());
+            Long lastIndex = unfiltered.isEmpty() ? null : unfiltered.getLast().getIndex();
+            return new MessageBatch(claim.getSegment(), filterMessages(
+                    unfiltered, claim.getSegment(), claim.getPosition(), config), lastIndex, claim.getPosition(),
+                                    unfiltered.size() < config.getMaxFetchSize());
+        }
     }
 
 
@@ -176,8 +243,11 @@ public class CachingTrackingClient implements TrackingClient {
                             m.getSegment() == null ? computeSegment(m.getMessageId(), SegmentRange.MAX_SEGMENT) :
                                     m.getSegment() % SegmentRange.MAX_SEGMENT))
                     .collect(toMap(SerializedMessage::getIndex, Function.identity()));
-            cache.putAll(messageMap);
-            removeOldMessages();
+            synchronized (cacheMonitor) {
+                cache.putAll(messageMap);
+                removeOldMessages();
+                cacheMonitor.notifyAll();
+            }
         }
     }
 

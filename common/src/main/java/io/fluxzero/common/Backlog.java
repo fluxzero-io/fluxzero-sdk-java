@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -71,6 +72,7 @@ public class Backlog<T> implements Monitored<List<T>> {
     private final ThrowingFunction<List<T>, CompletableFuture<?>> consumer;
     private final ErrorHandler<List<T>> errorHandler;
     private final ExecutorService executorService;
+    private final boolean waitForAsyncConsumer;
     private final AtomicBoolean flushing = new AtomicBoolean();
 
     private final AtomicLong insertPosition = new AtomicLong();
@@ -125,6 +127,32 @@ public class Backlog<T> implements Monitored<List<T>> {
         return new Backlog<>(consumer, maxBatchSize, errorHandler);
     }
 
+    /**
+     * Creates a backlog for an asynchronous consumer that starts the next batch only after the previous returned future
+     * has completed. This keeps async consumers from building an unbounded downstream write queue.
+     */
+    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
+        return forOrderedAsyncConsumer(consumer, 1024);
+    }
+
+    /**
+     * Creates an ordered async backlog with custom max batch size and default logging error handler.
+     */
+    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+                                                         int maxBatchSize) {
+        return forOrderedAsyncConsumer(consumer, maxBatchSize,
+                                       (e, batch) -> log.error("Consumer {} failed to handle batch of size {}. Continuing with next batch.", consumer, batch.size(), e));
+    }
+
+    /**
+     * Creates an ordered async backlog with custom max batch size and error handler.
+     */
+    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+                                                         int maxBatchSize,
+                                                         ErrorHandler<List<T>> errorHandler) {
+        return new Backlog<>(consumer, maxBatchSize, errorHandler, true);
+    }
+
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
         this(consumer, 1024);
     }
@@ -135,10 +163,16 @@ public class Backlog<T> implements Monitored<List<T>> {
     }
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize, ErrorHandler<List<T>> errorHandler) {
+        this(consumer, maxBatchSize, errorHandler, false);
+    }
+
+    protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize,
+                      ErrorHandler<List<T>> errorHandler, boolean waitForAsyncConsumer) {
         this.maxBatchSize = maxBatchSize;
         this.consumer = consumer;
         this.executorService = Executors.newSingleThreadExecutor(newPlatformThreadFactory("Backlog"));
         this.errorHandler = errorHandler;
+        this.waitForAsyncConsumer = waitForAsyncConsumer;
     }
 
     /**
@@ -200,6 +234,8 @@ public class Backlog<T> implements Monitored<List<T>> {
                 long lastPosition = flushPosition.addAndGet(batch.size());
                 if (future == null) {
                     completeResults(lastPosition, null);
+                } else if (waitForAsyncConsumer) {
+                    completeWhenConsumerFinishes(batch, lastPosition, future);
                 } else {
                     future.whenComplete((r, e) -> completeResults(lastPosition, e));
                 }
@@ -213,6 +249,20 @@ public class Backlog<T> implements Monitored<List<T>> {
             log.error("Failed to flush the backlog", e);
             flushing.set(false);
             throw e;
+        }
+    }
+
+    private void completeWhenConsumerFinishes(List<T> batch, long lastPosition, CompletableFuture<?> future) {
+        try {
+            future.join();
+            completeResults(lastPosition, null);
+        } catch (CompletionException e) {
+            Throwable error = e.getCause() == null ? e : e.getCause();
+            errorHandler.handleError(error, batch);
+            completeResults(lastPosition, error);
+        } catch (Throwable e) {
+            errorHandler.handleError(e, batch);
+            completeResults(lastPosition, e);
         }
     }
 

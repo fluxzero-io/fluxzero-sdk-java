@@ -16,6 +16,7 @@
 package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions;
@@ -84,6 +85,33 @@ class WebsocketDeploymentUtilsTest {
     }
 
     @Test
+    void handshakeSelectsPreferredTransportFormatWhenSupported() throws Exception {
+        WebsocketSession session = connectTestSession(WebSocketCapabilities.asTransportHeaders(
+                List.of(WebSocketTransportFormat.CBOR, WebSocketTransportFormat.JSON)));
+
+        try {
+            assertEquals(WebSocketTransportFormat.CBOR,
+                         WebSocketCapabilities.getSelectedTransportFormat(
+                                 session.getHandshakeResponseHeaders()).orElseThrow());
+        } finally {
+            session.close();
+        }
+    }
+
+    @Test
+    void handshakeFallsBackToJsonTransportForLegacyClient() throws Exception {
+        WebsocketSession session = connectTestSession();
+
+        try {
+            assertEquals(WebSocketTransportFormat.JSON,
+                         WebSocketCapabilities.getSelectedTransportFormat(
+                                 session.getHandshakeResponseHeaders()).orElseThrow());
+        } finally {
+            session.close();
+        }
+    }
+
+    @Test
     void acceptsBinaryMessagesLargerThanJettyDefault() throws Exception {
         receivedBinaryMessage = new CountDownLatch(1);
         receivedBinaryMessageSize.set(0);
@@ -102,6 +130,10 @@ class WebsocketDeploymentUtilsTest {
     }
 
     private static WebsocketSession connectTestSession() throws Exception {
+        return connectTestSession(Map.of());
+    }
+
+    private static WebsocketSession connectTestSession(Map<String, List<String>> headers) throws Exception {
         return new JdkWebsocketConnector().connect(new WebsocketEndpoint() {
             @Override
             public void onOpen(WebsocketSession session) {
@@ -122,7 +154,7 @@ class WebsocketDeploymentUtilsTest {
             @Override
             public void onError(WebsocketSession session, Throwable error) {
             }
-        }, new WebsocketConnectionOptions(Map.of(), Map.of(), Duration.ofSeconds(5), List.of()),
+        }, new WebsocketConnectionOptions(headers, Map.of(), Duration.ofSeconds(5), List.of()),
            URI.create("ws://localhost:" + port + "/test"));
     }
 }

@@ -22,11 +22,17 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Minimal server-side WebSocket session contract used by the in-memory Fluxzero test server.
  */
 public interface ServerWebsocketSession {
+    /**
+     * Default upper bound for one physical WebSocket binary frame when a message is sent as fragments.
+     */
+    int DEFAULT_MAX_BINARY_FRAGMENT_BYTES = 256 * 1024;
+
     /**
      * Returns the URI that was used for the WebSocket upgrade request.
      */
@@ -56,6 +62,32 @@ public interface ServerWebsocketSession {
      * Sends a complete binary message.
      */
     void sendBinary(ByteBuffer data) throws IOException;
+
+    /**
+     * Sends a complete binary message asynchronously.
+     *
+     * <p>The default delegates to the blocking send so existing lightweight sessions remain compatible.</p>
+     */
+    default CompletableFuture<Void> sendBinaryAsync(ByteBuffer data) {
+        try {
+            sendBinary(data);
+            return CompletableFuture.completedFuture(null);
+        } catch (Throwable e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * Sends one complete binary WebSocket message asynchronously, allowing implementations to split the message into
+     * WebSocket continuation frames.
+     *
+     * <p>The default delegates to {@link #sendBinaryAsync(ByteBuffer)} so existing simple implementations keep working.
+     * Implementations that support native WebSocket fragmentation should preserve message ordering and complete the
+     * returned future only after the final fragment has been accepted by the transport.</p>
+     */
+    default CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
+        return sendBinaryAsync(data);
+    }
 
     /**
      * Sends a ping frame with optional application data.

@@ -286,6 +286,29 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
+    void sessionSendsLargeBinaryMessageAsOrderedFragments() throws Exception {
+        try (TestWebSocketServer server = TestWebSocketServer.start()) {
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            WebsocketSession session = connector.connect(new RecordingEndpoint(), null, server.uri());
+
+            session.sendBinaryAsync(ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5}), 2).get(5, TimeUnit.SECONDS);
+
+            Frame first = server.readFrame();
+            Frame second = server.readFrame();
+            Frame third = server.readFrame();
+            assertFalse(first.fin());
+            assertEquals(0x2, first.opcode());
+            assertArrayEquals(new byte[]{1, 2}, first.payload());
+            assertFalse(second.fin());
+            assertEquals(0x0, second.opcode());
+            assertArrayEquals(new byte[]{3, 4}, second.payload());
+            assertTrue(third.fin());
+            assertEquals(0x0, third.opcode());
+            assertArrayEquals(new byte[]{5}, third.payload());
+        }
+    }
+
+    @Test
     void closeSendsCloseFrameRemovesOpenSessionAndNotifiesEndpointOnce() throws Exception {
         try (TestWebSocketServer server = TestWebSocketServer.start()) {
             JdkWebsocketConnector connector = new JdkWebsocketConnector();
@@ -396,7 +419,10 @@ class JdkWebsocketConnectorTest {
         }
     }
 
-    private record Frame(int opcode, byte[] payload) {
+    private record Frame(boolean fin, int opcode, byte[] payload) {
+        private Frame(int opcode, byte[] payload) {
+            this(true, opcode, payload);
+        }
     }
 
     private static class TestWebSocketServer implements Closeable {
@@ -467,7 +493,7 @@ class JdkWebsocketConnectorTest {
                     payload[i] = (byte) (payload[i] ^ mask[i % 4]);
                 }
             }
-            return new Frame(first & 0x0F, payload);
+            return new Frame((first & 0x80) == 0x80, first & 0x0F, payload);
         }
 
         private void awaitHandshake() throws Exception {

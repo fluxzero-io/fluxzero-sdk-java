@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,9 @@ import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportCodec;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.common.exception.ServiceException;
@@ -56,6 +59,7 @@ import lombok.experimental.Delegate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -65,10 +69,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
@@ -137,6 +144,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             AbstractWebsocketClient.class.getName() + ".runtimeVersion";
     protected static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".selectedCompressionAlgorithm";
+    protected static final String SELECTED_TRANSPORT_FORMAT_USER_PROPERTY =
+            AbstractWebsocketClient.class.getName() + ".selectedTransportFormat";
     static final String REPLAYED_RESPONSE_METADATA_KEY = "replayedResponse";
 
     public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
@@ -153,11 +162,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final ObjectMapper objectMapper;
     private final Map<Long, WebSocketRequest> requests = new ConcurrentHashMap<>();
     private final Map<String, Backlog<Request>> sessionBacklogs = new ConcurrentHashMap<>();
+    private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final TaskScheduler pingScheduler;
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ExecutorService resultExecutor;
     private final ExecutorService reconnectExecutor;
+    private final Semaphore inFlightWebSocketBytes;
     private final boolean allowMetrics;
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
@@ -211,6 +222,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
+        this.inFlightWebSocketBytes = new Semaphore(Math.max(1, clientConfig.getMaxInFlightWebSocketBytes()));
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler",
                                                        ObjectUtils.newWorkerPool(this + "-ping",
                                                                                  Math.max(1, numberOfSessions)));
@@ -281,12 +293,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     session.getUserProperties().put(
                             SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
                             ofNullable(configurator.getSelectedCompressionAlgorithm())
-                                    .or(() -> clientConfig.getSupportedCompressionAlgorithms().stream().findFirst())
-                                    .orElse(CompressionAlgorithm.NONE));
+                                    .orElseGet(() -> ServiceUrlBuilder.legacyCompressionHint(clientConfig)));
+                    session.getUserProperties().put(
+                            SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                            ofNullable(configurator.getSelectedTransportFormat())
+                                    .orElse(WebSocketTransportFormat.JSON));
                 });
-        log().info("Session {} is connected to endpoint {} (runtime version: {})",
+        log().info("Session {} is connected to endpoint {} (runtime version: {}, transport: {}, compression: {})",
                    getNegotiatedSessionId(session), session.getRequestURI(),
-                   getRuntimeVersion(session).orElse("unknown"));
+                   getRuntimeVersion(session).orElse("unknown"), getTransportFormat(session),
+                   getCompressionAlgorithm(session));
         schedulePing(session);
     }
 
@@ -324,7 +340,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         String sessionId = getNegotiatedSessionId(session);
         try {
             return sessionBacklogs.computeIfAbsent(
-                    sessionId, id -> Backlog.forConsumer(batch -> sendBatch(batch, session))).add(request);
+                    sessionId, id -> Backlog.forOrderedAsyncConsumer(
+                            batch -> sendBatchAsync(batch, session))).add(request);
         } finally {
             tryPublishMetrics(request, metricsMetadata().with(correlationData)
                     .with("sessionId", sessionId).with("requestId", request.getRequestId()));
@@ -333,29 +350,126 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     @SneakyThrows
     private void sendBatch(List<Request> requests, WebsocketSession session) {
+        sendBatchAsync(requests, session).join();
+    }
+
+    private CompletableFuture<Void> sendBatchAsync(List<Request> requests, WebsocketSession session) {
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
-            byte[] bytes = objectMapper.writeValueAsBytes(object);
+            byte[] bytes = compress(transportCodec(session).encode(object), getCompressionAlgorithm(session));
             if (session.isOpen()) {
-                session.sendBinary(ByteBuffer.wrap(compress(bytes, getCompressionAlgorithm(session))));
+                return sendEncodedBatch(session, object, bytes);
             } else if (!closed.get()) {
                 abort(session, "Channel closed ahead of sending");
             }
+            return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            boolean closedChannel = e instanceof ClosedChannelException
-                                    || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed"))
-                                            .orElse(false);
-            if (closed.get() && closedChannel) {
+            if (e instanceof InterruptedException) {
+                currentThread().interrupt();
+            }
+            return handleSendFailure(object, session, e);
+        }
+    }
+
+    private CompletableFuture<Void> sendEncodedBatch(WebsocketSession session, JsonType object, byte[] bytes)
+            throws InterruptedException {
+        int permits = acquireInFlightWebSocketBytes(bytes.length);
+        CompletableFuture<Void> sendFuture;
+        try {
+            sendFuture = session.sendBinaryAsync(ByteBuffer.wrap(bytes), clientConfig.getMaxWebSocketFragmentBytes());
+            if (sendFuture == null) {
+                session.sendBinary(ByteBuffer.wrap(bytes));
+                sendFuture = CompletableFuture.completedFuture(null);
+            }
+            sendFuture = withSendTimeout(sendFuture);
+        } catch (Throwable e) {
+            inFlightWebSocketBytes.release(permits);
+            return handleTransportSendFailure(object, session, e);
+        }
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        sendFuture.whenComplete((ignored, error) -> {
+            inFlightWebSocketBytes.release(permits);
+            if (error == null) {
+                result.complete(null);
                 return;
             }
-            log().error(ignoreMarker, "Failed to send request {} (session {})",
-                        object, getNegotiatedSessionId(session), e);
-            if (closedChannel) {
-                abort(session, "Channel closed while sending");
-            } else {
-                throw e;
-            }
+            handleTransportSendFailure(object, session, unwrapCompletionException(error))
+                    .whenComplete((v, failure) -> {
+                        if (failure == null) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(failure);
+                        }
+                    });
+        });
+        return result;
+    }
+
+    private CompletableFuture<Void> withSendTimeout(CompletableFuture<Void> sendFuture) {
+        Duration timeout = clientConfig.getWebSocketSendTimeout();
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) {
+            return sendFuture;
         }
+        return sendFuture.orTimeout(timeout.toNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    private int acquireInFlightWebSocketBytes(int byteCount) throws InterruptedException {
+        int permits = Math.max(1, Math.min(byteCount, clientConfig.getMaxInFlightWebSocketBytes()));
+        inFlightWebSocketBytes.acquire(permits);
+        return permits;
+    }
+
+    private CompletableFuture<Void> handleSendFailure(JsonType object, WebsocketSession session, Throwable error) {
+        Throwable e = unwrapCompletionException(error);
+        boolean closedChannel = isClosedChannel(e);
+        if (closed.get() && closedChannel) {
+            return CompletableFuture.completedFuture(null);
+        }
+        log().error(ignoreMarker, "Failed to send request {} (session {})",
+                    object, getNegotiatedSessionId(session), e);
+        if (closedChannel) {
+            abort(session, "Channel closed while sending");
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.failedFuture(e);
+    }
+
+    private CompletableFuture<Void> handleTransportSendFailure(JsonType object, WebsocketSession session,
+                                                               Throwable error) {
+        Throwable e = unwrapCompletionException(error);
+        boolean transportSendFailure = isTransportSendFailure(e);
+        if (closed.get() && transportSendFailure) {
+            return CompletableFuture.completedFuture(null);
+        }
+        log().error(ignoreMarker, "Failed to send request {} (session {})",
+                    object, getNegotiatedSessionId(session), e);
+        if (transportSendFailure) {
+            abort(session, "Websocket send failed: " + sendFailureReason(e));
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.failedFuture(e);
+    }
+
+    private boolean isClosedChannel(Throwable e) {
+        return e instanceof ClosedChannelException
+               || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false);
+    }
+
+    private boolean isTransportSendFailure(Throwable e) {
+        return isClosedChannel(e)
+               || e instanceof IOException
+               || e instanceof TimeoutException
+               || ofNullable(e.getMessage()).map(m -> m.contains("No buffer space available")
+                       || m.contains("Broken pipe")
+                       || m.contains("Connection reset")).orElse(false);
+    }
+
+    private String sendFailureReason(Throwable e) {
+        return ofNullable(e.getMessage()).filter(m -> !m.isBlank()).orElse(e.getClass().getSimpleName());
+    }
+
+    private Throwable unwrapCompletionException(Throwable e) {
+        return e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
     }
 
     public void onMessage(byte[] bytes, WebsocketSession session) {
@@ -365,9 +479,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void handleMessage(byte[] bytes, WebsocketSession session) {
         JsonType value;
         try {
-            value = objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
+            value = transportCodec(session).decode(decompress(bytes, getCompressionAlgorithm(session)));
         } catch (Exception e) {
-            log().error("Could not parse input. Expected a Json message.", e);
+            log().error("Could not parse input. Expected a {} websocket message.",
+                        getTransportFormat(session), e);
             return;
         }
         if (value instanceof ResultBatch) {
@@ -714,6 +829,18 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return (CompressionAlgorithm) session.getUserProperties().get(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY);
     }
 
+    protected WebSocketTransportFormat getTransportFormat(WebsocketSession session) {
+        return ofNullable(session.getUserProperties().get(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY))
+                .filter(WebSocketTransportFormat.class::isInstance)
+                .map(WebSocketTransportFormat.class::cast)
+                .orElse(WebSocketTransportFormat.JSON);
+    }
+
+    protected WebSocketTransportCodec transportCodec(WebsocketSession session) {
+        return transportCodecs.computeIfAbsent(getTransportFormat(session),
+                                               format -> WebSocketTransportCodecs.forFormat(format, objectMapper));
+    }
+
     protected Optional<String> getRuntimeVersion(WebsocketSession session) {
         return ofNullable(session.getUserProperties().get(RUNTIME_VERSION_USER_PROPERTY))
                 .map(Object::toString)
@@ -734,6 +861,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         private volatile String runtimeVersion;
         @Getter
         private volatile CompressionAlgorithm selectedCompressionAlgorithm;
+        @Getter
+        private volatile WebSocketTransportFormat selectedTransportFormat;
 
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
@@ -742,6 +871,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                                                new ArrayList<>(List.of(sdkVersion))));
             WebSocketCapabilities.asHeaders(clientConfig.getSupportedCompressionAlgorithms()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
+            WebSocketCapabilities.asTransportHeaders(clientConfig.getSupportedTransportFormats()).forEach(
+                    (name, values) -> headers.put(name, new ArrayList<>(values)));
         }
 
         public void afterResponse(Map<String, List<String>> headers) {
@@ -749,6 +880,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             runtimeVersion = WebSocketCapabilities.getRuntimeVersion(headers).orElse(null);
             selectedCompressionAlgorithm =
                     WebSocketCapabilities.getSelectedCompressionAlgorithm(headers).orElse(null);
+            selectedTransportFormat = WebSocketCapabilities.getSelectedTransportFormat(headers).orElse(null);
         }
     }
 

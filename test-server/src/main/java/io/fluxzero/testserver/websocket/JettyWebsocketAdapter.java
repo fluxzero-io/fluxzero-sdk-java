@@ -19,6 +19,7 @@ import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import org.eclipse.jetty.websocket.api.Callback;
 import org.eclipse.jetty.websocket.api.Session;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.function.Function;
 
@@ -30,8 +31,10 @@ import java.util.function.Function;
 public class JettyWebsocketAdapter extends Session.Listener.AbstractAutoDemanding {
     private final Function<ServerWebsocketSession, WebsocketEndpoint> endpointSupplier;
     private final JettyWebsocketHandshake handshake;
+    private final Object binaryMessageLock = new Object();
     private volatile JettyWebsocketSession session;
     private volatile WebsocketEndpoint endpoint;
+    private volatile ByteArrayOutputStream binaryMessage = new ByteArrayOutputStream();
 
     JettyWebsocketAdapter(Function<ServerWebsocketSession, WebsocketEndpoint> endpointSupplier,
                           JettyWebsocketHandshake handshake) {
@@ -53,9 +56,12 @@ public class JettyWebsocketAdapter extends Session.Listener.AbstractAutoDemandin
     }
 
     @Override
-    public void onWebSocketBinary(ByteBuffer message, Callback callback) {
+    public void onWebSocketPartialBinary(ByteBuffer message, boolean last, Callback callback) {
         try {
-            endpoint.onMessage(copyBytes(message), session);
+            byte[] bytes = appendBinary(message, last);
+            if (bytes != null) {
+                endpoint.onMessage(bytes, session);
+            }
             callback.succeed();
         } catch (Throwable e) {
             callback.fail(e);
@@ -99,5 +105,25 @@ public class JettyWebsocketAdapter extends Session.Listener.AbstractAutoDemandin
         byte[] bytes = new byte[copy.remaining()];
         copy.get(bytes);
         return bytes;
+    }
+
+    private byte[] appendBinary(ByteBuffer data, boolean last) {
+        synchronized (binaryMessageLock) {
+            if (last && binaryMessage.size() == 0) {
+                return copyBytes(data);
+            }
+            byte[] part = copyBytes(data);
+            try {
+                binaryMessage.writeBytes(part);
+                if (!last) {
+                    return null;
+                }
+                return binaryMessage.toByteArray();
+            } finally {
+                if (last) {
+                    binaryMessage = new ByteArrayOutputStream();
+                }
+            }
+        }
     }
 }
