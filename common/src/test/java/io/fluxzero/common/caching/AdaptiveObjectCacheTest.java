@@ -12,10 +12,9 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.caching;
+package io.fluxzero.common.caching;
 
 import io.fluxzero.common.DelegatingClock;
-import io.fluxzero.common.caching.MemoryPressureController;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
@@ -29,10 +28,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.expiry;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
+import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
+import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
+import static io.fluxzero.common.caching.CacheEviction.Reason.memoryPressure;
+import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;

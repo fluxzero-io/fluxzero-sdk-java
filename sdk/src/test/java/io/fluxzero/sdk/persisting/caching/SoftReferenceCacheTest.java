@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache.SoftCacheReference;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.SneakyThrows;
@@ -32,10 +33,10 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.expiry;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
+import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
+import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
+import static io.fluxzero.common.caching.CacheEviction.Reason.memoryPressure;
+import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;

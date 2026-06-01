@@ -17,6 +17,8 @@ package io.fluxzero.sdk.persisting.caching;
 
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.Fluxzero;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -46,9 +48,9 @@ import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerThreadFactory;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.manual;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.memoryPressure;
-import static io.fluxzero.sdk.persisting.caching.CacheEviction.Reason.size;
+import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
+import static io.fluxzero.common.caching.CacheEviction.Reason.memoryPressure;
+import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 
 /**
  * {@link Cache} implementation using key-level synchronized access and soft references for value storage.

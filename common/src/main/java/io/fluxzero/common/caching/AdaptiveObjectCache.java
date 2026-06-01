@@ -12,13 +12,9 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.caching;
+package io.fluxzero.common.caching;
 
 import io.fluxzero.common.Registration;
-import io.fluxzero.common.caching.MemoryAwareCacheSupport;
-import io.fluxzero.common.caching.MemoryAwareCacheSupportEviction;
-import io.fluxzero.common.caching.MemoryPressureController;
-import io.fluxzero.sdk.Fluxzero;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -100,13 +96,14 @@ public class AdaptiveObjectCache implements Cache {
         this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, currentClock());
     }
 
-    AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry, Clock clock) {
+    public AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry,
+                               Clock clock) {
         this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry, clock);
     }
 
-    AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
-                        ToLongBiFunction<? super Object, ? super Object> weigher,
-                        MemoryPressureController memoryPressureController, Duration expiry, Clock clock) {
+    public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                               ToLongBiFunction<? super Object, ? super Object> weigher,
+                               MemoryPressureController memoryPressureController, Duration expiry, Clock clock) {
         this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, DEFAULT_EXPIRY_CHECK_DELAY,
              clock);
     }
@@ -339,7 +336,7 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     private static Clock currentClock() {
-        return Fluxzero.getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC);
+        return Clock.systemUTC();
     }
 
     private static ThreadFactory daemonThreadFactory() {

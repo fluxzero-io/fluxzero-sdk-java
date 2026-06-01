@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.caching;
+package io.fluxzero.common.caching;
 
 import lombok.Value;
 
@@ -25,12 +25,6 @@ import lombok.Value;
  * Eviction events are useful for metrics reporting and operational observability, particularly when monitoring cache
  * hit/miss ratios and understanding retention behaviors under load.
  *
- * <p>
- * Emitted events can be published to the metrics log via {@link CacheEvictionsLogger} and consumed downstream for
- * alerts or analysis.
- *
- * @see CacheEvictionsLogger
- * @see io.fluxzero.sdk.publishing.MetricsGateway
  */
 @Value
 public class CacheEviction {

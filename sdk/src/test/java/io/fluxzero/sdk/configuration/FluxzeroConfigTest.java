@@ -15,10 +15,10 @@
 package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
-import io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache;
-import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;

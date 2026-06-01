@@ -15,6 +15,9 @@
 package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.modeling.Entity;
 import lombok.AllArgsConstructor;
 

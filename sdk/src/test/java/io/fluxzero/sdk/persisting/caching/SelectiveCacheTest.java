@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;

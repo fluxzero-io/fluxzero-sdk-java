@@ -17,6 +17,9 @@ package io.fluxzero.sdk.persisting.caching;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.common.caching.MemoryPressureController;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
@@ -227,7 +230,7 @@ public final class DefaultCache implements Cache, AutoCloseable {
 
     private static Cache newAdaptiveCache(PropertySource propertySource, int defaultMaxSize, Duration expiry) {
         return new AdaptiveObjectCache(propertySource.getInteger(MAX_SIZE_PROPERTY, defaultMaxSize),
-                                       MemoryPressureController.jvm(propertySource), expiry);
+                                       MemoryPressureController.jvm(propertySource), expiry, Fluxzero.currentClock());
     }
 
     private static boolean defaultsVersionUsesAdaptiveCache(PropertySource propertySource) {

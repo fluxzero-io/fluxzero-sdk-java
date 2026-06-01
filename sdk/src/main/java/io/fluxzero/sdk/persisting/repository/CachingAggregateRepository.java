@@ -17,13 +17,13 @@ package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.Relationship;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
-import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import lombok.NonNull;

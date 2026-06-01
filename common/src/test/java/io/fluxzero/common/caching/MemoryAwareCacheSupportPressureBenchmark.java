@@ -12,11 +12,7 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.caching;
-
-import io.fluxzero.common.caching.MemoryAwareCacheSupport;
-import io.fluxzero.common.caching.MemoryAwareCacheSupportEviction;
-import io.fluxzero.common.caching.MemoryPressureController;
+package io.fluxzero.common.caching;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -30,15 +26,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Explicit stress harness for memory-aware hard-reference cache support and SDK object caches.
+ * Explicit stress harness for memory-aware hard-reference cache support and object caches.
  * <p>
  * This class is intentionally not a normal unit test. Run it in a small heap to validate that cache-dominant memory
  * pressure triggers active eviction instead of relying on soft-reference clearing.
  * <pre>
- * ./mvnw -q -pl sdk -am -DskipTests test-compile dependency:build-classpath \
- *   -Dmdep.scope=test -Dmdep.outputFile=/tmp/fluxzero-sdk-test.cp
- * java -Xmx128m -cp "sdk/target/test-classes:sdk/target/classes:common/target/test-classes:common/target/classes:$(cat /tmp/fluxzero-sdk-test.cp)" \
- *   io.fluxzero.sdk.persisting.caching.MemoryAwareCacheSupportPressureBenchmark
+ * ./mvnw -q -pl common -DskipTests test-compile dependency:build-classpath \
+ *   -Dmdep.scope=test -Dmdep.outputFile=/tmp/fluxzero-common-test.cp
+ * java -Xmx128m -cp "common/target/test-classes:common/target/classes:$(cat /tmp/fluxzero-common-test.cp)" \
+ *   io.fluxzero.common.caching.MemoryAwareCacheSupportPressureBenchmark
  * </pre>
  */
 public class MemoryAwareCacheSupportPressureBenchmark {

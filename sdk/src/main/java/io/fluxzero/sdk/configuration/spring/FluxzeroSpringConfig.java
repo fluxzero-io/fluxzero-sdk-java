@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.casting.CastInspector;
@@ -25,7 +26,6 @@ import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
-import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.search.DocumentStore;

@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.caching.AdaptiveObjectCache;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
