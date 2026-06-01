@@ -472,8 +472,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
     }
 
+    @Override
     public void onMessage(byte[] bytes, WebsocketSession session) {
-        executeResultCallback("message", () -> handleMessage(bytes, session));
+        handleMessage(bytes, session);
     }
 
     protected void handleMessage(byte[] bytes, WebsocketSession session) {
