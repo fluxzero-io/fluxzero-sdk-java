@@ -18,6 +18,14 @@
   "superClass" : "io.fluxzero.common.api.Request",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex.maxBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.\n",
+    "constantValue" : null
+  }, {
     "name" : "maxSize",
     "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex.maxSize",
     "type" : "int",
@@ -40,7 +48,47 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ReadFromIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndex#ReadFromIndex",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"minIndex\",\"maxSize\",\"maxBytes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

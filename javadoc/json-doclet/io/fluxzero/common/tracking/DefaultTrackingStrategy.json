@@ -312,6 +312,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "filterPredicate",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#filterPredicate",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentRange",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#getBatch",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -477,6 +503,42 @@
     "parameters" : [ {
       "name" : "tracker",
       "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scanBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#scanBatch",
+    "returnType" : "io.fluxzero.common.tracking.MessageStoreBatch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filter",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.common.api.SerializedMessage>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

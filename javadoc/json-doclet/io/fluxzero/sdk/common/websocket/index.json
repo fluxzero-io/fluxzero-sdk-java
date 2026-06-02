@@ -45,6 +45,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler",
     "kind" : "class"
   }, {
+    "file" : "JdkWebsocketConnector.HandshakeCapture.json",
+    "name" : "JdkWebsocketConnector.HandshakeCapture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture",
+    "kind" : "class"
+  }, {
     "file" : "ServiceUrlBuilder.json",
     "name" : "ServiceUrlBuilder",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.ServiceUrlBuilder",

@@ -93,6 +93,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.maxBytes",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "maxSize",
     "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker.maxSize",
     "type" : "int",

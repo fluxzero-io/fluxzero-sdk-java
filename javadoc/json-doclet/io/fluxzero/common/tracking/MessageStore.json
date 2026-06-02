@@ -105,6 +105,63 @@
     "varArgs" : false,
     "documentation" : " Retrieves a batch of messages starting from the given {@code minIndex}.\n\n @param minIndex  minimum message index to start from\n @param maxSize   maximum number of messages to retrieve\n @param inclusive whether to include the message at {@code minIndex}\n @return a list of {@link SerializedMessage} instances\n"
   }, {
+    "name" : "getBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#getBatch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves a batch of messages starting from the given {@code minIndex}, limiting both message count and\n serialized payload bytes.\n <p>\n If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make\n progress.\n\n @param minIndex  minimum message index to start from\n @param maxSize   maximum number of messages to retrieve\n @param inclusive whether to include the message at {@code minIndex}\n @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit\n @return a list of {@link SerializedMessage} instances\n"
+  }, {
+    "name" : "getBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#getBatch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves a batch of messages starting from the given {@code lastIndex} (exclusive), limiting both message count\n and serialized payload bytes.\n\n @param lastIndex minimum message index to start from (exclusive)\n @param maxSize   maximum number of messages to retrieve\n @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit\n @return a list of {@link SerializedMessage} instances\n"
+  }, {
     "name" : "getMessageStore",
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#getMessageStore",
     "returnType" : "io.fluxzero.common.tracking.MessageStore",
@@ -118,6 +175,42 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the current instance as the {@link MessageStore}.\n"
+  }, {
+    "name" : "scanBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#scanBatch",
+    "returnType" : "io.fluxzero.common.tracking.MessageStoreBatch",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filter",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Scans messages starting from the given {@code minIndex}, returning messages accepted by {@code filter} and\n metadata about the unfiltered source scan.\n <p>\n {@code maxSize} limits the number of source messages scanned. {@code maxBytes} limits the cumulative serialized\n payload bytes of accepted messages. If the first accepted message is larger than {@code maxBytes}, it is still\n returned so consumers can make progress.\n\n @param minIndex minimum message index to start from\n @param maxSize  maximum number of source messages to scan\n @param inclusive whether to include the message at {@code minIndex}\n @param maxBytes maximum number of accepted serialized payload bytes, or {@code 0} for no byte limit\n @param filter predicate deciding which messages enter the returned batch\n @return accepted messages and source scan metadata\n"
   }, {
     "name" : "setRetentionTime",
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStore#setRetentionTime",

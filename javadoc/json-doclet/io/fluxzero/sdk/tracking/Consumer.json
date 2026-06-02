@@ -160,6 +160,17 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, this consumer will bypass the default segment-based sharding applied by the Fluxzero Runtime and\n attempt to process all message segments.\n <p>\n By default, Fluxzero shards messages across consumers using a routing key present in the message payload, or the\n message ID if no routing key is specified. However, some handlers may require a custom sharding strategy— for\n instance, sharding based on a different property in the payload.\n </p>\n\n <p>\n Setting {@code ignoreSegment = true} allows such handlers to override Fluxzero's internal routing and apply their\n own logic. A common pattern is to use the {@code @RoutingKey} annotation on a handler method to specify a custom\n property:\n </p>\n\n <pre>{@code\n @HandleEvent\n @RoutingKey(\"organisationId\")\n void handle(CreateUser event) {\n     // process based on organisationId instead of the default routing key\n }\n }</pre>\n"
   }, {
+    "name" : "maxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#maxFetchBytes",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maximum serialized payload bytes to fetch in a batch. A value of {@code 0} disables this limit.\n"
+  }, {
     "name" : "maxFetchSize",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#maxFetchSize",
     "returnType" : "int",

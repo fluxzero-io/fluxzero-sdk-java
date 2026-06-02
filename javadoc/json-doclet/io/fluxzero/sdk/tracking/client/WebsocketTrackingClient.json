@@ -264,6 +264,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readFromIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#readFromIndex",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resetPosition",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#resetPosition",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

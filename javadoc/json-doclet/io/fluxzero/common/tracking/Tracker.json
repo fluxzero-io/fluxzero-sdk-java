@@ -136,6 +136,17 @@
     "varArgs" : false,
     "documentation" : " @return the index of the last successfully consumed message, or {@code null} if uninitialized.\n"
   }, {
+    "name" : "getMaxBytes",
+    "qualifiedName" : "io.fluxzero.common.tracking.Tracker#getMaxBytes",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return the maximum serialized payload bytes this tracker wants to consume in a single batch, or {@code 0} for\n no byte limit.\n"
+  }, {
     "name" : "getMaxSize",
     "qualifiedName" : "io.fluxzero.common.tracking.Tracker#getMaxSize",
     "returnType" : "int",

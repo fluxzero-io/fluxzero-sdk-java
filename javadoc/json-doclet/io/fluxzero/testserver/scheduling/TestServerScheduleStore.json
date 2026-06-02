@@ -123,6 +123,45 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "scanBatch",
+    "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore#scanBatch",
+    "returnType" : "io.fluxzero.common.tracking.MessageStoreBatch",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filter",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore#schedule",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

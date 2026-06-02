@@ -223,6 +223,32 @@
     "varArgs" : false,
     "documentation" : " Fetches messages starting from the given index up to the provided max size.\n <p>\n This method bypasses consumer configurations and is primarily used for diagnostics or reprocessing.\n\n @param minIndex the starting index (inclusive)\n @param maxSize  the maximum number of messages to retrieve\n @return a list of serialized messages starting at the given index\n"
   }, {
+    "name" : "readFromIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#readFromIndex",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fetches messages directly from the message log while limiting both message count and serialized payload bytes.\n <p>\n If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make\n progress. A {@code maxBytes} value of {@code 0} disables the byte limit.\n\n @param minIndex the starting index (inclusive)\n @param maxSize  the maximum number of messages to retrieve\n @param maxBytes the maximum number of serialized payload bytes to retrieve\n @return a list of serialized messages starting at the given index\n"
+  }, {
     "name" : "readRange",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#readRange",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -248,6 +274,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} up to the provided max size.\n <p>\n Implementations may override this to perform a bounded server-side range read. The default implementation keeps\n the wire protocol backward compatible by using {@link #readFromIndex(long, int)} and filtering locally.\n\n @param minIndexInclusive the starting index (inclusive)\n @param maxIndexExclusive the maximum index (exclusive)\n @param maxSize           the maximum number of messages to retrieve\n @return a list of serialized messages in the requested range\n"
+  }, {
+    "name" : "readRange",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#readRange",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxIndexExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} while limiting both message count\n and serialized payload bytes.\n\n @param minIndexInclusive the starting index (inclusive)\n @param maxIndexExclusive the maximum index (exclusive)\n @param maxSize           the maximum number of messages to retrieve\n @param maxBytes          the maximum number of serialized payload bytes to retrieve\n @return a list of serialized messages in the requested range\n"
   }, {
     "name" : "resetPosition",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#resetPosition",

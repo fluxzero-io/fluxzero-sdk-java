@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " Low-level Fluxzero websocket connector backed by the JDK {@link HttpClient} websocket implementation.\n\n <p>The JDK WebSocket API does not expose successful {@code 101 Switching Protocols} response headers directly.\n This connector captures them through a per-connection {@link CookieHandler} wrapper while preserving any cookie\n handler configured on the supplied {@link HttpClient}.</p>\n",
+  "documentation" : " Low-level Fluxzero websocket connector backed by the JDK {@link HttpClient} websocket implementation.\n\n <p>The JDK WebSocket API does not expose successful {@code 101 Switching Protocols} response headers directly.\n This connector captures them through a shared {@link CookieHandler} wrapper while preserving any cookie handler\n configured on the supplied {@link HttpClient}.</p>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.websocket.WebsocketConnector" ],
@@ -25,6 +25,38 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "fluxzero-websocket-jdk-"
+  }, {
+    "name" : "SEC_WEBSOCKET_ACCEPT",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.SEC_WEBSOCKET_ACCEPT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Sec-WebSocket-Accept"
+  }, {
+    "name" : "SEC_WEBSOCKET_KEY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.SEC_WEBSOCKET_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Sec-WebSocket-Key"
+  }, {
+    "name" : "WEBSOCKET_ACCEPT_SUFFIX",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.WEBSOCKET_ACCEPT_SUFFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+  }, {
+    "name" : "cookieHandler",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.cookieHandler",
+    "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturingCookieHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "executor",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.executor",
@@ -74,7 +106,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>Per-connection clients are derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
+    "documentation" : " Creates a connector backed by the supplied HTTP client.\n\n <p>A single internal client is derived from this client so the connector can install its handshake-header\n capturing cookie handler without mutating the original client.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused\n"
   }, {
     "name" : "JdkWebsocketConnector",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",
@@ -94,7 +126,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for per-connection HTTP clients derived from the supplied client and for dispatching\n native JDK websocket listener callbacks.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
+    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client and for dispatching native\n JDK websocket listener callbacks.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
   } ],
   "methods" : [ {
     "name" : "addOpenSession",
@@ -187,17 +219,43 @@
     "name" : "createHttpClient",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#createHttpClient",
     "returnType" : "java.net.http.HttpClient",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "options",
-      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "handshakeResponse",
-      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+      "name" : "executor",
+      "type" : "java.util.concurrent.Executor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cookieHandler",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturingCookieHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "firstHeader",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#firstHeader",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -268,6 +326,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "websocketAcceptKey",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#websocketAcceptKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
@@ -280,6 +354,12 @@
   }, {
     "name" : "CapturingCookieHandler",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "HandshakeCapture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture",
     "kind" : "class",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ]

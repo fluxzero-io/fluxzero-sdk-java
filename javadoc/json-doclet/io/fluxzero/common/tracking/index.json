@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStore",
     "kind" : "interface"
   }, {
+    "file" : "MessageStoreBatch.json",
+    "name" : "MessageStoreBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.MessageStoreBatch",
+    "kind" : "record"
+  }, {
     "file" : "PositionStore.json",
     "name" : "PositionStore",
     "qualifiedName" : "io.fluxzero.common.tracking.PositionStore",

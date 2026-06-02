@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.Monitored<java.util.List<T>>" ],
   "fields" : [ {
+    "name" : "MAX_INITIAL_BATCH_CAPACITY",
+    "qualifiedName" : "io.fluxzero.common.Backlog.MAX_INITIAL_BATCH_CAPACITY",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1024
+  }, {
     "name" : "consumer",
     "qualifiedName" : "io.fluxzero.common.Backlog.consumer",
     "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
@@ -501,6 +509,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates an ordered async backlog with custom max batch size and error handler.\n"
+  }, {
+    "name" : "initialBatchCapacity",
+    "qualifiedName" : "io.fluxzero.common.Backlog#initialBatchCapacity",
+    "returnType" : "int",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.common.Backlog#registerMonitor",

@@ -207,6 +207,17 @@
     "documentation" : " If true, the consumer will ignore the segment assigned to it and process all messages regardless of partitioning.\n Useful for global handlers such as notifications or singletons.\n",
     "constantValue" : null
   }, {
+    "name" : "maxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxFetchBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum serialized payload bytes to fetch per poll from the message log. A value of {@code 0} disables this\n limit. If a single message is larger than this limit, it may still be returned alone so tracking can make\n progress.\n",
+    "constantValue" : null
+  }, {
     "name" : "maxFetchSize",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxFetchSize",
     "type" : "int",

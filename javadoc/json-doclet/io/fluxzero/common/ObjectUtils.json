@@ -417,6 +417,32 @@
     "varArgs" : true,
     "documentation" : " Combines multiple byte arrays into a single byte array by concatenating their contents in the given order.\n"
   }, {
+    "name" : "limitByCumulativeWeight",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#limitByCumulativeWeight",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "list",
+      "type" : "java.util.List<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weightFunction",
+      "type" : "java.util.function.ToLongFunction<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a prefix of the list whose cumulative weight stays within {@code maxWeight}.\n <p>\n If the first item already exceeds {@code maxWeight}, it is still included so callers can make progress.\n A {@code maxWeight} of {@code 0} or lower leaves the list unchanged.\n"
+  }, {
     "name" : "memoize",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#memoize",
     "returnType" : "io.fluxzero.common.MemoizingBiFunction<T,U,R>",

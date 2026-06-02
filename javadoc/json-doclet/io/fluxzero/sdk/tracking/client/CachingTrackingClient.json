@@ -277,6 +277,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "filterPredicate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#filterPredicate",
+    "returnType" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentRange",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "position",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getLastIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getLastIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getMessageBatch",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#getMessageBatch",
     "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
@@ -445,6 +487,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readFromIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readFromIndex",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "readRange",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readRange",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -467,6 +538,40 @@
     }, {
       "name" : "maxSize",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readRange",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readRange",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxIndexExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

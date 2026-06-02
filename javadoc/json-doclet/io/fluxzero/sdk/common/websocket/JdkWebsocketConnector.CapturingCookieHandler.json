@@ -10,6 +10,14 @@
   "superClass" : "java.net.CookieHandler",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "capturesByAccept",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.capturesByAccept",
+    "type" : "java.util.concurrent.ConcurrentMap<java.lang.String,io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.HandshakeCapture>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.delegate",
     "type" : "java.net.CookieHandler",
@@ -18,9 +26,17 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "handshakeResponse",
-    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.handshakeResponse",
-    "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+    "name" : "registeringCapture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.registeringCapture",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.HandshakeCapture>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registrationSemaphore",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler.registrationSemaphore",
+    "type" : "java.util.concurrent.Semaphore",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -37,17 +53,33 @@
       "type" : "java.net.CookieHandler",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "handshakeResponse",
-      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
-      "varArgs" : false,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "buildAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#buildAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.net.http.WebSocket>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "capture",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.HandshakeCapture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "builder",
+      "type" : "java.util.function.Supplier<java.util.concurrent.CompletableFuture<java.net.http.WebSocket>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.InterruptedException", "java.util.concurrent.ExecutionException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#get",
     "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
@@ -93,6 +125,22 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unregister",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$CapturingCookieHandler#unregister",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "capture",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.HandshakeCapture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
