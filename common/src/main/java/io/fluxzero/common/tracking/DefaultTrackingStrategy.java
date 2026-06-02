@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
-import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
@@ -105,20 +104,21 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
 
             long updateVersion = updateNotificationVersion.get();
-            List<SerializedMessage> unfiltered, filtered;
+            MessageStoreBatch batch;
             Position position;
             do {
                 position = position(tracker, positionStore, newSegment);
-                unfiltered = getBatch(newSegment, position, batchSize);
-                filtered = filter(unfiltered, newSegment, position, tracker);
+                batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
+                                  filterPredicate(newSegment, position, tracker));
 
-                if (!unfiltered.isEmpty() && filtered.isEmpty()) {
-                    long batchIndex = unfiltered.getLast().getIndex();
+                if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
+                    long batchIndex = batch.lastScannedIndex();
 
                     if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxTimeout())) {
                         //if the index is old, send back an empty batch.
                         // Prevents rushing through potentially billions of messages
-                        MessageBatch emptyBatch = new MessageBatch(newSegment, filtered, batchIndex, position, false);
+                        MessageBatch emptyBatch =
+                                new MessageBatch(newSegment, batch.messages(), batchIndex, position, false);
                         tracker.send(emptyBatch);
                         return;
                     } else {
@@ -127,11 +127,11 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                         tracker = tracker.withLastTrackerIndex(batchIndex);
                     }
                 }
-            } while (!unfiltered.isEmpty() && filtered.isEmpty() && !tracker.hasMissedDeadline());
+            } while (batch.scannedSize() > 0 && batch.messages().isEmpty() && !tracker.hasMissedDeadline());
 
-            if (filtered.isEmpty()) {
+            if (batch.messages().isEmpty()) {
                 MessageBatch messageBatch =
-                        new MessageBatch(newSegment, filtered, getLastIndex(unfiltered), position, true);
+                        new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
                 waitForMessages(tracker, messageBatch, positionStore);
                 if (updateVersion < updateNotificationVersion.get()) {
                     var task = waitingTrackers.get(tracker);
@@ -140,12 +140,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                     }
                 }
             } else {
-                List<SerializedMessage> limited = limitByCumulativeWeight(
-                        filtered, tracker.getMaxBytes(), SerializedMessage::getBytes);
-                boolean byteLimited = limited.size() < filtered.size();
                 MessageBatch messageBatch = new MessageBatch(
-                        newSegment, limited, byteLimited ? getLastIndex(limited) : getLastIndex(unfiltered), position,
-                        !byteLimited && unfiltered.size() < batchSize);
+                        newSegment, batch.messages(),
+                        batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex(), position,
+                        !batch.byteLimited() && batch.scannedSize() < batchSize);
                 tracker.send(messageBatch);
             }
         } catch (Throwable e) {
@@ -173,6 +171,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
         return source.getBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize);
+    }
+
+    protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                          Predicate<? super SerializedMessage> filter) {
+        return source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes,
+                                filter);
     }
 
     protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, PositionStore positionStore) {
@@ -229,10 +233,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     protected List<SerializedMessage> filter(List<SerializedMessage> messages, int[] segmentRange,
                                              Position position, Tracker tracker) {
         List<SerializedMessage> result = null;
+        Predicate<SerializedMessage> predicate = filterPredicate(segmentRange, position, tracker);
         for (int i = 0; i < messages.size(); i++) {
-            SerializedMessage message = ensureMessageSegment(messages.get(i));
-            if (tracker.canHandle(message, segmentRange)
-                && (tracker.ignoreSegment() || position.isNewMessage(message))) {
+            SerializedMessage message = messages.get(i);
+            if (predicate.test(message)) {
                 if (result == null) {
                     result = new ArrayList<>(messages.size() - i);
                 }
@@ -240,6 +244,14 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             }
         }
         return result == null ? emptyList() : result;
+    }
+
+    protected Predicate<SerializedMessage> filterPredicate(int[] segmentRange, Position position, Tracker tracker) {
+        return message -> {
+            SerializedMessage segmentedMessage = ensureMessageSegment(message);
+            return tracker.canHandle(segmentedMessage, segmentRange)
+                   && (tracker.ignoreSegment() || position.isNewMessage(segmentedMessage));
+        };
     }
 
     protected SerializedMessage ensureMessageSegment(SerializedMessage message) {

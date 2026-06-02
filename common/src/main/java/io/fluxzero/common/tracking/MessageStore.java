@@ -20,8 +20,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
-import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static java.util.Arrays.asList;
 
 /**
@@ -109,7 +109,27 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
      * @return a list of {@link SerializedMessage} instances
      */
     default List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes) {
-        return limitByCumulativeWeight(getBatch(minIndex, maxSize, inclusive), maxBytes, SerializedMessage::getBytes);
+        return scanBatch(minIndex, maxSize, inclusive, maxBytes, message -> true).messages();
+    }
+
+    /**
+     * Scans messages starting from the given {@code minIndex}, returning messages accepted by {@code filter} and
+     * metadata about the unfiltered source scan.
+     * <p>
+     * {@code maxSize} limits the number of source messages scanned. {@code maxBytes} limits the cumulative serialized
+     * payload bytes of accepted messages. If the first accepted message is larger than {@code maxBytes}, it is still
+     * returned so consumers can make progress.
+     *
+     * @param minIndex minimum message index to start from
+     * @param maxSize  maximum number of source messages to scan
+     * @param inclusive whether to include the message at {@code minIndex}
+     * @param maxBytes maximum number of accepted serialized payload bytes, or {@code 0} for no byte limit
+     * @param filter predicate deciding which messages enter the returned batch
+     * @return accepted messages and source scan metadata
+     */
+    default MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                        Predicate<? super SerializedMessage> filter) {
+        return MessageStoreBatch.scan(getBatch(minIndex, maxSize, inclusive), maxSize, maxBytes, filter);
     }
 
     /**

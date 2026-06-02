@@ -42,8 +42,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
-
 /**
  * In-memory implementation of the {@link TrackingClient} and {@link GatewayClient} interfaces, designed for
  * local-only or test-time usage.
@@ -171,10 +169,9 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,
                                              long maxBytes) {
-        return limitByCumulativeWeight(
-                messageStore.getBatch(minIndexInclusive, maxSize, true).stream()
-                        .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
-                        .toList(), maxBytes, SerializedMessage::getBytes);
+        return messageStore.scanBatch(
+                minIndexInclusive, maxSize, true, maxBytes,
+                message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive).messages();
     }
 
     @Override

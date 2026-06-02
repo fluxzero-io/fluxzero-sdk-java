@@ -23,6 +23,7 @@ import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -39,7 +40,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
-import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
@@ -215,17 +215,12 @@ public class CachingTrackingClient implements TrackingClient {
 
     protected MessageBatch getMessageBatch(ConsumerConfiguration config, long minIndex, ClaimSegmentResult claim) {
         synchronized (cacheMonitor) {
-            List<SerializedMessage> unfiltered = cache.tailMap(minIndex, false).values().stream().limit(
-                    config.getMaxFetchSize()).collect(toList());
-            List<SerializedMessage> filtered = filterMessages(unfiltered, claim.getSegment(), claim.getPosition(),
-                                                              config);
-            List<SerializedMessage> limited = limitByCumulativeWeight(
-                    filtered, config.getMaxFetchBytes(), SerializedMessage::getBytes);
-            boolean byteLimited = limited.size() < filtered.size();
-            Long lastIndex = byteLimited ? getLastIndex(limited)
-                    : unfiltered.isEmpty() ? null : unfiltered.getLast().getIndex();
-            return new MessageBatch(claim.getSegment(), limited, lastIndex, claim.getPosition(),
-                                    !byteLimited && unfiltered.size() < config.getMaxFetchSize());
+            MessageStoreBatch batch = MessageStoreBatch.scan(
+                    cache.tailMap(minIndex, false).values(), config.getMaxFetchSize(), config.getMaxFetchBytes(),
+                    filterPredicate(claim.getSegment(), claim.getPosition(), config));
+            Long lastIndex = batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex();
+            return new MessageBatch(claim.getSegment(), batch.messages(), lastIndex, claim.getPosition(),
+                                    !batch.byteLimited() && batch.scannedSize() < config.getMaxFetchSize());
         }
     }
 
@@ -239,6 +234,11 @@ public class CachingTrackingClient implements TrackingClient {
         if (messages.isEmpty()) {
             return messages;
         }
+        return messages.stream().filter(filterPredicate(segmentRange, position, config)).collect(toList());
+    }
+
+    protected Predicate<SerializedMessage> filterPredicate(int[] segmentRange, Position position,
+                                                           ConsumerConfiguration config) {
         Predicate<SerializedMessage> predicate
                 = m -> (config.getTypeFilter() == null || m.getData().getType() == null
                 || config.getTypeFilter().matches(m.getData().getType())) && position.isNewMessage(m);
@@ -246,7 +246,7 @@ public class CachingTrackingClient implements TrackingClient {
             predicate = predicate.and(m -> segmentRange[1] != 0 && m.getSegment() >= segmentRange[0]
                     && m.getSegment() < segmentRange[1]);
         }
-        return messages.stream().filter(predicate).collect(toList());
+        return predicate;
     }
 
     protected void cacheNewMessages(List<SerializedMessage> messages) {

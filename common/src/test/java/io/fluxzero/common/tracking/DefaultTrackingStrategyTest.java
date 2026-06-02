@@ -252,6 +252,28 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void appliesPayloadByteLimitAfterStoreSideFilteringWithoutSkippingNextMatch() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "ignored", 32),
+                                     message(2L, 1, "accepted", 4),
+                                     message(3L, 1, "accepted", 4),
+                                     message(4L, 1, "accepted", 4)))) {
+            List<MessageBatch> received = new CopyOnWriteArrayList<>();
+            subject.getBatch(tracker("consumer", "tracker", received::add)
+                                     .withMaxBytes(8L)
+                                     .withTypeFilter("accepted"::equals),
+                             mockPositionStore());
+
+            assertEquals(1, received.size());
+            assertEquals(List.of(2L, 3L),
+                         received.getFirst().getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(3L, received.getFirst().getLastIndex());
+            assertFalse(received.getFirst().isCaughtUp());
+        }
+    }
+
+    @Test
     void returnsOversizedFirstMessageWhenPayloadByteLimitIsSmaller() {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
@@ -421,7 +443,8 @@ class DefaultTrackingStrategyTest {
         }
 
         @Override
-        protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
+        protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                              Predicate<? super SerializedMessage> filter) {
             int call = batchCalls.incrementAndGet();
             if (call == blockedCall) {
                 blockedCallStarted.countDown();
@@ -432,7 +455,7 @@ class DefaultTrackingStrategyTest {
             }
             List<SerializedMessage> batch = Optional.ofNullable(batches.poll()).orElse(List.of());
             batchesServed.addAll(batch);
-            return batch;
+            return MessageStoreBatch.scan(batch, batchSize, maxBytes, filter);
         }
 
         @Override
@@ -452,10 +475,11 @@ class DefaultTrackingStrategyTest {
         }
 
         @Override
-        protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
+        protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                              Predicate<? super SerializedMessage> filter) {
             batchStarted.countDown();
             await(releaseBatch);
-            return List.of();
+            return MessageStoreBatch.scan(List.of(), batchSize, maxBytes, filter);
         }
 
         @Override

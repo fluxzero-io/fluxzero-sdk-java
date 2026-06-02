@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -32,6 +33,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryMessageStoreTest {
 
@@ -69,6 +71,39 @@ class InMemoryMessageStoreTest {
 
         assertEquals(List.of(1L), batch.stream().map(SerializedMessage::getIndex).toList());
         assertEquals(6L, batch.getFirst().getBytes());
+    }
+
+    @Test
+    void scanBatchAppliesMaxBytesAfterPredicateWithoutReadingRest() {
+        CountingStore store = new CountingStore(4);
+        store.setRetentionTime(null);
+        store.append(List.of(message(1L, "ignored-large-payload"),
+                             message(2L, "1234"),
+                             message(3L, "5678"),
+                             message(4L, "9012"),
+                             message(5L, "3456"))).join();
+
+        MessageStoreBatch batch = store.scanBatch(
+                null, 10, true, 8L, message -> message.getIndex() != 1L);
+
+        assertEquals(List.of(2L, 3L), batch.messages().stream().map(SerializedMessage::getIndex).toList());
+        assertEquals(4L, batch.lastScannedIndex());
+        assertEquals(4, batch.scannedSize());
+        assertTrue(batch.byteLimited());
+        assertEquals(4, store.iteratedCount());
+    }
+
+    @Test
+    void scanBatchReportsSourceProgressWhenMessagesAreFilteredOut() {
+        InMemoryMessageStore store = new InMemoryMessageStore(EVENT, Duration.ofMinutes(5));
+        store.setRetentionTime(null);
+        store.append(List.of(message(1L), message(2L), message(3L))).join();
+
+        MessageStoreBatch batch = store.scanBatch(null, 3, true, 0L, message -> false);
+
+        assertEquals(List.of(), batch.messages());
+        assertEquals(3L, batch.lastScannedIndex());
+        assertEquals(3, batch.scannedSize());
     }
 
     @Test

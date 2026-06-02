@@ -20,6 +20,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import io.fluxzero.common.tracking.MessageStore;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore;
@@ -32,6 +33,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 
 import static io.fluxzero.sdk.tracking.IndexUtils.indexForCurrentTime;
 
@@ -71,6 +73,12 @@ public class TestServerScheduleStore implements MessageStore, SchedulingClient {
         unfiltered.stream().filter(m -> !filtered.contains(m)).map(SerializedMessage::getIndex)
                 .min(Comparator.naturalOrder()).ifPresent(this::rescheduleNextDeadline);
         return filtered;
+    }
+
+    @Override
+    public synchronized MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                                    Predicate<? super SerializedMessage> filter) {
+        return MessageStore.super.scanBatch(minIndex, maxSize, inclusive, maxBytes, filter);
     }
 
     protected void rescheduleNextDeadline(long nextIndex) {
