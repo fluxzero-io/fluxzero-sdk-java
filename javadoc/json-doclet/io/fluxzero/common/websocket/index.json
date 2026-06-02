@@ -9,6 +9,36 @@
     "name" : "WebSocketCapabilities",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities",
     "kind" : "class"
+  }, {
+    "file" : "WebSocketTransportCodec.json",
+    "name" : "WebSocketTransportCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "kind" : "interface"
+  }, {
+    "file" : "WebSocketTransportCodecs.json",
+    "name" : "WebSocketTransportCodecs",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs",
+    "kind" : "class"
+  }, {
+    "file" : "WebSocketTransportCodecs.CborObjectMapper.json",
+    "name" : "WebSocketTransportCodecs.CborObjectMapper",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborObjectMapper",
+    "kind" : "class"
+  }, {
+    "file" : "WebSocketTransportCodecs.CborWebSocketTransportCodec.json",
+    "name" : "WebSocketTransportCodecs.CborWebSocketTransportCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec",
+    "kind" : "record"
+  }, {
+    "file" : "WebSocketTransportCodecs.JsonWebSocketTransportCodec.json",
+    "name" : "WebSocketTransportCodecs.JsonWebSocketTransportCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$JsonWebSocketTransportCodec",
+    "kind" : "record"
+  }, {
+    "file" : "WebSocketTransportFormat.json",
+    "name" : "WebSocketTransportFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "kind" : "enum"
   } ],
   "subdirectories" : [ ]
 }

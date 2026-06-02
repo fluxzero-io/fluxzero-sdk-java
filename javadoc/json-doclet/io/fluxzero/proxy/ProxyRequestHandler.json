@@ -710,6 +710,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isWebsocketUpgrade",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#isWebsocketUpgrade",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "knownRequestBodyTooLarge",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#knownRequestBodyTooLarge",
     "returnType" : "boolean",

@@ -33,6 +33,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "SELECTED_TRANSPORT_FORMAT_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebsocketDeploymentUtils",
@@ -176,6 +184,22 @@
     "parameters" : [ {
       "name" : "rawQuery",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectTransportFormat",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils#selectTransportFormat",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestHeaders",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

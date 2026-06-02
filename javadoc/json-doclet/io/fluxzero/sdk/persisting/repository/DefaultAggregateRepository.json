@@ -28,7 +28,7 @@
   "fields" : [ {
     "name" : "aggregateCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.aggregateCache",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -84,7 +84,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.relationshipsCache",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,

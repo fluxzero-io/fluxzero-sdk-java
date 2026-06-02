@@ -18,6 +18,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "cacheBatchCoalesceWait",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.cacheBatchCoalesceWait",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cacheMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.cacheMonitor",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.delegate",
     "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
@@ -106,6 +122,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "canReadFromCache",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#canReadFromCache",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "claimSegment",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#claimSegment",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.ClaimSegmentResult>",
@@ -180,6 +212,37 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "doWaitForCachedBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#doWaitForCachedBatch",
+    "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "claim",
+      "type" : "io.fluxzero.common.api.tracking.ClaimSegmentResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.InterruptedException" ],
     "varArgs" : false,
     "documentation" : null
   }, {
@@ -283,6 +346,48 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isReady",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#isReady",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "minInstant",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#minInstant",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "first",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "second",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -436,6 +541,58 @@
     }, {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "waitForCachedBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#waitForCachedBatch",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "claim",
+      "type" : "io.fluxzero.common.api.tracking.ClaimSegmentResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "waitUntil",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#waitUntil",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

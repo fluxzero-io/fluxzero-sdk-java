@@ -92,6 +92,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "waitForAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog.waitForAsyncConsumer",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "Backlog",
@@ -147,6 +155,36 @@
     }, {
       "name" : "errorHandler",
       "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "waitForAsyncConsumer",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -220,6 +258,32 @@
     }, {
       "name" : "e",
       "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeWhenConsumerFinishes",
+    "qualifiedName" : "io.fluxzero.common.Backlog#completeWhenConsumerFinishes",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "java.util.List<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastPosition",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -374,6 +438,69 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a backlog with custom max batch size and error handler.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog for an asynchronous consumer that starts the next batch only after the previous returned future\n has completed. This keeps async consumers from building an unbounded downstream write queue.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an ordered async backlog with custom max batch size and default logging error handler.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an ordered async backlog with custom max batch size and error handler.\n"
   }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.common.Backlog#registerMonitor",

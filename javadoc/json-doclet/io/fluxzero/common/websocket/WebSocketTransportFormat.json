@@ -1,0 +1,65 @@
+{
+  "name" : "WebSocketTransportFormat",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Wire formats supported by the Fluxzero websocket transport.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "WebSocketTransportFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat#WebSocketTransportFormat",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat#valueOf",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat#values",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportFormat[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "CBOR",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR",
+    "annotations" : [ ],
+    "documentation" : " Jackson CBOR transport. This keeps the JSON object model but writes {@code byte[]} fields as native binary.\n"
+  }, {
+    "name" : "JSON",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat.JSON",
+    "annotations" : [ ],
+    "documentation" : " Existing JSON transport. Serialized {@code byte[]} fields are represented as base64 by Jackson.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

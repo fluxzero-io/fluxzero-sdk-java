@@ -25,7 +25,7 @@
   }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#cache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -201,7 +201,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration#relationshipsCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

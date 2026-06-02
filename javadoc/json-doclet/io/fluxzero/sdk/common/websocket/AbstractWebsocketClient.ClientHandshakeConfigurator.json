@@ -64,6 +64,17 @@
     } ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "selectedTransportFormat",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator.selectedTransportFormat",
+    "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ClientHandshakeConfigurator",

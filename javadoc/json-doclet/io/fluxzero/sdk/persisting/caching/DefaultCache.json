@@ -8,7 +8,7 @@
   "documentation" : " Default aggregate cache facade that selects the current SDK cache implementation from Fluxzero cache properties.\n <p>\n Existing applications without a defaults version or explicit {@link #MODE_PROPERTY} keep the legacy\n {@link SoftReferenceCache}. Newer applications that use Fluxzero defaults {@code >= 2026.05.25}, or set\n {@code fluxzero.cache.mode = adaptive}, use {@link AdaptiveObjectCache}.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache", "java.lang.AutoCloseable" ],
+  "interfaces" : [ "io.fluxzero.common.caching.Cache", "java.lang.AutoCloseable" ],
   "fields" : [ {
     "name" : "ADAPTIVE_DEFAULTS_VERSION",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.ADAPTIVE_DEFAULTS_VERSION",
@@ -68,7 +68,7 @@
   }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.delegate",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -167,7 +167,7 @@
       "annotations" : [ ]
     }, {
       "name" : "softReferenceCacheSupplier",
-      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -192,7 +192,7 @@
       "annotations" : [ ]
     }, {
       "name" : "softReferenceCacheSupplier",
-      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -217,7 +217,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "delegate",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -401,7 +401,7 @@
   }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#delegate",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -450,7 +450,7 @@
   }, {
     "name" : "newAdaptiveCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#newAdaptiveCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -540,7 +540,7 @@
   }, {
     "name" : "rebuild",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -563,7 +563,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "listener",
-      "type" : "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -592,7 +592,7 @@
   }, {
     "name" : "selectDelegate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#selectDelegate",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -603,7 +603,7 @@
       "annotations" : [ ]
     }, {
       "name" : "softReferenceCacheSupplier",
-      "type" : "java.util.function.Supplier<? extends io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

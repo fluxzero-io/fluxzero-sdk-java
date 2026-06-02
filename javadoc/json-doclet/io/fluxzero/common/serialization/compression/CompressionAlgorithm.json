@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n\n @see CompressionUtils\n",
+  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>\n   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n\n @see CompressionUtils\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
   "interfaces" : [ ],
@@ -64,6 +64,11 @@
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE",
     "annotations" : [ ],
     "documentation" : " No compression. Data is stored and retrieved as-is.\n"
+  }, {
+    "name" : "ZSTD",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD",
+    "annotations" : [ ],
+    "documentation" : " Zstandard compression using the Fluxzero compression header format.\n"
   } ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

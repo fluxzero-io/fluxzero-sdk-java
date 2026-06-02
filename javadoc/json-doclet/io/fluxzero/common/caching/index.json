@@ -5,6 +5,31 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "AdaptiveObjectCache.json",
+    "name" : "AdaptiveObjectCache",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache",
+    "kind" : "class"
+  }, {
+    "file" : "AdaptiveObjectCache.CacheEntry.json",
+    "name" : "AdaptiveObjectCache.CacheEntry",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache$CacheEntry",
+    "kind" : "record"
+  }, {
+    "file" : "Cache.json",
+    "name" : "Cache",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache",
+    "kind" : "interface"
+  }, {
+    "file" : "CacheEviction.json",
+    "name" : "CacheEviction",
+    "qualifiedName" : "io.fluxzero.common.caching.CacheEviction",
+    "kind" : "class"
+  }, {
+    "file" : "CacheEviction.Reason.json",
+    "name" : "CacheEviction.Reason",
+    "qualifiedName" : "io.fluxzero.common.caching.CacheEviction$Reason",
+    "kind" : "enum"
+  }, {
     "file" : "MemoryAwareCacheSupport.json",
     "name" : "MemoryAwareCacheSupport",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport",
@@ -39,6 +64,11 @@
     "name" : "MemoryPressureController.JvmMemoryPressureController",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController",
     "kind" : "class"
+  }, {
+    "file" : "NoOpCache.json",
+    "name" : "NoOpCache",
+    "qualifiedName" : "io.fluxzero.common.caching.NoOpCache",
+    "kind" : "enum"
   } ],
   "subdirectories" : [ ]
 }

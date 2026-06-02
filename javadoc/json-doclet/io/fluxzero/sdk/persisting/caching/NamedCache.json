@@ -11,11 +11,11 @@
   "documentation" : " A {@link Cache} implementation that wraps a delegate cache and applies a transformation to each key (ID) before\n delegating operations to the underlying cache.\n <p>\n This allows multiple cache users to safely share the same underlying {@code Cache} instance without risk of key\n collisions. Typical use cases include namespacing by type, context, or scope.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache" ],
+  "interfaces" : [ "io.fluxzero.common.caching.Cache" ],
   "fields" : [ {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache.delegate",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -254,7 +254,7 @@
   }, {
     "name" : "rebuild",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -277,7 +277,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "listener",
-      "type" : "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -108,7 +108,7 @@
   }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#cache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

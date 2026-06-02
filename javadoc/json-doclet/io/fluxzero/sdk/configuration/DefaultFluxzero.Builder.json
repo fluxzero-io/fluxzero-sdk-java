@@ -44,7 +44,7 @@
   }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.cache",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -324,7 +324,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.relationshipsCache",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -549,7 +549,7 @@
   }, {
     "name" : "cache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#cache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -922,7 +922,7 @@
       "annotations" : [ ]
     }, {
       "name" : "cache",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -1063,7 +1063,7 @@
   }, {
     "name" : "initialCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#initialCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -1074,7 +1074,7 @@
   }, {
     "name" : "initialRelationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#initialRelationshipsCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -1233,7 +1233,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#relationshipsCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -1256,7 +1256,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "cache",
-      "type" : "io.fluxzero.sdk.persisting.caching.@lombok.NonNull Cache",
+      "type" : "io.fluxzero.common.caching.@lombok.NonNull Cache",
       "varArgs" : false,
       "annotations" : [ {
         "annotationType" : "lombok.NonNull",
@@ -1401,7 +1401,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "replaceFunction",
-      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1515,7 +1515,7 @@
   }, {
     "name" : "resolveCache",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#resolveCache",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -1559,7 +1559,7 @@
       "annotations" : [ ]
     }, {
       "name" : "cache",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

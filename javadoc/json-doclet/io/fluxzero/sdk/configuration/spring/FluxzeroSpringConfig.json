@@ -226,7 +226,7 @@
       "annotations" : [ ]
     }, {
       "name" : "cache",
-      "type" : "java.util.Optional<io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.Optional<io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

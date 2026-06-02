@@ -460,7 +460,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "cache",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -572,7 +572,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "replaceFunction",
-      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.persisting.caching.Cache>",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.common.caching.Cache>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -689,7 +689,7 @@
       "annotations" : [ ]
     }, {
       "name" : "cache",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

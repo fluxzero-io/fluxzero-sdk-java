@@ -95,6 +95,28 @@
     "documentation" : " Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.\n",
     "constantValue" : null
   }, {
+    "name" : "maxInFlightWebSocketBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxInFlightWebSocketBytes",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxWebSocketFragmentBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxWebSocketFragmentBytes",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with\n native WebSocket continuation frames while preserving per-session ordering.\n",
+    "constantValue" : null
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.name",
     "type" : "java.lang.@lombok.NonNull String",
@@ -178,6 +200,17 @@
     "documentation" : " Ordered list of compression algorithms the client supports for websocket communication, with the preferred\n algorithm first. Should not be empty.\n",
     "constantValue" : null
   }, {
+    "name" : "supportedTransportFormats",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.supportedTransportFormats",
+    "type" : "java.util.List<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Ordered list of websocket transport formats the client supports, with the preferred format first.\n <p>\n {@link WebSocketTransportFormat#CBOR} keeps {@code byte[]} payloads as native binary values.\n {@link WebSocketTransportFormat#JSON} remains the compatibility fallback for older runtimes.\n",
+    "constantValue" : null
+  }, {
     "name" : "trackingConfigs",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.trackingConfigs",
     "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
@@ -195,6 +228,17 @@
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : " Optional type filter that restricts the types of messages tracked by this client.\n",
+    "constantValue" : null
+  }, {
+    "name" : "webSocketSendTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.webSocketSendTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum time a websocket send operation may remain incomplete before the session is considered broken.\n A non-positive value disables send timeouts.\n",
     "constantValue" : null
   } ],
   "constructors" : [ {

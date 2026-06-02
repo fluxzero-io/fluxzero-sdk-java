@@ -50,6 +50,14 @@
     "documentation" : null,
     "constantValue" : "Fluxzero-Selected-Compression-Algorithm"
   }, {
+    "name" : "SELECTED_TRANSPORT_FORMAT_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SELECTED_TRANSPORT_FORMAT_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Selected-Transport-Format"
+  }, {
     "name" : "SUPPORTED_COMPRESSION_ALGORITHMS_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_COMPRESSION_ALGORITHMS_HEADER",
     "type" : "java.lang.String",
@@ -57,6 +65,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "Fluxzero-Supported-Compression-Algorithms"
+  }, {
+    "name" : "SUPPORTED_TRANSPORT_FORMATS_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_TRANSPORT_FORMATS_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "Fluxzero-Supported-Transport-Formats"
   } ],
   "constructors" : [ {
     "name" : "WebSocketCapabilities",
@@ -85,6 +101,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Serializes the supplied compression capabilities into websocket request headers.\n\n @param supportedCompressionAlgorithms ordered list of supported compression algorithms, most preferred first\n @return websocket request headers representing the supplied capabilities\n"
+  }, {
+    "name" : "asTransportHeaders",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#asTransportHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "supportedTransportFormats",
+      "type" : "java.util.Collection<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes the supplied websocket transport formats into websocket request headers.\n\n @param supportedTransportFormats ordered list of supported transport formats, most preferred first\n @return websocket request headers representing the supplied transport capabilities\n"
   }, {
     "name" : "getClientSdkVersion",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getClientSdkVersion",
@@ -155,6 +187,22 @@
     "varArgs" : false,
     "documentation" : " Returns the most preferred compression algorithm advertised via request headers, if available.\n"
   }, {
+    "name" : "getPreferredTransportFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getPreferredTransportFormat",
+    "returnType" : "java.util.Optional<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the most preferred websocket transport format advertised via request headers, if available.\n"
+  }, {
     "name" : "getRuntimeSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeSessionId",
     "returnType" : "java.util.Optional<java.lang.String>",
@@ -203,6 +251,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getSelectedTransportFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSelectedTransportFormat",
+    "returnType" : "java.util.Optional<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getSupportedCompressionAlgorithms",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSupportedCompressionAlgorithms",
     "returnType" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
@@ -219,6 +283,22 @@
     "varArgs" : false,
     "documentation" : " Extracts the ordered list of compression algorithms from websocket request headers.\n"
   }, {
+    "name" : "getSupportedTransportFormats",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSupportedTransportFormats",
+    "returnType" : "java.util.List<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts the ordered list of websocket transport formats from websocket request headers.\n"
+  }, {
     "name" : "newShortSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#newShortSessionId",
     "returnType" : "java.lang.String",
@@ -233,6 +313,22 @@
     "name" : "parseCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#parseCompressionAlgorithm",
     "returnType" : "java.util.Optional<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseTransportFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#parseTransportFormat",
+    "returnType" : "java.util.Optional<io.fluxzero.common.websocket.WebSocketTransportFormat>",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

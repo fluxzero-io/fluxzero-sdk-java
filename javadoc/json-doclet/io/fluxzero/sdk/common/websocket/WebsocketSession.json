@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "DEFAULT_MAX_BINARY_FRAGMENT_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession.DEFAULT_MAX_BINARY_FRAGMENT_BYTES",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default upper bound for one physical WebSocket binary frame when a message is sent as fragments.\n",
+    "constantValue" : 262144
+  } ],
   "constructors" : [ ],
   "methods" : [ {
     "name" : "abort",
@@ -125,6 +133,43 @@
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
     "documentation" : " Sends one complete binary WebSocket message.\n\n @param data bytes from the buffer's current position to its limit\n @throws IOException when the frame cannot be sent\n"
+  }, {
+    "name" : "sendBinaryAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#sendBinaryAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends one complete binary WebSocket message asynchronously.\n\n <p>Implementations may override this with a non-blocking transport send. The default keeps existing test doubles\n and simple implementations working by delegating to {@link #sendBinary(ByteBuffer)}.</p>\n\n @param data bytes from the buffer's current position to its limit\n @return a future that completes when the transport accepts or fails the frame\n"
+  }, {
+    "name" : "sendBinaryAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#sendBinaryAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxFragmentBytes",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends one complete binary WebSocket message asynchronously, allowing implementations to split the message into\n WebSocket continuation frames.\n\n <p>The default delegates to {@link #sendBinaryAsync(ByteBuffer)} so existing simple implementations keep working.\n Implementations that support native WebSocket fragmentation should preserve message ordering and complete the\n returned future only after the final fragment has been accepted by the transport.</p>\n\n @param data bytes from the buffer's current position to its limit\n @param maxFragmentBytes maximum payload bytes per physical WebSocket frame; non-positive values mean no split\n @return a future that completes when the full WebSocket message has been accepted or failed\n"
   }, {
     "name" : "sendPing",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession#sendPing",

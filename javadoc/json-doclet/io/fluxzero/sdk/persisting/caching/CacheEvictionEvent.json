@@ -23,7 +23,7 @@
   }, {
     "name" : "reason",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionEvent.reason",
-    "type" : "io.fluxzero.sdk.persisting.caching.CacheEviction.Reason",
+    "type" : "io.fluxzero.common.caching.CacheEviction.Reason",
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : " The cause for the eviction.\n",

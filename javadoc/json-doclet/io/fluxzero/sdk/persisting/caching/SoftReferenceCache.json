@@ -14,7 +14,7 @@
   "documentation" : " {@link Cache} implementation using key-level synchronized access and soft references for value storage.\n <p>\n This cache is optimized for concurrent environments and provides built-in support for:\n <ul>\n     <li><strong>Automatic eviction</strong> based on max size (LRU policy)</li>\n     <li><strong>Reference-based eviction</strong> when values are no longer strongly reachable (via {@link SoftReference})</li>\n     <li><strong>Expiration</strong> after a configurable duration</li>\n     <li><strong>Eviction notification</strong> via registered {@link CacheEviction} listeners</li>\n </ul>\n\n <p>\n The cache ensures thread safety through synchronized access on its internal {@link LinkedHashMap} and per-key locking\n using {@code intern()} on a string prefix plus key combination. While this does introduce some memory overhead due to\n string interning, it ensures atomic updates for concurrent access to the same key.\n\n <p><strong>Threading:</strong> Eviction listeners and expiration polling run on background threads.\n The {@code valueMap} itself is backed by a synchronized {@link LinkedHashMap} with LRU eviction behavior.</p>\n\n @see Cache\n @see CacheEviction\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache", "java.lang.AutoCloseable" ],
+  "interfaces" : [ "io.fluxzero.common.caching.Cache", "java.lang.AutoCloseable" ],
   "fields" : [ {
     "name" : "clock",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache.clock",
@@ -26,7 +26,7 @@
   }, {
     "name" : "evictionListeners",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache.evictionListeners",
-    "type" : "java.util.Collection<java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>>",
+    "type" : "java.util.Collection<java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -472,7 +472,7 @@
   }, {
     "name" : "rebuild",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -497,7 +497,7 @@
       "annotations" : [ ]
     }, {
       "name" : "reason",
-      "type" : "io.fluxzero.sdk.persisting.caching.CacheEviction.Reason",
+      "type" : "io.fluxzero.common.caching.CacheEviction.Reason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -516,7 +516,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "listener",
-      "type" : "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

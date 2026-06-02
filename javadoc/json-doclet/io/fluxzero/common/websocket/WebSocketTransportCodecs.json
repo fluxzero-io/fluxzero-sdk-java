@@ -1,0 +1,99 @@
+{
+  "name" : "WebSocketTransportCodecs",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Factory and built-in implementations for Fluxzero websocket transport codecs.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "WebSocketTransportCodecs",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#WebSocketTransportCodecs",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cbor",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#cbor",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Jackson CBOR codec. This keeps the JSON object model but writes {@code byte[]} fields as native binary.\n"
+  }, {
+    "name" : "forFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#forFormat",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a codec for the supplied format.\n"
+  }, {
+    "name" : "json",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#json",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Existing JSON websocket codec. Jackson represents {@code byte[]} fields as base64 strings here.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "CborObjectMapper",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborObjectMapper",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CborWebSocketTransportCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "JsonWebSocketTransportCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$JsonWebSocketTransportCodec",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -5,31 +5,6 @@
     "documentation" : null
   },
   "files" : [ {
-    "file" : "AdaptiveObjectCache.json",
-    "name" : "AdaptiveObjectCache",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache",
-    "kind" : "class"
-  }, {
-    "file" : "AdaptiveObjectCache.CacheEntry.json",
-    "name" : "AdaptiveObjectCache.CacheEntry",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.AdaptiveObjectCache$CacheEntry",
-    "kind" : "record"
-  }, {
-    "file" : "Cache.json",
-    "name" : "Cache",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.Cache",
-    "kind" : "interface"
-  }, {
-    "file" : "CacheEviction.json",
-    "name" : "CacheEviction",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEviction",
-    "kind" : "class"
-  }, {
-    "file" : "CacheEviction.Reason.json",
-    "name" : "CacheEviction.Reason",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEviction$Reason",
-    "kind" : "enum"
-  }, {
     "file" : "CacheEvictionEvent.json",
     "name" : "CacheEvictionEvent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.CacheEvictionEvent",
@@ -49,11 +24,6 @@
     "name" : "NamedCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NamedCache",
     "kind" : "class"
-  }, {
-    "file" : "NoOpCache.json",
-    "name" : "NoOpCache",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.NoOpCache",
-    "kind" : "enum"
   }, {
     "file" : "SelectiveCache.json",
     "name" : "SelectiveCache",

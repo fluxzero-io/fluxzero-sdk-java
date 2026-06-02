@@ -10,6 +10,22 @@
   "superClass" : "org.eclipse.jetty.websocket.api.Session.Listener.AbstractAutoDemanding",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "binaryMessage",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.binaryMessage",
+    "type" : "java.io.ByteArrayOutputStream",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "binaryMessageLock",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.binaryMessageLock",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "endpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter.endpoint",
     "type" : "io.fluxzero.testserver.websocket.WebsocketEndpoint",
@@ -64,6 +80,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "appendBinary",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#appendBinary",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "last",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "copyBytes",
     "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#copyBytes",
     "returnType" : "byte[]",
@@ -73,30 +110,6 @@
     "parameters" : [ {
       "name" : "buffer",
       "type" : "java.nio.ByteBuffer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "onWebSocketBinary",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketBinary",
-    "returnType" : "void",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "java.nio.ByteBuffer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "callback",
-      "type" : "org.eclipse.jetty.websocket.api.Callback",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -164,6 +177,35 @@
     "parameters" : [ {
       "name" : "jettySession",
       "type" : "org.eclipse.jetty.websocket.api.Session",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "onWebSocketPartialBinary",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter#onWebSocketPartialBinary",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.nio.ByteBuffer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "last",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callback",
+      "type" : "org.eclipse.jetty.websocket.api.Callback",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

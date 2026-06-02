@@ -11,11 +11,11 @@
   "documentation" : " A {@link Cache} implementation that partitions values across two internal caches based on a provided\n {@link Predicate}.\n <p>\n If a value matches the {@code selector}, it is stored in the delegate cache; otherwise, it is stored in the\n {@code nextCache}. This is particularly useful when certain types of objects (e.g., aggregates, projections) require\n specialized caching behavior while others do not.\n\n <p><strong>Chaining:</strong> {@code SelectiveCache} instances can be chained by using another\n {@code SelectiveCache} as the {@code nextCache}. This enables complex multi-level cache routing logic, where each\n level applies a different selector to direct objects to a different backing cache.\n\n <p><strong>Example use case:</strong> Route aggregates to one cache and all other entities to a fallback cache:\n <pre>{@code\n Predicate<Object> aggregateSelector = SelectiveCache.aggregateSelector(MyAggregate.class);\n Cache aggregateCache = new AdaptiveObjectCache();\n Cache fallbackCache = new DefaultCache();\n Cache selectiveCache = new SelectiveCache(aggregateCache, aggregateSelector, fallbackCache);\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.caching.Cache" ],
+  "interfaces" : [ "io.fluxzero.common.caching.Cache" ],
   "fields" : [ {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache.delegate",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -23,7 +23,7 @@
   }, {
     "name" : "nextCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache.nextCache",
-    "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "type" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -45,7 +45,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "nextCache",
-      "type" : "io.fluxzero.sdk.persisting.caching.Cache",
+      "type" : "io.fluxzero.common.caching.Cache",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -282,7 +282,7 @@
   }, {
     "name" : "rebuild",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SelectiveCache#rebuild",
-    "returnType" : "io.fluxzero.sdk.persisting.caching.Cache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -305,7 +305,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "listener",
-      "type" : "java.util.function.Consumer<io.fluxzero.sdk.persisting.caching.CacheEviction>",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -101,6 +101,22 @@
     "varArgs" : false,
     "documentation" : " Constructs the URL for accessing the distributed key-value store service.\n\n @param clientConfig the WebSocket client configuration\n @return the complete URL for the key-value service\n"
   }, {
+    "name" : "legacyCompressionHint",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.ServiceUrlBuilder#legacyCompressionHint",
+    "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "schedulingUrl",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.ServiceUrlBuilder#schedulingUrl",
     "returnType" : "java.lang.String",
