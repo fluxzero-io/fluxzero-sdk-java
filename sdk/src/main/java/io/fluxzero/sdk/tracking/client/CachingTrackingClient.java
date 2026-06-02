@@ -39,6 +39,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
@@ -196,7 +197,9 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     private static boolean isReady(ConsumerConfiguration config, MessageBatch messageBatch) {
-        return !messageBatch.isEmpty() && messageBatch.getSize() >= config.getMaxFetchSize();
+        return !messageBatch.isEmpty() && (messageBatch.getSize() >= config.getMaxFetchSize()
+                                           || (config.getMaxFetchBytes() > 0L
+                                               && messageBatch.getBytes() >= config.getMaxFetchBytes()));
     }
 
     private static Instant waitUntil(Instant deadline, MessageBatch messageBatch) {
@@ -214,11 +217,20 @@ public class CachingTrackingClient implements TrackingClient {
         synchronized (cacheMonitor) {
             List<SerializedMessage> unfiltered = cache.tailMap(minIndex, false).values().stream().limit(
                     config.getMaxFetchSize()).collect(toList());
-            Long lastIndex = unfiltered.isEmpty() ? null : unfiltered.getLast().getIndex();
-            return new MessageBatch(claim.getSegment(), filterMessages(
-                    unfiltered, claim.getSegment(), claim.getPosition(), config), lastIndex, claim.getPosition(),
-                                    unfiltered.size() < config.getMaxFetchSize());
+            List<SerializedMessage> filtered = filterMessages(unfiltered, claim.getSegment(), claim.getPosition(),
+                                                              config);
+            List<SerializedMessage> limited = limitByCumulativeWeight(
+                    filtered, config.getMaxFetchBytes(), SerializedMessage::getBytes);
+            boolean byteLimited = limited.size() < filtered.size();
+            Long lastIndex = byteLimited ? getLastIndex(limited)
+                    : unfiltered.isEmpty() ? null : unfiltered.getLast().getIndex();
+            return new MessageBatch(claim.getSegment(), limited, lastIndex, claim.getPosition(),
+                                    !byteLimited && unfiltered.size() < config.getMaxFetchSize());
         }
+    }
+
+    private static Long getLastIndex(List<SerializedMessage> messages) {
+        return messages.isEmpty() ? null : messages.getLast().getIndex();
     }
 
 
@@ -264,8 +276,19 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     @Override
+    public List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
+        return delegate.readFromIndex(minIndex, maxSize, maxBytes);
+    }
+
+    @Override
     public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
         return delegate.readRange(minIndexInclusive, maxIndexExclusive, maxSize);
+    }
+
+    @Override
+    public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,
+                                             long maxBytes) {
+        return delegate.readRange(minIndexInclusive, maxIndexExclusive, maxSize, maxBytes);
     }
 
     @Override

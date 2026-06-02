@@ -35,6 +35,7 @@ import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
+import io.fluxzero.common.api.tracking.ReadFromIndex;
 import io.fluxzero.common.api.tracking.ReadResult;
 import org.junit.jupiter.api.Test;
 
@@ -101,7 +102,7 @@ class WebSocketTransportCodecsTest {
     @Test
     void cborRoundTripsRequestAndResultBatches() throws Exception {
         Append append = new Append(MessageType.EVENT, List.of(serializedMessage()), Guarantee.STORED);
-        Read read = new Read(MessageType.EVENT, "consumer", "tracker", 32, 100L, null,
+        Read read = new Read(MessageType.EVENT, "consumer", "tracker", 32, 4096L, 100L, null,
                              false, false, false, false, null, null);
         RequestBatch<JsonType> requestBatch = new RequestBatch<>(List.of(append, read));
 
@@ -111,6 +112,8 @@ class WebSocketTransportCodecsTest {
                      assertInstanceOf(Append.class, decodedRequests.getRequests().getFirst()).getRequestId());
         assertEquals(read.getRequestId(),
                      assertInstanceOf(Read.class, decodedRequests.getRequests().get(1)).getRequestId());
+        assertEquals(read.getMaxBytes(),
+                     assertInstanceOf(Read.class, decodedRequests.getRequests().get(1)).getMaxBytes());
 
         VoidResult voidResult = new VoidResult(append.getRequestId());
         voidResult.setRequestReceivedTimestamp(111L);
@@ -126,6 +129,23 @@ class WebSocketTransportCodecsTest {
         assertEquals(true, assertInstanceOf(BooleanResult.class, decodedResults.getResults().get(1)).isSuccess());
         assertEquals("boom", assertInstanceOf(ErrorResult.class, decodedResults.getResults().get(2)).getMessage());
         assertEquals("ok", assertInstanceOf(StringResult.class, decodedResults.getResults().get(3)).getResult());
+    }
+
+    @Test
+    void decodesReadRequestsWithoutMaxBytes() throws Exception {
+        String readJson = """
+                {"@type":"read","messageType":"EVENT","consumer":"consumer","trackerId":"tracker","maxSize":32,\
+                "maxTimeout":100,"typeFilter":null,"filterMessageTarget":false,"ignoreSegment":false,\
+                "singleTracker":false,"clientControlledIndex":false,"lastIndex":null,"purgeTimeout":null}""";
+        String readFromIndexJson = """
+                {"@type":"readFromIndex","minIndex":42,"maxSize":32}""";
+
+        Read read = assertInstanceOf(Read.class, objectMapper.readValue(readJson, JsonType.class));
+        ReadFromIndex readFromIndex = assertInstanceOf(
+                ReadFromIndex.class, objectMapper.readValue(readFromIndexJson, JsonType.class));
+
+        assertEquals(0L, read.getMaxBytes());
+        assertEquals(0L, readFromIndex.getMaxBytes());
     }
 
     @Test

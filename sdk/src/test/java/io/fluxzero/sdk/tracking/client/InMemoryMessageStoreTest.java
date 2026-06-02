@@ -48,6 +48,30 @@ class InMemoryMessageStoreTest {
     }
 
     @Test
+    void getBatchDoesNotReadPastMaxBytes() {
+        CountingStore store = new CountingStore(2);
+        store.setRetentionTime(null);
+        store.append(List.of(message(1L, "1234"), message(2L, "5678"), message(3L, "9012"))).join();
+
+        List<SerializedMessage> batch = store.getBatch(null, 10, true, 5L);
+
+        assertEquals(List.of(1L), batch.stream().map(SerializedMessage::getIndex).toList());
+        assertEquals(2, store.iteratedCount());
+    }
+
+    @Test
+    void getBatchIncludesFirstMessageWhenItExceedsMaxBytes() {
+        InMemoryMessageStore store = new InMemoryMessageStore(EVENT, Duration.ofMinutes(5));
+        store.setRetentionTime(null);
+        store.append(List.of(message(1L, "123456"), message(2L, "7890"))).join();
+
+        List<SerializedMessage> batch = store.getBatch(null, 10, true, 5L);
+
+        assertEquals(List.of(1L), batch.stream().map(SerializedMessage::getIndex).toList());
+        assertEquals(6L, batch.getFirst().getBytes());
+    }
+
+    @Test
     void getBatchRejectsNegativeMaxSize() {
         InMemoryMessageStore store = new InMemoryMessageStore(EVENT, Duration.ofMinutes(5));
 
@@ -55,8 +79,12 @@ class InMemoryMessageStoreTest {
     }
 
     private static SerializedMessage message(long index) {
+        return message(index, "event-" + index);
+    }
+
+    private static SerializedMessage message(long index, String payload) {
         SerializedMessage result = new SerializedMessage(
-                new Data<>(("event-" + index).getBytes(UTF_8), String.class.getName(), 0, "text/plain"),
+                new Data<>(payload.getBytes(UTF_8), String.class.getName(), 0, "text/plain"),
                 Metadata.empty(), "event-" + index + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
         result.setIndex(index);
         return result;

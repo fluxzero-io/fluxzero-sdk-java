@@ -45,6 +45,7 @@ public class WebSocketTracker implements Tracker {
     private final long deadline;
     private final Long purgeDelay;
     private final int maxSize;
+    private final long maxBytes;
     private final Predicate<String> typeFilter;
     private final boolean filterMessageTarget;
     @Accessors(fluent = true)
@@ -70,6 +71,7 @@ public class WebSocketTracker implements Tracker {
         this.deadline = System.currentTimeMillis() + read.getMaxTimeout();
         this.purgeDelay = read.getPurgeTimeout();
         this.maxSize = read.getMaxSize();
+        this.maxBytes = read.getMaxBytes();
         this.typeFilter = typeFilterCache.apply(read.getTypeFilter());
         this.filterMessageTarget = read.isFilterMessageTarget();
         this.ignoreSegment = read.isIgnoreSegment() || messageType == MessageType.NOTIFICATION;

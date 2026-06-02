@@ -128,6 +128,14 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     int maxFetchSize = 1024;
 
     /**
+     * Maximum serialized payload bytes to fetch per poll from the message log. A value of {@code 0} disables this
+     * limit. If a single message is larger than this limit, it may still be returned alone so tracking can make
+     * progress.
+     */
+    @Default
+    long maxFetchBytes = 0L;
+
+    /**
      * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
      * segment claim are available.
      */
@@ -378,6 +386,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .flowRegulator(asInstance(consumer.flowRegulator()))
                 .threads(consumer.threads())
                 .maxFetchSize(consumer.maxFetchSize())
+                .maxFetchBytes(consumer.maxFetchBytes())
                 .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))

@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static java.util.Arrays.asList;
 
 /**
@@ -72,6 +73,19 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
     }
 
     /**
+     * Retrieves a batch of messages starting from the given {@code lastIndex} (exclusive), limiting both message count
+     * and serialized payload bytes.
+     *
+     * @param lastIndex minimum message index to start from (exclusive)
+     * @param maxSize   maximum number of messages to retrieve
+     * @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit
+     * @return a list of {@link SerializedMessage} instances
+     */
+    default List<SerializedMessage> getBatch(Long lastIndex, int maxSize, long maxBytes) {
+        return getBatch(lastIndex, maxSize, false, maxBytes);
+    }
+
+    /**
      * Retrieves a batch of messages starting from the given {@code minIndex}.
      *
      * @param minIndex  minimum message index to start from
@@ -80,6 +94,23 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
      * @return a list of {@link SerializedMessage} instances
      */
     List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive);
+
+    /**
+     * Retrieves a batch of messages starting from the given {@code minIndex}, limiting both message count and
+     * serialized payload bytes.
+     * <p>
+     * If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make
+     * progress.
+     *
+     * @param minIndex  minimum message index to start from
+     * @param maxSize   maximum number of messages to retrieve
+     * @param inclusive whether to include the message at {@code minIndex}
+     * @param maxBytes  maximum number of serialized payload bytes to retrieve, or {@code 0} for no byte limit
+     * @return a list of {@link SerializedMessage} instances
+     */
+    default List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes) {
+        return limitByCumulativeWeight(getBatch(minIndex, maxSize, inclusive), maxBytes, SerializedMessage::getBytes);
+    }
 
     /**
      * Sets the retention period for messages. Messages older than this duration may be removed depending on

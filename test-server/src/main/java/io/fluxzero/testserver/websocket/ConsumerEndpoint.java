@@ -184,7 +184,8 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Handle
     ReadFromIndexResult handle(ReadFromIndex read) {
         return new ReadFromIndexResult(read.getRequestId(),
-                                       messageStore.getBatch(read.getMinIndex(), read.getMaxSize(), true));
+                                       messageStore.getBatch(read.getMinIndex(), read.getMaxSize(), true,
+                                                             read.getMaxBytes()));
     }
 
     @Handle

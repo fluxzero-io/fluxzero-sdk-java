@@ -42,6 +42,8 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
+
 /**
  * In-memory implementation of the {@link TrackingClient} and {@link GatewayClient} interfaces, designed for
  * local-only or test-time usage.
@@ -139,7 +141,8 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
         CompletableFuture<MessageBatch> result = new CompletableFuture<>();
         getTrackingStrategy().getBatch(
                 new WebSocketTracker(new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                                              config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
+                                              config.getMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
+                                              config.getTypeFilter(),
                                               config.filterMessageTarget(), config.ignoreSegment(),
                                               config.singleTracker(), config.clientControlledIndex(),
                                               lastIndex == null ? -1L : lastIndex,
@@ -152,14 +155,26 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
 
     @Override
     public List<SerializedMessage> readFromIndex(long minIndex, int maxSize) {
-        return messageStore.getBatch(minIndex, maxSize, true);
+        return readFromIndex(minIndex, maxSize, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
+        return messageStore.getBatch(minIndex, maxSize, true, maxBytes);
     }
 
     @Override
     public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
-        return messageStore.getBatch(minIndexInclusive, maxSize, true).stream()
-                .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
-                .toList();
+        return readRange(minIndexInclusive, maxIndexExclusive, maxSize, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,
+                                             long maxBytes) {
+        return limitByCumulativeWeight(
+                messageStore.getBatch(minIndexInclusive, maxSize, true).stream()
+                        .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
+                        .toList(), maxBytes, SerializedMessage::getBytes);
     }
 
     @Override
@@ -167,7 +182,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                                                               ConsumerConfiguration config) {
         CompletableFuture<ClaimSegmentResult> result = new CompletableFuture<>();
         Read read = new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                             config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
+                             config.getMaxFetchBytes(), config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
                              config.filterMessageTarget(), config.ignoreSegment(),
                              config.singleTracker(), config.clientControlledIndex(),
                              lastIndex == null ? -1L : lastIndex,

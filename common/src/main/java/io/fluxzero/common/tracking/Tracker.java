@@ -77,6 +77,14 @@ public interface Tracker extends Comparable<Tracker> {
     int getMaxSize();
 
     /**
+     * @return the maximum serialized payload bytes this tracker wants to consume in a single batch, or {@code 0} for
+     * no byte limit.
+     */
+    default long getMaxBytes() {
+        return 0L;
+    }
+
+    /**
      * @return the system deadline (epoch millis) by which this tracker expects a new batch. If this deadline is missed,
      * the tracker should be given an empty batch.
      */

@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
@@ -48,6 +49,7 @@ import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -230,6 +232,45 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void limitsReturnedBatchByPayloadBytes() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "accepted", 4),
+                                     message(2L, 1, "accepted", 4),
+                                     message(3L, 1, "accepted", 4)))) {
+            List<MessageBatch> received = new CopyOnWriteArrayList<>();
+            subject.getBatch(tracker("consumer", "tracker", received::add).withMaxBytes(8L),
+                             mockPositionStore());
+
+            assertEquals(1, received.size());
+            assertEquals(List.of(1L, 2L),
+                         received.getFirst().getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(8L, received.getFirst().getBytes());
+            assertEquals(2L, received.getFirst().getLastIndex());
+            assertFalse(received.getFirst().isCaughtUp());
+        }
+    }
+
+    @Test
+    void returnsOversizedFirstMessageWhenPayloadByteLimitIsSmaller() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "accepted", 12),
+                                     message(2L, 1, "accepted", 4)))) {
+            List<MessageBatch> received = new CopyOnWriteArrayList<>();
+            subject.getBatch(tracker("consumer", "tracker", received::add).withMaxBytes(8L),
+                             mockPositionStore());
+
+            assertEquals(1, received.size());
+            assertEquals(List.of(1L),
+                         received.getFirst().getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(12L, received.getFirst().getBytes());
+            assertEquals(1L, received.getFirst().getLastIndex());
+            assertFalse(received.getFirst().isCaughtUp());
+        }
+    }
+
+    @Test
     void wakesWaitingClaimWhenClusterChanges() {
         TestScheduler scheduler = new TestScheduler();
         TestStrategy subject = new TestStrategy(mockSource(), scheduler);
@@ -326,8 +367,14 @@ class DefaultTrackingStrategyTest {
         return result;
     }
 
+    private static SerializedMessage message(long index, int segment, String type, int bytes) {
+        SerializedMessage result = message(index, segment, type);
+        result.setData(new Data<>(new byte[bytes], type, 0, "application/octet-stream"));
+        return result;
+    }
+
     private static TestTracker tracker(String consumer, String trackerId, Consumer<MessageBatch> consumerHandler) {
-        return new TestTracker(consumer, trackerId, consumerHandler, s -> true, 1024,
+        return new TestTracker(consumer, trackerId, consumerHandler, s -> true, 1024, 0L,
                                System.currentTimeMillis() + 6000, 6000, 0L);
     }
 
@@ -477,35 +524,42 @@ class DefaultTrackingStrategyTest {
         private final Consumer<MessageBatch> consumerHandler;
         private final Predicate<String> typeFilter;
         private final int maxSize;
+        private final long maxBytes;
         private final long deadline;
         private final long maxTimeout;
         private final Long lastTrackerIndex;
 
         TestTracker(String consumerName, String trackerId, Consumer<MessageBatch> consumerHandler,
-                    Predicate<String> typeFilter, int maxSize, long deadline, long maxTimeout,
+                    Predicate<String> typeFilter, int maxSize, long maxBytes, long deadline, long maxTimeout,
                     Long lastTrackerIndex) {
             this.consumerName = consumerName;
             this.trackerId = trackerId;
             this.consumerHandler = consumerHandler;
             this.typeFilter = typeFilter;
             this.maxSize = maxSize;
+            this.maxBytes = maxBytes;
             this.deadline = deadline;
             this.maxTimeout = maxTimeout;
             this.lastTrackerIndex = lastTrackerIndex;
         }
 
         TestTracker withTypeFilter(Predicate<String> typeFilter) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
         TestTracker withDeadline(long deadline) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
         TestTracker withMaxTimeout(long maxTimeout) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, maxBytes, deadline,
+                                   maxTimeout, lastTrackerIndex);
+        }
+
+        TestTracker withMaxBytes(long maxBytes) {
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
@@ -532,6 +586,11 @@ class DefaultTrackingStrategyTest {
         @Override
         public int getMaxSize() {
             return maxSize;
+        }
+
+        @Override
+        public long getMaxBytes() {
+            return maxBytes;
         }
 
         @Override
@@ -571,7 +630,7 @@ class DefaultTrackingStrategyTest {
 
         @Override
         public Tracker withLastTrackerIndex(Long lastTrackerIndex) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 

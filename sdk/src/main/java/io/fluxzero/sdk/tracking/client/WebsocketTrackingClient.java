@@ -81,7 +81,8 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                                                 ConsumerConfiguration configuration) {
         return this.<ReadResult>send(new Read(messageType,
                         configuration.getName(), trackerId, configuration.getMaxFetchSize(),
-                        configuration.getMaxWaitDuration().toMillis(), configuration.getTypeFilter(),
+                        configuration.getMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
+                        configuration.getTypeFilter(),
                         configuration.filterMessageTarget(), configuration.ignoreSegment(),
                         configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
                         Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
@@ -98,7 +99,12 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public List<SerializedMessage> readFromIndex(long minIndex, int maxSize) {
-        ReadFromIndexResult result = sendAndWait(new ReadFromIndex(minIndex, maxSize));
+        return readFromIndex(minIndex, maxSize, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
+        ReadFromIndexResult result = sendAndWait(new ReadFromIndex(minIndex, maxSize, maxBytes));
         return result.getMessages();
     }
 

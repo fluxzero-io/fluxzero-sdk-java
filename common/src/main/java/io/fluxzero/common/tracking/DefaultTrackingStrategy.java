@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
@@ -139,8 +140,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                     }
                 }
             } else {
-                MessageBatch messageBatch = new MessageBatch(newSegment, filtered, getLastIndex(unfiltered), position,
-                                                             unfiltered.size() < batchSize);
+                List<SerializedMessage> limited = limitByCumulativeWeight(
+                        filtered, tracker.getMaxBytes(), SerializedMessage::getBytes);
+                boolean byteLimited = limited.size() < filtered.size();
+                MessageBatch messageBatch = new MessageBatch(
+                        newSegment, limited, byteLimited ? getLastIndex(limited) : getLastIndex(unfiltered), position,
+                        !byteLimited && unfiltered.size() < batchSize);
                 tracker.send(messageBatch);
             }
         } catch (Throwable e) {

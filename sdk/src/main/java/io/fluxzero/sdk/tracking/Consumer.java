@@ -95,6 +95,11 @@ public @interface Consumer {
     int maxFetchSize() default 1024;
 
     /**
+     * Maximum serialized payload bytes to fetch in a batch. A value of {@code 0} disables this limit.
+     */
+    long maxFetchBytes() default 0L;
+
+    /**
      * Maximum time to wait before fetching a new batch, when none are available. See {@link #durationUnit()} for the
      * time unit. Default is {@code 60} (seconds).
      */

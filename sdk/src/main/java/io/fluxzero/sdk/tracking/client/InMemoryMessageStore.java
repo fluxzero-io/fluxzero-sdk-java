@@ -115,6 +115,11 @@ public class InMemoryMessageStore implements MessageStore {
 
     @Override
     public List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive) {
+        return getBatch(minIndex, maxSize, inclusive, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("maxSize must be non-negative");
         }
@@ -124,8 +129,13 @@ public class InMemoryMessageStore implements MessageStore {
         Collection<SerializedMessage> messages = filterMessages(messageLog.tailMap(
                 Optional.ofNullable(minIndex).map(i -> inclusive ? i : i + 1L).orElse(-1L)).values());
         ArrayList<SerializedMessage> result = new ArrayList<>(Math.min(maxSize, 1024));
+        long bytes = 0L;
         for (SerializedMessage message : messages) {
+            if (maxBytes > 0L && !result.isEmpty() && bytes + message.getBytes() > maxBytes) {
+                break;
+            }
             result.add(message);
+            bytes += message.getBytes();
             if (result.size() == maxSize) {
                 break;
             }

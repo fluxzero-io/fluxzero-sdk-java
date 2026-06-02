@@ -20,6 +20,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 import lombok.experimental.NonFinal;
 
+import java.beans.ConstructorProperties;
+
 /**
  * Command to read a batch of messages from the Fluxzero Runtime for a given consumer and tracker.
  * <p>
@@ -50,6 +52,11 @@ public class Read extends Request {
      * Maximum number of messages to return in a single batch.
      */
     int maxSize;
+
+    /**
+     * Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.
+     */
+    long maxBytes;
 
     /**
      * Maximum time to wait for new messages, in milliseconds. A value of {@code 0} returns immediately.
@@ -92,6 +99,34 @@ public class Read extends Request {
      * Optional timeout (in milliseconds) after which the tracker is purged if inactive.
      */
     Long purgeTimeout;
+
+    @ConstructorProperties({"messageType", "consumer", "trackerId", "maxSize", "maxBytes", "maxTimeout",
+            "typeFilter", "filterMessageTarget", "ignoreSegment", "singleTracker", "clientControlledIndex",
+            "lastIndex", "purgeTimeout"})
+    public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
+                long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
+                boolean singleTracker, boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+        this.messageType = messageType;
+        this.consumer = consumer;
+        this.trackerId = trackerId;
+        this.maxSize = maxSize;
+        this.maxBytes = maxBytes;
+        this.maxTimeout = maxTimeout;
+        this.typeFilter = typeFilter;
+        this.filterMessageTarget = filterMessageTarget;
+        this.ignoreSegment = ignoreSegment;
+        this.singleTracker = singleTracker;
+        this.clientControlledIndex = clientControlledIndex;
+        this.lastIndex = lastIndex;
+        this.purgeTimeout = purgeTimeout;
+    }
+
+    public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxTimeout,
+                String typeFilter, boolean filterMessageTarget, boolean ignoreSegment, boolean singleTracker,
+                boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+        this(messageType, consumer, trackerId, maxSize, 0L, maxTimeout, typeFilter, filterMessageTarget,
+             ignoreSegment, singleTracker, clientControlledIndex, lastIndex, purgeTimeout);
+    }
 
     /**
      * @return {@code true} if messages should not be filtered by target client/tracker ID. This is the inverse of
