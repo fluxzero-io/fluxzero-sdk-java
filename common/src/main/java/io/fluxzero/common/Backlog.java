@@ -67,6 +67,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Slf4j
 public class Backlog<T> implements Monitored<List<T>> {
 
+    private static final int MAX_INITIAL_BATCH_CAPACITY = 1024;
+
     private final int maxBatchSize;
     private final Queue<T> queue = new ConcurrentLinkedQueue<>();
     private final ThrowingFunction<List<T>, CompletableFuture<?>> consumer;
@@ -216,7 +218,7 @@ public class Backlog<T> implements Monitored<List<T>> {
     private void flush() {
         try {
             while (!queue.isEmpty()) {
-                List<T> batch = new ArrayList<>(maxBatchSize);
+                List<T> batch = new ArrayList<>(initialBatchCapacity(maxBatchSize));
                 while (batch.size() < maxBatchSize) {
                     T value = queue.poll();
                     if (value == null) {
@@ -264,6 +266,10 @@ public class Backlog<T> implements Monitored<List<T>> {
             errorHandler.handleError(e, batch);
             completeResults(lastPosition, e);
         }
+    }
+
+    static int initialBatchCapacity(int maxBatchSize) {
+        return Math.min(maxBatchSize, MAX_INITIAL_BATCH_CAPACITY);
     }
 
     protected void completeResults(long untilPosition, Throwable e) {
