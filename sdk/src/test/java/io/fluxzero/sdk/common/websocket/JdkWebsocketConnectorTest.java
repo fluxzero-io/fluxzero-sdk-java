@@ -23,21 +23,29 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.InetAddress;
+import java.net.ProxySelector;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,6 +53,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,6 +166,87 @@ class JdkWebsocketConnectorTest {
             assertEquals("custom-websocket-executor", endpoint.openThreadName.get());
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void connectorDerivesJdkHttpClientOnlyOnceAcrossConnections() throws Exception {
+        CountingHttpClient httpClient = new CountingHttpClient();
+        JdkWebsocketConnector connector = new JdkWebsocketConnector(httpClient);
+        List<TestWebSocketServer> servers = new ArrayList<>();
+        List<WebsocketSession> sessions = new ArrayList<>();
+        int configurationReadsAfterConstruction = httpClient.configurationReads();
+        try {
+            for (int i = 0; i < 4; i++) {
+                String runtimeSessionId = "runtime" + i;
+                TestWebSocketServer server = TestWebSocketServer.start(runtimeSessionId);
+                servers.add(server);
+
+                WebsocketSession session = connector.connect(new RecordingEndpoint(), null, server.uri());
+                sessions.add(session);
+
+                assertEquals(runtimeSessionId,
+                             WebSocketCapabilities.getRuntimeSessionId(
+                                     session.getHandshakeResponseHeaders()).orElseThrow());
+            }
+
+            assertEquals(configurationReadsAfterConstruction, httpClient.configurationReads(),
+                         "Base HttpClient configuration should not be recopied for every websocket connection");
+        } finally {
+            WebsocketCloseReason closeReason =
+                    new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete");
+            sessions.forEach(session -> session.abort(closeReason));
+            for (TestWebSocketServer server : servers) {
+                server.close();
+            }
+        }
+    }
+
+    @Test
+    void parallelConnectsCaptureHandshakeHeadersForOverlappingHandshakes() throws Exception {
+        int connectionCount = 4;
+        JdkWebsocketConnector connector = new JdkWebsocketConnector();
+        ExecutorService connectExecutor = Executors.newFixedThreadPool(connectionCount);
+        CountDownLatch requestsRead = new CountDownLatch(connectionCount);
+        CountDownLatch releaseResponses = new CountDownLatch(1);
+        List<TestWebSocketServer> servers = new ArrayList<>();
+        List<CompletableFuture<WebsocketSession>> connections = new ArrayList<>();
+        List<WebsocketSession> sessions = new ArrayList<>();
+        try {
+            for (int i = 0; i < connectionCount; i++) {
+                TestWebSocketServer server =
+                        TestWebSocketServer.startDelayed("parallel-runtime" + i, requestsRead, releaseResponses);
+                servers.add(server);
+                connections.add(CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return connector.connect(new RecordingEndpoint(), null, server.uri());
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
+                }, connectExecutor));
+            }
+
+            assertTrue(requestsRead.await(5, TimeUnit.SECONDS),
+                       "Timed out waiting for overlapping websocket handshakes");
+            releaseResponses.countDown();
+
+            for (int i = 0; i < connectionCount; i++) {
+                WebsocketSession session = connections.get(i).get(5, TimeUnit.SECONDS);
+                sessions.add(session);
+                assertEquals("parallel-runtime" + i,
+                             WebSocketCapabilities.getRuntimeSessionId(
+                                     session.getHandshakeResponseHeaders()).orElseThrow());
+            }
+        } finally {
+            releaseResponses.countDown();
+            WebsocketCloseReason closeReason =
+                    new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete");
+            sessions.forEach(session -> session.abort(closeReason));
+            connections.forEach(connection -> connection.cancel(true));
+            connectExecutor.shutdownNow();
+            for (TestWebSocketServer server : servers) {
+                server.close();
+            }
         }
     }
 
@@ -419,6 +510,91 @@ class JdkWebsocketConnectorTest {
         }
     }
 
+    private static class CountingHttpClient extends HttpClient {
+        private final AtomicInteger configurationReads = new AtomicInteger();
+        private final SSLContext sslContext;
+
+        private CountingHttpClient() throws Exception {
+            this.sslContext = SSLContext.getDefault();
+        }
+
+        private int configurationReads() {
+            return configurationReads.get();
+        }
+
+        @Override
+        public Optional<CookieHandler> cookieHandler() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Duration> connectTimeout() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Redirect followRedirects() {
+            configurationReads.incrementAndGet();
+            return Redirect.NEVER;
+        }
+
+        @Override
+        public Optional<ProxySelector> proxy() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public SSLContext sslContext() {
+            configurationReads.incrementAndGet();
+            return sslContext;
+        }
+
+        @Override
+        public SSLParameters sslParameters() {
+            configurationReads.incrementAndGet();
+            return new SSLParameters();
+        }
+
+        @Override
+        public Optional<Authenticator> authenticator() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Version version() {
+            configurationReads.incrementAndGet();
+            return Version.HTTP_1_1;
+        }
+
+        @Override
+        public Optional<java.util.concurrent.Executor> executor() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(
+                HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(
+                HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler,
+                HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     private record Frame(boolean fin, int opcode, byte[] payload) {
         private Frame(int opcode, byte[] payload) {
             this(true, opcode, payload);
@@ -444,6 +620,15 @@ class JdkWebsocketConnectorTest {
 
         static TestWebSocketServer start() throws IOException {
             return start(new SuccessfulHandshake());
+        }
+
+        static TestWebSocketServer start(String runtimeSessionId) throws IOException {
+            return start(new SuccessfulHandshake(runtimeSessionId));
+        }
+
+        static TestWebSocketServer startDelayed(String runtimeSessionId, CountDownLatch requestsRead,
+                                                CountDownLatch releaseResponses) throws IOException {
+            return start(new DelayedSuccessfulHandshake(runtimeSessionId, requestsRead, releaseResponses));
         }
 
         static TestWebSocketServer startRejected(int statusCode) throws IOException {
@@ -564,6 +749,16 @@ class JdkWebsocketConnectorTest {
         }
 
         private static class SuccessfulHandshake implements Handshake {
+            private final String runtimeSessionId;
+
+            private SuccessfulHandshake() {
+                this("runtime123");
+            }
+
+            private SuccessfulHandshake(String runtimeSessionId) {
+                this.runtimeSessionId = runtimeSessionId;
+            }
+
             @Override
             public void write(OutputStream output, Map<String, List<String>> requestHeaders) throws Exception {
                 String key = requestHeaders.get("Sec-WebSocket-Key").getFirst();
@@ -572,13 +767,33 @@ class JdkWebsocketConnectorTest {
                         Upgrade: websocket\r
                         Connection: Upgrade\r
                         Sec-WebSocket-Accept: %s\r
-                        Fluxzero-Runtime-Session-Id: runtime123\r
+                        Fluxzero-Runtime-Session-Id: %s\r
                         Fluxzero-Runtime-Version: 9.8.7\r
                         Fluxzero-Selected-Compression-Algorithm: GZIP\r
                         \r
-                        """.formatted(acceptKey(key));
+                        """.formatted(acceptKey(key), runtimeSessionId);
                 output.write(response.getBytes(StandardCharsets.US_ASCII));
                 output.flush();
+            }
+        }
+
+        private static class DelayedSuccessfulHandshake extends SuccessfulHandshake {
+            private final CountDownLatch requestsRead;
+            private final CountDownLatch releaseResponses;
+
+            private DelayedSuccessfulHandshake(String runtimeSessionId, CountDownLatch requestsRead,
+                                               CountDownLatch releaseResponses) {
+                super(runtimeSessionId);
+                this.requestsRead = requestsRead;
+                this.releaseResponses = releaseResponses;
+            }
+
+            @Override
+            public void write(OutputStream output, Map<String, List<String>> requestHeaders) throws Exception {
+                requestsRead.countDown();
+                assertTrue(releaseResponses.await(5, TimeUnit.SECONDS),
+                           "Timed out waiting to release websocket handshake response");
+                super.write(output, requestHeaders);
             }
         }
 
