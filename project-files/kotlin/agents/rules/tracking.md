@@ -30,6 +30,9 @@ A **Consumer** is a logical group of message handlers that process messages from
 Annotate your handler class or `package-info.java` with `@Consumer` to define processing behavior:
 
 - **threads**: The number of concurrent trackers (threads) assigned to this consumer.
+- **maxFetchBytes**: The serialized payload byte limit per fetch. The default is 104857600 bytes (100 MiB); set
+  `fluxzero.tracking.maxFetchBytes` to change the global default, omit the value or set `maxFetchBytes = -1` to inherit
+  it, or set `maxFetchBytes = 0` to disable the byte limit for a specific consumer.
 - **singleTracker = true**: Ensures strict global ordering by assigning all segments to a single thread.
 - **ignoreSegment = true**: Used for custom sharding or global processing where segment-based ordering is not required.
     - **Client-side filtering**: Combine this with `@RoutingKey("propertyX")` on the handler method to perform filtering

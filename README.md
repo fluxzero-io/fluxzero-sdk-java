@@ -548,7 +548,7 @@ You can tune the behavior using additional attributes on the @Consumer annotatio
 
 ```java
 
-@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100)
+@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100, maxFetchBytes = 104_857_600)
 class MyHandler {
     @HandleCommand
     void handle(SomeCommand command) {
@@ -559,16 +559,25 @@ class MyHandler {
 
 - threads = 2: Two threads per application instance will fetch commands.
 - maxFetchSize = 100: Up to 100 messages fetched per request, helping apply backpressure.
+- maxFetchBytes = 104_857_600: Up to 100 MiB of serialized payload bytes fetched per request. Set `0` to disable the
+  byte limit. Omit it, or set `-1`, to inherit the global default.
 
 Each thread runs a **tracker**. If you deploy the app multiple times, Flux automatically load-balances messages across
 all available trackers.
 
+You can set the global default with:
+
+```properties
+fluxzero.tracking.maxFetchBytes=104857600
+```
+
 ### Default Consumer Settings
 
-| Setting      | Default Value |
-|--------------|---------------|
-| threads      | 1             |
-| maxFetchSize | 1024          |
+| Setting       | Default Value             |
+|---------------|---------------------------|
+| threads       | 1                         |
+| maxFetchSize  | 1024                      |
+| maxFetchBytes | -1 (inherits 104857600 bytes / 100 MiB) |
 
 These defaults are sufficient for most scenarios. You can always override them for improved performance or control.
 

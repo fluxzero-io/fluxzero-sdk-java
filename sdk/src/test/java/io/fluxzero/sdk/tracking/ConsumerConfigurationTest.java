@@ -38,6 +38,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,6 +48,91 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class ConsumerConfigurationTest {
     private final Clock nowClock = Clock.fixed(Instant.parse("2022-01-01T00:00:00.000Z"), ZoneId.systemDefault());
     private static final List<String> invocationOrder = new CopyOnWriteArrayList<>();
+
+    @Test
+    void builderDefaultsMaxFetchBytesToHealthyLimit() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("default").build();
+
+        assertEquals(ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES, config.getMaxFetchBytes());
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES, config.effectiveMaxFetchBytes());
+    }
+
+    @Test
+    void builderDefaultMaxFetchBytesCanBeConfiguredByProperty() {
+        long maxFetchBytes = callWithSystemProperties(
+                () -> ConsumerConfiguration.builder().name("configured").build().effectiveMaxFetchBytes(),
+                ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096");
+
+        assertEquals(4096L, maxFetchBytes);
+    }
+
+    @Test
+    void explicitZeroMaxFetchBytesStillDisablesLimit() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("unbounded")
+                .maxFetchBytes(0L)
+                .build();
+
+        assertEquals(0L, config.getMaxFetchBytes());
+        assertEquals(0L, callWithSystemProperties(config::effectiveMaxFetchBytes,
+                                                  ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096"));
+    }
+
+    @Test
+    void explicitDefaultMaxFetchBytesStillOverridesProperty() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("explicit-default")
+                .maxFetchBytes(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES)
+                .build();
+
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES, config.getMaxFetchBytes());
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES,
+                     callWithSystemProperties(config::effectiveMaxFetchBytes,
+                                              ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096"));
+    }
+
+    @Test
+    void consumerAnnotationDefaultsMaxFetchBytesToHealthyLimit() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                List.of(DefaultFetchBytesConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES, config.getMaxFetchBytes());
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES, config.effectiveMaxFetchBytes());
+    }
+
+    @Test
+    void consumerAnnotationDefaultMaxFetchBytesCanBeConfiguredByProperty() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                        List.of(DefaultFetchBytesConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(4096L, callWithSystemProperties(config::effectiveMaxFetchBytes,
+                                                     ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096"));
+    }
+
+    @Test
+    void consumerAnnotationExplicitDefaultMaxFetchBytesStillOverridesProperty() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                        List.of(ExplicitDefaultFetchBytesConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES, config.getMaxFetchBytes());
+        assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES,
+                     callWithSystemProperties(config::effectiveMaxFetchBytes,
+                                              ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096"));
+    }
+
+    @Test
+    void maxFetchBytesPropertyRejectsNegativeValue() {
+        assertThrows(IllegalArgumentException.class, () -> callWithSystemProperties(
+                () -> ConsumerConfiguration.builder().name("configured").build().effectiveMaxFetchBytes(),
+                ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "-1"));
+    }
+
+    @Test
+    void explicitMaxFetchBytesRejectsNegativeValuesOtherThanDefaultSentinel() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("invalid").maxFetchBytes(-2L).build();
+
+        assertThrows(IllegalArgumentException.class, config::effectiveMaxFetchBytes);
+    }
 
     @Test
     void nonExclusiveConsumerLetsHandlerThrough() {
@@ -382,6 +468,15 @@ public class ConsumerConfigurationTest {
             Fluxzero.publishEvent("annotated-dispatch");
             return "annotated-dispatch";
         }
+    }
+
+    @Consumer(name = "default-fetch-bytes")
+    static class DefaultFetchBytesConsumer {
+    }
+
+    @Consumer(name = "explicit-default-fetch-bytes",
+            maxFetchBytes = ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES)
+    static class ExplicitDefaultFetchBytesConsumer {
     }
 
     @Order(10)

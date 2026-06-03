@@ -25,6 +25,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Singular;
 import lombok.Value;
@@ -81,6 +82,23 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     public static final String DEFAULT_APP_CONSUMER_MODE = "defaultAppConsumer";
 
     /**
+     * Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default
+     * with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
+     */
+    public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
+
+    /**
+     * Default serialized payload byte limit per tracking fetch.
+     */
+    public static final long DEFAULT_MAX_FETCH_BYTES = 100L * 1024L * 1024L;
+
+    /**
+     * Sentinel value for consumers that inherit the configured default max fetch byte limit. This value is resolved
+     * before read requests are sent.
+     */
+    public static final long USE_DEFAULT_MAX_FETCH_BYTES = -1L;
+
+    /**
      * Unique name for the consumer. Used for tracking and identifying its state.
      */
     @NonNull
@@ -128,12 +146,25 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     int maxFetchSize = 1024;
 
     /**
-     * Maximum serialized payload bytes to fetch per poll from the message log. A value of {@code 0} disables this
-     * limit. If a single message is larger than this limit, it may still be returned alone so tracking can make
-     * progress.
+     * Maximum serialized payload bytes to fetch per poll from the message log.
+     * <p>
+     * The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,
+     * otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is
+     * larger than this limit, it may still be returned alone so tracking can make progress.
      */
     @Default
-    long maxFetchBytes = 0L;
+    long maxFetchBytes = USE_DEFAULT_MAX_FETCH_BYTES;
+
+    /**
+     * Effective byte limit used for read requests.
+     */
+    @Getter(lazy = true)
+    @Accessors(fluent = true)
+    @EqualsAndHashCode.Exclude
+    long effectiveMaxFetchBytes = requireNonNegativeMaxFetchBytes(
+            maxFetchBytes == USE_DEFAULT_MAX_FETCH_BYTES
+                    ? ApplicationProperties.getLongProperty(MAX_FETCH_BYTES_PROPERTY, DEFAULT_MAX_FETCH_BYTES)
+                    : maxFetchBytes);
 
     /**
      * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
@@ -306,6 +337,15 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .namespace(ApplicationProperties.substituteProperties(namespace))
                 .typeFilter(ApplicationProperties.substituteProperties(typeFilter))
                 .build();
+    }
+
+    private static long requireNonNegativeMaxFetchBytes(long value) {
+        if (value < 0L) {
+            throw new IllegalArgumentException(
+                    "`maxFetchBytes` must be greater than or equal to 0 after resolving `%s`, but found `%s`."
+                            .formatted(MAX_FETCH_BYTES_PROPERTY, value));
+        }
+        return value;
     }
 
     /**

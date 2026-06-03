@@ -197,9 +197,10 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     private static boolean isReady(ConsumerConfiguration config, MessageBatch messageBatch) {
+        long maxFetchBytes = config.effectiveMaxFetchBytes();
         return !messageBatch.isEmpty() && (messageBatch.getSize() >= config.getMaxFetchSize()
-                                           || (config.getMaxFetchBytes() > 0L
-                                               && messageBatch.getBytes() >= config.getMaxFetchBytes()));
+                                           || (maxFetchBytes > 0L
+                                               && messageBatch.getBytes() >= maxFetchBytes));
     }
 
     private static Instant waitUntil(Instant deadline, MessageBatch messageBatch) {
@@ -216,7 +217,7 @@ public class CachingTrackingClient implements TrackingClient {
     protected MessageBatch getMessageBatch(ConsumerConfiguration config, long minIndex, ClaimSegmentResult claim) {
         synchronized (cacheMonitor) {
             MessageStoreBatch batch = MessageStoreBatch.scan(
-                    cache.tailMap(minIndex, false).values(), config.getMaxFetchSize(), config.getMaxFetchBytes(),
+                    cache.tailMap(minIndex, false).values(), config.getMaxFetchSize(), config.effectiveMaxFetchBytes(),
                     filterPredicate(claim.getSegment(), claim.getPosition(), config));
             Long lastIndex = batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex();
             return new MessageBatch(claim.getSegment(), batch.messages(), lastIndex, claim.getPosition(),

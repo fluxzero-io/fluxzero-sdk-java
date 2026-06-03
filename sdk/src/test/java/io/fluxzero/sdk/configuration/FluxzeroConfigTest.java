@@ -73,6 +73,50 @@ public class FluxzeroConfigTest {
     }
 
     @Test
+    void defaultMaxFetchBytesCanBeConfiguredByPropertySource() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .addConsumerConfiguration(ConsumerConfiguration.builder().name("custom").build(), COMMAND)
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertEquals(ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES,
+                         fluxzero.configuration().defaultConsumerConfigurations()
+                                 .get(COMMAND).getMaxFetchBytes());
+            assertEquals(ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES,
+                         fluxzero.configuration().customConsumerConfigurations()
+                                 .get(COMMAND).getFirst().getMaxFetchBytes());
+            long defaultMaxFetchBytes = fluxzero.apply(fc -> fc.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).effectiveMaxFetchBytes());
+            long customMaxFetchBytes = fluxzero.apply(fc -> fc.configuration().customConsumerConfigurations()
+                    .get(COMMAND).getFirst().effectiveMaxFetchBytes());
+            assertEquals(4096L, defaultMaxFetchBytes);
+            assertEquals(4096L, customMaxFetchBytes);
+        }
+    }
+
+    @Test
+    void explicitMaxFetchBytesOverridesPropertySourceDefault() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .configureDefaultConsumer(COMMAND, c -> c.toBuilder().maxFetchBytes(0L).build())
+                .addConsumerConfiguration(
+                        ConsumerConfiguration.builder().name("custom").maxFetchBytes(8192L).build(), COMMAND)
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY, "4096")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertEquals(0L, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getMaxFetchBytes());
+            assertEquals(8192L, fluxzero.configuration().customConsumerConfigurations()
+                    .get(COMMAND).getFirst().getMaxFetchBytes());
+            long defaultMaxFetchBytes = fluxzero.apply(fc -> fc.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).effectiveMaxFetchBytes());
+            long customMaxFetchBytes = fluxzero.apply(fc -> fc.configuration().customConsumerConfigurations()
+                    .get(COMMAND).getFirst().effectiveMaxFetchBytes());
+            assertEquals(0L, defaultMaxFetchBytes);
+            assertEquals(8192L, customMaxFetchBytes);
+        }
+    }
+
+    @Test
     void compatibilityDefaultsUseSoftReferenceCache() {
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .replacePropertySource(existing -> new SimplePropertySource(Map.of()))

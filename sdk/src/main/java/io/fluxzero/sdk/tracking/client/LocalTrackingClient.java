@@ -139,7 +139,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
         CompletableFuture<MessageBatch> result = new CompletableFuture<>();
         getTrackingStrategy().getBatch(
                 new WebSocketTracker(new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                                              config.getMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
+                                              config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
                                               config.getTypeFilter(),
                                               config.filterMessageTarget(), config.ignoreSegment(),
                                               config.singleTracker(), config.clientControlledIndex(),
@@ -179,7 +179,8 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                                                               ConsumerConfiguration config) {
         CompletableFuture<ClaimSegmentResult> result = new CompletableFuture<>();
         Read read = new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                             config.getMaxFetchBytes(), config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
+                             config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
+                             config.getTypeFilter(),
                              config.filterMessageTarget(), config.ignoreSegment(),
                              config.singleTracker(), config.clientControlledIndex(),
                              lastIndex == null ? -1L : lastIndex,

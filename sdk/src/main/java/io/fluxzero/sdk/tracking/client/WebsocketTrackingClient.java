@@ -81,7 +81,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                                                 ConsumerConfiguration configuration) {
         return this.<ReadResult>send(new Read(messageType,
                         configuration.getName(), trackerId, configuration.getMaxFetchSize(),
-                        configuration.getMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
+                        configuration.effectiveMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
                         configuration.getTypeFilter(),
                         configuration.filterMessageTarget(), configuration.ignoreSegment(),
                         configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
