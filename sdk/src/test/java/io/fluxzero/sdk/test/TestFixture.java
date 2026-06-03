@@ -31,6 +31,7 @@ import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
@@ -43,9 +44,11 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Order;
+import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Downcast;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -65,10 +68,12 @@ import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.TrackingException;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
+import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
@@ -82,21 +87,30 @@ import lombok.SneakyThrows;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.net.HttpCookie;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -133,6 +147,7 @@ import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.empty;
 
@@ -329,6 +344,8 @@ public class TestFixture implements Given<TestFixture>, When {
 
     public static Duration defaultResultTimeout = Duration.ofSeconds(2L);
     public static Duration defaultConsumerTimeout = Duration.ofSeconds(5L);
+    private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     @Getter
     private final Fluxzero fluxzero;
@@ -345,6 +362,9 @@ public class TestFixture implements Given<TestFixture>, When {
     private Registration registration = Registration.noOp();
 
     private final Map<ActiveConsumer, List<Message>> consumers = new ConcurrentHashMap<>();
+    private final Map<HandlerConsumerKey, Set<ConsumerIdentity>> handlerConsumers = new ConcurrentHashMap<>();
+    private final Set<String> requestDispatches = ConcurrentHashMap.newKeySet();
+    private final ThreadLocal<Deque<ActiveHandler>> activeHandlers = ThreadLocal.withInitial(ArrayDeque::new);
 
     private FixtureResult fixtureResult = new FixtureResult();
 
@@ -580,6 +600,9 @@ public class TestFixture implements Given<TestFixture>, When {
             handlers.stream().map(this::handlerType)
                     .filter(ClientUtils::isSelfTracking)
                     .forEach(registeredTrackSelfHandlers::add);
+            if (fixture.synchronous) {
+                fixture.rememberConsumerAssignments(handlers);
+            }
             if (!fixture.synchronous) {
                 fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
                 return;
@@ -620,6 +643,211 @@ public class TestFixture implements Given<TestFixture>, When {
     private Class<?> handlerType(Object handler) {
         return ifClass(handler) instanceof Class<?> handlerClass ? handlerClass : handler instanceof Handler<?> h
                 ? h.getTargetClass() : handler.getClass();
+    }
+
+    private void rememberConsumerAssignments(List<?> handlers) {
+        Arrays.stream(MessageType.values()).forEach(messageType -> assignHandlersToConsumers(messageType, handlers)
+                .forEach((configuration, assignedHandlers) -> assignedHandlers.forEach(handler -> {
+                    Class<?> handlerType = handlerType(handler);
+                    trackingTopics(messageType, handlerType).forEach(topic -> handlerConsumers
+                            .computeIfAbsent(new HandlerConsumerKey(handlerType, messageType),
+                                             ignored -> ConcurrentHashMap.newKeySet())
+                            .add(new ConsumerIdentity(configuration.getName(), configuration.getNamespace(),
+                                                      messageType, topic, configuration.getThreads())));
+                })));
+    }
+
+    private Set<String> trackingTopics(MessageType messageType, Class<?> handlerType) {
+        Set<String> topics = ClientUtils.getTopics(messageType, List.of(handlerType));
+        if (!topics.isEmpty()) {
+            return topics;
+        }
+        return switch (messageType) {
+            case DOCUMENT, CUSTOM -> Set.of();
+            default -> Collections.singleton(null);
+        };
+    }
+
+    private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
+            MessageType messageType, List<?> handlers) {
+        List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(messageType, handlers).toList();
+        if (useSharedDefaultAppConsumerForUnconfiguredHandlers()) {
+            return assignHandlersToConsumers(
+                    handlers, Stream.concat(explicitConfigurations.stream(),
+                                            sharedDefaultConsumerConfiguration(messageType)));
+        }
+        List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
+        return assignHandlersToConsumers(
+                handlers, Stream.concat(explicitConfigurations.stream(),
+                                        defaultConsumerConfigurations(messageType, fallbackHandlers)));
+    }
+
+    private Stream<ConsumerConfiguration> explicitConfigurations(MessageType messageType, List<?> handlers) {
+        return Stream.concat(
+                ConsumerConfiguration.configurations(
+                        handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
+                fluxzero.configuration().customConsumerConfigurations()
+                        .getOrDefault(messageType, List.of()).stream());
+    }
+
+    private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
+            List<?> handlers, Stream<ConsumerConfiguration> configurations) {
+        var unassignedHandlers = new ArrayList<Object>(handlers);
+        var result = normalizeConfigurations(configurations).stream().map(config -> {
+            var matches = unassignedHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
+            if (config.exclusive() && !config.conditionallyExclusive()) {
+                unassignedHandlers.removeAll(matches);
+            }
+            return Map.entry(config, matches);
+        }).collect(toMap(Entry::getKey, Entry::getValue));
+        return result;
+    }
+
+    private boolean useSharedDefaultAppConsumerForUnconfiguredHandlers() {
+        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
+               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+    }
+
+    private UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
+        String configuredMode = propertySource.get(
+                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
+        if (configuredMode != null) {
+            return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        return defaultsVersionUsesPerHandlerConsumers(propertySource)
+                ? UnconfiguredHandlerConsumerMode.PER_HANDLER
+                : UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+    }
+
+    private UnconfiguredHandlerConsumerMode parseUnconfiguredHandlerConsumerMode(String mode) {
+        String normalized = mode.trim();
+        if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_HANDLER;
+        }
+        if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
+        }
+        throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                "Invalid unconfigured handler consumer mode",
+                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                        ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
+                        ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
+                "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY),
+                null, mode));
+    }
+
+    private boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return Optional.ofNullable(defaultsVersion(propertySource))
+                .map(version -> !version.isBefore(PER_HANDLER_DEFAULTS_VERSION)).orElse(false);
+    }
+
+    private LocalDate defaultsVersion(PropertySource propertySource) {
+        String value = propertySource.get(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                    "Invalid Fluxzero defaults version",
+                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
+                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value),
+                    "Set a date like `2026.05.20`, or remove the property to use compatibility defaults.",
+                    null, value), e);
+        }
+    }
+
+    private List<Object> fallbackHandlers(List<?> handlers, Collection<ConsumerConfiguration> configurations) {
+        var fallbackHandlers = new ArrayList<Object>(handlers);
+        normalizeConfigurations(configurations.stream()).forEach(config -> {
+            var matches = fallbackHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
+            if (config.exclusive() && !config.conditionallyExclusive()) {
+                fallbackHandlers.removeAll(matches);
+            }
+        });
+        return fallbackHandlers;
+    }
+
+    private Stream<ConsumerConfiguration> sharedDefaultConsumerConfiguration(MessageType messageType) {
+        return ofNullable(fluxzero.configuration().defaultConsumerConfigurations().get(messageType))
+                .map(configuration -> configuration.toBuilder()
+                        .name(defaultApplicationConsumerName(
+                                fluxzero.client().name(), configuration.getName()))
+                        .build()).stream();
+    }
+
+    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(
+            MessageType messageType, List<Object> handlers) {
+        if (handlers.isEmpty()) {
+            return Stream.empty();
+        }
+        ConsumerConfiguration template = fluxzero.configuration().defaultConsumerConfigurations().get(messageType);
+        if (template == null) {
+            return Stream.empty();
+        }
+        List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().collect(toList());
+        Map<String, Integer> simpleNameCounts = new HashMap<>();
+        handlerTypes.stream().map(TestFixture::consumerSimpleName)
+                .forEach(name -> simpleNameCounts.merge(name, 1, Integer::sum));
+        return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
+                fluxzero.client().name(), template, handlerType,
+                simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations) {
+        return configurations
+                .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
+                .map(ConsumerConfiguration::ordered)
+                .map(ConsumerConfiguration::substituteProperties)
+                .collect(toMap(ConsumerConfiguration::getName, Function.identity(),
+                               TestFixture::mergeConfigurations, LinkedHashMap::new))
+                .values().stream().toList();
+    }
+
+    private static ConsumerConfiguration mergeConfigurations(ConsumerConfiguration a, ConsumerConfiguration b) {
+        if (a.equals(b)) {
+            return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
+        }
+        throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
+                "Consumer name is configured more than once",
+                "Fluxzero found multiple different consumer configurations named `%s`.".formatted(a.getName()),
+                "Use unique consumer names, or make the repeated @Consumer configurations identical so "
+                + "Fluxzero can merge their handler filters.",
+                null, a.getName()));
+    }
+
+    private static ConsumerConfiguration defaultConsumerConfiguration(
+            String applicationName, ConsumerConfiguration template, Class<?> handlerType, boolean includePackageName) {
+        Predicate<Object> handlerFilter = h -> ReflectionUtils.asClass(h).equals(handlerType);
+        return template.toBuilder()
+                .name(defaultConsumerName(applicationName, handlerType, includePackageName))
+                .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                .build();
+    }
+
+    private static String defaultApplicationConsumerName(String applicationName, String consumerName) {
+        return applicationName == null || applicationName.isBlank() ? consumerName
+                : "%s_%s".formatted(applicationName, consumerName);
+    }
+
+    private static String defaultConsumerName(String applicationName, Class<?> handlerType,
+                                              boolean includePackageName) {
+        String handlerName = includePackageName ? handlerType.getName() : consumerSimpleName(handlerType);
+        String sanitizedHandlerName = handlerName.replace('.', '_').replace('$', '_');
+        return defaultApplicationConsumerName(applicationName, sanitizedHandlerName);
+    }
+
+    private static String consumerSimpleName(Class<?> handlerType) {
+        String simpleName = handlerType.getSimpleName();
+        return simpleName == null || simpleName.isBlank() ? handlerType.getName() : simpleName;
+    }
+
+    private enum UnconfiguredHandlerConsumerMode {
+        DEFAULT_APP_CONSUMER,
+        PER_HANDLER
     }
 
     protected Stream<HasLocalHandlers> localHandlerRegistries(Fluxzero fluxzero) {
@@ -1457,6 +1685,16 @@ public class TestFixture implements Given<TestFixture>, When {
         return simpleName.isBlank() ? type.getName() : simpleName;
     }
 
+    private static String describeHandlerMethod(Executable executable) {
+        String parameters = Arrays.stream(executable.getParameterTypes())
+                .map(TestFixture::simpleTypeName)
+                .collect(Collectors.joining(", "));
+        if (executable instanceof Method method) {
+            return "%s(%s)".formatted(method.getName(), parameters);
+        }
+        return "%s(%s)".formatted(simpleTypeName(executable.getDeclaringClass()), parameters);
+    }
+
     protected void setClock(Clock clock) {
         SchedulingClient schedulingClient = getFluxzero().client().getSchedulingClient();
         if (schedulingClient instanceof LocalSchedulingClient) {
@@ -1523,6 +1761,71 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected void registerError(Throwable e) {
         fixtureResult.getErrors().addIfAbsent(e);
+    }
+
+    private ActiveHandler activeHandler(DeserializingMessage message, HandlerInvoker invoker) {
+        return new ActiveHandler(
+                message.getMessageId(),
+                message.getPayloadClass(),
+                invoker.getTargetClass(), invoker.getMethod(), invoker.isPassive(),
+                message.getMessageType(), message.getTopic(), trackedConsumers(message, invoker));
+    }
+
+    private Set<ConsumerIdentity> trackedConsumers(DeserializingMessage message, HandlerInvoker invoker) {
+        if (handledLocallyWithoutTracking(message, invoker)) {
+            return Set.of();
+        }
+        return possibleConsumers(invoker.getTargetClass(), message.getMessageType()).stream()
+                .filter(consumer -> Objects.equals(consumer.getTopic(), message.getTopic()))
+                .collect(toSet());
+    }
+
+    private boolean handledLocallyWithoutTracking(DeserializingMessage message, HandlerInvoker invoker) {
+        if (getLocalHandlerAnnotation(invoker.getTargetClass(), invoker.getMethod())
+                .filter(LocalHandler::value)
+                .isPresent()) {
+            return true;
+        }
+        return invoker.getTargetClass().isAssignableFrom(message.getPayloadClass())
+               && !ClientUtils.isSelfTracking(invoker.getTargetClass());
+    }
+
+    private Set<ConsumerIdentity> possibleConsumers(Class<?> handlerType, MessageType messageType) {
+        HandlerConsumerKey key = new HandlerConsumerKey(handlerType, messageType);
+        Set<ConsumerIdentity> result = handlerConsumers.get(key);
+        if ((result == null || result.isEmpty()) && ClientUtils.isSelfTracking(handlerType)) {
+            rememberConsumerAssignments(List.of(handlerType));
+            result = handlerConsumers.get(key);
+        }
+        return result == null ? Set.of() : result;
+    }
+
+    private void assertNoSynchronousConsumerDeadlock(ActiveHandler nestedHandler) {
+        if (!synchronous || !nestedHandler.getMessageType().isRequest()
+            || !requestDispatches.contains(nestedHandler.getMessageId()) || nestedHandler.isPassive()
+            || nestedHandler.getConsumers().isEmpty()) {
+            return;
+        }
+        for (ActiveHandler waitingHandler : activeHandlers.get()) {
+            List<ConsumerIdentity> sharedConsumers = nestedHandler.getConsumers().stream()
+                    .filter(ConsumerIdentity::isSingleThreaded)
+                    .filter(waitingHandler.getConsumers()::contains)
+                    .toList();
+            if (!sharedConsumers.isEmpty()) {
+                throw new IllegalStateException("""
+                        Synchronous TestFixture detected a production deadlock risk.
+
+                        `%s` is handling `%s` and sends `%s` while waiting for a result.
+                        `%s` handles that request, but both handlers may be assigned to the same consumer: %s.
+
+                        In production a consumer processes one message at a time, so the second handler cannot run \
+                        while the first handler is waiting.
+                        Put these handlers on separate consumers, or configure this TestFixture with the same \
+                        ConsumerConfiguration as production.""".formatted(
+                        waitingHandler.describe(), waitingHandler.messageDescription(),
+                        nestedHandler.messageDescription(), nestedHandler.describe(), sharedConsumers));
+            }
+        }
     }
 
     @SneakyThrows
@@ -1751,7 +2054,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                                                  m.getMessageId())),
                                                  messageType)
                             .map(DeserializingMessage::toMessage)
-                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace));
+                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace, false));
                 } catch (Exception ignored) {
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
@@ -1762,9 +2065,13 @@ public class TestFixture implements Given<TestFixture>, When {
             return message;
         }
 
-        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                    boolean request) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.registerAutomaticTrackSelfHandler(message);
+            if (request) {
+                testFixture.requestDispatches.add(message.getMessageId());
+            }
 
             if (testFixture.fixtureResult.isCollectingResults()) {
                 interceptedMessageIds.add(message.getMessageId());
@@ -1820,7 +2127,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                                             document.getEnd()),
                         document.getId(), document.getTimestamp());
                 monitorDispatch(testFixture.fluxzero.serializer().deserializeMessage(message, DOCUMENT).toMessage(),
-                                DOCUMENT, document.getCollection(), testFixture.fluxzero.client().namespace());
+                                DOCUMENT, document.getCollection(), testFixture.fluxzero.client().namespace(), false);
             } catch (Exception e) {
                 log.warn("Failed to monitor an indexed document. This may cause your test to fail.", e);
             }
@@ -1894,34 +2201,51 @@ public class TestFixture implements Given<TestFixture>, When {
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
             return m -> {
-                var traceScope = testFixture.fixtureResult.getTrace().beginHandling(m, invoker);
-                Object result = null;
-                Throwable error = null;
+                ActiveHandler activeHandler = testFixture.synchronous ? testFixture.activeHandler(m, invoker) : null;
+                Deque<ActiveHandler> activeHandlers = null;
+                if (activeHandler != null) {
+                    testFixture.assertNoSynchronousConsumerDeadlock(activeHandler);
+                    activeHandlers = testFixture.activeHandlers.get();
+                    activeHandlers.push(activeHandler);
+                }
                 try {
-                    result = function.apply(m);
-                    return result;
-                } catch (Throwable e) {
-                    error = e;
-                    testFixture.registerError(e);
-                    throw e;
-                } finally {
-                    traceScope.close(result, error);
-                    if (
-                            m.getMessageType().isRequest()
-                            && Tracker.current().map(Tracker::getMessageBatch).map(batch -> batch.getMessages().stream()
-                                            .noneMatch(bm -> bm.getMessageId().equals(m.getMessageId())))
-                                    .orElse(true)
-                            && getLocalHandlerAnnotation(
-                                    invoker.getTargetClass(), invoker.getMethod())
-                                    .map(l -> !l.logMessage()).orElse(true)
-                    ) {
-                        synchronized (testFixture.consumers) {
-                            testFixture.consumers.entrySet().stream()
-                                    .filter(t -> t.getKey().getMessageType() == m.getMessageType())
-                                    .forEach(e -> e.getValue().removeIf(
-                                            m2 -> m2.getMessageId().equals(m.getMessageId())));
+                    var traceScope = testFixture.fixtureResult.getTrace().beginHandling(m, invoker);
+                    Object result = null;
+                    Throwable error = null;
+                    try {
+                        result = function.apply(m);
+                        return result;
+                    } catch (Throwable e) {
+                        error = e;
+                        testFixture.registerError(e);
+                        throw e;
+                    } finally {
+                        traceScope.close(result, error);
+                        if (
+                                m.getMessageType().isRequest()
+                                && Tracker.current().map(Tracker::getMessageBatch)
+                                        .map(batch -> batch.getMessages().stream()
+                                                .noneMatch(bm -> bm.getMessageId().equals(m.getMessageId())))
+                                        .orElse(true)
+                                && getLocalHandlerAnnotation(
+                                        invoker.getTargetClass(), invoker.getMethod())
+                                        .map(l -> !l.logMessage()).orElse(true)
+                        ) {
+                            synchronized (testFixture.consumers) {
+                                testFixture.consumers.entrySet().stream()
+                                        .filter(t -> t.getKey().getMessageType() == m.getMessageType())
+                                        .forEach(e -> e.getValue().removeIf(
+                                                m2 -> m2.getMessageId().equals(m.getMessageId())));
+                            }
+                            testFixture.checkConsumers();
                         }
-                        testFixture.checkConsumers();
+                    }
+                } finally {
+                    if (activeHandlers != null) {
+                        activeHandlers.pop();
+                        if (activeHandlers.isEmpty()) {
+                            testFixture.activeHandlers.remove();
+                        }
                     }
                 }
             };
@@ -1955,8 +2279,9 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         @Override
-        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-            delegate.monitorDispatch(message, messageType, topic, namespace);
+        public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                    boolean request) {
+            delegate.monitorDispatch(message, messageType, topic, namespace, request);
         }
     }
 
@@ -1991,6 +2316,59 @@ public class TestFixture implements Given<TestFixture>, When {
         public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                         HandlerInvoker invoker) {
             return delegate.interceptHandling(function, invoker);
+        }
+    }
+
+    @Value
+    protected static class HandlerConsumerKey {
+        Class<?> handlerType;
+        MessageType messageType;
+    }
+
+    @Value
+    protected static class ConsumerIdentity {
+        String name;
+        String namespace;
+        MessageType messageType;
+        String topic;
+        int threads;
+
+        boolean isSingleThreaded() {
+            return threads <= 1;
+        }
+
+        @Override
+        public String toString() {
+            List<String> parts = new ArrayList<>();
+            parts.add("name=" + name);
+            parts.add("messageType=" + messageType);
+            if (topic != null) {
+                parts.add("topic=" + topic);
+            }
+            if (namespace != null) {
+                parts.add("namespace=" + namespace);
+            }
+            return "{" + String.join(", ", parts) + "}";
+        }
+    }
+
+    @Value
+    protected static class ActiveHandler {
+        String messageId;
+        Class<?> payloadType;
+        Class<?> handlerType;
+        Executable method;
+        boolean passive;
+        MessageType messageType;
+        String topic;
+        Set<ConsumerIdentity> consumers;
+
+        String describe() {
+            return "%s#%s".formatted(simpleTypeName(handlerType), describeHandlerMethod(method));
+        }
+
+        String messageDescription() {
+            return "%s %s".formatted(messageType, simpleTypeName(payloadType));
         }
     }
 

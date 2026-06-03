@@ -99,8 +99,10 @@ public interface DispatchInterceptor {
      * @param messageType the type of the message
      * @param topic       the topic to which the message is dispatched (can be null)
      * @param namespace   the namespace to which the message is dispatched (can be null)
+     * @param request     whether the sender expects a response to this dispatch
      */
-    default void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
+    default void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                 boolean request) {
         // No-op by default
     }
 
@@ -119,9 +121,10 @@ public interface DispatchInterceptor {
             }
 
             @Override
-            public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-                DispatchInterceptor.this.monitorDispatch(message, messageType, topic, namespace);
-                nextInterceptor.monitorDispatch(message, messageType, topic, namespace);
+            public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                        boolean request) {
+                DispatchInterceptor.this.monitorDispatch(message, messageType, topic, namespace, request);
+                nextInterceptor.monitorDispatch(message, messageType, topic, namespace, request);
             }
 
             @Override

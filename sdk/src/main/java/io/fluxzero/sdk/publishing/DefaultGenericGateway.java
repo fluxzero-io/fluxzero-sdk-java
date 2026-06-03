@@ -96,7 +96,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             if (message == null) {
                 continue;
             }
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), false);
             Optional<CompletableFuture<Object>> localResult
                     = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
             if (localResult.isEmpty()) {
@@ -178,7 +178,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (message == null) {
             return PendingRequest.completed(emptyReturnMessage());
         }
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace());
+        dispatchInterceptor.monitorDispatch(message, messageType, topic, client.namespace(), true);
         Optional<CompletableFuture<Object>> localResult
                 = localHandlerRegistry.handle(new DeserializingMessage(message, messageType, topic, serializer));
         if (localResult.isPresent()) {

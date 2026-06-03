@@ -153,7 +153,9 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      * Optionally monitors a dispatched message using any registered ad hoc interceptor for the current thread.
      */
     @Override
-    public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace) {
-        getAdhocInterceptor(messageType).ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace));
+    public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                boolean request) {
+        getAdhocInterceptor(messageType)
+                .ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace, request));
     }
 }

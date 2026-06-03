@@ -104,7 +104,7 @@ public class DefaultEventStore implements EventStore {
             switch (strategy) {
                 case DEFAULT, STORE_AND_PUBLISH, PUBLISH_ONLY -> {
                     for (DeserializingMessage message : messages) {
-                        dispatchInterceptor.monitorDispatch(message.toMessage(), EVENT, null, client.namespace());
+                        dispatchInterceptor.monitorDispatch(message.toMessage(), EVENT, null, client.namespace(), false);
                     }
                 }
             }

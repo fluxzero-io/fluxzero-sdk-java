@@ -91,7 +91,7 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                 SerializedMessage serializedMessage =
                         dispatchInterceptor.modifySerializedMessage(input, response, WEBRESPONSE, null);
                 if (serializedMessage != null) {
-                    dispatchInterceptor.monitorDispatch(response, WEBRESPONSE, null, client.namespace());
+                    dispatchInterceptor.monitorDispatch(response, WEBRESPONSE, null, client.namespace(), false);
                     serializedMessage.setTarget(target);
                     serializedMessage.setRequestId(requestId);
                     return getGatewayClient().append(guarantee, serializedMessage);
