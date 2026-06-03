@@ -117,6 +117,31 @@ class AggregatePlaybackTest {
     }
 
     @Test
+    void aggregateMetadataEntityResolutionIsCachedForMessage() throws NoSuchMethodException {
+        Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
+        Parameter parameter = method.getParameters()[0];
+        HandleEvent handleEvent = method.getAnnotation(HandleEvent.class);
+        CountingEntityParameterResolver resolver = new CountingEntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            Entity<SampleAggregate> aggregate = loadAggregate("sample", SampleAggregate.class);
+            aggregate.apply(new CreateSampleAggregate());
+            aggregate.apply(new SetPrimaryValue("value-1"));
+
+            DeserializingMessage primaryValueEvent = fc.eventStore().getEvents("sample").toList().get(1);
+            primaryValueEvent.apply(message -> {
+                assertTrue(resolver.matches(parameter, handleEvent, message));
+                assertResolvedAtPrimaryValueEvent(resolveEntity(resolver, parameter, handleEvent, message));
+                assertTrue(resolver.matches(parameter, handleEvent, message));
+                assertResolvedAtPrimaryValueEvent(resolveEntity(resolver, parameter, handleEvent, message));
+                return null;
+            });
+
+            assertEquals(1, resolver.loadCount);
+        }).expectNoErrors();
+    }
+
+    @Test
     void aggregateMetadataLoadsAggregateRootWhenLegacyEventsHaveNoRelationships() throws NoSuchMethodException {
         Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
         Parameter parameter = method.getParameters()[0];
@@ -798,6 +823,16 @@ class AggregatePlaybackTest {
     static class ProbeHandler {
         @HandleEvent
         void handle(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class CountingEntityParameterResolver extends EntityParameterResolver {
+        private int loadCount;
+
+        @Override
+        Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
+            loadCount++;
+            return super.loadAggregate(aggregateId, aggregateType);
         }
     }
 

@@ -30,6 +30,7 @@ import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EntityHelper;
+import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.HasEntity;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ImmutableEntity;
@@ -152,9 +153,10 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
     @Override
     public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
-        var matchingMethods = handlerMatcher.matchingMethods(message).toList();
+        DeserializingMessage searchMessage = new StatefulHandlerSearchMessage(message);
+        var matchingMethods = handlerMatcher.matchingMethods(searchMessage).toList();
         var memberCandidates = statefulMembers.stream()
-                .map(member -> member.candidate(message))
+                .map(member -> member.candidate(searchMessage, message))
                 .filter(StatefulMemberCandidate::isRelevant)
                 .toList();
         if (matchingMethods.isEmpty() && memberCandidates.isEmpty()) {
@@ -207,6 +209,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             }
         }
         return HandlerInvoker.join(invokers);
+    }
+
+    protected static class StatefulHandlerSearchMessage extends DeserializingMessage
+            implements EntityParameterResolver.DeferredMessageEntityResolution {
+        StatefulHandlerSearchMessage(DeserializingMessage message) {
+            super(message);
+        }
     }
 
     private boolean matchesParent(Object parent, Map<Object, String> associations) {
@@ -666,8 +675,8 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             this.associations = associations;
         }
 
-        StatefulMemberCandidate candidate(DeserializingMessage message) {
-            List<Executable> matchingMethods = matcher.matchingMethods(message).toList();
+        StatefulMemberCandidate candidate(DeserializingMessage searchMessage, DeserializingMessage message) {
+            List<Executable> matchingMethods = matcher.matchingMethods(searchMessage).toList();
             Map<Object, String> targetAssociations = associations.associations(message, matchingMethods.stream());
             Map<Object, String> repositoryAssociations = new LinkedHashMap<>();
             targetAssociations.forEach((value, targetPath) ->
