@@ -11,7 +11,7 @@
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "consumer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.CompleteMessageEvent.consumer",

@@ -14,7 +14,7 @@
   "documentation" : " Metrics for an individual garbage collector.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "collectionCount",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmGcMetrics$GcCollectorMetrics.collectionCount",

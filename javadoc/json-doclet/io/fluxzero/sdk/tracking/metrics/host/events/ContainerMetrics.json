@@ -14,7 +14,7 @@
   "documentation" : " Container metrics collected from cgroups (v1 or v2).\n <p>\n These metrics are only available when running inside a container (Docker, Kubernetes, etc.).\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "cgroupVersion",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics.cgroupVersion",

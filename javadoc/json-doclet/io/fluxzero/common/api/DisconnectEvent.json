@@ -11,7 +11,7 @@
   "documentation" : " A runtime-generated event that indicates a client has disconnected from the Fluxzero Runtime.\n <p>\n Includes metadata about the reason and method of disconnection.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Detect ungraceful client shutdowns or connection drops</li>\n   <li>Monitor client session lifecycle and availability</li>\n </ul>\n\n @see ConnectEvent\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent.client",

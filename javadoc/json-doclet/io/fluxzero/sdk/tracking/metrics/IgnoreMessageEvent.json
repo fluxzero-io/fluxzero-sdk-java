@@ -11,7 +11,7 @@
   "documentation" : " Metric event published when a tracked message matched a handler but was deliberately skipped before invocation.\n <p>\n This is distinct from a handler failure: no handler method was invoked and no handler result should be expected.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "EXPIRED_REQUEST",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent.EXPIRED_REQUEST",

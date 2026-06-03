@@ -14,7 +14,7 @@
   "documentation" : " A combined snapshot of host metrics collected at a specific point in time.\n <p>\n This event contains all enabled metrics as an atomic snapshot of the system state.\n Individual metric categories may be null if collection is disabled or unavailable.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "classes",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics.classes",

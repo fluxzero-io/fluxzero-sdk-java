@@ -11,7 +11,7 @@
   "documentation" : " Metric event emitted when a Fluxzero Runtime changes lifecycle phase.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "phase",
     "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent.phase",

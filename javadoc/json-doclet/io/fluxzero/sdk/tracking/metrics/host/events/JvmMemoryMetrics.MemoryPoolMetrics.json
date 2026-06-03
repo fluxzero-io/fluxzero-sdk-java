@@ -14,7 +14,7 @@
   "documentation" : " Metrics for an individual JVM memory pool.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "committed",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics$MemoryPoolMetrics.committed",

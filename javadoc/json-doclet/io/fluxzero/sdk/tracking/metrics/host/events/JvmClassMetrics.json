@@ -14,7 +14,7 @@
   "documentation" : " JVM class loading metrics.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "loadedCount",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmClassMetrics.loadedCount",

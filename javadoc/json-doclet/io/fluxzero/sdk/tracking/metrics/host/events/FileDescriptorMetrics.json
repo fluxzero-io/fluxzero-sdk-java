@@ -14,7 +14,7 @@
   "documentation" : " File descriptor metrics (Unix/Linux only).\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "maxCount",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.FileDescriptorMetrics.maxCount",

@@ -14,7 +14,7 @@
   "documentation" : " Disk space metrics for monitored paths.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "disks",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics.disks",

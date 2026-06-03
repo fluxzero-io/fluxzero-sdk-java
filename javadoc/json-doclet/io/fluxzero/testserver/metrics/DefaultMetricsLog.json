@@ -104,7 +104,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "event",
-      "type" : "io.fluxzero.common.api.JsonType",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -125,7 +125,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "event",
-      "type" : "io.fluxzero.common.api.JsonType",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

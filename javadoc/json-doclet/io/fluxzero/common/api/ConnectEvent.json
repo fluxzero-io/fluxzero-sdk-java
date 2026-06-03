@@ -11,7 +11,7 @@
   "documentation" : " A runtime-generated event that indicates a client has successfully connected to the Fluxzero Runtime.\n <p>\n This event includes metadata such as the client's name, instance ID, session ID, and the service endpoint\n it connected to, along with the negotiated SDK and runtime versions when available.\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Track client connection activity for monitoring or alerting</li>\n   <li>Audit log of system uptime or usage</li>\n </ul>\n\n @see DisconnectEvent\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.common.api.ConnectEvent.client",

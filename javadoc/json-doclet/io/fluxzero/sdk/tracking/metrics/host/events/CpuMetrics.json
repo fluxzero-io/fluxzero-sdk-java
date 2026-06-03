@@ -14,7 +14,7 @@
   "documentation" : " CPU metrics for the process and system.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "interfaces" : [ ],
   "fields" : [ {
     "name" : "availableProcessors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.events.CpuMetrics.availableProcessors",
