@@ -30,6 +30,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.repository.CachingAggregateRepository;
+import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -156,6 +157,21 @@ class AggregatePlaybackTest {
             assertEquals(ConsoleError.class, message.getPayloadClass());
             assertFalse(resolver.matches(parameter, handleError, message));
         }).expectNoErrors();
+    }
+
+    @Test
+    void routingKeyEntityParameterUsesDeclaredAggregateTypeForUnknownEventPolicy() {
+        TestFixture.create(new RoutingKeyProbeHandler())
+                .given(fc -> {
+                    storeEvent(fc, "tolerant", UnknownEventTolerantAggregate.class,
+                               new CreateUnknownEventTolerantAggregate(), "legacy-client", 0L);
+                    storeUnknownEvent(fc, "tolerant", UnknownEventTolerantAggregate.class);
+                    fc.cache().remove(aggregateCacheKey("tolerant"));
+                })
+                .whenEvent(new Message(new RoutedProbeEvent("tolerant"), Metadata.of(
+                        Entity.AGGREGATE_TYPE_METADATA_KEY, UnknownEventTolerantAggregate.class.getName())))
+                .expectEvents("loaded tolerant: created")
+                .expectNoErrors();
     }
 
     @Test
@@ -720,6 +736,20 @@ class AggregatePlaybackTest {
         }
     }
 
+    static class RoutingKeyProbeHandler {
+        @HandleEvent
+        void handle(RoutedProbeEvent event, UnknownEventTolerantAggregate aggregate) {
+            Fluxzero.publishEvent("loaded " + event.aggregateId() + ": " + aggregate.value());
+        }
+    }
+
+    record RoutedProbeEvent(String aggregateId) {
+        @RoutingKey
+        public String aggregateId() {
+            return aggregateId;
+        }
+    }
+
     static class CommandEntityHandler {
         @HandleCommand
         void handle(Entity<SampleAggregate> entity) {
@@ -798,6 +828,17 @@ class AggregatePlaybackTest {
     @Builder(toBuilder = true)
     record SampleAggregate(String primaryValue, boolean firstFlag,
                            boolean secondFlag, boolean auxiliaryFlag) {
+    }
+
+    record CreateUnknownEventTolerantAggregate() {
+        @Apply
+        UnknownEventTolerantAggregate apply() {
+            return new UnknownEventTolerantAggregate("created");
+        }
+    }
+
+    @Aggregate(ignoreUnknownEvents = true)
+    record UnknownEventTolerantAggregate(String value) {
     }
 
     record CreateIfModifiedPlaybackAggregate(String value) {

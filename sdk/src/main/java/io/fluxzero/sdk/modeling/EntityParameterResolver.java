@@ -152,7 +152,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                                  || parameter.getType().isAssignableFrom(type))) {
                 return message.computeRoutingKey()
                         .flatMap(possibleEntityId -> Fluxzero.getOptionally()
-                                .map(fc -> Fluxzero.loadEntity(possibleEntityId)))
+                                .map(fc -> Fluxzero.loadEntity(possibleEntityId, getEntityParameterType(parameter))))
                         .filter(e -> isAssignable(parameter, e))
                         .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
                         .orElse(null);

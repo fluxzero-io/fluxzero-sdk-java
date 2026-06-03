@@ -867,9 +867,24 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> Entity<T> loadEntity(Object entityId) {
-        return (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
-                .orElseGet(() -> entityId instanceof Id id
-                        ? loadAggregate(id) : loadAggregate(entityId.toString(), Object.class));
+        return loadEntity(entityId, entityId instanceof Id<?> id ? (Class<T>) id.getType() : (Class<T>) Object.class);
+    }
+
+    /**
+     * Loads the entity with given id, using {@code defaultType} when the id is not yet associated with an aggregate and
+     * must be treated as a new aggregate root. This is useful when the caller knows the expected entity type but the
+     * identifier itself is an untyped value.
+     * <p>
+     * When called from an event or notification handler for the same aggregate, the returned entity is automatically
+     * replayed to the message currently being handled. Otherwise, the most recent state of the entity is loaded.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> Entity<T> loadEntity(Object entityId, Class<T> defaultType) {
+        Optional<Entity<T>> entity = loadAggregateFor(entityId, defaultType).getEntity(entityId);
+        if (entity.isPresent()) {
+            return entity.get();
+        }
+        return entityId instanceof Id id ? loadAggregate(id) : loadAggregate(entityId.toString(), defaultType);
     }
 
     /**
