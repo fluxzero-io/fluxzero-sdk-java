@@ -55,7 +55,6 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -74,6 +73,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -124,7 +125,6 @@ import static java.util.stream.Collectors.toSet;
  * @see Entity
  */
 @Slf4j
-@AllArgsConstructor
 @Getter(AccessLevel.PRIVATE)
 @Accessors(fluent = true)
 public class DefaultAggregateRepository implements AggregateRepository {
@@ -132,7 +132,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
     private final EventStoreClient eventStoreClient;
     private final SnapshotStore snapshotStore;
     private final Cache aggregateCache;
-    private final Cache relationshipsCache;
+    private final RelationshipsCache relationshipsCache;
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
@@ -140,6 +140,21 @@ public class DefaultAggregateRepository implements AggregateRepository {
 
     private final Function<Class<?>, AnnotatedAggregateRepository<?>> delegates =
             memoize(AnnotatedAggregateRepository::new);
+
+    public DefaultAggregateRepository(EventStore eventStore, EventStoreClient eventStoreClient,
+                                      SnapshotStore snapshotStore, Cache aggregateCache, Cache relationshipsCache,
+                                      DocumentStore documentStore, Serializer serializer,
+                                      DispatchInterceptor dispatchInterceptor, EntityHelper entityHelper) {
+        this.eventStore = eventStore;
+        this.eventStoreClient = eventStoreClient;
+        this.snapshotStore = snapshotStore;
+        this.aggregateCache = aggregateCache;
+        this.relationshipsCache = RelationshipsCache.of(relationshipsCache);
+        this.documentStore = documentStore;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.entityHelper = entityHelper;
+    }
 
     @Override
     @SuppressWarnings("unchecked")
@@ -232,8 +247,8 @@ public class DefaultAggregateRepository implements AggregateRepository {
     @SuppressWarnings("Java8MapForEach")
     public Map<String, Class<?>> getAggregatesFor(@NonNull Object entityId) {
         LinkedHashMap<String, Class<?>> result = new LinkedHashMap<>(getActiveAggregatesFor(entityId));
-        relationshipsCache.computeIfAbsent(
-                        entityId.toString(), id -> eventStoreClient.getAggregatesFor(id.toString())
+        relationshipsCache.getAggregatesFor(
+                        entityId, id -> eventStoreClient.getAggregatesFor(id)
                                 .entrySet().stream().collect(toMap(Map.Entry::getKey, e -> classForName(
                                         serializer.upcastType(e.getValue()), Void.class), (a, b) -> b, LinkedHashMap::new)))
                 .entrySet().forEach(e -> result.putIfAbsent(e.getKey(), e.getValue()));
@@ -279,7 +294,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
 
         private final Class<T> type;
         private final Cache aggregateCache;
-        private final Cache relationshipsCache;
+        private final RelationshipsCache relationshipsCache;
         private final boolean eventSourced;
         private final boolean commitInBatch;
         private final EventPublication eventPublication;
@@ -301,7 +316,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.aggregateCache = annotation.cached()
                     ? DefaultAggregateRepository.this.aggregateCache : NoOpCache.INSTANCE;
             this.relationshipsCache = annotation.cached()
-                    ? DefaultAggregateRepository.this.relationshipsCache : NoOpCache.INSTANCE;
+                    ? DefaultAggregateRepository.this.relationshipsCache : RelationshipsCache.noOp();
             this.eventSourced = annotation.eventSourced();
             this.commitInBatch = annotation.commitInBatch();
             this.eventPublication = annotation.eventPublication();
@@ -351,10 +366,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             String aggregateId = id.toString();
             aggregateCache.remove(aggregateId);
-            relationshipsCache.<Map<String, String>>modifyEach((entityId, map) -> {
-                map.remove(aggregateId);
-                return map.isEmpty() ? null : map;
-            });
+            relationshipsCache.removeAggregate(aggregateId);
             futures.add(eventStoreClient.repairRelationships(
                     new RepairRelationships(aggregateId, type.getName(), Collections.emptySet(), STORED)));
             futures.add(eventStoreClient.deleteEvents(aggregateId, STORED));
@@ -501,27 +513,30 @@ public class DefaultAggregateRepository implements AggregateRepository {
             boolean stateChanged = after != before;
             List<AppliedEvent> aggregateStateEvents = unpublishedEvents.stream()
                     .filter(this::updatesAggregateState).toList();
+            AtomicReference<Entity<?>> conflictingCachedHead = new AtomicReference<>();
             try {
                 if (stateChanged) {
-                    aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) ->
-                            current == null || current == before ? after
-                                    : aggregateStateEvents.isEmpty() ? null
-                                    : current.apply(aggregateStateEvents.stream().map(AppliedEvent::getEvent).toList()));
+                    AtomicBoolean aggregateEvicted = new AtomicBoolean();
+                    aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) -> {
+                        if (current == null || current == before) {
+                            return after;
+                        }
+                        conflictingCachedHead.set(current);
+                        if (aggregateStateEvents.isEmpty()) {
+                            aggregateEvicted.set(true);
+                            return null;
+                        }
+                        return current.apply(aggregateStateEvents.stream().map(AppliedEvent::getEvent).toList());
+                    });
                     Set<Relationship> associations = after.associations(before), dissociations =
                             after.dissociations(before);
-                    dissociations.forEach(
-                            r -> relationshipsCache.<Map<String, String>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                                map.remove(r.getAggregateId());
-                                return map;
-                            }));
-                    associations.forEach(
-                            r -> relationshipsCache.<Map<String, Class<?>>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                                map.put(r.getAggregateId(), after.type());
-                                return map;
-                            }));
+                    relationshipsCache.updateLinks(associations, dissociations, after.type());
                     if (!associations.isEmpty() || !dissociations.isEmpty()) {
                         eventStoreClient.updateRelationships(
                                 new UpdateRelationships(associations, dissociations, STORED)).get();
+                    }
+                    if (aggregateEvicted.get()) {
+                        relationshipsCache.invalidateLookupsFor(conflictingCachedHead.get(), before, after);
                     }
                 }
                 if (!unpublishedEvents.isEmpty()) {
@@ -544,6 +559,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             } catch (Exception e) {
                 log.error("Failed to commit aggregate {}", after.id(), e);
                 aggregateCache.remove(after.id().toString());
+                relationshipsCache.invalidateLookupsFor(conflictingCachedHead.get(), before, after);
             }
         }
 

@@ -50,8 +50,10 @@ import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,10 +64,12 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.ERROR;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -409,9 +413,13 @@ class AggregatePlaybackTest {
                 serializedMessage.setIndex(syntheticIndices[i]);
             }
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
+            cacheRelationshipLookup(fc, "stale-sample-child", "sample", SampleAggregate.class);
             invokeCachingAggregateTracker(
                     fc, sampleEvents.stream().map(DeserializingMessage::getSerializedObject).toList());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
+            assertRelationshipLookupInvalidated(fc, "stale-sample-child");
         }).expectNoErrors();
     }
 
@@ -643,9 +651,11 @@ class AggregatePlaybackTest {
             assertEquals(createEvent.getMessageId(), indexedHead.lastEventId());
             assertEquals(createEvent.getIndex(), indexedHead.lastEventIndex());
             assertFalse(indexedHead == stale);
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
 
             stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
         }).expectNoErrors();
     }
 
@@ -659,8 +669,10 @@ class AggregatePlaybackTest {
             delegateRepository.load("sample", SampleAggregate.class).apply(new SetPrimaryValue("value-1"));
 
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
             stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
         }).expectNoErrors();
     }
 
@@ -679,6 +691,7 @@ class AggregatePlaybackTest {
             delegateRepository.load("sample", SampleAggregate.class).apply(new SetSecondFlag());
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
             assertNull(delegateRepository.load("sample", SampleAggregate.class).lastEventIndex());
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
 
             storeEvent(fc, "sample", SampleAggregate.class,
                        new SetSecondFlag(), "foreign-client", 4L);
@@ -690,6 +703,7 @@ class AggregatePlaybackTest {
             assertEquals("foreign-client", foreignEvent.getSerializedObject().getSource());
             invokeCachingAggregateTracker(fc, List.of(foreignEvent.getSerializedObject()));
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
 
             AtomicReference<Entity<SampleAggregate>> rawHead = new AtomicReference<>();
             Entity<SampleAggregate> resolved = primaryValueEvent.apply(message -> {
@@ -702,6 +716,49 @@ class AggregatePlaybackTest {
             assertTrue(rawHead.get().get().firstFlag());
             assertTrue(rawHead.get().get().secondFlag());
             assertResolvedAtPrimaryValueEvent(resolved);
+        }).expectNoErrors();
+    }
+
+    @Test
+    void foreignTrackerReplayFailureClearsRelationshipLookupCache() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            String aggregateId = "failing-replay";
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load(aggregateId, SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents(aggregateId).findFirst().orElseThrow();
+            createEvent.getSerializedObject().setSource(fc.client().id());
+            invokeCachingAggregateTracker(fc, List.of(createEvent.getSerializedObject()));
+
+            assertTrue(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupCached(fc, aggregateId, SampleAggregate.class);
+
+            storeEvent(fc, aggregateId, SampleAggregate.class, new FailingPlaybackEvent(), "foreign-client", 1L);
+            DeserializingMessage failingEvent = fc.eventStore().getEvents(aggregateId).skip(1).findFirst().orElseThrow();
+
+            invokeCachingAggregateTracker(fc, List.of(failingEvent.getSerializedObject()));
+
+            assertFalse(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupInvalidated(fc, aggregateId);
+        }).expectNoErrors();
+    }
+
+    @Test
+    void commitFailureClearsRelationshipLookupCache() throws Exception {
+        TestFixture spyFixture = TestFixture.create().spy();
+        spyFixture.whenExecuting(fc -> {
+            String aggregateId = "commit-failure";
+            assertTrue(getCachingDelegate(fc).getAggregatesFor(aggregateId).isEmpty());
+            assertTrue(fc.configuration().relationshipsCache().containsKey(aggregateId));
+
+            doReturn(CompletableFuture.failedFuture(new IllegalStateException("relationship update failed")))
+                    .when(fc.client().getEventStoreClient()).updateRelationships(any());
+
+            getCachingDelegate(fc).load(aggregateId, SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            assertFalse(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupInvalidated(fc, aggregateId);
+            assertTrue(fc.eventStore().getEvents(aggregateId).findAny().isEmpty());
         }).expectNoErrors();
     }
 
@@ -778,6 +835,23 @@ class AggregatePlaybackTest {
 
     private static String aggregateCacheKey(String aggregateId) {
         return "$Aggregate:" + aggregateId;
+    }
+
+    private static void assertRelationshipLookupCached(Fluxzero fluxzero, String entityId,
+                                                       Class<?> aggregateType) throws Exception {
+        assertEquals(aggregateType, getCachingDelegate(fluxzero).getAggregatesFor(entityId).get(entityId));
+        assertTrue(fluxzero.configuration().relationshipsCache().containsKey(entityId));
+    }
+
+    private static void assertRelationshipLookupInvalidated(Fluxzero fluxzero, String entityId) {
+        assertFalse(fluxzero.configuration().relationshipsCache().containsKey(entityId));
+    }
+
+    private static void cacheRelationshipLookup(Fluxzero fluxzero, String entityId, String aggregateId,
+                                                Class<?> aggregateType) {
+        LinkedHashMap<String, Class<?>> lookup = new LinkedHashMap<>();
+        lookup.put(aggregateId, aggregateType);
+        fluxzero.configuration().relationshipsCache().put(entityId, lookup);
     }
 
     private static Method entityMethod(String methodName) throws NoSuchMethodException {
@@ -944,6 +1018,13 @@ class AggregatePlaybackTest {
         @Apply
         SampleAggregate apply(SampleAggregate aggregate) {
             return aggregate.toBuilder().secondFlag(true).build();
+        }
+    }
+
+    record FailingPlaybackEvent() {
+        @Apply
+        SampleAggregate apply(SampleAggregate aggregate) {
+            throw new IllegalStateException("failing playback");
         }
     }
 

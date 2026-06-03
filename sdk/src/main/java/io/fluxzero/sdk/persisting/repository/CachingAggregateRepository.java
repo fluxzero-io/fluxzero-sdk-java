@@ -27,7 +27,6 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -35,7 +34,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -83,7 +81,6 @@ import static java.lang.String.format;
  * @see Entity
  * @see io.fluxzero.sdk.tracking.client.TrackingClient
  */
-@RequiredArgsConstructor
 @Slf4j
 public class CachingAggregateRepository implements AggregateRepository {
     public static Duration slowTrackingThreshold = Duration.ofSeconds(10L);
@@ -91,11 +88,20 @@ public class CachingAggregateRepository implements AggregateRepository {
     private final AggregateRepository delegate;
     private final Client client;
     private final Cache cache;
-    private final Cache relationshipsCache;
+    private final RelationshipsCache relationshipsCache;
     private final Serializer serializer;
 
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile long lastEventIndex = -1L;
+
+    public CachingAggregateRepository(AggregateRepository delegate, Client client, Cache cache, Cache relationshipsCache,
+                                      Serializer serializer) {
+        this.delegate = delegate;
+        this.client = client;
+        this.cache = cache;
+        this.relationshipsCache = RelationshipsCache.of(relationshipsCache);
+        this.serializer = serializer;
+    }
 
     @Override
     public <T> Entity<T> load(@NonNull Object aggregateId, Class<T> type) {
@@ -155,6 +161,7 @@ public class CachingAggregateRepository implements AggregateRepository {
                             log.info("Failed to update event index {} for aggregate {}"
                                       + " (id {}, last event id {}). Clearing aggregate from cache.",
                                       m.getMessageId(), getAggregateType(m), id, a.lastEventId(), e);
+                            relationshipsCache.invalidateLookupsFor(a);
                             return null;
                         }
                     });
@@ -168,6 +175,7 @@ public class CachingAggregateRepository implements AggregateRepository {
                                     // from another client. If we applied the event, the version ordering of this
                                     // aggregate would be inconsistent with the global event index order. To prevent
                                     // this, we delete this aggregate from the cache.
+                                    relationshipsCache.invalidateLookupsFor(before);
                                     return null;
                                 }
                                 if (lastIndex < index) {
@@ -183,6 +191,7 @@ public class CachingAggregateRepository implements AggregateRepository {
                                                       + " (id {}, last event id {}). Clearing aggregate from cache.",
                                                       m.getMessageId(), getAggregateType(m), id, before.lastEventId(),
                                                       e);
+                                            relationshipsCache.invalidateLookupsFor(before);
                                             return null;
                                         }
                                     } finally {
@@ -200,17 +209,7 @@ public class CachingAggregateRepository implements AggregateRepository {
     }
 
     protected void updateRelationships(Entity<?> before, Entity<?> after) {
-        Set<Relationship> associations = after.associations(before), dissociations = after.dissociations(before);
-        dissociations.forEach(
-                r -> relationshipsCache.<Map<String, String>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                    map.remove(r.getAggregateId());
-                    return map;
-                }));
-        associations.forEach(
-                r -> relationshipsCache.<Map<String, Class<?>>>computeIfPresent(r.getEntityId(), (id, map) -> {
-                    map.put(r.getAggregateId(), after.type());
-                    return map;
-                }));
+        relationshipsCache.updateLinks(before, after);
     }
 
     protected void catchUpIfNeeded() {
