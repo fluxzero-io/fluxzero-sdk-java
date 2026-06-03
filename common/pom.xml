@@ -65,7 +65,7 @@
         <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
-            <version>1.5.7-9</version>
+            <version>1.5.7-10</version>
         </dependency>
 
         <!--logging API used by Lombok @Slf4j and common logging hooks-->
