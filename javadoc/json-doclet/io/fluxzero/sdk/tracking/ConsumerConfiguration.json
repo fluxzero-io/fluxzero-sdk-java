@@ -27,6 +27,22 @@
     "documentation" : " Assigns unconfigured handlers to the shared default application consumer for their message type.\n",
     "constantValue" : "defaultAppConsumer"
   }, {
+    "name" : "DEFAULT_MAX_FETCH_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default serialized payload byte limit per tracking fetch.\n",
+    "constantValue" : 104857600
+  }, {
+    "name" : "MAX_FETCH_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.MAX_FETCH_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default\n with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
+    "constantValue" : "fluxzero.tracking.maxFetchBytes"
+  }, {
     "name" : "PER_HANDLER_CONSUMER_MODE",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE",
     "type" : "java.lang.String",
@@ -42,6 +58,14 @@
     "annotations" : [ ],
     "documentation" : " Chooses how unconfigured tracking handlers are assigned to default consumers.\n <p>\n Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,\n Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.\n",
     "constantValue" : "fluxzero.tracking.unconfiguredHandlerConsumerMode"
+  }, {
+    "name" : "USE_DEFAULT_MAX_FETCH_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES",
+    "type" : "long",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Sentinel value for consumers that inherit the configured default max fetch byte limit. This value is resolved\n before read requests are sent.\n",
+    "constantValue" : -1
   }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.batchInterceptors",
@@ -79,6 +103,27 @@
       "values" : {}
     } ],
     "documentation" : " Dispatch interceptors that become active while this consumer is processing a batch.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order} and are\n applied through {@link io.fluxzero.sdk.publishing.AdhocDispatchInterceptor}. They therefore affect dispatches\n performed by this consumer without changing the global dispatch chain. If ad hoc dispatch interceptors are\n disabled globally, these consumer-scoped dispatch interceptors are inactive.\n",
+    "constantValue" : null
+  }, {
+    "name" : "effectiveMaxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.effectiveMaxFetchBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " Effective byte limit used for read requests.\n",
     "constantValue" : null
   }, {
     "name" : "errorHandler",
@@ -215,7 +260,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum serialized payload bytes to fetch per poll from the message log. A value of {@code 0} disables this\n limit. If a single message is larger than this limit, it may still be returned alone so tracking can make\n progress.\n",
+    "documentation" : " Maximum serialized payload bytes to fetch per poll from the message log.\n <p>\n The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,\n otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is\n larger than this limit, it may still be returned alone so tracking can make progress.\n",
     "constantValue" : null
   }, {
     "name" : "maxFetchSize",
@@ -488,6 +533,22 @@
     "parameters" : [ {
       "name" : "p",
       "type" : "java.lang.Package",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requireNonNegativeMaxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#requireNonNegativeMaxFetchBytes",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
