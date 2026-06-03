@@ -295,6 +295,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerInvoker",
     "kind" : "class"
   }, {
+    "file" : "StatefulHandler.StatefulHandlerSearchMessage.json",
+    "name" : "StatefulHandler.StatefulHandlerSearchMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerSearchMessage",
+    "kind" : "class"
+  }, {
     "file" : "StatefulHandler.StatefulMember.json",
     "name" : "StatefulHandler.StatefulMember",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMember",

@@ -387,6 +387,12 @@
     "modifiers" : [ "protected" ],
     "annotations" : [ ]
   }, {
+    "name" : "StatefulHandlerSearchMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulHandlerSearchMessage",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "StatefulMember",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.StatefulHandler$StatefulMember",
     "kind" : "class",

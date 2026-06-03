@@ -115,6 +115,21 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver",
     "kind" : "class"
   }, {
+    "file" : "EntityParameterResolver.DeferredMessageEntityResolution.json",
+    "name" : "EntityParameterResolver.DeferredMessageEntityResolution",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$DeferredMessageEntityResolution",
+    "kind" : "interface"
+  }, {
+    "file" : "EntityParameterResolver.EntityCacheKey.json",
+    "name" : "EntityParameterResolver.EntityCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityCacheKey",
+    "kind" : "record"
+  }, {
+    "file" : "EntityParameterResolver.EntityResolutionCache.json",
+    "name" : "EntityParameterResolver.EntityResolutionCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache",
+    "kind" : "class"
+  }, {
     "file" : "EventPublication.json",
     "name" : "EventPublication",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication",

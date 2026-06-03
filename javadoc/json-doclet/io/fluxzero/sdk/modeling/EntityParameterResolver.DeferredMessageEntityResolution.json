@@ -1,0 +1,18 @@
+{
+  "name" : "DeferredMessageEntityResolution",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$DeferredMessageEntityResolution",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Marker for handler-selection contexts where an {@link Entity} parameter should only be matched from message\n metadata. Actual entity loading is deferred until an invoker is created for a concrete handler instance.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

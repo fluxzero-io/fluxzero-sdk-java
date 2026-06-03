@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.handling.PreparedParameterResolver<java.lang.Object>" ],
   "fields" : [ {
+    "name" : "NO_ENTITY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver.NO_ENTITY",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "checkCompatibility",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver.checkCompatibility",
     "type" : "boolean",
@@ -33,6 +41,53 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cachedEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#cachedEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "io.fluxzero.sdk.modeling.EntityParameterResolver.EntityCacheKey",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "canMatchFromMessageMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#canMatchFromMessageMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "determinesSpecificity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#determinesSpecificity",
     "returnType" : "boolean",
@@ -130,6 +185,32 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#loadAggregate",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
     "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#loadAggregate",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
@@ -145,6 +226,27 @@
     }, {
       "name" : "aggregateType",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#loadEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityId",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -318,5 +420,23 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "DeferredMessageEntityResolution",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$DeferredMessageEntityResolution",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "EntityCacheKey",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityCacheKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "EntityResolutionCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }
