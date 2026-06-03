@@ -24,6 +24,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
+import jakarta.annotation.Nullable;
 
 import java.beans.Transient;
 import java.time.Instant;
@@ -151,6 +152,7 @@ public interface Entity<T> {
      * @param message the message containing metadata from which the aggregate type is retrieved
      * @return the aggregate type as a {@code Class<?>}, or {@code null} if the metadata key is not present
      */
+    @Nullable
     static Class<?> getAggregateType(HasMetadata message) {
         return Optional.ofNullable(message.getMetadata().get(AGGREGATE_TYPE_METADATA_KEY))
                 .map(c -> ReflectionUtils.classForName(c, null)).orElse(null);

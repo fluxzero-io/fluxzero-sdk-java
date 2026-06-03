@@ -20,6 +20,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.sdk.Fluxzero;
@@ -28,6 +29,7 @@ import io.fluxzero.sdk.common.logging.ConsoleError;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.repository.CachingAggregateRepository;
 import io.fluxzero.sdk.test.TestFixture;
@@ -38,6 +40,7 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
+import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import lombok.Builder;
 import org.junit.jupiter.api.Test;
 
@@ -48,11 +51,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.ERROR;
@@ -137,6 +142,88 @@ class AggregatePlaybackTest {
             assertNotNull(resolved.previous());
             assertNull(resolved.previous().get().primaryValue());
         }).expectNoErrors();
+    }
+
+    @Test
+    void aggregateParameterInjectionRespectsIgnoreUnknownEventsForColdAggregate() {
+        testFixture.whenExecuting(fc -> {
+            String aggregateId = "ignore-unknown";
+            storeEvent(fc, aggregateId, IgnoringUnknownAggregate.class,
+                       new CreateIgnoringUnknownAggregate("created"), "legacy-client", 0L);
+            storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+
+            assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents(aggregateId, -1L, 1)
+                    .findFirst().orElseThrow();
+            IgnoringUnknownParameterHandler handler = new IgnoringUnknownParameterHandler();
+            var inspectedHandler = HandlerInspector.createHandler(
+                    handler, HandleEvent.class, List.of(new PayloadParameterResolver(), new EntityParameterResolver()));
+
+            assertDoesNotThrow(() -> createEvent.apply(message ->
+                    inspectedHandler.getInvoker(message).orElseThrow().invoke()));
+            assertEquals(new IgnoringUnknownAggregate("created"), handler.observed.get());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void untypedAggregateLoadIgnoresUnknownEventsAfterDiscoveringIgnoringAggregateType() {
+        String aggregateId = "untyped-ignore-unknown";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.<IgnoringUnknownAggregate>loadAggregate(aggregateId))
+                .<Entity<IgnoringUnknownAggregate>>expectResult(
+                        aggregate -> aggregate.type().equals(IgnoringUnknownAggregate.class)
+                                     && aggregate.sequenceNumber() == 1L
+                                     && new IgnoringUnknownAggregate("created").equals(aggregate.get()));
+    }
+
+    @Test
+    void untypedAggregateLoadTreatsUnknownRelationshipTypeAsDiscoverableFromEvents() {
+        String aggregateId = "unknown-relationship-type";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    fc.client().getEventStoreClient().repairRelationships(new RepairRelationships(
+                            aggregateId, "com.example.MovedAggregate", Set.of(aggregateId), STORED)).get();
+                    assertEquals(Void.class, fc.aggregateRepository().getAggregatesFor(aggregateId).get(aggregateId));
+                })
+                .whenApplying(fc -> Fluxzero.<IgnoringUnknownAggregate>loadAggregate(aggregateId))
+                .<Entity<IgnoringUnknownAggregate>>expectResult(
+                        aggregate -> aggregate.type().equals(IgnoringUnknownAggregate.class)
+                                     && aggregate.sequenceNumber() == 1L
+                                     && new IgnoringUnknownAggregate("created").equals(aggregate.get()));
+    }
+
+    @Test
+    void untypedAggregateLoadFailsWhenFirstEventTypeIsUnknown() {
+        String aggregateId = "first-event-unknown";
+
+        testFixture.given(fc -> {
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.loadAggregate(aggregateId))
+                .expectExceptionalResult(EventSourcingException.class);
+    }
+
+    @Test
+    void untypedAggregateLoadStillFailsForUnknownEventsWhenDiscoveredTypeDoesNotIgnoreThem() {
+        String aggregateId = "untyped-fail-unknown";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateStrictUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, StrictUnknownAggregate.class);
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.loadAggregate(aggregateId))
+                .expectExceptionalResult(EventSourcingException.class);
     }
 
     @Test
@@ -714,6 +801,15 @@ class AggregatePlaybackTest {
         }
     }
 
+    static class IgnoringUnknownParameterHandler {
+        final AtomicReference<IgnoringUnknownAggregate> observed = new AtomicReference<>();
+
+        @HandleEvent
+        void handle(CreateIgnoringUnknownAggregate event, IgnoringUnknownAggregate aggregate) {
+            observed.set(aggregate);
+        }
+    }
+
     static class IncompatibleErrorHandler {
         @HandleError
         void handle(SetPrimaryValue event) {
@@ -757,6 +853,28 @@ class AggregatePlaybackTest {
         @Override
         void handle(Entity<SampleAggregate> entity) {
         }
+    }
+
+    record CreateIgnoringUnknownAggregate(String value) {
+        @Apply
+        IgnoringUnknownAggregate apply() {
+            return new IgnoringUnknownAggregate(value);
+        }
+    }
+
+    @Aggregate(ignoreUnknownEvents = true)
+    record IgnoringUnknownAggregate(String value) {
+    }
+
+    record CreateStrictUnknownAggregate(String value) {
+        @Apply
+        StrictUnknownAggregate apply() {
+            return new StrictUnknownAggregate(value);
+        }
+    }
+
+    @Aggregate
+    record StrictUnknownAggregate(String value) {
     }
 
     record CreateSampleAggregate() {

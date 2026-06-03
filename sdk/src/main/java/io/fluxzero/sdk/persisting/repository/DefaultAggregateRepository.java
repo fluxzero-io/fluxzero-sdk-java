@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
@@ -23,6 +24,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
@@ -41,6 +43,7 @@ import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
 import io.fluxzero.sdk.modeling.NoOpEntity;
 import io.fluxzero.sdk.modeling.SideEffectFreeEntity;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.NoOpSnapshotStore;
@@ -59,6 +62,7 @@ import lombok.SneakyThrows;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,8 +75,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
@@ -140,15 +146,59 @@ public class DefaultAggregateRepository implements AggregateRepository {
     public <T> Entity<T> load(@NonNull Object aggregateId, Class<T> type) {
         Class<?> knownType;
         if (Object.class.equals(type)) {
-            knownType = getAggregatesFor(aggregateId).getOrDefault(aggregateId.toString(), Object.class);
+            Class<?> mappedType = getAggregatesFor(aggregateId).getOrDefault(aggregateId.toString(), Object.class);
+            knownType = Void.class.equals(mappedType) ? Object.class : mappedType;
+            if (Object.class.equals(knownType)) {
+                knownType = inferAggregateTypeFromFirstEvent(aggregateId).orElse(Object.class);
+            }
         } else {
             knownType = type;
         }
+        Class<?> delegateType = knownType;
         if (Entity.isLoading()) {
-            return new NoOpEntity<>(() -> (Entity<T>) delegates.apply(knownType).load(aggregateId));
+            return new NoOpEntity<>(() -> (Entity<T>) delegates.apply(delegateType).load(aggregateId));
         }
-        return (Entity<T>) delegates.apply(knownType).load(aggregateId);
-}
+        return (Entity<T>) delegates.apply(delegateType).load(aggregateId);
+    }
+
+    private Optional<Class<?>> inferAggregateTypeFromFirstEvent(Object aggregateId) {
+        try {
+            Optional<SerializedMessage> firstEvent =
+                    eventStoreClient.getEvents(aggregateId.toString(), -1L, 1).findFirst();
+            if (firstEvent.isEmpty()) {
+                return Optional.empty();
+            }
+            Optional<DeserializingMessage> firstMessage = serializer.deserializeMessages(
+                    Stream.of(firstEvent.get()), EVENT, UnknownTypeStrategy.FAIL).findFirst();
+            if (firstMessage.isEmpty()) {
+                return Optional.empty();
+            }
+            Optional<Class<?>> aggregateType = Optional.<Class<?>>ofNullable(Entity.getAggregateType(firstMessage.get()))
+                    .or(() -> inferAggregateTypeFromApplyFactory(firstMessage.get().getPayloadClass()));
+            if (aggregateType.isEmpty()) {
+                throw new EventSourcingException(format(
+                        "Could not infer aggregate type from first event for aggregate %s.", aggregateId));
+            }
+            return aggregateType;
+        } catch (EventSourcingException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new EventSourcingException(format(
+                    "Failed to infer aggregate type from first event for aggregate %s.", aggregateId), e);
+        }
+    }
+
+    private static Optional<Class<?>> inferAggregateTypeFromApplyFactory(Class<?> eventType) {
+        return ReflectionUtils.getAnnotatedMethods(eventType, Apply.class).stream()
+                .filter(method -> method.getParameterCount() == 0)
+                .map(Method::getReturnType)
+                .filter(returnType -> !void.class.equals(returnType)
+                                      && !Void.class.equals(returnType)
+                                      && !Object.class.equals(returnType))
+                .findFirst()
+                .map(returnType -> (Class<?>) returnType);
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public <T> Entity<T> loadFor(@NonNull Object entityId, Class<?> defaultType) {
