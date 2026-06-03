@@ -31,7 +31,7 @@ import lombok.Value;
  * @see DisconnectEvent
  */
 @Value
-public class ConnectEvent implements JsonType {
+public class ConnectEvent {
 
     /**
      * Logical client name, typically set via {@code ClientConfiguration#getClientName()}.

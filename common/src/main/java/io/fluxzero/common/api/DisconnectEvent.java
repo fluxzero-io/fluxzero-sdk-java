@@ -30,7 +30,7 @@ import lombok.Value;
  * @see ConnectEvent
  */
 @Value
-public class DisconnectEvent implements JsonType {
+public class DisconnectEvent {
 
     /**
      * Logical client name that initiated the disconnection.

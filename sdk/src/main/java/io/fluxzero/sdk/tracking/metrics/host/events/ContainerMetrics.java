@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -26,7 +25,7 @@ import lombok.Value;
  */
 @Value
 @Builder
-public class ContainerMetrics implements JsonType {
+public class ContainerMetrics {
 
     /**
      * The cgroup version detected: "v1", "v2", or null if not in a container.

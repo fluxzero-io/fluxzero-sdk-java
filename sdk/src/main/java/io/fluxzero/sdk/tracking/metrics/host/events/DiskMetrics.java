@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -26,7 +25,7 @@ import java.util.List;
  */
 @Value
 @Builder
-public class DiskMetrics implements JsonType {
+public class DiskMetrics {
 
     /**
      * Metrics for each monitored disk/path.
@@ -38,7 +37,7 @@ public class DiskMetrics implements JsonType {
      */
     @Value
     @Builder
-    public static class DiskSpaceMetrics implements JsonType {
+    public static class DiskSpaceMetrics {
         /**
          * The path being monitored.
          */

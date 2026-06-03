@@ -20,7 +20,7 @@ import lombok.Value;
  * Metric event emitted when a Fluxzero Runtime changes lifecycle phase.
  */
 @Value
-public class RuntimeLifecycleEvent implements JsonType {
+public class RuntimeLifecycleEvent {
 
     /**
      * The lifecycle phase that was reached by the runtime.

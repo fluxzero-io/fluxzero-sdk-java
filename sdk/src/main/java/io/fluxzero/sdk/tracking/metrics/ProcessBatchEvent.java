@@ -15,11 +15,10 @@
 package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.JsonType;
 import lombok.Value;
 
 @Value
-public class ProcessBatchEvent implements JsonType {
+public class ProcessBatchEvent {
     String consumer;
     String trackerId;
     MessageType messageType;

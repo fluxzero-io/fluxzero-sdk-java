@@ -14,11 +14,10 @@
 
 package io.fluxzero.sdk.tracking.metrics;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Value;
 
 @Value
-public class PauseTrackerEvent implements JsonType {
+public class PauseTrackerEvent {
     String consumer;
     String trackerId;
 }

@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -24,7 +23,7 @@ import lombok.Value;
  */
 @Value
 @Builder
-public class FileDescriptorMetrics implements JsonType {
+public class FileDescriptorMetrics {
 
     /**
      * The number of open file descriptors for this process.

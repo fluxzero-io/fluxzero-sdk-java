@@ -935,7 +935,7 @@ public abstract class WebsocketEndpoint {
                         .map(Object::toString).orElseThrow());
     }
 
-    protected void registerMetrics(JsonType event, ServerWebsocketSession session) {
+    protected void registerMetrics(Object event, ServerWebsocketSession session) {
         metricsLog.registerMetrics(event, sessionMetadata(session));
     }
 

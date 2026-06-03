@@ -15,11 +15,10 @@
 package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.JsonType;
 import lombok.Value;
 
 @Value
-public class HandleMessageEvent implements JsonType {
+public class HandleMessageEvent {
     String consumer;
     String handler;
     Long messageIndex;
