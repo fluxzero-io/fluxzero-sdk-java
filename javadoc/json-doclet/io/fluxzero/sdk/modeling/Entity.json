@@ -476,7 +476,10 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#getAggregateType",
     "returnType" : "java.lang.Class<?>",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "message",

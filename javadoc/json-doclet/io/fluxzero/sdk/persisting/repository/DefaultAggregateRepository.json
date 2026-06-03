@@ -188,6 +188,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "inferAggregateTypeFromApplyFactory",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#inferAggregateTypeFromApplyFactory",
+    "returnType" : "java.util.Optional<java.lang.Class<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inferAggregateTypeFromFirstEvent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#inferAggregateTypeFromFirstEvent",
+    "returnType" : "java.util.Optional<java.lang.Class<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "load",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#load",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
