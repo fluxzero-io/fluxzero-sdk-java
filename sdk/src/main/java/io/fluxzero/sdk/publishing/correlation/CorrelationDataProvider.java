@@ -137,21 +137,28 @@ public interface CorrelationDataProvider {
     }
 
     private HashMap<String, String> getBasicCorrelationData(@Nullable Client client) {
-        var result = new HashMap<String, String>();
-        Optional.ofNullable(client).ifPresent(f -> {
-            Optional.ofNullable(client.applicationId())
-                    .ifPresent(applicationId -> result.put(getApplicationIdKey(), applicationId));
+        var result = new HashMap<String, String>(8);
+        if (client != null) {
+            String applicationId = client.applicationId();
+            if (applicationId != null) {
+                result.put(getApplicationIdKey(), applicationId);
+            }
             result.put(getClientIdKey(), client.id());
             result.put(getClientNameKey(), client.name());
-        });
-        Tracker.current().ifPresent(t -> {
-            result.put(getConsumerKey(), t.getName());
-            result.put(getTrackerKey(), t.getTrackerId());
-        });
-        Optional.ofNullable(Invocation.getCurrent()).ifPresent(i -> {
-            result.put(getInvocationKey(), i.getId());
-            Optional.ofNullable(i.getHandler()).ifPresent(handler -> result.put(getHandlerKey(), handler));
-        });
+        }
+        Tracker tracker = Tracker.current.get();
+        if (tracker != null) {
+            result.put(getConsumerKey(), tracker.getName());
+            result.put(getTrackerKey(), tracker.getTrackerId());
+        }
+        Invocation invocation = Invocation.getCurrent();
+        if (invocation != null) {
+            result.put(getInvocationKey(), invocation.getId());
+            String handler = invocation.getHandler();
+            if (handler != null) {
+                result.put(getHandlerKey(), handler);
+            }
+        }
         return result;
     }
 

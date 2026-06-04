@@ -140,6 +140,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             AbstractWebsocketClient.class.getName() + ".clientSessionId";
     protected static final String RUNTIME_SESSION_ID_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".runtimeSessionId";
+    protected static final String NEGOTIATED_SESSION_ID_USER_PROPERTY =
+            AbstractWebsocketClient.class.getName() + ".negotiatedSessionId";
     protected static final String RUNTIME_VERSION_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".runtimeVersion";
     protected static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
@@ -287,6 +289,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                                     configurator.getClientSessionId());
                     session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY,
                                                     ofNullable(configurator.getRuntimeSessionId()).orElse("?"));
+                    session.getUserProperties().put(NEGOTIATED_SESSION_ID_USER_PROPERTY,
+                                                    negotiatedSessionId(
+                                                            configurator.getClientSessionId(),
+                                                            ofNullable(configurator.getRuntimeSessionId()).orElse("?")));
                     ofNullable(configurator.getRuntimeVersion()).ifPresent(
                             runtimeVersion -> session.getUserProperties().put(RUNTIME_VERSION_USER_PROPERTY,
                                                                               runtimeVersion));
@@ -821,9 +827,21 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected String getNegotiatedSessionId(WebsocketSession session) {
-        return "%s_%s".formatted(Optional.ofNullable(session.getUserProperties().get(CLIENT_SESSION_ID_USER_PROPERTY))
-                                         .map(Object::toString).orElseThrow(), Optional.ofNullable(
-                session.getUserProperties().get(RUNTIME_SESSION_ID_USER_PROPERTY)).map(Object::toString).orElseThrow());
+        Object cached = session.getUserProperties().get(NEGOTIATED_SESSION_ID_USER_PROPERTY);
+        if (cached instanceof String sessionId) {
+            return sessionId;
+        }
+        String sessionId = negotiatedSessionId(
+                ofNullable(session.getUserProperties().get(CLIENT_SESSION_ID_USER_PROPERTY))
+                        .map(Object::toString).orElseThrow(),
+                ofNullable(session.getUserProperties().get(RUNTIME_SESSION_ID_USER_PROPERTY))
+                        .map(Object::toString).orElseThrow());
+        session.getUserProperties().put(NEGOTIATED_SESSION_ID_USER_PROPERTY, sessionId);
+        return sessionId;
+    }
+
+    private static String negotiatedSessionId(String clientSessionId, String runtimeSessionId) {
+        return clientSessionId + "_" + runtimeSessionId;
     }
 
     protected CompressionAlgorithm getCompressionAlgorithm(WebsocketSession session) {

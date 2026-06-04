@@ -67,7 +67,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Slf4j
 public class Backlog<T> implements Monitored<List<T>> {
 
-    private static final int MAX_INITIAL_BATCH_CAPACITY = 1024;
+    private static final int MAX_INITIAL_BATCH_CAPACITY = 16;
 
     private final int maxBatchSize;
     private final Queue<T> queue = new ConcurrentLinkedQueue<>();

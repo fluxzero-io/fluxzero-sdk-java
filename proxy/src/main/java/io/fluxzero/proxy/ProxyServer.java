@@ -85,6 +85,11 @@ public class ProxyServer implements Registration {
     public static final int DEFAULT_MIN_THREADS = 8;
 
     /**
+     * Default maximum in-flight web requests accepted by the proxy. A value of {@code 0} disables this guardrail.
+     */
+    public static final int DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS = 0;
+
+    /**
      * Default maximum queued outgoing websocket sends per session.
      */
     public static final int DEFAULT_MAX_PENDING_WEBSOCKET_SENDS = 1024;
@@ -96,6 +101,7 @@ public class ProxyServer implements Registration {
     static final String MAX_THREADS_PROPERTY = "FLUXZERO_PROXY_MAX_THREADS";
     static final String MIN_THREADS_PROPERTY = "FLUXZERO_PROXY_MIN_THREADS";
     static final String USE_VIRTUAL_THREADS_PROPERTY = "FLUXZERO_PROXY_USE_VIRTUAL_THREADS";
+    static final String MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY = "FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS";
     static final String MAX_PENDING_WEBSOCKET_SENDS_PROPERTY = "FLUXZERO_PROXY_MAX_PENDING_WEBSOCKET_SENDS";
 
     private static final long UNLIMITED_WEBSOCKET_SIZE = 0L;
@@ -208,6 +214,7 @@ public class ProxyServer implements Registration {
                 MAX_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_REQUEST_BODY_SIZE));
         proxyHandler.setMaxMultipartRequestBodySize(getLongProperty(
                 MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE));
+        proxyHandler.setMaxInFlightWebRequests(getConfiguredMaxInFlightWebRequests());
         proxyHandler.setMaxPendingWebsocketSends(getConfiguredMaxPendingWebsocketSends());
 
         server.setHandler(createHandler(server, proxyHandler, getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health")));
@@ -239,6 +246,15 @@ public class ProxyServer implements Registration {
             }
         }
         return threadPool;
+    }
+
+    private static int getConfiguredMaxInFlightWebRequests() {
+        int maxInFlight = getIntegerProperty(MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY,
+                                             DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
+        if (maxInFlight < 0) {
+            throw new IllegalArgumentException(MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY + " must be >= 0");
+        }
+        return maxInFlight;
     }
 
     private static int getConfiguredMaxPendingWebsocketSends() {

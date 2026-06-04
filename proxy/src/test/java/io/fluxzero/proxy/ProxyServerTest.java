@@ -534,6 +534,63 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY)
+        void maxInFlightWebRequestsCanOptionallyRejectExcessRequests() throws Exception {
+            String previousValue = System.getProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            AtomicInteger invocations = new AtomicInteger();
+            try {
+                assertEquals(0, ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
+                System.setProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY, "1");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                    @HandleGet("/in-flight")
+                    String handle() throws Exception {
+                        invocations.incrementAndGet();
+                        entered.countDown();
+                        assertTrue(release.await(5, TimeUnit.SECONDS), "Timed out waiting to release held request");
+                        return "ok";
+                    }
+                });
+
+                var first = httpClient.sendAsync(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+                assertTrue(entered.await(5, TimeUnit.SECONDS), "Expected first request to reach the runtime handler");
+
+                var rejected = httpClient.send(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+
+                assertEquals(503, rejected.statusCode());
+                assertEquals("Too many in-flight proxy requests", rejected.body());
+                assertEquals(1, invocations.get());
+
+                release.countDown();
+                assertEquals(200, first.get(5, TimeUnit.SECONDS).statusCode());
+
+                var acceptedAfterRelease = httpClient.send(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+
+                assertEquals(200, acceptedAfterRelease.statusCode());
+                assertEquals("ok", acceptedAfterRelease.body());
+                assertEquals(2, invocations.get());
+            } finally {
+                release.countDown();
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
         @ResourceLock(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY)
         void idleTimeoutCanBeConfigured() {
             String previousValue = System.getProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY);
@@ -1731,8 +1788,8 @@ class ProxyServerTest {
 
         @Override
         protected void completeResponse(io.fluxzero.common.api.SerializedMessage response, Throwable error,
-                                        WebRequest webRequest, JettyExchange exchange) {
-            super.completeResponse(response, error, webRequest, exchange);
+                                        ProxyResponseContext responseContext) {
+            super.completeResponse(response, error, responseContext);
             if (error != null) {
                 responseFailure.countDown();
             }

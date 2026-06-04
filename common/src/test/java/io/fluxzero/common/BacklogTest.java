@@ -22,8 +22,9 @@ class BacklogTest {
 
     @Test
     void capsInitialBatchCapacity() {
-        assertEquals(512, Backlog.initialBatchCapacity(512));
-        assertEquals(1024, Backlog.initialBatchCapacity(1024));
-        assertEquals(1024, Backlog.initialBatchCapacity(Integer.MAX_VALUE));
+        assertEquals(8, Backlog.initialBatchCapacity(8));
+        assertEquals(16, Backlog.initialBatchCapacity(512));
+        assertEquals(16, Backlog.initialBatchCapacity(1024));
+        assertEquals(16, Backlog.initialBatchCapacity(Integer.MAX_VALUE));
     }
 }
