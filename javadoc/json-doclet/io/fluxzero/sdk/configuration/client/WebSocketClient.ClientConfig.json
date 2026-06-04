@@ -18,6 +18,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16777216
+  }, {
+    "name" : "MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES"
+  }, {
     "name" : "applicationId",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
     "type" : "java.lang.String",
@@ -103,7 +119,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.\n",
+    "documentation" : " Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.\n Defaults to {@code FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES}, or 16 MiB when unset.\n",
     "constantValue" : null
   }, {
     "name" : "maxWebSocketFragmentBytes",
