@@ -730,7 +730,12 @@ static final class DefaultConstraintValidatorContext implements ConstraintValida
             this.path = path;
         }
 
-        /** {@inheritDoc} */
+        /**
+         * {@inheritDoc}
+         *
+         * @deprecated Use {@link #addPropertyNode(String)}.
+         */
+        @Deprecated
         @Override
         public Builder addNode(String name) {
             path = path.appendProperty(name);

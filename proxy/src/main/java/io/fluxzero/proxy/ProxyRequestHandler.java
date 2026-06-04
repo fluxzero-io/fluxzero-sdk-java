@@ -38,6 +38,7 @@ import org.eclipse.jetty.io.Content;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.util.Callback;
+import org.eclipse.jetty.util.Promise;
 import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
 
 import java.io.IOException;
@@ -245,7 +246,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                 sendWebRequest(exchange, webRequest, true);
                 return;
             }
-            Content.Source.asByteArrayAsync(request, exchange.maxRequestBodySizeAsInt())
+            readRequestBody(request, exchange.maxRequestBodySizeAsInt())
                     .whenComplete((payload, error) -> {
                         try {
                             if (error != null) {
@@ -270,6 +271,12 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             log.error("Failed to handle incoming request", e);
             sendServerError(exchange);
         }
+    }
+
+    private CompletableFuture<byte[]> readRequestBody(Request request, int maxSize) {
+        CompletableFuture<byte[]> result = new CompletableFuture<>();
+        Content.Source.asByteArrayAsync(request, maxSize, Promise.Invocable.toPromise(result));
+        return result;
     }
 
     protected WebRequest createWebRequest(JettyExchange exchange, byte[] payload) {

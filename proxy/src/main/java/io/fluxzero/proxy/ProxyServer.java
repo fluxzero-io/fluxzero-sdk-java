@@ -239,7 +239,7 @@ public class ProxyServer implements Registration {
         threadPool.setName("fluxzero-proxy");
         if (getBooleanProperty(USE_VIRTUAL_THREADS_PROPERTY, false)) {
             if (supportsVirtualThreadWorkers()) {
-                ((VirtualThreads.Configurable) threadPool).setUseVirtualThreads(true);
+                threadPool.setVirtualThreadsExecutor(VirtualThreads.getDefaultVirtualThreadsExecutor());
             } else {
                 log.warn("{} is enabled but virtual-thread workers are only supported on Java 25+",
                          USE_VIRTUAL_THREADS_PROPERTY);
@@ -349,8 +349,7 @@ public class ProxyServer implements Registration {
     }
 
     boolean isUsingVirtualThreads() {
-        return server.getThreadPool() instanceof VirtualThreads.Configurable configurable
-               && configurable.isUseVirtualThreads();
+        return VirtualThreads.isUseVirtualThreads(server.getThreadPool());
     }
 
     private long connectorIdleTimeout() {

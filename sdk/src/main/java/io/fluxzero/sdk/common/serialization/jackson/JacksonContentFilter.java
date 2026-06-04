@@ -98,7 +98,8 @@ public class JacksonContentFilter implements ContentFilter {
      */
     public JacksonContentFilter(ObjectMapper mapper) {
         this.mapper = mapper.copy();
-        this.mapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
+        this.mapper.setDefaultPropertyInclusion(
+                JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.ALWAYS));
         this.mapper.registerModule(new SimpleModule() {
             @Override
             public void setupModule(SetupContext context) {

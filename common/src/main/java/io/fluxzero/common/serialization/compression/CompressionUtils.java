@@ -69,25 +69,24 @@ public class CompressionUtils {
     private static final byte FLUXZERO_COMPRESSION_ZSTD_ID = 2;
     private static final int ZSTD_COMPRESSION_LEVEL = 1;
 
-    private static final LZ4Compressor lz4Compressor = fastestInstance().fastCompressor();
-    private static final LZ4FastDecompressor lz4Decompressor = fastestInstance().fastDecompressor();
+    private static final LZ4Factory lz4Factory = fastestInstance();
+    private static final LZ4Compressor lz4Compressor = lz4Factory.fastCompressor();
+    private static final LZ4FastDecompressor lz4Decompressor = lz4Factory.fastDecompressor();
     private static final ThreadLocal<ZstdCompressCtx> zstdCompressors =
             ThreadLocal.withInitial(() -> new ZstdCompressCtx().setLevel(ZSTD_COMPRESSION_LEVEL));
     private static final ThreadLocal<ZstdDecompressCtx> zstdDecompressors =
             ThreadLocal.withInitial(ZstdDecompressCtx::new);
 
     /**
-     * Returns the fastest available {@link LZ4Factory} instance. If the class
-     * loader is the system class loader and if the
-     * {@link LZ4Factory#nativeInsecureInstance() native instance} loads successfully, then the
-     * {@link LZ4Factory#nativeInsecureInstance() native instance} is returned, otherwise the
-     * {@link LZ4Factory#fastestJavaInstance() fastest Java instance} is returned.
-     * <p>
-     * Please read {@link LZ4Factory#nativeInsecureInstance() javadocs of nativeInstance()} before
-     * using this method.
+     * Returns the fastest available {@link LZ4Factory} instance.
+     *
+     * <p>Fluxzero deliberately uses the native insecure factory when possible. The non-deprecated
+     * {@link LZ4Factory#fastestInstance()} selects the secure native factory, which keeps the fast decompressor on the
+     * Java implementation in this LZ4 release.</p>
      *
      * @return the fastest available {@link LZ4Factory} instance
      */
+    @SuppressWarnings("deprecation")
     private static LZ4Factory fastestInstance() {
         if (Native.isLoaded() || Native.class.getClassLoader() == ClassLoader.getSystemClassLoader()) {
             try {
@@ -174,7 +173,7 @@ public class CompressionUtils {
                 if (hasFluxzeroCompressionHeader(compressed)) {
                     yield decompressFluxzeroCompressionHeader(compressed);
                 }
-                long uncompressedLength = Zstd.decompressedSize(compressed);
+                long uncompressedLength = Zstd.getFrameContentSize(compressed);
                 if (uncompressedLength < 0 || uncompressedLength > Integer.MAX_VALUE) {
                     throw new IllegalArgumentException("Unable to determine ZSTD uncompressed size: "
                                                        + uncompressedLength);
