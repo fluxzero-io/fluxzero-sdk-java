@@ -50,9 +50,24 @@
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkedProxyRequest",
     "kind" : "class"
   }, {
+    "file" : "ProxyRequestHandler.InFlightWebRequestLimiter.json",
+    "name" : "ProxyRequestHandler.InFlightWebRequestLimiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.InFlightWebRequestLimiter.Permit.json",
+    "name" : "ProxyRequestHandler.InFlightWebRequestLimiter.Permit",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit",
+    "kind" : "record"
+  }, {
     "file" : "ProxyRequestHandler.JettyExchange.json",
     "name" : "ProxyRequestHandler.JettyExchange",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ProxyResponseContext.json",
+    "name" : "ProxyRequestHandler.ProxyResponseContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext",
     "kind" : "class"
   }, {
     "file" : "ProxySerializer.json",

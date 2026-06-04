@@ -109,6 +109,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "inFlightWebRequests",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.inFlightWebRequests",
+    "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "maxMultipartRequestBodySize",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.maxMultipartRequestBodySize",
     "type" : "long",
@@ -302,13 +310,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "webRequest",
-      "type" : "io.fluxzero.sdk.web.WebRequest",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "responseContext",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -333,13 +336,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "webRequest",
-      "type" : "io.fluxzero.sdk.web.WebRequest",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "responseContext",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -418,6 +416,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "createResponseContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createResponseContext",
+    "returnType" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRequest",
+      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createWebRequest",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#createWebRequest",
     "returnType" : "io.fluxzero.sdk.web.WebRequest",
@@ -451,8 +470,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "webRequest",
-      "type" : "io.fluxzero.sdk.web.WebRequest",
+      "name" : "responseContext",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -575,6 +594,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "handleAcceptedRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleAcceptedRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "org.eclipse.jetty.server.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleCorsPreflight",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleCorsPreflight",
     "returnType" : "boolean",
@@ -611,13 +651,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "webRequest",
-      "type" : "io.fluxzero.sdk.web.WebRequest",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "exchange",
-      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "name" : "responseContext",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -831,6 +866,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "releasePermitOnCompletion",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#releasePermitOnCompletion",
+    "returnType" : "org.eclipse.jetty.util.Callback",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "callback",
+      "type" : "org.eclipse.jetty.util.Callback",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "permit",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter.Permit",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendGatewayTimeout",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendGatewayTimeout",
     "returnType" : "void",
@@ -849,6 +905,22 @@
   }, {
     "name" : "sendPayloadTooLarge",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendPayloadTooLarge",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exchange",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequestBacklogUnavailable",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#sendRequestBacklogUnavailable",
     "returnType" : "void",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
@@ -977,6 +1049,22 @@
     }, {
       "name" : "chunked",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setMaxInFlightWebRequests",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setMaxInFlightWebRequests",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxInFlightWebRequests",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1165,8 +1253,20 @@
     "modifiers" : [ "protected" ],
     "annotations" : [ ]
   }, {
+    "name" : "InFlightWebRequestLimiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "JettyExchange",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ProxyResponseContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext",
     "kind" : "class",
     "modifiers" : [ "protected", "static" ],
     "annotations" : [ ]

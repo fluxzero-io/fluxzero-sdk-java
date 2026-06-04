@@ -42,6 +42,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "NEGOTIATED_SESSION_ID_USER_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "REPLAYED_RESPONSE_METADATA_KEY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.REPLAYED_RESPONSE_METADATA_KEY",
     "type" : "java.lang.String",
@@ -822,6 +830,27 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "negotiatedSessionId",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#negotiatedSessionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientSessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "runtimeSessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

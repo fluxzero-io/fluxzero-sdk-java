@@ -95,6 +95,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "timeoutExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.timeoutExecutor",
+    "type" : "java.util.concurrent.ScheduledThreadPoolExecutor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultRequestHandler",
@@ -158,6 +166,22 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completePendingRequests",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#completePendingRequests",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -383,6 +407,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "timeoutExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#timeoutExecutor",
+    "returnType" : "java.util.concurrent.ScheduledThreadPoolExecutor",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

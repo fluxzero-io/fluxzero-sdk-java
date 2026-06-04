@@ -29,6 +29,14 @@
     "documentation" : " Default maximum request and response header size: 1 MiB\n",
     "constantValue" : 1048576
   }, {
+    "name" : "DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default maximum in-flight web requests accepted by the proxy. A value of {@code 0} disables this guardrail.\n",
+    "constantValue" : 0
+  }, {
     "name" : "DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE",
     "type" : "long",
@@ -116,6 +124,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_MAX_HEADER_SIZE"
+  }, {
+    "name" : "MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS"
   }, {
     "name" : "MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY",
@@ -342,6 +358,17 @@
     "name" : "createThreadPool",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#createThreadPool",
     "returnType" : "org.eclipse.jetty.util.thread.QueuedThreadPool",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConfiguredMaxInFlightWebRequests",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#getConfiguredMaxInFlightWebRequests",
+    "returnType" : "int",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

@@ -19,7 +19,7 @@
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : 1024
+    "constantValue" : 16
   }, {
     "name" : "consumer",
     "qualifiedName" : "io.fluxzero.common.Backlog.consumer",
