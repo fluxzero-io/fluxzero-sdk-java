@@ -285,11 +285,20 @@ public class DefaultRequestHandler implements RequestHandler {
     public void close() {
         waitForResults(Duration.ofSeconds(2),
                        callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+        completePendingRequests(new IllegalStateException("Request handler has closed"));
         if (registration != null) {
             registration.cancel();
         }
         timeoutExecutor.shutdownNow();
         responseExecutor.shutdown();
+    }
+
+    private void completePendingRequests(Throwable error) {
+        callbacks.forEach((requestId, callback) -> {
+            if (callbacks.remove(requestId, callback)) {
+                callback.completeExceptionally(error);
+            }
+        });
     }
 
     private ScheduledThreadPoolExecutor timeoutExecutor() {
