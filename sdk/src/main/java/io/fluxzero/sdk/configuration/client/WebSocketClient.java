@@ -61,6 +61,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.schedulingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -175,6 +176,8 @@ public class WebSocketClient extends AbstractClient {
     @Value
     @Builder(toBuilder = true)
     public static class ClientConfig {
+        static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
+        static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
 
         /**
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property
@@ -224,9 +227,11 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.
+         * Defaults to {@code FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES}, or 16 MiB when unset.
          */
         @Default
-        int maxInFlightWebSocketBytes = 16 * 1024 * 1024;
+        int maxInFlightWebSocketBytes = getIntegerProperty(MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY,
+                                                           DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
 
         /**
          * Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with
