@@ -8,9 +8,6 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   }, {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.Getter",
     "values" : {
       "value" : "PRIVATE"
@@ -84,7 +81,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.relationshipsCache",
-    "type" : "io.fluxzero.common.caching.Cache",
+    "type" : "io.fluxzero.sdk.persisting.repository.RelationshipsCache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -112,7 +109,52 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventStoreClient",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateCache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationshipsCache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentStore",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

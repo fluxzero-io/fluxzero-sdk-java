@@ -92,7 +92,7 @@
   }, {
     "name" : "relationshipsCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository.relationshipsCache",
-    "type" : "io.fluxzero.common.caching.Cache",
+    "type" : "io.fluxzero.sdk.persisting.repository.RelationshipsCache",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
