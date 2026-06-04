@@ -866,6 +866,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readRequestBody",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#readRequestBody",
+    "returnType" : "java.util.concurrent.CompletableFuture<byte[]>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "org.eclipse.jetty.server.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "releasePermitOnCompletion",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#releasePermitOnCompletion",
     "returnType" : "org.eclipse.jetty.util.Callback",
