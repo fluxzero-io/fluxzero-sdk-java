@@ -64,6 +64,7 @@ import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -71,6 +72,7 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -204,6 +206,45 @@ class ProxyServerTest {
                         assertEquals("accepted", response.body());
                         assertEquals("text/custom", response.headers().firstValue("Content-Type").orElse(null));
                         assertEquals(List.of("one", "two"), response.headers().allValues("X-Reply"));
+                    });
+        }
+
+        @Test
+        void benchmarkTraceHeadersAreOnlyReturnedWhenTraceHeaderIsPresent() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/benchmark-trace")
+                        String response() {
+                            return "benchmark";
+                        }
+                    })
+                    .whenApplying(fc -> {
+                        var withoutTrace = httpClient.send(
+                                newBuilder(URI.create(format("http://localhost:%s/benchmark-trace", proxyPort)))
+                                        .GET().build(), BodyHandlers.ofString());
+                        var withTrace = httpClient.send(
+                                newBuilder(URI.create(format("http://localhost:%s/benchmark-trace", proxyPort)))
+                                        .GET()
+                                        .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
+                                        .build(), BodyHandlers.ofString());
+                        return List.of(withoutTrace, withTrace);
+                    })
+                    .verifyResult(responses -> {
+                        assertEquals(200, responses.getFirst().statusCode());
+                        assertEquals("benchmark", responses.getFirst().body());
+                        assertNoBenchmarkTraceHeaders(responses.getFirst().headers());
+
+                        assertEquals(200, responses.get(1).statusCode());
+                        assertEquals("benchmark", responses.get(1).body());
+                        assertBenchmarkInstantHeader(
+                                responses.get(1).headers(),
+                                ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER);
+                        Instant received = assertBenchmarkInstantHeader(
+                                responses.get(1).headers(),
+                                ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER);
+                        Instant sendStart = assertBenchmarkInstantHeader(
+                                responses.get(1).headers(),
+                                ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER);
+                        assertFalse(received.isAfter(sendStart));
                     });
         }
 
@@ -1814,6 +1855,17 @@ class ProxyServerTest {
         byte[] bytes = new byte[copy.remaining()];
         copy.get(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    private static void assertNoBenchmarkTraceHeaders(HttpHeaders headers) {
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER).isEmpty());
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER).isEmpty());
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER).isEmpty());
+    }
+
+    private static Instant assertBenchmarkInstantHeader(HttpHeaders headers, String name) {
+        return Instant.parse(headers.firstValue(name)
+                                     .orElseThrow(() -> new AssertionError("Missing benchmark header " + name)));
     }
 
     private static void restoreProperty(String name, String value) {

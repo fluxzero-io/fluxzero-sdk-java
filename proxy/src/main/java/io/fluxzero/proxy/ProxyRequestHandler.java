@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
@@ -47,6 +48,7 @@ import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,6 +90,13 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
      * Maximum payload bytes per web request chunk when {@link #REQUEST_CHUNKING_ENABLED_PROPERTY} is enabled.
      */
     public static final String REQUEST_CHUNK_SIZE_PROPERTY = "FLUXZERO_PROXY_REQUEST_CHUNK_SIZE";
+    static final String BENCHMARK_TRACE_ID_HEADER = "X-Fluxzero-Benchmark-Trace-Id";
+    static final String BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER =
+            "X-Fluxzero-Benchmark-Runtime-Webresponse-Index";
+    static final String BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER =
+            "X-Fluxzero-Benchmark-Proxy-Webresponse-Received";
+    static final String BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER =
+            "X-Fluxzero-Benchmark-Proxy-Http-Response-Send-Start";
     static final Duration SERVER_SHUTDOWN_CLOSE_TIMEOUT = Duration.ofSeconds(1);
     static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(200);
 
@@ -806,6 +815,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         private final String path;
         private final String messageId;
         private final Map<String, String> requestMetadata;
+        private final boolean benchmarkTraceRequested;
 
         ProxyResponseContext(WebRequest webRequest, JettyExchange exchange) {
             this.exchange = exchange;
@@ -813,6 +823,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             this.path = webRequest.getPath();
             this.messageId = webRequest.getMessageId();
             this.requestMetadata = Map.copyOf(webRequest.getMetadata().getEntries());
+            this.benchmarkTraceRequested = webRequest.getHeader(BENCHMARK_TRACE_ID_HEADER) != null;
         }
 
         JettyExchange exchange() {
@@ -831,6 +842,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             return requestMetadata;
         }
 
+        boolean benchmarkTraceRequested() {
+            return benchmarkTraceRequested;
+        }
+
         String description() {
             return method + " " + path;
         }
@@ -839,6 +854,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     @SuppressWarnings("resource")
     @SneakyThrows
     protected void handleResponse(SerializedMessage responseMessage, ProxyResponseContext responseContext) {
+        Instant proxyWebResponseReceived = responseContext.benchmarkTraceRequested() ? Instant.now() : null;
         int statusCode = WebResponse.getStatusCode(responseMessage.getMetadata());
         if (statusCode < 300 && HttpRequestMethod.WS_HANDSHAKE.equals(responseContext.method())) {
             responseContext.exchange().upgrade(
@@ -848,10 +864,28 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         }
         prepareForSending(responseMessage, responseContext.exchange(), statusCode);
         if (responseMessage.chunked()) {
+            applyBenchmarkTraceHeaders(responseMessage, responseContext, proxyWebResponseReceived);
             responseContext.exchange().write(responseMessage.getData().getValue(), responseMessage.lastChunk());
         } else {
+            applyBenchmarkTraceHeaders(responseMessage, responseContext, proxyWebResponseReceived);
             sendResponse(responseMessage, responseContext.exchange());
         }
+    }
+
+    protected void applyBenchmarkTraceHeaders(SerializedMessage responseMessage, ProxyResponseContext responseContext,
+                                              Instant proxyWebResponseReceived) {
+        if (!responseContext.benchmarkTraceRequested() || responseContext.exchange().isCommitted()) {
+            return;
+        }
+        ofNullable(responseMessage.getIndex())
+                .map(IndexUtils::timestampFromIndex)
+                .map(Instant::toString)
+                .ifPresent(timestamp -> responseContext.exchange().putResponseHeader(
+                        BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER, timestamp));
+        responseContext.exchange().putResponseHeader(
+                BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER, proxyWebResponseReceived.toString());
+        responseContext.exchange().putResponseHeader(
+                BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER, Instant.now().toString());
     }
 
     private static Map<String, List<String>> createWebsocketRequestParameters(SerializedMessage responseMessage,
