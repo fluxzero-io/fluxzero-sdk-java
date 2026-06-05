@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "benchmarkTraceRequested",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext.benchmarkTraceRequested",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "exchange",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext.exchange",
     "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
@@ -72,6 +80,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "benchmarkTraceRequested",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext#benchmarkTraceRequested",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "description",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext#description",
     "returnType" : "java.lang.String",

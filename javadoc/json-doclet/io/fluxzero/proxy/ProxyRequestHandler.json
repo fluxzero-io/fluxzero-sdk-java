@@ -13,6 +13,38 @@
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.proxy.ProxyRequestHandler>",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "X-Fluxzero-Benchmark-Proxy-Http-Response-Send-Start"
+  }, {
+    "name" : "BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "X-Fluxzero-Benchmark-Proxy-Webresponse-Received"
+  }, {
+    "name" : "BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "X-Fluxzero-Benchmark-Runtime-Webresponse-Index"
+  }, {
+    "name" : "BENCHMARK_TRACE_ID_HEADER",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "X-Fluxzero-Benchmark-Trace-Id"
+  }, {
     "name" : "CORS_DOMAINS_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.CORS_DOMAINS_PROPERTY",
     "type" : "java.lang.String",
@@ -242,6 +274,32 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "applyBenchmarkTraceHeaders",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#applyBenchmarkTraceHeaders",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseContext",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.ProxyResponseContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "proxyWebResponseReceived",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "applyCorsHeaders",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#applyCorsHeaders",
     "returnType" : "boolean",
