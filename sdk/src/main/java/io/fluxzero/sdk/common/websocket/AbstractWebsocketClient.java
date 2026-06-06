@@ -84,8 +84,6 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
 import static io.fluxzero.sdk.Fluxzero.publishMetrics;
 import static io.fluxzero.sdk.common.ClientUtils.ignoreMarker;
@@ -362,7 +360,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private CompletableFuture<Void> sendBatchAsync(List<Request> requests, WebsocketSession session) {
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
-            byte[] bytes = compress(transportCodec(session).encode(object), getCompressionAlgorithm(session));
+            byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
             if (session.isOpen()) {
                 return sendEncodedBatch(session, object, bytes);
             } else if (!closed.get()) {
@@ -486,7 +484,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void handleMessage(byte[] bytes, WebsocketSession session) {
         JsonType value;
         try {
-            value = transportCodec(session).decode(decompress(bytes, getCompressionAlgorithm(session)));
+            value = transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
         } catch (Exception e) {
             log().error("Could not parse input. Expected a {} websocket message.",
                         getTransportFormat(session), e);

@@ -21,6 +21,7 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -676,6 +677,20 @@ class ProxyServerTest {
                 restoreProperty(ProxyServer.MAX_THREADS_PROPERTY, previousMaxThreads);
                 restoreProperty(ProxyServer.MIN_THREADS_PROPERTY, previousMinThreads);
                 restoreProperty(ProxyServer.USE_VIRTUAL_THREADS_PROPERTY, previousUseVirtualThreads);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY)
+        void websocketCompressionAlgorithmsCanBeConfigured() {
+            String previousValue = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
+            try {
+                System.setProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, "LZ4,NONE");
+
+                assertEquals(List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.NONE),
+                             ProxyServer.getConfiguredCompressionAlgorithms().orElseThrow());
+            } finally {
+                restoreProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, previousValue);
             }
         }
 

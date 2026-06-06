@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.LazyInputStream;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
@@ -54,7 +52,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.sdk.web.WebUtils.asHeaderMap;
 import static java.util.stream.Collectors.toList;
 
@@ -354,7 +351,7 @@ public class WebResponse extends Message {
     Object decodePayload() {
         Object result = getEncodedPayload();
         if (result instanceof byte[] bytes && Objects.equals(getHeaders("Content-Encoding"), gzipEncoding)) {
-            return CompressionUtils.decompress(bytes, CompressionAlgorithm.GZIP);
+            return CompressionAlgorithm.GZIP.decompress(bytes);
         }
         return result;
     }

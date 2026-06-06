@@ -99,8 +99,6 @@ import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
 import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
@@ -221,7 +219,7 @@ public abstract class WebsocketEndpoint {
     }
 
     protected JsonType deserializeRequest(ServerWebsocketSession session, byte[] bytes) throws IOException {
-        return transportCodec(session).decode(decompress(bytes, getCompressionAlgorithm(session)));
+        return transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
     }
 
     public void onMessage(byte[] bytes, ServerWebsocketSession session) {
@@ -513,7 +511,7 @@ public abstract class WebsocketEndpoint {
             var result = results.size() == 1 ? results.getFirst() : new ResultBatch(results);
             if (session.isOpen()) {
                 try {
-                    byte[] bytes = compress(transportCodec(session).encode(result), getCompressionAlgorithm(session));
+                    byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(result));
                     return sendEncodedResultBatch(session, results, result, bytes);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {

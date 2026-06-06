@@ -626,7 +626,6 @@ io.fluxzero.common.serialization.StripStringsModule
 io.fluxzero.common.serialization.TypeRegistry
 io.fluxzero.common.serialization.TypeRegistryProcessor
 io.fluxzero.common.serialization.compression.CompressionAlgorithm
-io.fluxzero.common.serialization.compression.CompressionUtils
 io.fluxzero.common.tracking.DefaultTrackingStrategy
 io.fluxzero.common.tracking.HasMessageStore
 io.fluxzero.common.tracking.InMemoryPositionStore
