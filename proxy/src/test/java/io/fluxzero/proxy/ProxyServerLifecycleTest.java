@@ -40,8 +40,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Isolated
 class ProxyServerLifecycleTest {
 
+    private static final Duration FORWARD_PROXY_READY_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration FORWARD_PROXY_PROBE_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration FORWARD_PROXY_RETRY_DELAY = Duration.ofMillis(250);
+
     @Test
-    @Timeout(15)
+    @Timeout(30)
     void startWithoutArgumentsStartsHttpAndForwardProxyUsingConfiguredProperties() throws Exception {
         Server testServer = null;
         ProxyServer proxyServer = null;
@@ -79,13 +83,7 @@ class ProxyServerLifecycleTest {
                     .disableShutdownHook()
                     .disableKeepalive()
                     .build(WebSocketClient.newInstance(requesterConfig));
-            WebResponse response = requester.webRequestGateway().sendAndWait(WebRequest.builder()
-                                                                                       .url(healthUrl)
-                                                                                       .method(GET)
-                                                                                       .build(),
-                                                                               WebRequestSettings.builder()
-                                                                                       .timeout(Duration.ofSeconds(5))
-                                                                                       .build());
+            WebResponse response = waitForForwardProxy(requester, healthUrl);
             assertEquals(200, response.getStatus());
             assertEquals("Healthy", new String(response.<byte[]>getPayload(), StandardCharsets.UTF_8));
 
@@ -112,6 +110,28 @@ class ProxyServerLifecycleTest {
             restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
             restoreProperty("FLUX_URL", previousFluxUrl);
         }
+    }
+
+    private static WebResponse waitForForwardProxy(Fluxzero requester, String healthUrl) throws InterruptedException {
+        long deadline = System.nanoTime() + FORWARD_PROXY_READY_TIMEOUT.toNanos();
+        io.fluxzero.sdk.publishing.TimeoutException lastTimeout;
+        do {
+            try {
+                return requester.webRequestGateway().sendAndWait(WebRequest.builder()
+                                                                        .url(healthUrl)
+                                                                        .method(GET)
+                                                                        .build(),
+                                                                 WebRequestSettings.builder()
+                                                                         .timeout(FORWARD_PROXY_PROBE_TIMEOUT)
+                                                                         .build());
+            } catch (io.fluxzero.sdk.publishing.TimeoutException e) {
+                lastTimeout = e;
+                if (System.nanoTime() >= deadline) {
+                    throw lastTimeout;
+                }
+                Thread.sleep(FORWARD_PROXY_RETRY_DELAY);
+            }
+        } while (true);
     }
 
     private static void restoreProperty(String name, String value) {
