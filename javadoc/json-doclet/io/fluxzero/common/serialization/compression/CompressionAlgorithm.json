@@ -3,25 +3,218 @@
   "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
   "packageName" : "io.fluxzero.common.serialization.compression",
   "kind" : "enum",
-  "modifiers" : [ "final", "public" ],
+  "modifiers" : [ "public", "sealed" ],
   "annotations" : [ ],
-  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>\n   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n\n @see CompressionUtils\n",
+  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>\n   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "FLUXZERO_COMPRESSION_HEADER_LENGTH",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.FLUXZERO_COMPRESSION_HEADER_LENGTH",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "FLUXZERO_COMPRESSION_MAGIC",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.FLUXZERO_COMPRESSION_MAGIC",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "fluxzeroCompressionId",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.fluxzeroCompressionId",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "CompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#CompressionAlgorithm",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzeroCompressionId",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "compress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#compress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uncompressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Compresses bytes using this algorithm's public SDK wire format.\n\n <p>LZ4 preserves the legacy 4-byte size prefix format. ZSTD uses the Fluxzero compression header so the decoder\n can identify the payload algorithm. GZIP keeps the standard gzip stream format.</p>\n\n @param uncompressed bytes to compress\n @return compressed bytes\n"
+  }, {
+    "name" : "compressPayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#compressPayload",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uncompressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decompress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decompresses bytes using this algorithm's public SDK wire format.\n\n @param compressed bytes to decompress\n @return decompressed bytes\n"
+  }, {
+    "name" : "decompressFluxzeroCompressionHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompressFluxzeroCompressionHeader",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decompressPayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompressPayload",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "originalSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fastestInstance",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#fastestInstance",
+    "returnType" : "net.jpountz.lz4.LZ4Factory",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"deprecation\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the fastest available LZ4 factory.\n\n <p>Fluxzero deliberately uses the native insecure factory when possible. The non-deprecated\n {@link LZ4Factory#fastestInstance()} selects the secure native factory, which keeps the fast decompressor on the\n Java implementation in this LZ4 release.</p>\n"
+  }, {
+    "name" : "fromFluxzeroCompressionId",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#fromFluxzeroCompressionId",
+    "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasFluxzeroCompressionHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#hasFluxzeroCompressionHeader",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readInt",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#readInt",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#valueOf",
     "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
@@ -48,6 +241,58 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withFluxzeroCompressionHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#withFluxzeroCompressionHeader",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uncompressedLength",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "algorithm",
+      "type" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeInt",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#writeInt",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ {
     "name" : "GZIP",
@@ -71,5 +316,23 @@
     "documentation" : " Zstandard compression using the Fluxzero compression header format.\n"
   } ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "Lz4",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Resource",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Resource",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ResourcePool",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

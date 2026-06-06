@@ -10,9 +10,19 @@
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
     "kind" : "enum"
   }, {
-    "file" : "CompressionUtils.json",
-    "name" : "CompressionUtils",
-    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionUtils",
+    "file" : "CompressionAlgorithm.Lz4.json",
+    "name" : "CompressionAlgorithm.Lz4",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4",
+    "kind" : "class"
+  }, {
+    "file" : "CompressionAlgorithm.Resource.json",
+    "name" : "CompressionAlgorithm.Resource",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Resource",
+    "kind" : "class"
+  }, {
+    "file" : "CompressionAlgorithm.ResourcePool.json",
+    "name" : "CompressionAlgorithm.ResourcePool",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool",
     "kind" : "class"
   } ],
   "subdirectories" : [ ]

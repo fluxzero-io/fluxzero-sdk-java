@@ -1,0 +1,87 @@
+{
+  "name" : "ResourcePool",
+  "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool",
+  "packageName" : "io.fluxzero.common.serialization.compression",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "resources",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool.resources",
+    "type" : "java.util.Queue<io.fluxzero.common.serialization.compression.CompressionAlgorithm.Resource<T>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "semaphore",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool.semaphore",
+    "type" : "java.util.concurrent.Semaphore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ResourcePool",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool#ResourcePool",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "factory",
+      "type" : "java.util.function.@lombok.NonNull Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool#apply",
+    "returnType" : "R",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<T,R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$ResourcePool#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
