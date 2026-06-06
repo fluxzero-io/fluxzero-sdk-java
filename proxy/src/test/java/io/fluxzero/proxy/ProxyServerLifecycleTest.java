@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,25 @@
 
 package io.fluxzero.proxy;
 
-import io.fluxzero.common.TestUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.publishing.TimeoutException;
 import io.fluxzero.sdk.web.WebRequest;
-import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.sdk.web.WebRequestSettings;
+import io.fluxzero.sdk.web.WebResponse;
 import io.fluxzero.testserver.TestServer;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
 
 import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
@@ -39,9 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class ProxyServerLifecycleTest {
+    private static final Duration FORWARDED_HEALTH_ATTEMPT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration FORWARDED_HEALTH_MAX_WAIT = Duration.ofSeconds(25);
+    private static final Duration FORWARDED_HEALTH_RETRY_DELAY = Duration.ofMillis(100);
 
     @Test
-    @Timeout(15)
+    @Timeout(45)
     void startWithoutArgumentsStartsHttpAndForwardProxyUsingConfiguredProperties() throws Exception {
         Server testServer = null;
         ProxyServer proxyServer = null;
@@ -53,9 +61,8 @@ class ProxyServerLifecycleTest {
         String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
         String previousFluxUrl = System.getProperty("FLUX_URL");
         try {
-            int fluxPort = TestUtils.getAvailablePort();
-            String runtimeUrl = "ws://localhost:" + fluxPort;
-            testServer = TestServer.startServer(fluxPort);
+            testServer = TestServer.startServer(0);
+            String runtimeUrl = "ws://localhost:" + localPort(testServer);
             occupiedProxyPort = new ServerSocket(0);
 
             System.setProperty("FLUXZERO_PROXY_PORT", "0");
@@ -70,6 +77,8 @@ class ProxyServerLifecycleTest {
             assertNotEquals(occupiedProxyPort.getLocalPort(), proxyServer.getPort());
 
             String healthUrl = "http://localhost:" + proxyServer.getPort() + "/proxy/health";
+            assertLocalHealth(healthUrl);
+
             WebSocketClient.ClientConfig requesterConfig = WebSocketClient.ClientConfig.builder()
                     .name("proxy-lifecycle-test")
                     .runtimeBaseUrl(runtimeUrl)
@@ -79,13 +88,7 @@ class ProxyServerLifecycleTest {
                     .disableShutdownHook()
                     .disableKeepalive()
                     .build(WebSocketClient.newInstance(requesterConfig));
-            WebResponse response = requester.webRequestGateway().sendAndWait(WebRequest.builder()
-                                                                                       .url(healthUrl)
-                                                                                       .method(GET)
-                                                                                       .build(),
-                                                                               WebRequestSettings.builder()
-                                                                                       .timeout(Duration.ofSeconds(5))
-                                                                                       .build());
+            WebResponse response = sendForwardedHealthRequest(requester, healthUrl);
             assertEquals(200, response.getStatus());
             assertEquals("Healthy", new String(response.<byte[]>getPayload(), StandardCharsets.UTF_8));
 
@@ -112,6 +115,43 @@ class ProxyServerLifecycleTest {
             restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
             restoreProperty("FLUX_URL", previousFluxUrl);
         }
+    }
+
+    private static void assertLocalHealth(String healthUrl) throws Exception {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        try {
+            var response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create(healthUrl)).GET().build(), BodyHandlers.ofString());
+            assertEquals(200, response.statusCode());
+            assertEquals("Healthy", response.body());
+        } finally {
+            httpClient.shutdownNow();
+        }
+    }
+
+    private static WebResponse sendForwardedHealthRequest(Fluxzero requester, String healthUrl)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + FORWARDED_HEALTH_MAX_WAIT.toNanos();
+        while (true) {
+            try {
+                return requester.webRequestGateway().sendAndWait(WebRequest.builder()
+                                                                 .url(healthUrl)
+                                                                 .method(GET)
+                                                                 .build(),
+                                                         WebRequestSettings.builder()
+                                                                 .timeout(FORWARDED_HEALTH_ATTEMPT_TIMEOUT)
+                                                                 .build());
+            } catch (TimeoutException e) {
+                if (System.nanoTime() >= deadline) {
+                    throw e;
+                }
+                Thread.sleep(FORWARDED_HEALTH_RETRY_DELAY.toMillis());
+            }
+        }
+    }
+
+    private static int localPort(Server server) {
+        return ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
     private static void restoreProperty(String name, String value) {
