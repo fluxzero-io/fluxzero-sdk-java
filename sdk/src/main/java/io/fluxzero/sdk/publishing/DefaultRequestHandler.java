@@ -40,6 +40,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Consumer;
@@ -201,7 +202,6 @@ public class DefaultRequestHandler implements RequestHandler {
         if (timeout == null) {
             timeout = this.timeout;
         }
-        ScheduledFuture<?> timeoutTask = null;
         if (intermediateCallback == null) {
             List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
             intermediateCallback = intermediates::add;
@@ -216,6 +216,16 @@ public class DefaultRequestHandler implements RequestHandler {
                 return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
             });
         }
+        AtomicReference<ScheduledFuture<?>> timeoutTask = new AtomicReference<>();
+        ResponseCallback callback = new ResponseCallback(intermediateCallback, rawResult);
+        result.whenComplete((m, e) -> {
+            callbacks.remove(requestId);
+            ScheduledFuture<?> scheduledTimeoutTask = timeoutTask.get();
+            if (scheduledTimeoutTask != null) {
+                scheduledTimeoutTask.cancel(false);
+            }
+        });
+        callbacks.put(requestId, callback);
         Metadata metadata = ofNullable(request.getMetadata()).orElseGet(Metadata::empty);
         if (timeout.isNegative()) {
             request.setMetadata(metadata.without(REQUEST_TIMEOUT_METADATA_KEY));
@@ -225,19 +235,15 @@ public class DefaultRequestHandler implements RequestHandler {
             String requestDataType = request.getData().getType();
             String messageId = request.getMessageId();
             String resultTypeName = resultType.name();
-            timeoutTask = timeoutExecutor.schedule(
+            ScheduledFuture<?> scheduledTimeoutTask = timeoutExecutor.schedule(
                     () -> rawResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
                             "message", requestDataType, messageId, requestId, resultTypeName, effectiveTimeout)),
                     effectiveTimeout.toMillis(), MILLISECONDS);
-        }
-        ScheduledFuture<?> finalTimeoutTask = timeoutTask;
-        result.whenComplete((m, e) -> {
-            callbacks.remove(requestId);
-            if (finalTimeoutTask != null) {
-                finalTimeoutTask.cancel(false);
+            timeoutTask.set(scheduledTimeoutTask);
+            if (result.isDone()) {
+                scheduledTimeoutTask.cancel(false);
             }
-        });
-        callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
+        }
         request.setRequestId(requestId);
         request.setSource(client.id());
         return result;
