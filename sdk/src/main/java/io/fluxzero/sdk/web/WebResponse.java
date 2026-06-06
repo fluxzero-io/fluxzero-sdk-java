@@ -92,7 +92,7 @@ public class WebResponse extends Message {
     Object decodedPayload = decodePayload();
 
     private WebResponse(Builder builder) {
-        super(builder.payload(), Metadata.of(statusKey, builder.status(), headersKey, builder.headers()));
+        super(builder.payload(), asMetadata(builder.status(), builder.headers()));
         this.status = builder.status();
         this.headers = builder.headers();
     }
@@ -159,7 +159,8 @@ public class WebResponse extends Message {
      * @return a Metadata object containing the status code and headers
      */
     public static Metadata asMetadata(int statusCode, Map<String, List<String>> headers) {
-        return Metadata.of(statusKey, statusCode, headersKey, headers);
+        Metadata metadata = Metadata.of(statusKey, statusCode);
+        return headers == null || headers.isEmpty() ? metadata : metadata.with(headersKey, headers);
     }
 
     @Override
