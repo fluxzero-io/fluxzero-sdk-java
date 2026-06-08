@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -380,6 +380,30 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             return fetchHitStream(maxSize, type).map(SearchHit::getValue).collect(toList());
         }
 
+        @Override
+        public <T> CompletableFuture<List<T>> fetchAsync(int maxSize) {
+            return fetchAsync(maxSize, null);
+        }
+
+        @Override
+        public <T> CompletableFuture<List<T>> fetchAsync(int maxSize, Class<T> type) {
+            SearchQuery query = queryBuilder.build();
+            return getSearchClient().searchAsync(
+                    SearchDocuments.builder().query(query).maxSize(maxSize).sorting(sorting)
+                            .pathFilters(pathFilters).skip(skip).build(),
+                    Math.min(maxSize, defaultFetchSize)).thenApply(hits -> mapHits(hits, type));
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private <T> List<T> mapHits(List<SearchHit<SerializedDocument>> hits, Class<T> type) {
+            if (SerializedDocument.class.equals(type)) {
+                return (List) hits.stream().map(SearchHit::getValue).toList();
+            }
+            Function<SerializedDocument, T> convertFunction = type == null
+                    ? serializer::fromDocument : document -> serializer.fromDocument(document, type);
+            return hits.stream().map(hit -> hit.map(convertFunction).getValue()).toList();
+        }
+
         protected <T> Stream<SearchHit<T>> fetchHitStream(Integer maxSize, Class<T> type) {
             return fetchHitStream(maxSize, type, maxSize == null
                     ? defaultFetchSize : Math.min(maxSize, defaultFetchSize));
@@ -416,6 +440,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
+        public CompletableFuture<List<FacetStats>> facetStatsAsync() {
+            return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
+                    .thenApply(stats -> stats.stream().filter(s -> !s.getName().startsWith("$metadata/")).toList());
+        }
+
+        @Override
         public CompletableFuture<Void> delete() {
             return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED);
         }
@@ -434,6 +464,14 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             public Map<Group, Map<String, DocumentStats.FieldStats>> aggregate(String... fields) {
                 return getSearchClient().fetchStatistics(queryBuilder.build(), Arrays.asList(fields), groupBy).stream()
                         .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
+            }
+
+            @Override
+            public CompletableFuture<Map<Group, Map<String, DocumentStats.FieldStats>>> aggregateAsync(
+                    String... fields) {
+                return getSearchClient().fetchStatisticsAsync(queryBuilder.build(), Arrays.asList(fields), groupBy)
+                        .thenApply(stats -> stats.stream()
+                                .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }
         }
     }

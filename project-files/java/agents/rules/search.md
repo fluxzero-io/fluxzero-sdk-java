@@ -17,6 +17,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
     - [Temporal Filters (since, inLast)](#temporal-filters)
     - [Logical Grouping (All, Any, Not)](#logical-grouping)
 - [Pagination & Sorting](#pagination-sorting)
+- [Async Search Operations](#async-search)
 - [Consistency & The Window](#consistency)
 - [Document Retention](#retention)
 - [Facet Statistics](#facet-stats)
@@ -167,6 +168,40 @@ Fluxzero supports efficient pagination and sorting.
 - **skip(int)**: Number of results to skip (offset).
 - **fetch(int)**: Maximum number of results to return.
 - **fetchAll()**: Returns all matching documents (use with caution for large collections).
+
+---
+
+<a name="async-search"></a>
+
+## Async Search Operations
+
+When a handler can return a `CompletableFuture`, prefer the async search methods instead of blocking on synchronous
+search calls. Return the future directly; do not call `.join()` inside the handler unless the handler truly needs the
+value before doing more work.
+
+- **fetchAsync(int)** / **fetchAsync(int, Class<T>)**: Asynchronous equivalent of `fetch(...)`.
+- **countAsync()**: Asynchronous equivalent of `count()`.
+- **aggregateAsync(fields...)**: Asynchronous equivalent of `aggregate(...)`.
+- **groupBy(paths...).aggregateAsync(fields...)**: Asynchronous grouped aggregation.
+- **facetStatsAsync()**: Asynchronous equivalent of `facetStats()`.
+
+[//]: # (@formatter:off)
+```java
+@HandleQuery
+CompletableFuture<List<Project>> handle(SearchProjects query) {
+    return Fluxzero.search(Project.class)
+        .lookAhead(query.term(), "name")
+        .fetchAsync(50, Project.class);
+}
+
+@HandleQuery
+CompletableFuture<List<FacetStats>> handle(ProjectFacetQuery query) {
+    return Fluxzero.search(Project.class)
+        .match("ACTIVE", "status")
+        .facetStatsAsync();
+}
+```
+[//]: # (@formatter:on)
 
 ---
 

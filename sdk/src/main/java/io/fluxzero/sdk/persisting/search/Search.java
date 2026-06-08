@@ -388,11 +388,37 @@ public interface Search {
      */
     <T> List<T> fetch(int maxSize);
 
+    /**
+     * Asynchronously fetches up to the given number of matching documents and deserializes them to the stored type.
+     * <p>
+     * This is the asynchronous counterpart of {@link #fetch(int)}. The returned future completes with a materialized
+     * list containing at most {@code maxSize} results.
+     *
+     * @param maxSize the maximum number of matching documents to fetch
+     * @param <T>     the expected result type
+     * @return a future containing the deserialized search results
+     */
+    default <T> CompletableFuture<List<T>> fetchAsync(int maxSize) {
+        return fetchAsync(maxSize, null);
+    }
 
     /**
      * Fetches up to the given number of documents and deserializes them to the specified type.
      */
     <T> List<T> fetch(int maxSize, Class<T> type);
+
+    /**
+     * Asynchronously fetches up to the given number of documents and deserializes them to the specified type.
+     * <p>
+     * This is the asynchronous counterpart of {@link #fetch(int, Class)}. Use this method when handling requests that
+     * can return a {@link CompletableFuture}; for very large result sets, prefer the streaming methods.
+     *
+     * @param maxSize the maximum number of matching documents to fetch
+     * @param type    the type to deserialize each document to
+     * @param <T>     the expected result type
+     * @return a future containing the deserialized search results
+     */
+    <T> CompletableFuture<List<T>> fetchAsync(int maxSize, Class<T> type);
 
     /**
      * Fetches all matching documents and deserializes each to its stored type. Returns the deserialized values as
@@ -563,6 +589,18 @@ public interface Search {
     }
 
     /**
+     * Asynchronously returns the number of matching documents.
+     * <p>
+     * This is the asynchronous counterpart of {@link #count()}.
+     *
+     * @return a future containing the matching document count
+     */
+    default CompletableFuture<Long> countAsync() {
+        return aggregateAsync().thenApply(stats ->
+                stats.values().stream().findFirst().map(FieldStats::getCount).orElse(0L));
+    }
+
+    /**
      * Returns field statistics for one or more fields.
      */
     default Map<String, FieldStats> aggregate(String... fields) {
@@ -570,9 +608,32 @@ public interface Search {
     }
 
     /**
+     * Asynchronously returns field statistics for one or more fields.
+     * <p>
+     * This is the asynchronous counterpart of {@link #aggregate(String...)} and returns the statistics for the
+     * ungrouped result set.
+     *
+     * @param fields the fields to compute statistics for; omit fields to request the default count statistics
+     * @return a future containing field statistics keyed by field name
+     */
+    default CompletableFuture<Map<String, FieldStats>> aggregateAsync(String... fields) {
+        return groupBy().aggregateAsync(fields).thenApply(stats ->
+                stats.getOrDefault(Group.of(), Collections.emptyMap()));
+    }
+
+    /**
      * Returns facet statistics for the current search.
      */
     List<FacetStats> facetStats();
+
+    /**
+     * Asynchronously returns facet statistics for the current search.
+     * <p>
+     * This is the asynchronous counterpart of {@link #facetStats()}.
+     *
+     * @return a future containing facet value counts for the matching documents
+     */
+    CompletableFuture<List<FacetStats>> facetStatsAsync();
 
     /*
         Delete and move

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,21 @@ public interface SearchClient extends AutoCloseable {
      * @return a stream of search hits matching the query
      */
     Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize);
+
+    /**
+     * Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.
+     * <p>
+     * The default implementation adapts {@link #search(SearchDocuments, int)} to a future. Remote clients can override
+     * this method to use a native asynchronous transport.
+     *
+     * @param searchDocuments the search parameters and query
+     * @param fetchSize       the number of results to fetch per page
+     * @return a future with search hits matching the query
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchAsync(SearchDocuments searchDocuments,
+                                                                               int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(() -> search(searchDocuments, fetchSize).toList());
+    }
 
     /**
      * Checks whether a document with the given criteria exists.
@@ -172,6 +187,22 @@ public interface SearchClient extends AutoCloseable {
     List<DocumentStats> fetchStatistics(SearchQuery query, List<String> fields, List<String> groupBy);
 
     /**
+     * Asynchronously retrieves search statistics over matching documents.
+     * <p>
+     * The default implementation adapts {@link #fetchStatistics(SearchQuery, List, List)} to a future. Remote clients
+     * can override this method to use a native asynchronous transport.
+     *
+     * @param query   the query to filter documents
+     * @param fields  the fields to compute statistics for
+     * @param groupBy field names used to group statistics
+     * @return a future with search statistics
+     */
+    default CompletableFuture<List<DocumentStats>> fetchStatisticsAsync(SearchQuery query, List<String> fields,
+                                                                        List<String> groupBy) {
+        return SearchClientAsyncSupport.supplyAsync(() -> fetchStatistics(query, fields, groupBy));
+    }
+
+    /**
      * Fetches a histogram (bucketed time-series view) for documents matching the query.
      *
      * @param request the histogram query parameters
@@ -180,12 +211,38 @@ public interface SearchClient extends AutoCloseable {
     SearchHistogram fetchHistogram(GetSearchHistogram request);
 
     /**
+     * Asynchronously fetches a histogram for documents matching the query.
+     * <p>
+     * The default implementation adapts {@link #fetchHistogram(GetSearchHistogram)} to a future. Remote clients can
+     * override this method to use a native asynchronous transport.
+     *
+     * @param request the histogram query parameters
+     * @return a future with the histogram for matching documents
+     */
+    default CompletableFuture<SearchHistogram> fetchHistogramAsync(GetSearchHistogram request) {
+        return SearchClientAsyncSupport.supplyAsync(() -> fetchHistogram(request));
+    }
+
+    /**
      * Retrieves facet statistics (i.e., value counts) for a given query.
      *
      * @param query the query to match documents against
      * @return a list of facet statistics
      */
     List<FacetStats> fetchFacetStats(SearchQuery query);
+
+    /**
+     * Asynchronously retrieves facet statistics for a given query.
+     * <p>
+     * The default implementation adapts {@link #fetchFacetStats(SearchQuery)} to a future. Remote clients can override
+     * this method to use a native asynchronous transport.
+     *
+     * @param query the query to match documents against
+     * @return a future with facet statistics
+     */
+    default CompletableFuture<List<FacetStats>> fetchFacetStatsAsync(SearchQuery query) {
+        return SearchClientAsyncSupport.supplyAsync(() -> fetchFacetStats(query));
+    }
 
     /**
      * Performs a batch update on a set of documents.
