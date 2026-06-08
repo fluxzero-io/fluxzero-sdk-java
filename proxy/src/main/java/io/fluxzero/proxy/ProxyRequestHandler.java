@@ -90,6 +90,17 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
      * Maximum payload bytes per web request chunk when {@link #REQUEST_CHUNKING_ENABLED_PROPERTY} is enabled.
      */
     public static final String REQUEST_CHUNK_SIZE_PROPERTY = "FLUXZERO_PROXY_REQUEST_CHUNK_SIZE";
+
+    /**
+     * Enables returning proxy benchmark trace headers when a request also includes
+     * {@link #BENCHMARK_TRACE_ID_HEADER}.
+     * <p>
+     * Use system property {@code fluxzero.proxy.benchmark.trace.headers.enabled=true} or environment variable
+     * {@code FLUXZERO_PROXY_BENCHMARK_TRACE_HEADERS_ENABLED=true}.
+     */
+    public static final String BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY =
+            "fluxzero.proxy.benchmark.trace.headers.enabled";
+
     static final String BENCHMARK_TRACE_ID_HEADER = "X-Fluxzero-Benchmark-Trace-Id";
     static final String BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER =
             "X-Fluxzero-Benchmark-Runtime-Webresponse-Index";
@@ -117,6 +128,8 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private volatile int requestChunkSize = validateRequestChunkSize(
             getLongProperty(REQUEST_CHUNK_SIZE_PROPERTY,
                             Long.valueOf(io.fluxzero.sdk.web.WebResponseGateway.MAX_RESPONSE_SIZE)));
+    private volatile boolean benchmarkTraceHeadersEnabled =
+            getBooleanProperty(BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, false);
     private final InFlightWebRequestLimiter inFlightWebRequests =
             new InFlightWebRequestLimiter(ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
     private volatile int maxPendingWebsocketSends = ProxyServer.DEFAULT_MAX_PENDING_WEBSOCKET_SENDS;
@@ -162,6 +175,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         namespacedHandler.setMaxMultipartRequestBodySize(maxMultipartRequestBodySize);
         namespacedHandler.setRequestChunkingEnabled(requestChunkingEnabled);
         namespacedHandler.setRequestChunkSize(requestChunkSize);
+        namespacedHandler.setBenchmarkTraceHeadersEnabled(benchmarkTraceHeadersEnabled);
         namespacedHandler.setMaxInFlightWebRequests(inFlightWebRequests.max());
         namespacedHandler.setMaxPendingWebsocketSends(maxPendingWebsocketSends);
         namespacedHandler.setWebsocketContainer(websocketContainer);
@@ -190,6 +204,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     void setRequestChunkSize(int requestChunkSize) {
         this.requestChunkSize = validateRequestChunkSize(requestChunkSize);
+    }
+
+    void setBenchmarkTraceHeadersEnabled(boolean benchmarkTraceHeadersEnabled) {
+        this.benchmarkTraceHeadersEnabled = benchmarkTraceHeadersEnabled;
     }
 
     void setMaxInFlightWebRequests(int maxInFlightWebRequests) {
@@ -454,7 +472,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     }
 
     protected ProxyResponseContext createResponseContext(WebRequest webRequest, JettyExchange exchange) {
-        return new ProxyResponseContext(webRequest, exchange);
+        return new ProxyResponseContext(webRequest, exchange, benchmarkTraceHeadersEnabled);
     }
 
     protected void doSendChunkedWebRequest(JettyExchange exchange, WebRequest webRequest) {
@@ -817,13 +835,14 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         private final Map<String, String> requestMetadata;
         private final boolean benchmarkTraceRequested;
 
-        ProxyResponseContext(WebRequest webRequest, JettyExchange exchange) {
+        ProxyResponseContext(WebRequest webRequest, JettyExchange exchange, boolean benchmarkTraceHeadersEnabled) {
             this.exchange = exchange;
             this.method = webRequest.getMethod();
             this.path = webRequest.getPath();
             this.messageId = webRequest.getMessageId();
             this.requestMetadata = Map.copyOf(webRequest.getMetadata().getEntries());
-            this.benchmarkTraceRequested = webRequest.getHeader(BENCHMARK_TRACE_ID_HEADER) != null;
+            this.benchmarkTraceRequested =
+                    benchmarkTraceHeadersEnabled && webRequest.getHeader(BENCHMARK_TRACE_ID_HEADER) != null;
         }
 
         JettyExchange exchange() {

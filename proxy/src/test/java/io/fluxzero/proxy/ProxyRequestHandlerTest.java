@@ -40,7 +40,7 @@ class ProxyRequestHandlerTest {
                 .build();
 
         ProxyRequestHandler.ProxyResponseContext context =
-                new ProxyRequestHandler.ProxyResponseContext(request, null);
+                new ProxyRequestHandler.ProxyResponseContext(request, null, false);
 
         assertEquals(HttpRequestMethod.POST, context.method());
         assertEquals(request.getMessageId(), context.messageId());

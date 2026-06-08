@@ -211,42 +211,78 @@ class ProxyServerTest {
         }
 
         @Test
-        void benchmarkTraceHeadersAreOnlyReturnedWhenTraceHeaderIsPresent() {
-            testFixture.registerHandlers(new Object() {
-                        @HandleGet("/benchmark-trace")
-                        String response() {
-                            return "benchmark";
-                        }
-                    })
-                    .whenApplying(fc -> {
-                        var withoutTrace = httpClient.send(
-                                newBuilder(URI.create(format("http://localhost:%s/benchmark-trace", proxyPort)))
-                                        .GET().build(), BodyHandlers.ofString());
-                        var withTrace = httpClient.send(
-                                newBuilder(URI.create(format("http://localhost:%s/benchmark-trace", proxyPort)))
-                                        .GET()
-                                        .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
-                                        .build(), BodyHandlers.ofString());
-                        return List.of(withoutTrace, withTrace);
-                    })
-                    .verifyResult(responses -> {
-                        assertEquals(200, responses.getFirst().statusCode());
-                        assertEquals("benchmark", responses.getFirst().body());
-                        assertNoBenchmarkTraceHeaders(responses.getFirst().headers());
+        @ResourceLock(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY)
+        void benchmarkTraceHeadersRequireStartupOptInAndTraceHeader() {
+            String previousValue = System.getProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY);
+            ProxyServer disabledProxyServer = null;
+            ProxyServer enabledProxyServer = null;
+            try {
+                System.clearProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY);
+                disabledProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int disabledPort = disabledProxyServer.getPort();
 
-                        assertEquals(200, responses.get(1).statusCode());
-                        assertEquals("benchmark", responses.get(1).body());
-                        assertBenchmarkInstantHeader(
-                                responses.get(1).headers(),
-                                ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER);
-                        Instant received = assertBenchmarkInstantHeader(
-                                responses.get(1).headers(),
-                                ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER);
-                        Instant sendStart = assertBenchmarkInstantHeader(
-                                responses.get(1).headers(),
-                                ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER);
-                        assertFalse(received.isAfter(sendStart));
-                    });
+                System.setProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, "true");
+                enabledProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int enabledPort = enabledProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                            @HandleGet("/benchmark-trace")
+                            String response() {
+                                return "benchmark";
+                            }
+                        })
+                        .whenApplying(fc -> {
+                            var disabledWithTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", disabledPort)))
+                                            .GET()
+                                            .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
+                                            .build(), BodyHandlers.ofString());
+                            var enabledWithoutTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            .GET().build(), BodyHandlers.ofString());
+                            var enabledWithTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            .GET()
+                                            .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
+                                            .build(), BodyHandlers.ofString());
+                            return List.of(disabledWithTrace, enabledWithoutTrace, enabledWithTrace);
+                        })
+                        .verifyResult(responses -> {
+                            assertEquals(200, responses.getFirst().statusCode());
+                            assertEquals("benchmark", responses.getFirst().body());
+                            assertNoBenchmarkTraceHeaders(responses.getFirst().headers());
+
+                            assertEquals(200, responses.get(1).statusCode());
+                            assertEquals("benchmark", responses.get(1).body());
+                            assertNoBenchmarkTraceHeaders(responses.get(1).headers());
+
+                            assertEquals(200, responses.get(2).statusCode());
+                            assertEquals("benchmark", responses.get(2).body());
+                            assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER);
+                            Instant received = assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER);
+                            Instant sendStart = assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER);
+                            assertFalse(received.isAfter(sendStart));
+                        });
+            } finally {
+                if (enabledProxyServer != null) {
+                    enabledProxyServer.cancel();
+                }
+                if (disabledProxyServer != null) {
+                    disabledProxyServer.cancel();
+                }
+                restoreProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, previousValue);
+            }
         }
 
         @Test
