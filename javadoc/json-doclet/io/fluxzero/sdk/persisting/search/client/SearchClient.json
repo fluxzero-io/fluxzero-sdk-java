@@ -211,6 +211,22 @@
     "varArgs" : false,
     "documentation" : " Retrieves facet statistics (i.e., value counts) for a given query.\n\n @param query the query to match documents against\n @return a list of facet statistics\n"
   }, {
+    "name" : "fetchFacetStatsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchFacetStatsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.FacetStats>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously retrieves facet statistics for a given query.\n <p>\n The default implementation adapts {@link #fetchFacetStats(SearchQuery)} to a future. Remote clients can override\n this method to use a native asynchronous transport.\n\n @param query the query to match documents against\n @return a future with facet statistics\n"
+  }, {
     "name" : "fetchHistogram",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchHistogram",
     "returnType" : "io.fluxzero.common.api.search.SearchHistogram",
@@ -226,6 +242,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Fetches a histogram (bucketed time-series view) for documents matching the query.\n\n @param request the histogram query parameters\n @return a {@link SearchHistogram} representing the result\n"
+  }, {
+    "name" : "fetchHistogramAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchHistogramAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.search.SearchHistogram>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetSearchHistogram",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously fetches a histogram for documents matching the query.\n <p>\n The default implementation adapts {@link #fetchHistogram(GetSearchHistogram)} to a future. Remote clients can\n override this method to use a native asynchronous transport.\n\n @param request the histogram query parameters\n @return a future with the histogram for matching documents\n"
   }, {
     "name" : "fetchStatistics",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchStatistics",
@@ -252,6 +284,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves search statistics (counts, averages, etc.) over matching documents.\n\n @param query   the query to filter documents\n @param fields  the fields to compute statistics for\n @param groupBy field names used to group statistics\n @return a list of {@link DocumentStats}\n"
+  }, {
+    "name" : "fetchStatisticsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchStatisticsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.DocumentStats>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fields",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groupBy",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously retrieves search statistics over matching documents.\n <p>\n The default implementation adapts {@link #fetchStatistics(SearchQuery, List, List)} to a future. Remote clients\n can override this method to use a native asynchronous transport.\n\n @param query   the query to filter documents\n @param fields  the fields to compute statistics for\n @param groupBy field names used to group statistics\n @return a future with search statistics\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#index",
@@ -356,6 +414,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Executes a streaming search query using the given criteria and fetch size.\n\n @param searchDocuments the search parameters and query\n @param fetchSize       the number of results to fetch per page\n @return a stream of search hits matching the query\n"
+  }, {
+    "name" : "searchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#searchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.\n <p>\n The default implementation adapts {@link #search(SearchDocuments, int)} to a future. Remote clients can override\n this method to use a native asynchronous transport.\n\n @param searchDocuments the search parameters and query\n @param fetchSize       the number of results to fetch per page\n @return a future with search hits matching the query\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

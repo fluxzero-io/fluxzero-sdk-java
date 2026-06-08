@@ -37,6 +37,14 @@
     "documentation" : null,
     "constantValue" : "X-Fluxzero-Benchmark-Runtime-Webresponse-Index"
   }, {
+    "name" : "BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Enables returning proxy benchmark trace headers when a request also includes\n {@link #BENCHMARK_TRACE_ID_HEADER}.\n <p>\n Use system property {@code fluxzero.proxy.benchmark.trace.headers.enabled=true} or environment variable\n {@code FLUXZERO_PROXY_BENCHMARK_TRACE_HEADERS_ENABLED=true}.\n",
+    "constantValue" : "fluxzero.proxy.benchmark.trace.headers.enabled"
+  }, {
     "name" : "BENCHMARK_TRACE_ID_HEADER",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER",
     "type" : "java.lang.String",
@@ -111,6 +119,14 @@
         "lazy" : "true"
       }
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "benchmarkTraceHeadersEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.benchmarkTraceHeadersEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -1127,6 +1143,22 @@
       "annotations" : [ ]
     }, {
       "name" : "chunked",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setBenchmarkTraceHeadersEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#setBenchmarkTraceHeadersEnabled",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "benchmarkTraceHeadersEnabled",
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]

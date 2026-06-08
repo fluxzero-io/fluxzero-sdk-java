@@ -273,6 +273,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "fetchFacetStatsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#fetchFacetStatsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.FacetStats>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fetchHistogram",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#fetchHistogram",
     "returnType" : "io.fluxzero.common.api.search.SearchHistogram",
@@ -292,9 +311,57 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "fetchHistogramAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#fetchHistogramAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.search.SearchHistogram>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetSearchHistogram",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fetchStatistics",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#fetchStatistics",
     "returnType" : "java.util.List<io.fluxzero.common.api.search.DocumentStats>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fields",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groupBy",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchStatisticsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#fetchStatisticsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.DocumentStats>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -430,6 +497,61 @@
     }, {
       "name" : "fetchSize",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#searchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.WebSocketSearchClient#searchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxFetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "hits",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

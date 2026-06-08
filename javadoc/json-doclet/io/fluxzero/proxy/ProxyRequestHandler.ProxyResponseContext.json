@@ -74,6 +74,11 @@
       "type" : "io.fluxzero.proxy.ProxyRequestHandler.JettyExchange",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "benchmarkTraceHeadersEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

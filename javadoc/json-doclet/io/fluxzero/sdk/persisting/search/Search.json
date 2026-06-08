@@ -36,6 +36,22 @@
     "varArgs" : true,
     "documentation" : " Returns field statistics for one or more fields.\n"
   }, {
+    "name" : "aggregateAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#aggregateAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.Map<java.lang.String,io.fluxzero.common.api.search.DocumentStats.FieldStats>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fields",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Asynchronously returns field statistics for one or more fields.\n <p>\n This is the asynchronous counterpart of {@link #aggregate(String...)} and returns the statistics for the\n ungrouped result set.\n\n @param fields the fields to compute statistics for; omit fields to request the default count statistics\n @return a future containing field statistics keyed by field name\n"
+  }, {
     "name" : "all",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#all",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search",
@@ -248,6 +264,17 @@
     "varArgs" : false,
     "documentation" : " Returns the number of matching documents.\n"
   }, {
+    "name" : "countAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#countAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Long>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously returns the number of matching documents.\n <p>\n This is the asynchronous counterpart of {@link #count()}.\n\n @return a future containing the matching document count\n"
+  }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#delete",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -301,6 +328,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns facet statistics for the current search.\n"
+  }, {
+    "name" : "facetStatsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#facetStatsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.FacetStats>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously returns facet statistics for the current search.\n <p>\n This is the asynchronous counterpart of {@link #facetStats()}.\n\n @return a future containing facet value counts for the matching documents\n"
   }, {
     "name" : "fetch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#fetch",
@@ -365,6 +403,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Fetches all matching documents and deserializes them to the specified type.\n"
+  }, {
+    "name" : "fetchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#fetchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously fetches up to the given number of matching documents and deserializes them to the stored type.\n <p>\n This is the asynchronous counterpart of {@link #fetch(int)}. The returned future completes with a materialized\n list containing at most {@code maxSize} results.\n\n @param maxSize the maximum number of matching documents to fetch\n @param <T>     the expected result type\n @return a future containing the deserialized search results\n"
+  }, {
+    "name" : "fetchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#fetchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<T>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously fetches up to the given number of documents and deserializes them to the specified type.\n <p>\n This is the asynchronous counterpart of {@link #fetch(int, Class)}. Use this method when handling requests that\n can return a {@link CompletableFuture}; for very large result sets, prefer the streaming methods.\n\n @param maxSize the maximum number of matching documents to fetch\n @param type    the type to deserialize each document to\n @param <T>     the expected result type\n @return a future containing the deserialized search results\n"
   }, {
     "name" : "fetchFirst",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#fetchFirst",

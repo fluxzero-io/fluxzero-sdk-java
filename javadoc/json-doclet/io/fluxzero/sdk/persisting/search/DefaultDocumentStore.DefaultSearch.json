@@ -147,6 +147,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "facetStatsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#facetStatsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.common.api.search.FacetStats>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fetch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetch",
     "returnType" : "java.util.List<T>",
@@ -169,6 +183,49 @@
     "name" : "fetch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetch",
     "returnType" : "java.util.List<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetchAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<T>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -336,6 +393,32 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "mapHits",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#mapHits",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "hits",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   }, {
     "name" : "move",

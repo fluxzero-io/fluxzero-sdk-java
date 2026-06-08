@@ -51,6 +51,25 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : null
+  }, {
+    "name" : "aggregateAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch$DefaultGroupSearch#aggregateAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.Map<io.fluxzero.common.api.search.Group,java.util.Map<java.lang.String,io.fluxzero.common.api.search.DocumentStats.FieldStats>>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fields",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
