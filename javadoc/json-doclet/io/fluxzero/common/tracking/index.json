@@ -5,9 +5,19 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "ClaimResult.json",
+    "name" : "ClaimResult",
+    "qualifiedName" : "io.fluxzero.common.tracking.ClaimResult",
+    "kind" : "class"
+  }, {
     "file" : "DefaultTrackingStrategy.json",
     "name" : "DefaultTrackingStrategy",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultTrackingStrategy.TrackerRequest.json",
+    "name" : "DefaultTrackingStrategy.TrackerRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest",
     "kind" : "class"
   }, {
     "file" : "DefaultTrackingStrategy.WaitingTracker.json",

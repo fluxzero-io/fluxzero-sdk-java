@@ -978,6 +978,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isCancellation",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#isCancellation",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "e",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isClosedChannel",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#isClosedChannel",
     "returnType" : "boolean",

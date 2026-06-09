@@ -21,6 +21,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "request",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.request",
+    "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "scheduleToken",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.scheduleToken",
     "type" : "io.fluxzero.common.Registration",

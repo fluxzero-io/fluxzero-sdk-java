@@ -14,7 +14,7 @@
   "methods" : [ {
     "name" : "claimSegment",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackingStrategy#claimSegment",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.tracking.ClaimResult>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -23,15 +23,10 @@
       "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
-      "varArgs" : false,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Claims one or more message segments for the given tracker.\n <p>\n This method is invoked when segment-based partitioning is enabled. It ensures that each segment is only claimed\n by a single tracker at a time and may release conflicting claims if necessary.\n\n @param tracker       the tracker attempting to claim a segment\n @param positionStore to fetch tracking positions\n"
+    "documentation" : " Claims one or more message segments for the given tracker.\n <p>\n This method is invoked when segment-based partitioning is enabled. It ensures that each segment is only claimed\n by a single tracker at a time and may release conflicting claims if necessary.\n\n @param tracker the tracker attempting to claim a segment\n @return future completed with the claimed segment and current position\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackingStrategy#close",
@@ -70,7 +65,7 @@
   }, {
     "name" : "getBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackingStrategy#getBatch",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -79,15 +74,10 @@
       "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
-      "varArgs" : false,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Requests a new batch of messages for the given tracker.\n <p>\n This method is typically invoked by the {@link Tracker} when it is ready to handle more messages. Depending on\n the strategy, this method may:\n <ul>\n     <li>Fetch messages directly from a {@link MessageStore} and deliver them to the tracker (e.g. for log tailing), or</li>\n     <li>Suspend the tracker until messages become available</li>\n </ul>\n\n @param tracker       the tracker requesting a batch\n @param positionStore to fetch or update tracking positions\n"
+    "documentation" : " Requests a new batch of messages for the given tracker.\n <p>\n This method is typically invoked by the {@link Tracker} when it is ready to handle more messages. Depending on\n the strategy, this method may:\n <ul>\n     <li>Fetch messages directly from a {@link MessageStore} and complete the result (e.g. for log tailing), or</li>\n     <li>Suspend the result until messages become available</li>\n </ul>\n\n @param tracker the tracker requesting a batch\n @return future completed with the requested batch\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

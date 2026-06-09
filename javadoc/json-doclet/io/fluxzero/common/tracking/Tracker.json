@@ -5,7 +5,7 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " A {@code Tracker} represents an active consumer of messages for a particular {@code ConsumerConfiguration}.\n <p>\n Trackers are responsible for handling a range of message segments and coordinating how and when messages are\n delivered from the {@link MessageStore} or other sources. They are typically managed by a {@link TrackingStrategy}.\n\n <p>Each tracker identifies a specific consumer (via {@link #getConsumerName()}) and client instance (via\n {@link #getClientId()}), and may support additional filtering by message type or target.\n\n <h2>Responsibilities</h2>\n A {@code Tracker} is responsible for:\n <ul>\n     <li>Receiving batches of messages via {@link #send(MessageBatch)}</li>\n     <li>Declaring the range of segments it is responsible for</li>\n     <li>Filtering messages by type, target, and segment hash</li>\n     <li>Tracking its last consumed index and activity deadline</li>\n </ul>\n\n <p>Trackers may also participate in client-controlled index tracking, message purging, and deadline-based disconnection.\n",
+  "documentation" : " A {@code Tracker} represents an active consumer of messages for a particular {@code ConsumerConfiguration}.\n <p>\n Trackers are responsible for handling a range of message segments and coordinating how and when messages are\n delivered from the {@link MessageStore} or other sources. They are typically managed by a {@link TrackingStrategy}.\n\n <p>Each tracker identifies a specific consumer (via {@link #getConsumerName()}) and client instance (via\n {@link #getClientId()}), and may support additional filtering by message type or target.\n\n <h2>Responsibilities</h2>\n A {@code Tracker} is responsible for:\n <ul>\n     <li>Declaring the range of segments it is responsible for</li>\n     <li>Filtering messages by type, target, and segment hash</li>\n     <li>Tracking its last consumed index and activity deadline</li>\n </ul>\n\n <p>Trackers may also participate in client-controlled index tracking, message purging, and deadline-based disconnection.\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.Comparable<io.fluxzero.common.tracking.Tracker>" ],
@@ -271,38 +271,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " @return the maximum time window (in millis) after which a batch should be delivered even if no messages are\n available.\n"
-  }, {
-    "name" : "send",
-    "qualifiedName" : "io.fluxzero.common.tracking.Tracker#send",
-    "returnType" : "void",
-    "modifiers" : [ "abstract", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "batch",
-      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Sends a batch of messages to this tracker.\n\n @param batch the batch to deliver\n"
-  }, {
-    "name" : "sendEmptyBatch",
-    "qualifiedName" : "io.fluxzero.common.tracking.Tracker#sendEmptyBatch",
-    "returnType" : "void",
-    "modifiers" : [ "default", "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "batch",
-      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Sends an empty batch (typically used to signal idle or shutdown). Default implementation forwards to\n {@link #send(MessageBatch)}.\n\n @param batch an empty batch instance\n"
   }, {
     "name" : "singleTracker",
     "qualifiedName" : "io.fluxzero.common.tracking.Tracker#singleTracker",

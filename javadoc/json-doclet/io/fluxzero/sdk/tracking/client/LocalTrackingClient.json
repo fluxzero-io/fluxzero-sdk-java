@@ -425,6 +425,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readRequest",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#readRequest",
+    "returnType" : "io.fluxzero.common.api.tracking.Read",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#registerMonitor",
     "returnType" : "io.fluxzero.common.Registration",

@@ -21,6 +21,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "openRequests",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.openRequests",
+    "type" : "java.util.concurrent.ConcurrentHashMap<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "positionStore",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.positionStore",
+    "type" : "io.fluxzero.common.tracking.PositionStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "scheduler",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.scheduler",
     "type" : "io.fluxzero.common.TaskScheduler",
@@ -104,6 +120,11 @@
       "type" : "io.fluxzero.common.tracking.MessageStore",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -117,6 +138,11 @@
     "parameters" : [ {
       "name" : "source",
       "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -137,6 +163,11 @@
     "parameters" : [ {
       "name" : "source",
       "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -176,11 +207,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "cancelRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#cancelRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "claimSegment",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#claimSegment",
-    "returnType" : "int[]",
-    "modifiers" : [ "protected" ],
-    "annotations" : [ ],
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.tracking.ClaimResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "tracker",
@@ -195,11 +250,8 @@
     "name" : "claimSegment",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#claimSegment",
     "returnType" : "void",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "tracker",
@@ -207,8 +259,24 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<io.fluxzero.common.tracking.ClaimResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "claimSegmentRange",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#claimSegmentRange",
+    "returnType" : "int[]",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -226,6 +294,95 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "closeOpenRequests",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#closeOpenRequests",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.tracking.Tracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sendFinalEmptyBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#completeRequest",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentOrOpenRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#currentOrOpenRequest",
+    "returnType" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "disconnectClosedRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#disconnectClosedRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -338,6 +495,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "finalEmptyBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#finalEmptyBatch",
+    "returnType" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#getBatch",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -366,7 +534,7 @@
   }, {
     "name" : "getBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#getBatch",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -378,9 +546,25 @@
       "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getBatch",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#getBatch",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<io.fluxzero.common.api.tracking.MessageBatch>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -452,6 +636,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "openRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#openRequest",
+    "returnType" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.tracking.MessageBatch,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "position",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#position",
     "returnType" : "io.fluxzero.common.api.tracking.Position",
@@ -461,11 +666,6 @@
     "parameters" : [ {
       "name" : "tracker",
       "type" : "io.fluxzero.common.tracking.Tracker",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -562,9 +762,30 @@
       "type" : "io.fluxzero.common.api.tracking.MessageBatch",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "waitForMessages",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#waitForMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
     }, {
-      "name" : "positionStore",
-      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "name" : "emptyBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<io.fluxzero.common.api.tracking.MessageBatch>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -597,10 +818,47 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "waitForUpdate",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#waitForUpdate",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "emptyBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "followUp",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "TrackerRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest",
+    "kind" : "class",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "WaitingTracker",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker",
     "kind" : "class",

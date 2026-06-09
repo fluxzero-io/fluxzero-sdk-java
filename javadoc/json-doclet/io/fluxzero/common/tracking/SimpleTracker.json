@@ -37,14 +37,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "handler",
-    "qualifiedName" : "io.fluxzero.common.tracking.SimpleTracker.handler",
-    "type" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "lastTrackerIndex",
     "qualifiedName" : "io.fluxzero.common.tracking.SimpleTracker.lastTrackerIndex",
     "type" : "java.lang.Long",
@@ -89,22 +81,7 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "consumerName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxSize",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "handler",
-      "type" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -209,25 +186,6 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "send",
-    "qualifiedName" : "io.fluxzero.common.tracking.SimpleTracker#send",
-    "returnType" : "void",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "batch",
-      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

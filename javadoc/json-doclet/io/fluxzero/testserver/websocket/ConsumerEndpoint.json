@@ -81,6 +81,31 @@
   }, {
     "name" : "ConsumerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maintenance",
+      "type" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#ConsumerEndpoint",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -292,7 +317,7 @@
   "methods" : [ {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#handle",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.ClaimSegmentResult>",
     "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "io.fluxzero.testserver.websocket.Handle",
@@ -354,7 +379,7 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#handle",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.ReadResult>",
     "modifiers" : [ ],
     "annotations" : [ {
       "annotationType" : "io.fluxzero.testserver.websocket.Handle",
@@ -426,6 +451,22 @@
     "parameters" : [ {
       "name" : "storePosition",
       "type" : "io.fluxzero.common.api.tracking.StorePosition",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newMaintenance",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#newMaintenance",
+    "returnType" : "io.fluxzero.common.tracking.MessageLogMaintenance",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -1,0 +1,128 @@
+{
+  "name" : "TrackerRequest",
+  "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest",
+  "packageName" : "io.fluxzero.common.tracking",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "mapper",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest.mapper",
+    "type" : "java.util.function.Function<io.fluxzero.common.api.tracking.MessageBatch,T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "replaced",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest.replaced",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest.result",
+    "type" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TrackerRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#TrackerRequest",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.tracking.MessageBatch,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cancel",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#cancel",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "complete",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#complete",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "future",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#future",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isDone",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#isDone",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isReplaced",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#isReplaced",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "markReplaced",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$TrackerRequest#markReplaced",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
