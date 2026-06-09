@@ -27,6 +27,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.AnnotatedEntityHolder;
 import io.fluxzero.sdk.modeling.AppliedEvent;
@@ -62,7 +63,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -127,6 +132,15 @@ import static java.util.stream.Collectors.toSet;
 @Getter(AccessLevel.PRIVATE)
 @Accessors(fluent = true)
 public class DefaultAggregateRepository implements AggregateRepository {
+    /**
+     * Property that overrides the commit policy for aggregates whose annotation uses
+     * {@link AggregateCommitPolicy#DEFAULT}.
+     */
+    public static final String AGGREGATE_COMMIT_POLICY_PROPERTY = "fluxzero.aggregate.commitPolicy";
+
+    private static final LocalDate ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION = LocalDate.of(2026, 6, 9);
+    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
+
     private final EventStore eventStore;
     private final EventStoreClient eventStoreClient;
     private final SnapshotStore snapshotStore;
@@ -295,7 +309,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
         private final Cache aggregateCache;
         private final RelationshipsCache relationshipsCache;
         private final boolean eventSourced;
-        private final boolean commitInBatch;
+        private final AggregateCommitPolicy commitPolicy;
         private final EventPublication eventPublication;
         private final EventPublicationStrategy publicationStrategy;
         private final AggregateEventRouting eventRouting;
@@ -317,7 +331,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.relationshipsCache = annotation.cached()
                     ? DefaultAggregateRepository.this.relationshipsCache : RelationshipsCache.noOp();
             this.eventSourced = annotation.eventSourced();
-            this.commitInBatch = annotation.commitInBatch();
+            this.commitPolicy = resolveCommitPolicy(annotation);
             this.eventPublication = annotation.eventPublication();
             this.publicationStrategy = annotation.publicationStrategy();
             this.eventRouting = annotation.eventRouting();
@@ -391,7 +405,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             }
                         }
                         return eventSourceModel(loadSnapshot(id));
-                    }), commitInBatch, eventPublication, publicationStrategy, eventRouting, eventSourced,
+                    }), commitPolicy, eventPublication, publicationStrategy, eventRouting, eventSourced,
                     entityHelper, serializer, dispatchInterceptor, this::commit);
         }
 
@@ -611,6 +625,50 @@ public class DefaultAggregateRepository implements AggregateRepository {
                                                         CompletableFuture<Void> previous) {
             List<DeserializingMessage> events = currentBatch.stream().map(AppliedEvent::getEvent).toList();
             return previous.thenCompose(ignored -> eventStore.storeEvents(aggregateId, events, currentStrategy));
+        }
+    }
+
+    static AggregateCommitPolicy resolveCommitPolicy(Aggregate annotation) {
+        if (annotation.commitPolicy() != AggregateCommitPolicy.DEFAULT) {
+            return annotation.commitPolicy();
+        }
+        String configuredPolicy = ApplicationProperties.getProperty(AGGREGATE_COMMIT_POLICY_PROPERTY);
+        if (configuredPolicy != null && !configuredPolicy.isBlank()) {
+            AggregateCommitPolicy policy = parseCommitPolicy(configuredPolicy);
+            if (policy != AggregateCommitPolicy.DEFAULT) {
+                return policy;
+            }
+        }
+        LocalDate defaultsVersion = defaultsVersion();
+        if (defaultsVersion != null && !defaultsVersion.isBefore(ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION)) {
+            return AggregateCommitPolicy.ASYNC_AFTER_BATCH;
+        }
+        return annotation.commitInBatch()
+                ? AggregateCommitPolicy.SYNC_AFTER_BATCH : AggregateCommitPolicy.SYNC_AFTER_HANDLER;
+    }
+
+    private static AggregateCommitPolicy parseCommitPolicy(String value) {
+        try {
+            return AggregateCommitPolicy.valueOf(value.trim().toUpperCase().replace('-', '_'));
+        } catch (IllegalArgumentException e) {
+            throw new EventSourcingException(
+                    "Property `%s` must be one of %s, but found `%s`.".formatted(
+                            AGGREGATE_COMMIT_POLICY_PROPERTY,
+                            Arrays.toString(AggregateCommitPolicy.values()), value), e);
+        }
+    }
+
+    private static LocalDate defaultsVersion() {
+        String value = ApplicationProperties.getProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new EventSourcingException(
+                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
+                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value), e);
         }
     }
 

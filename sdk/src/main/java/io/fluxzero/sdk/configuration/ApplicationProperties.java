@@ -99,6 +99,13 @@ public class ApplicationProperties {
      *         behavior with {@code fluxzero.cache.mode = softRef}. Tracking caches are not changed by this defaults
      *         version and require an explicit {@code fluxzero.tracking.cache.mode} setting.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.06.09}</td>
+     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_batch}</td>
+     *         <td>Aggregates using the default commit policy start their commits at the end of the current message
+     *         batch and wait for all started commits together. Existing applications can keep the legacy behavior with
+     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with

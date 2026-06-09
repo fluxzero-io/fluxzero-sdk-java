@@ -116,19 +116,20 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     }
 
     public static <T> Entity<T> load(
-            Object aggregateId, Supplier<Entity<T>> loader, boolean commitInBatch, EventPublication eventPublication,
-            EventPublicationStrategy publicationStrategy, AggregateEventRouting eventRouting, boolean eventSourced,
+            Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting, boolean eventSourced,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
         return ModifiableAggregateRoot.<T>getIfActive(aggregateId).orElseGet(
-                () -> new ModifiableAggregateRoot<>(loader.get(), commitInBatch, eventPublication, publicationStrategy,
+                () -> new ModifiableAggregateRoot<>(loader.get(), commitPolicy, eventPublication, publicationStrategy,
                                                     eventRouting, eventSourced, entityHelper, serializer,
                                                     dispatchInterceptor, commitHandler));
     }
 
     private Entity<T> lastCommitted;
     private Entity<T> lastStable;
-    private final boolean commitInBatch;
+    private final AggregateCommitPolicy commitPolicy;
 
     private final EventPublication aggregateEventPublication;
     private final EventPublicationStrategy aggregatePublicationStrategy;
@@ -144,7 +145,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private final List<UnaryOperator<Entity<T>>> queued = new ArrayList<>();
     private volatile boolean updating, committing, commitPending;
 
-    protected ModifiableAggregateRoot(Entity<T> delegate, boolean commitInBatch,
+    protected ModifiableAggregateRoot(Entity<T> delegate, AggregateCommitPolicy commitPolicy,
                                       EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
                                       AggregateEventRouting eventRouting, boolean eventSourced,
                                       EntityHelper entityHelper, Serializer serializer,
@@ -153,7 +154,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.entityHelper = entityHelper;
         this.lastCommitted = delegate;
         this.lastStable = delegate;
-        this.commitInBatch = commitInBatch;
+        this.commitPolicy = commitPolicy;
         this.aggregateEventPublication = eventPublication;
         this.aggregatePublicationStrategy = publicationStrategy;
         this.aggregateEventRouting = eventRouting == AggregateEventRouting.DEFAULT
@@ -322,7 +323,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             delegate = lastStable;
         }
         applied.clear();
-        if (!commitInBatch) {
+        if (!commitPolicy.afterBatch()) {
             commit();
             activeAggregates.get().remove(id().toString(), this);
         } else if (waitingForBatchEnd.compareAndSet(false, true)) {
@@ -353,7 +354,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             var before = lastCommitted;
             lastCommitted = lastStable;
             CompletableFuture<Void> completion = commitHandler.handle(lastStable, events, before);
-            if (AsyncCompletionScope.isActive()) {
+            if (commitPolicy.async() && AsyncCompletionScope.isActive()) {
                 AsyncCompletionScope.register(completion);
             } else {
                 completion.join();
