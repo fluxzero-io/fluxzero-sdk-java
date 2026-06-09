@@ -9,14 +9,53 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.AggregateCommitPolicy>",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "async",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.async",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "awaitAfterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.awaitAfterBatch",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commitAfterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.commitAfterBatch",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "AggregateCommitPolicy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#AggregateCommitPolicy",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "commitAfterBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "awaitAfterBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "async",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -43,6 +82,28 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns whether this policy allows commits from the same completion phase to run concurrently.\n"
+  }, {
+    "name" : "awaitAfterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#awaitAfterBatch",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this policy waits for commit completion at batch completion rather than handler completion.\n <p>\n When this is {@code true}, active thread-local aggregates are retained until batch completion as well, so later\n handlers in the same batch keep seeing the in-memory aggregate until pending commits have completed.\n"
+  }, {
+    "name" : "commitAfterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#commitAfterBatch",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this policy commits at batch completion rather than handler completion.\n"
   }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#valueOf",
@@ -81,6 +142,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.ASYNC_AFTER_HANDLER",
     "annotations" : [ ],
     "documentation" : " Start commits after every handler and wait for all started commits at the end of the handler completion phase.\n"
+  }, {
+    "name" : "ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH",
+    "annotations" : [ ],
+    "documentation" : " Start commits after every handler, keep the aggregate active for the rest of the current batch, and wait for all\n started commits at the end of the batch completion phase.\n"
   }, {
     "name" : "DEFAULT",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.DEFAULT",

@@ -15,6 +15,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope",
     "kind" : "class"
   }, {
+    "file" : "AsyncCompletionScope.Completion.json",
+    "name" : "AsyncCompletionScope.Completion",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Completion",
+    "kind" : "record"
+  }, {
     "file" : "AsyncCompletionScope.Scope.json",
     "name" : "AsyncCompletionScope.Scope",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope",

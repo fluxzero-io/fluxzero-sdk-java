@@ -133,6 +133,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "pendingBatchCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.pendingBatchCompletions",
+    "type" : "java.util.List<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "queued",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.queued",
     "type" : "java.util.List<java.util.function.UnaryOperator<io.fluxzero.sdk.modeling.Entity<T>>>",
@@ -342,6 +350,28 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "awaitBatchCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#awaitBatchCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitPendingBatchCompletionsAndRemoveActive",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#awaitPendingBatchCompletionsAndRemoveActive",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#commit",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -500,6 +530,17 @@
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeActiveAggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#removeActiveAggregate",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],

@@ -57,6 +57,27 @@
     "varArgs" : false,
     "documentation" : " Registers a future with the current completion scope.\n <p>\n When no scope is active, the future is returned unchanged and no waiting behavior is added. This makes callers\n free to register futures unconditionally while preserving the normal behavior outside handler or batch\n completion.\n\n @param future future to await at the end of the active scope; {@code null} is treated as already completed\n @param <T>    result type of the future\n @return the supplied future, or a completed future when {@code future} is {@code null}\n"
   }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#register",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterCompletion",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a future with the current completion scope and runs a callback after scoped futures have completed.\n <p>\n The callback runs on the thread that owns the completion scope, after all registered futures have completed and\n before any asynchronous failure is rethrown from {@link #runAndAwait(Runnable)}. This is useful for cleaning up\n thread-local state that must remain visible until asynchronous completion work has finished.\n <p>\n When no scope is active, the future is returned unchanged and the callback is not invoked.\n\n @param future          future to await at the end of the active scope; {@code null} is treated as already\n                        completed\n @param afterCompletion callback to run after scoped futures have completed; may be {@code null}\n @param <T>             result type of the future\n @return the supplied future, or a completed future when {@code future} is {@code null}\n"
+  }, {
     "name" : "runAndAwait",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runAndAwait",
     "returnType" : "void",
@@ -97,6 +118,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "Completion",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Completion",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "Scope",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope",
     "kind" : "class",
