@@ -34,6 +34,28 @@
     "varArgs" : false,
     "documentation" : " The timestamp (in epoch milliseconds) when the Fluxzero Runtime received the original request.\n <p>\n A value of {@code 0} means the runtime did not provide this timestamp.\n"
   }, {
+    "name" : "getResponseQueuedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#getResponseQueuedTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) when the Fluxzero Runtime queued this response for websocket delivery.\n <p>\n A value of {@code 0} means the runtime did not provide this timestamp.\n"
+  }, {
+    "name" : "getResponseSendStartTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#getResponseSendStartTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) just before the Fluxzero Runtime encoded and sent this response.\n <p>\n A value of {@code 0} means the runtime did not provide this timestamp.\n"
+  }, {
     "name" : "getTimestamp",
     "qualifiedName" : "io.fluxzero.common.api.RequestResult#getTimestamp",
     "returnType" : "long",
@@ -60,6 +82,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Updates the timestamp at which the Fluxzero Runtime received the original request.\n <p>\n Implementations that do not store this metadata may ignore the update.\n"
+  }, {
+    "name" : "setResponseQueuedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#setResponseQueuedTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseQueuedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the timestamp at which the Fluxzero Runtime queued this response for websocket delivery.\n"
+  }, {
+    "name" : "setResponseSendStartTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.RequestResult#setResponseSendStartTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseSendStartTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the timestamp just before the Fluxzero Runtime encoded and sent this response.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

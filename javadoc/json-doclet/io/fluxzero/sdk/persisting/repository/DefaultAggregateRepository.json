@@ -23,6 +23,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.persisting.repository.AggregateRepository" ],
   "fields" : [ {
+    "name" : "AGGREGATE_COMMIT_POLICY_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.AGGREGATE_COMMIT_POLICY_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property that overrides the commit policy for aggregates whose annotation uses\n {@link AggregateCommitPolicy#DEFAULT}.\n",
+    "constantValue" : "fluxzero.aggregate.commitPolicy"
+  }, {
+    "name" : "ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "aggregateCache",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.aggregateCache",
     "type" : "io.fluxzero.common.caching.Cache",
@@ -184,6 +200,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "configuredCommitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#configuredCommitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deleteAggregate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#deleteAggregate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -326,6 +353,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "parseCommitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#parseCommitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "repairRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#repairRelationships",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -338,6 +381,22 @@
     "parameters" : [ {
       "name" : "aggregate",
       "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveCommitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository#resolveCommitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.modeling.Aggregate",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

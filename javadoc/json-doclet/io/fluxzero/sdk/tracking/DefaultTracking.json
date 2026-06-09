@@ -16,14 +16,6 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.tracking.Tracking" ],
   "fields" : [ {
-    "name" : "DEFAULTS_VERSION_FORMAT",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.DEFAULTS_VERSION_FORMAT",
-    "type" : "java.time.format.DateTimeFormatter",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "PER_HANDLER_DEFAULTS_VERSION",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.PER_HANDLER_DEFAULTS_VERSION",
     "type" : "java.time.LocalDate",
@@ -183,6 +175,22 @@
     }, {
       "name" : "configurations",
       "type" : "java.util.stream.Stream<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitAsyncResultCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#awaitAsyncResultCompletions",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resultCompletions",
+      "type" : "java.util.List<java.util.concurrent.CompletableFuture<java.lang.Void>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -357,22 +365,6 @@
     }, {
       "name" : "includePackageName",
       "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "defaultsVersion",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#defaultsVersion",
-    "returnType" : "java.time.LocalDate",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "propertySource",
-      "type" : "io.fluxzero.common.application.PropertySource",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -715,6 +707,37 @@
     }, {
       "name" : "config",
       "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handleBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#handleBatch",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.lang.Iterable<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reportResult",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1193,7 +1216,7 @@
   }, {
     "name" : "tryHandle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#tryHandle",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletionStage<java.lang.Void>",
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -1224,7 +1247,7 @@
   }, {
     "name" : "tryHandle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#tryHandle",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletionStage<java.lang.Void>",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],

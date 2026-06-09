@@ -129,6 +129,27 @@
     "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client and for dispatching native\n JDK websocket listener callbacks.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
   } ],
   "methods" : [ {
+    "name" : "abortConnectingSession",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#abortConnectingSession",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebSocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webSocketFuture",
+      "type" : "java.util.concurrent.CompletableFuture<java.net.http.WebSocket>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "addOpenSession",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#addOpenSession",
     "returnType" : "void",

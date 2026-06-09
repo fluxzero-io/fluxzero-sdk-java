@@ -17,7 +17,7 @@
   "methods" : [ {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler#handle",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -39,7 +39,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Commits the aggregate state and any unpublished events.\n\n @param model        aggregate state after the change\n @param unpublished  events that must be committed\n @param beforeUpdate aggregate state before the change\n @return future that completes when all commit work has finished\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

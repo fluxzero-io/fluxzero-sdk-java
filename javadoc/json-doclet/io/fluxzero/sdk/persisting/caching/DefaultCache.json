@@ -18,14 +18,6 @@
     "documentation" : " Fluxzero defaults version from which {@link DefaultCache} uses {@link AdaptiveObjectCache} by default.\n",
     "constantValue" : null
   }, {
-    "name" : "DEFAULTS_VERSION_FORMAT",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.DEFAULTS_VERSION_FORMAT",
-    "type" : "java.time.format.DateTimeFormatter",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "DEFAULT_MAX_SIZE",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.DEFAULT_MAX_SIZE",
     "type" : "int",
@@ -363,22 +355,6 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "defaultsVersion",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultsVersion",
-    "returnType" : "java.time.LocalDate",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "propertySource",
-      "type" : "io.fluxzero.common.application.PropertySource",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

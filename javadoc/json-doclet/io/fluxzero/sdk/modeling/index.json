@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate",
     "kind" : "annotation_type"
   }, {
+    "file" : "AggregateCommitPolicy.json",
+    "name" : "AggregateCommitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "kind" : "enum"
+  }, {
     "file" : "AggregateEventRouting.json",
     "name" : "AggregateEventRouting",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting",

@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "METRICS_ENABLED_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.METRICS_ENABLED_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_METRICS_ENABLED"
+  }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.client",
     "type" : "io.fluxzero.sdk.configuration.client.Client",
@@ -82,6 +90,14 @@
     "name" : "minIndex",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.minIndex",
     "type" : "java.lang.Long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publishMetrics",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.publishMetrics",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,

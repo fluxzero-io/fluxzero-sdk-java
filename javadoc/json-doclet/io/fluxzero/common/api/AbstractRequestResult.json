@@ -17,6 +17,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "responseQueuedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult.responseQueuedTimestamp",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseSendStartTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult.responseSendStartTimestamp",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "AbstractRequestResult",
@@ -49,6 +65,44 @@
     "varArgs" : false,
     "documentation" : " The timestamp (in epoch milliseconds) when the Fluxzero Runtime received the original request.\n"
   }, {
+    "name" : "getResponseQueuedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#getResponseQueuedTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) when the Fluxzero Runtime queued this response for websocket delivery.\n"
+  }, {
+    "name" : "getResponseSendStartTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#getResponseSendStartTimestamp",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The timestamp (in epoch milliseconds) just before the Fluxzero Runtime encoded and sent this response.\n"
+  }, {
     "name" : "setRequestReceivedTimestamp",
     "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#setRequestReceivedTimestamp",
     "returnType" : "void",
@@ -67,6 +121,44 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Updates the timestamp at which the Fluxzero Runtime received the original request.\n"
+  }, {
+    "name" : "setResponseQueuedTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#setResponseQueuedTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseQueuedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the timestamp at which the Fluxzero Runtime queued this response for websocket delivery.\n"
+  }, {
+    "name" : "setResponseSendStartTimestamp",
+    "qualifiedName" : "io.fluxzero.common.api.AbstractRequestResult#setResponseSendStartTimestamp",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseSendStartTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the timestamp just before the Fluxzero Runtime encoded and sent this response.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

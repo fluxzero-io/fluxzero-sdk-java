@@ -1,0 +1,102 @@
+{
+  "name" : "AggregateCommitPolicy",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Controls when aggregate changes are committed and whether multiple commits in the same completion phase may run\n concurrently.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.AggregateCommitPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "AggregateCommitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#AggregateCommitPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "afterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#afterBatch",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this policy commits at batch completion rather than handler completion.\n"
+  }, {
+    "name" : "async",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#async",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this policy allows commits from the same completion phase to run concurrently.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#values",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ASYNC_AFTER_BATCH",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.ASYNC_AFTER_BATCH",
+    "annotations" : [ ],
+    "documentation" : " Start commits at the end of the current message batch and wait for all started commits before the batch\n completion phase finishes.\n"
+  }, {
+    "name" : "ASYNC_AFTER_HANDLER",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.ASYNC_AFTER_HANDLER",
+    "annotations" : [ ],
+    "documentation" : " Start commits after every handler and wait for all started commits at the end of the handler completion phase.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Resolve the policy from the active Fluxzero defaults version or explicit application properties.\n"
+  }, {
+    "name" : "SYNC_AFTER_BATCH",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.SYNC_AFTER_BATCH",
+    "annotations" : [ ],
+    "documentation" : " Commit at the end of the current message batch and wait for each commit before continuing.\n"
+  }, {
+    "name" : "SYNC_AFTER_HANDLER",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.SYNC_AFTER_HANDLER",
+    "annotations" : [ ],
+    "documentation" : " Commit after every handler and wait for that commit before the handler completion phase finishes.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

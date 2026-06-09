@@ -10,6 +10,16 @@
     "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced",
     "kind" : "class"
   }, {
+    "file" : "AsyncCompletionScope.json",
+    "name" : "AsyncCompletionScope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope",
+    "kind" : "class"
+  }, {
+    "file" : "AsyncCompletionScope.Scope.json",
+    "name" : "AsyncCompletionScope.Scope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope",
+    "kind" : "class"
+  }, {
     "file" : "ClientUtils.json",
     "name" : "ClientUtils",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils",

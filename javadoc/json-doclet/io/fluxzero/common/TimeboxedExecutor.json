@@ -186,8 +186,35 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Executes the given task and waits for completion up to the given maximum duration.\n <p>\n If the task fails, a warning is optionally logged and false is returned.\n\n @param task        the task to execute\n @param maxDuration the maximum duration to wait\n @return {@code true} if the task completed in time, {@code false} if it timed out\n"
+  }, {
+    "name" : "waitFor",
+    "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor#waitFor",
+    "returnType" : "T",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.Future<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDuration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "FutureManagedBlocker",
+    "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor$FutureManagedBlocker",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

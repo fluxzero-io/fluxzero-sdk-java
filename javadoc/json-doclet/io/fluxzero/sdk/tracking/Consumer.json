@@ -28,6 +28,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "awaitAsyncResults",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#awaitAsyncResults",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.\n <p>\n The default is {@code false}, matching the historical fire-and-forget behavior: asynchronous results are\n published when they complete, while the tracker can continue with the next batch.\n"
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#batchInterceptors",
     "returnType" : "java.lang.Class<? extends io.fluxzero.sdk.tracking.BatchInterceptor>[]",

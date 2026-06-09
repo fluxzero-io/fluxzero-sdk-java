@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "sessionLocks",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionLocks",
+    "type" : "java.lang.Object[]",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sessionMap",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool.sessionMap",
     "type" : "java.util.Map<java.lang.Integer,io.fluxzero.sdk.common.websocket.WebsocketSession>",

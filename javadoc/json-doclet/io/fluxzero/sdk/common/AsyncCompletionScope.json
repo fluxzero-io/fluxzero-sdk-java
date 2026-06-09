@@ -1,0 +1,106 @@
+{
+  "name" : "AsyncCompletionScope",
+  "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Thread-local scope for asynchronous work started from completion callbacks.\n <p>\n Completion callbacks sometimes need to start asynchronous side effects, such as aggregate commits, without blocking\n each callback immediately. This scope lets those callbacks register their futures and waits for all registered work\n after the callback group has finished running.\n <p>\n The scope is intentionally thread-local. Work registered from other threads is only included when that thread is\n executing inside the same logical scope.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "scopes",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope.scopes",
+    "type" : "java.lang.ThreadLocal<java.util.Deque<io.fluxzero.sdk.common.AsyncCompletionScope.Scope>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AsyncCompletionScope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#AsyncCompletionScope",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "isActive",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#isActive",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the current thread is executing inside an async completion scope.\n\n @return {@code true} when futures registered by this thread will be awaited by a surrounding scope\n"
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#register",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a future with the current completion scope.\n <p>\n When no scope is active, the future is returned unchanged and no waiting behavior is added. This makes callers\n free to register futures unconditionally while preserving the normal behavior outside handler or batch\n completion.\n\n @param future future to await at the end of the active scope; {@code null} is treated as already completed\n @param <T>    result type of the future\n @return the supplied future, or a completed future when {@code future} is {@code null}\n"
+  }, {
+    "name" : "runAndAwait",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runAndAwait",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs the supplied task inside a new completion scope and waits for all futures registered in that scope.\n <p>\n If both the task and asynchronous completion fail, the asynchronous failure is added as a suppressed exception\n to the task failure.\n\n @param task the task that may register asynchronous completion work\n"
+  }, {
+    "name" : "throwUnchecked",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#throwUnchecked",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Scope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

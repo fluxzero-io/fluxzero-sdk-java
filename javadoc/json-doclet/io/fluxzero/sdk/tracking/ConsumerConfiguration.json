@@ -67,6 +67,22 @@
     "documentation" : " Sentinel value for consumers that inherit the configured default max fetch byte limit. This value is resolved\n before read requests are sent.\n",
     "constantValue" : -1
   }, {
+    "name" : "awaitAsyncResults",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.awaitAsyncResults",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : " If true, asynchronous handler results are awaited before the consumer completes the current batch.\n <p>\n When false, asynchronous results are still published when they complete, but the consumer can store its position\n and fetch the next batch without waiting for those futures. This is the historical default and is useful for\n high-throughput request handlers where each request has its own response correlation and batch-level ordering is\n not needed.\n",
+    "constantValue" : null
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.batchInterceptors",
     "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",

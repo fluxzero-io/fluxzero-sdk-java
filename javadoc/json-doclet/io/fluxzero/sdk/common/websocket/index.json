@@ -85,6 +85,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint",
     "kind" : "interface"
   }, {
+    "file" : "WebsocketEndpoint.ReceiveTiming.json",
+    "name" : "WebsocketEndpoint.ReceiveTiming",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint$ReceiveTiming",
+    "kind" : "record"
+  }, {
     "file" : "WebsocketSession.json",
     "name" : "WebsocketSession",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketSession",

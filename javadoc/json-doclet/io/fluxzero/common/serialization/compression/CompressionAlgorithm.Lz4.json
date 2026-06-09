@@ -10,8 +10,24 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "factory",
-    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4.factory",
+    "name" : "COMPRESSOR",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4.COMPRESSOR",
+    "type" : "net.jpountz.lz4.LZ4Compressor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "DECOMPRESSOR",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4.DECOMPRESSOR",
+    "type" : "net.jpountz.lz4.LZ4FastDecompressor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "FACTORY",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm$Lz4.FACTORY",
     "type" : "net.jpountz.lz4.LZ4Factory",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],

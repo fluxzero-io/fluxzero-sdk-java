@@ -69,18 +69,18 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "commitInBatch",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.commitInBatch",
-    "type" : "boolean",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "commitPending",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.commitPending",
     "type" : "boolean",
     "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.commitPolicy",
+    "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -193,8 +193,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "commitInBatch",
-      "type" : "boolean",
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -443,8 +443,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "commitInBatch",
-      "type" : "boolean",
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

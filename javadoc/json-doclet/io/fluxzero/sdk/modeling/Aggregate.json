@@ -75,16 +75,16 @@
     "varArgs" : false,
     "documentation" : " Name of the collection to index the aggregate into. Only relevant if {@link #searchable()} is {@code true}.\n <p>\n Defaults to the class name if left blank.\n\n @see Searchable\n"
   }, {
-    "name" : "commitInBatch",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#commitInBatch",
-    "returnType" : "boolean",
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#commitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Whether changes to the aggregate should be committed at the end of a message batch (enabled by default).\n <p>\n Set to {@code false} to commit updates immediately after each message.\n"
+    "documentation" : " Controls when aggregate changes are committed and whether multiple commits in the same completion phase may run\n concurrently.\n <p>\n The default value resolves from {@code fluxzero.aggregate.commitPolicy} when present, then from the active\n Fluxzero defaults version, and otherwise falls back to {@link AggregateCommitPolicy#SYNC_AFTER_BATCH}.\n"
   }, {
     "name" : "endPath",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Aggregate#endPath",

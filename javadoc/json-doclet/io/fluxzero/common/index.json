@@ -205,6 +205,11 @@
     "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor",
     "kind" : "class"
   }, {
+    "file" : "TimeboxedExecutor.FutureManagedBlocker.json",
+    "name" : "TimeboxedExecutor.FutureManagedBlocker",
+    "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor$FutureManagedBlocker",
+    "kind" : "class"
+  }, {
     "file" : "TimingUtils.json",
     "name" : "TimingUtils",
     "qualifiedName" : "io.fluxzero.common.TimingUtils",
