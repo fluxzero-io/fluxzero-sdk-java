@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -551,7 +552,7 @@ public class DeserializingMessage implements HasMessage {
             Set<Consumer<Throwable>> handlers = batchCompletionHandlers.get();
             if (handlers != null) {
                 batchCompletionHandlers.remove();
-                handlers.forEach(h -> h.accept(error));
+                AsyncCompletionScope.runAndAwait(() -> handlers.forEach(h -> h.accept(error)));
             }
         } finally {
             batchResources.remove();

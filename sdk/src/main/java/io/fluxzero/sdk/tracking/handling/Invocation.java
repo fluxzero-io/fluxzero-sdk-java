@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.IdentityProvider;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -220,7 +221,7 @@ public class Invocation {
 
     private void complete(Object result, Throwable error) {
         if (callbacks != null) {
-            callbacks.forEach(c -> c.accept(result, error));
+            AsyncCompletionScope.runAndAwait(() -> callbacks.forEach(c -> c.accept(result, error)));
         }
     }
 }

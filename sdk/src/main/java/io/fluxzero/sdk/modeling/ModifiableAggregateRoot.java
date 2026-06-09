@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -350,7 +352,12 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             uncommitted.clear();
             var before = lastCommitted;
             lastCommitted = lastStable;
-            commitHandler.handle(lastStable, events, before);
+            CompletableFuture<Void> completion = commitHandler.handle(lastStable, events, before);
+            if (AsyncCompletionScope.isActive()) {
+                AsyncCompletionScope.register(completion);
+            } else {
+                completion.join();
+            }
         } finally {
             committing = false;
         }
@@ -373,7 +380,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @FunctionalInterface
     public interface CommitHandler {
-        void handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
+        /**
+         * Commits the aggregate state and any unpublished events.
+         *
+         * @param model        aggregate state after the change
+         * @param unpublished  events that must be committed
+         * @param beforeUpdate aggregate state before the change
+         * @return future that completes when all commit work has finished
+         */
+        CompletableFuture<Void> handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
     }
 
 }

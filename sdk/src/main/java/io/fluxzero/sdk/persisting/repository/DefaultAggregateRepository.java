@@ -57,7 +57,6 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
@@ -502,19 +501,20 @@ public class DefaultAggregateRepository implements AggregateRepository {
             }
         }
 
-        public void commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
+        public CompletableFuture<Void> commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
             if (after.type() != null && !Objects.equals(after.type(), type)) {
-                delegates.apply(after.type()).commit(after, unpublishedEvents, before);
-                return;
+                return delegates.apply(after.type()).commit(after, unpublishedEvents, before);
             }
             if (after == before && unpublishedEvents.isEmpty()) {
-                return;
+                return CompletableFuture.completedFuture(null);
             }
             boolean stateChanged = after != before;
             List<AppliedEvent> aggregateStateEvents = unpublishedEvents.stream()
                     .filter(this::updatesAggregateState).toList();
             AtomicReference<Entity<?>> conflictingCachedHead = new AtomicReference<>();
             try {
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
+                CompletableFuture<Void> relationshipUpdates = CompletableFuture.completedFuture(null);
                 if (stateChanged) {
                     AtomicBoolean aggregateEvicted = new AtomicBoolean();
                     aggregateCache.<Entity<?>>compute(after.id().toString(), (stringId, current) -> {
@@ -532,61 +532,85 @@ public class DefaultAggregateRepository implements AggregateRepository {
                             after.dissociations(before);
                     relationshipsCache.updateLinks(associations, dissociations, after.type());
                     if (!associations.isEmpty() || !dissociations.isEmpty()) {
-                        eventStoreClient.updateRelationships(
-                                new UpdateRelationships(associations, dissociations, STORED)).get();
+                        relationshipUpdates = eventStoreClient.updateRelationships(
+                                new UpdateRelationships(associations, dissociations, STORED));
+                        futures.add(relationshipUpdates);
                     }
                     if (aggregateEvicted.get()) {
                         relationshipsCache.invalidateLookupsFor(conflictingCachedHead.get(), before, after);
                     }
                 }
+                CompletableFuture<Void> relationshipReady = relationshipUpdates;
+                CompletableFuture<Void> eventsStored = relationshipReady;
                 if (!unpublishedEvents.isEmpty()) {
-                    storeEvents(after.id().toString(), unpublishedEvents);
+                    eventsStored = relationshipReady.thenCompose(
+                            ignored -> storeEvents(after.id().toString(), unpublishedEvents));
+                    futures.add(eventsStored);
                     if (stateChanged && !aggregateStateEvents.isEmpty()
                         && snapshotTrigger.shouldCreateSnapshot(after, aggregateStateEvents)) {
-                        snapshotStore.storeSnapshot(after);
+                        futures.add(eventsStored.thenCompose(ignored -> snapshotStore.storeSnapshot(after)));
                     }
                 }
                 if (stateChanged && searchable) {
                     Object value = after.get();
                     if (value == null) {
-                        documentStore.deleteDocument(after.id().toString(), collection);
+                        futures.add(eventsStored.thenCompose(
+                                ignored -> documentStore.deleteDocument(after.id().toString(), collection)));
                     } else {
-                        documentStore.index(
+                        futures.add(eventsStored.thenCompose(ignored -> documentStore.index(
                                 value, after.id().toString(), collection,
-                                timestampFunction.apply(after), endFunction.apply(after)).get();
+                                timestampFunction.apply(after), endFunction.apply(after))));
                     }
                 }
+                return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+                        .whenComplete((ignored, e) -> {
+                            if (e != null) {
+                                handleCommitFailure(after, before, conflictingCachedHead.get(), e);
+                            }
+                        });
             } catch (Exception e) {
-                log.error("Failed to commit aggregate {}", after.id(), e);
-                aggregateCache.remove(after.id().toString());
-                relationshipsCache.invalidateLookupsFor(conflictingCachedHead.get(), before, after);
+                handleCommitFailure(after, before, conflictingCachedHead.get(), e);
+                return CompletableFuture.failedFuture(e);
             }
+        }
+
+        private void handleCommitFailure(Entity<?> after, Entity<?> before, Entity<?> conflictingCachedHead,
+                                         Throwable error) {
+            log.error("Failed to commit aggregate {}", after.id(), error);
+            aggregateCache.remove(after.id().toString());
+            relationshipsCache.invalidateLookupsFor(conflictingCachedHead, before, after);
         }
 
         protected boolean updatesAggregateState(AppliedEvent event) {
             return !eventSourced || event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
         }
 
-        @SneakyThrows
-        void storeEvents(String aggregateId, List<AppliedEvent> appliedEvents) {
+        CompletableFuture<Void> storeEvents(String aggregateId, List<AppliedEvent> appliedEvents) {
             Fluxzero.getOptionally().ifPresent(fc -> appliedEvents.forEach(
                     e -> e.getEvent().getSerializedObject().setSource(fc.client().id())));
 
             List<AppliedEvent> currentBatch = new ArrayList<>();
             EventPublicationStrategy currentStrategy = null;
+            CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
             for (AppliedEvent event : appliedEvents) {
                 if (event.getPublicationStrategy() != currentStrategy && currentStrategy != null) {
-                    eventStore.storeEvents(aggregateId, currentBatch.stream().map(AppliedEvent::getEvent).toList(),
-                                           currentStrategy).get();
+                    result = storeEventBatch(aggregateId, currentBatch, currentStrategy, result);
                     currentBatch.clear();
                 }
                 currentStrategy = event.getPublicationStrategy();
                 currentBatch.add(event);
             }
             if (!currentBatch.isEmpty()) {
-                eventStore.storeEvents(aggregateId, currentBatch.stream().map(AppliedEvent::getEvent).toList(),
-                                       currentStrategy).get();
+                result = storeEventBatch(aggregateId, currentBatch, currentStrategy, result);
             }
+            return result;
+        }
+
+        private CompletableFuture<Void> storeEventBatch(String aggregateId, List<AppliedEvent> currentBatch,
+                                                        EventPublicationStrategy currentStrategy,
+                                                        CompletableFuture<Void> previous) {
+            List<DeserializingMessage> events = currentBatch.stream().map(AppliedEvent::getEvent).toList();
+            return previous.thenCompose(ignored -> eventStore.storeEvents(aggregateId, events, currentStrategy));
         }
     }
 
