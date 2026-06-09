@@ -635,7 +635,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             return configured;
         }
         if (ApplicationProperties.defaultsVersionAtLeast(ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION)) {
-            return AggregateCommitPolicy.ASYNC_AFTER_BATCH;
+            return AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH;
         }
         return AggregateCommitPolicy.SYNC_AFTER_BATCH;
     }

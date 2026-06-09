@@ -23,40 +23,73 @@ public enum AggregateCommitPolicy {
     /**
      * Resolve the policy from the active Fluxzero defaults version or explicit application properties.
      */
-    DEFAULT,
+    DEFAULT(false, false, false),
 
     /**
      * Commit after every handler and wait for that commit before the handler completion phase finishes.
      */
-    SYNC_AFTER_HANDLER,
+    SYNC_AFTER_HANDLER(false, false, false),
 
     /**
      * Start commits after every handler and wait for all started commits at the end of the handler completion phase.
      */
-    ASYNC_AFTER_HANDLER,
+    ASYNC_AFTER_HANDLER(false, false, true),
+
+    /**
+     * Start commits after every handler, keep the aggregate active for the rest of the current batch, and wait for all
+     * started commits at the end of the batch completion phase.
+     */
+    ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH(false, true, true),
 
     /**
      * Commit at the end of the current message batch and wait for each commit before continuing.
      */
-    SYNC_AFTER_BATCH,
+    SYNC_AFTER_BATCH(true, true, false),
 
     /**
      * Start commits at the end of the current message batch and wait for all started commits before the batch
      * completion phase finishes.
      */
-    ASYNC_AFTER_BATCH;
+    ASYNC_AFTER_BATCH(true, true, true);
+
+    private final boolean commitAfterBatch;
+    private final boolean awaitAfterBatch;
+    private final boolean async;
+
+    AggregateCommitPolicy(boolean commitAfterBatch, boolean awaitAfterBatch, boolean async) {
+        this.commitAfterBatch = commitAfterBatch;
+        this.awaitAfterBatch = awaitAfterBatch;
+        this.async = async;
+    }
+
+    /**
+     * Returns whether this policy commits at batch completion rather than handler completion.
+     */
+    public boolean commitAfterBatch() {
+        return commitAfterBatch;
+    }
 
     /**
      * Returns whether this policy commits at batch completion rather than handler completion.
      */
     public boolean afterBatch() {
-        return this == SYNC_AFTER_BATCH || this == ASYNC_AFTER_BATCH;
+        return commitAfterBatch();
+    }
+
+    /**
+     * Returns whether this policy waits for commit completion at batch completion rather than handler completion.
+     * <p>
+     * When this is {@code true}, active thread-local aggregates are retained until batch completion as well, so later
+     * handlers in the same batch keep seeing the in-memory aggregate until pending commits have completed.
+     */
+    public boolean awaitAfterBatch() {
+        return awaitAfterBatch;
     }
 
     /**
      * Returns whether this policy allows commits from the same completion phase to run concurrently.
      */
     public boolean async() {
-        return this == ASYNC_AFTER_HANDLER || this == ASYNC_AFTER_BATCH;
+        return async;
     }
 }

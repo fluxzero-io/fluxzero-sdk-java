@@ -142,6 +142,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     private final AtomicBoolean waitingForHandlerEnd = new AtomicBoolean(), waitingForBatchEnd = new AtomicBoolean();
     private final List<AppliedEvent> applied = new ArrayList<>(), uncommitted = new ArrayList<>();
+    private final List<CompletableFuture<Void>> pendingBatchCompletions = new ArrayList<>();
     private final List<UnaryOperator<Entity<T>>> queued = new ArrayList<>();
     private volatile boolean updating, committing, commitPending;
 
@@ -323,18 +324,32 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             delegate = lastStable;
         }
         applied.clear();
-        if (!commitPolicy.afterBatch()) {
+        if (commitPolicy.commitAfterBatch()) {
+            awaitBatchCompletion();
+        } else {
             commit();
-            activeAggregates.get().remove(id().toString(), this);
-        } else if (waitingForBatchEnd.compareAndSet(false, true)) {
-            DeserializingMessage.whenBatchCompletes(this::whenBatchCompletes);
+            if (commitPolicy.awaitAfterBatch()) {
+                awaitBatchCompletion();
+            } else {
+                removeActiveAggregate();
+            }
         }
     }
 
     protected void whenBatchCompletes(Throwable error) {
         waitingForBatchEnd.set(false);
-        commit();
-        activeAggregates.get().remove(id().toString(), this);
+        if (commitPolicy.commitAfterBatch()) {
+            commit();
+        }
+        if (!awaitPendingBatchCompletionsAndRemoveActive()) {
+            removeActiveAggregate();
+        }
+    }
+
+    private void awaitBatchCompletion() {
+        if (waitingForBatchEnd.compareAndSet(false, true)) {
+            DeserializingMessage.whenBatchCompletes(this::whenBatchCompletes);
+        }
     }
 
     @Override
@@ -354,8 +369,16 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             var before = lastCommitted;
             lastCommitted = lastStable;
             CompletableFuture<Void> completion = commitHandler.handle(lastStable, events, before);
-            if (commitPolicy.async() && AsyncCompletionScope.isActive()) {
-                AsyncCompletionScope.register(completion);
+            if (commitPolicy.async()) {
+                if (!commitPolicy.commitAfterBatch() && commitPolicy.awaitAfterBatch()
+                    && DeserializingMessage.getCurrent() != null) {
+                    pendingBatchCompletions.add(completion);
+                    awaitBatchCompletion();
+                } else if (AsyncCompletionScope.isActive()) {
+                    AsyncCompletionScope.register(completion);
+                } else {
+                    completion.join();
+                }
             } else {
                 completion.join();
             }
@@ -366,6 +389,29 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             commit();
         }
         return this;
+    }
+
+    private boolean awaitPendingBatchCompletionsAndRemoveActive() {
+        if (pendingBatchCompletions.isEmpty()) {
+            return false;
+        }
+        List<CompletableFuture<Void>> completions = new ArrayList<>(pendingBatchCompletions);
+        pendingBatchCompletions.clear();
+        CompletableFuture<Void> completion = CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new));
+        if (AsyncCompletionScope.isActive()) {
+            AsyncCompletionScope.register(completion, this::removeActiveAggregate);
+        } else {
+            try {
+                completion.join();
+            } finally {
+                removeActiveAggregate();
+            }
+        }
+        return true;
+    }
+
+    private void removeActiveAggregate() {
+        activeAggregates.get().remove(id().toString(), this);
     }
 
     @Override

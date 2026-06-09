@@ -25,17 +25,33 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AggregateCommitPolicyTest {
 
     private static final JacksonSerializer serializer = new JacksonSerializer();
     private static final EntityHelper entityHelper = new DefaultEntityHelper(List.of(), true);
+
+    @Test
+    void asyncAfterHandlerAwaitAfterBatchStartsAfterHandlerAndAwaitsAfterBatch() {
+        AggregateCommitPolicy policy = AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH;
+
+        assertFalse(policy.commitAfterBatch());
+        assertFalse(policy.afterBatch());
+        assertTrue(policy.awaitAfterBatch());
+        assertTrue(policy.async());
+    }
 
     @Test
     void afterHandlerPolicyStartsCommitBeforeBatchCompletes() {
@@ -116,6 +132,94 @@ class AggregateCommitPolicyTest {
     }
 
     @Test
+    void asyncAfterHandlerAwaitAfterBatchStartsCommitAfterHandlerAndWaitsForBatchCompletion() throws Exception {
+        CommitProbe commits = new CommitProbe();
+        Entity<String> aggregate = aggregate(
+                "async-handler-await-batch", AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
+        AtomicBoolean reachedNextMessage = new AtomicBoolean();
+
+        CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
+                List.of(message("one"), message("two")), message -> {
+                    if ("one".equals(message.getMessageId())) {
+                        Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                    } else {
+                        reachedNextMessage.set(true);
+                    }
+                }));
+
+        assertTrue(commits.awaitStarted(1));
+        assertTrue(await(reachedNextMessage::get));
+        assertFalse(batch.isDone());
+
+        commits.completeAll();
+        assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void asyncAfterHandlerAwaitAfterBatchKeepsAggregateActiveUntilBatchCompletion() throws Exception {
+        CommitProbe commits = new CommitProbe();
+        AtomicInteger loads = new AtomicInteger();
+        AtomicBoolean activeAfterBatch = new AtomicBoolean(true);
+        Supplier<Entity<String>> loader = () -> {
+            loads.incrementAndGet();
+            return immutableAggregate("active-for-batch", "before");
+        };
+
+        CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> {
+            DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), message -> {
+                Invocation.performInvocation(() -> {
+                    Entity<String> aggregate = ModifiableAggregateRoot.load(
+                            "active-for-batch", loader,
+                            AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
+                            EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
+                            AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer,
+                            DispatchInterceptor.noOp, commits::commit);
+                    if ("one".equals(message.getMessageId())) {
+                        aggregate.update(value -> "first");
+                    } else {
+                        assertEquals("first", aggregate.get());
+                        aggregate.update(value -> "second");
+                    }
+                    return null;
+                });
+            });
+            activeAfterBatch.set(ModifiableAggregateRoot.getIfActive("active-for-batch").isPresent());
+        });
+
+        assertTrue(commits.awaitStarted(2));
+        assertEquals(1, loads.get());
+        assertFalse(batch.isDone());
+
+        commits.completeAll();
+        assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+        assertFalse(activeAfterBatch.get());
+    }
+
+    @Test
+    void asyncAfterHandlerAwaitAfterBatchPropagatesCommitFailureAtBatchCompletion() throws Exception {
+        CommitProbe commits = new CommitProbe();
+        Entity<String> aggregate = aggregate(
+                "async-handler-await-batch-failure",
+                AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
+        AtomicBoolean handlerCompleted = new AtomicBoolean();
+        RuntimeException failure = new RuntimeException("commit failed");
+
+        CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
+                List.of(message("one")), message -> {
+                    Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                    handlerCompleted.set(true);
+                }));
+
+        assertTrue(commits.awaitStarted(1));
+        assertTrue(await(handlerCompleted::get));
+        assertFalse(batch.isDone());
+
+        commits.fail(0, failure);
+        ExecutionException error = assertThrows(ExecutionException.class, () -> batch.get(1, TimeUnit.SECONDS));
+        assertTrue(hasCause(error, failure));
+    }
+
+    @Test
     void syncAfterBatchWaitsForEachCommitBeforeStartingTheNext() throws Exception {
         CommitProbe commits = new CommitProbe();
         Entity<String> first = aggregate("sync-batch-1", AggregateCommitPolicy.SYNC_AFTER_BATCH, commits);
@@ -161,23 +265,46 @@ class AggregateCommitPolicyTest {
     }
 
     private static Entity<String> aggregate(String id, AggregateCommitPolicy policy, CommitProbe commits) {
-        Entity<String> delegate = ImmutableAggregateRoot.<String>builder()
-                .id(id)
-                .type(String.class)
-                .value("before")
-                .entityHelper(entityHelper)
-                .serializer(serializer)
-                .build();
+        Entity<String> delegate = immutableAggregate(id, "before");
         return new ModifiableAggregateRoot<>(
                 delegate, policy, EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
                 AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer,
                 DispatchInterceptor.noOp, commits::commit);
     }
 
+    private static Entity<String> immutableAggregate(String id, String value) {
+        return ImmutableAggregateRoot.<String>builder()
+                .id(id)
+                .type(String.class)
+                .value(value)
+                .entityHelper(entityHelper)
+                .serializer(serializer)
+                .build();
+    }
+
     private static DeserializingMessage message(String messageId) {
         SerializedMessage message = new SerializedMessage(
                 serializer.serialize("payload"), Metadata.empty(), messageId, System.currentTimeMillis());
         return new DeserializingMessage(message, type -> "payload", MessageType.COMMAND, null, serializer);
+    }
+
+    private static boolean await(BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+            TimeUnit.MILLISECONDS.sleep(5L);
+        }
+        return condition.getAsBoolean();
+    }
+
+    private static boolean hasCause(Throwable error, Throwable cause) {
+        Throwable current = error;
+        while (current != null) {
+            if (current == cause) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private static class CommitProbe {
@@ -220,6 +347,10 @@ class AggregateCommitPolicyTest {
 
         void completeAll() {
             completions.forEach(completion -> completion.complete(null));
+        }
+
+        void fail(int index, Throwable error) {
+            completions.get(index).completeExceptionally(error);
         }
     }
 }

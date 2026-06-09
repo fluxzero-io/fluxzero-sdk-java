@@ -18,10 +18,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AsyncCompletionScopeTest {
@@ -48,5 +51,38 @@ class AsyncCompletionScopeTest {
         second.complete(null);
         assertDoesNotThrow(() -> scope.get(1, TimeUnit.SECONDS));
         assertTrue(scope.isDone());
+    }
+
+    @Test
+    void afterCompletionCallbackRunsAfterRegisteredFuturesComplete() throws Exception {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        AtomicBoolean callbackRan = new AtomicBoolean();
+
+        CompletableFuture<Void> scope = CompletableFuture.runAsync(() -> AsyncCompletionScope.runAndAwait(
+                () -> AsyncCompletionScope.register(future, () -> {
+                    assertTrue(future.isDone());
+                    callbackRan.set(true);
+                })));
+
+        assertFalse(callbackRan.get());
+        future.complete(null);
+
+        assertDoesNotThrow(() -> scope.get(1, TimeUnit.SECONDS));
+        assertTrue(callbackRan.get());
+    }
+
+    @Test
+    void afterCompletionCallbackRunsBeforeAsyncFailureIsRethrown() {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        AtomicBoolean callbackRan = new AtomicBoolean();
+        RuntimeException failure = new RuntimeException("failed");
+
+        CompletableFuture<Void> scope = CompletableFuture.runAsync(() -> AsyncCompletionScope.runAndAwait(
+                () -> AsyncCompletionScope.register(future, () -> callbackRan.set(true))));
+
+        future.completeExceptionally(failure);
+
+        assertThrows(ExecutionException.class, () -> scope.get(1, TimeUnit.SECONDS));
+        assertTrue(callbackRan.get());
     }
 }

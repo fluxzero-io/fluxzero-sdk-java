@@ -55,11 +55,18 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     }
 
     @Test
+    void propertySupportsAsyncAfterHandlerAwaitAfterBatchPolicy() {
+        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler-await-after-batch");
+
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
+    }
+
+    @Test
     void defaultPropertyContinuesToDefaultsVersion() {
         System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
         System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
 
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     @Test
@@ -70,10 +77,10 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     }
 
     @Test
-    void newerDefaultsVersionUsesAsyncAfterBatch() {
+    void newerDefaultsVersionUsesAsyncAfterHandlerAwaitAfterBatch() {
         System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
 
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     private static AggregateCommitPolicy resolve(Class<?> type) {
