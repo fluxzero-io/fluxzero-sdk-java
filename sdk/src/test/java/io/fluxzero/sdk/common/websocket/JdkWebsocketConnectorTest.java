@@ -33,6 +33,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
@@ -44,11 +45,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,6 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class JdkWebsocketConnectorTest {
 
@@ -137,36 +142,45 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void defaultConnectorDispatchesOpenCallbackOnDedicatedExecutor() throws Exception {
-        try (TestWebSocketServer server = TestWebSocketServer.start()) {
-            JdkWebsocketConnector connector = new JdkWebsocketConnector();
-            RecordingEndpoint endpoint = new RecordingEndpoint();
+    void abortedConnectingSessionIgnoresLateOpenCallback() {
+        RecordingEndpoint endpoint = new RecordingEndpoint();
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint,
+                new WebsocketConnectionOptions(Map.of(), Map.of(), null, List.of()),
+                URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run);
+        WebSocket webSocket = mock(WebSocket.class);
 
-            connector.connect(endpoint, null, server.uri());
+        session.abortConnecting();
+        session.createListener().onOpen(webSocket);
 
-            String threadName = endpoint.openThreadName.get();
-            assertTrue(threadName.startsWith(JdkWebsocketConnector.DEFAULT_EXECUTOR_THREAD_PREFIX),
-                       "Expected open callback on Fluxzero websocket executor but was " + threadName);
-            assertFalse(threadName.startsWith("ForkJoinPool.commonPool"),
-                        "Open callback should not run on the JVM common pool");
-        }
+        assertFalse(session.isOpen());
+        assertNull(endpoint.session.get());
+        verify(webSocket).abort();
     }
 
     @Test
-    void connectorUsesSuppliedHttpClientExecutorForOpenCallback() throws Exception {
-        ExecutorService executor = Executors.newSingleThreadExecutor(task ->
-                Thread.ofPlatform().daemon(true).name("custom-websocket-executor").unstarted(task));
-        try (TestWebSocketServer server = TestWebSocketServer.start()) {
-            HttpClient httpClient = HttpClient.newBuilder().executor(executor).build();
-            JdkWebsocketConnector connector = new JdkWebsocketConnector(httpClient);
-            RecordingEndpoint endpoint = new RecordingEndpoint();
+    void openCallbackDoesNotDependOnCallbackExecutorCapacity() throws Exception {
+        RecordingEndpoint endpoint = new RecordingEndpoint();
+        JdkWebsocketConnector connector = new JdkWebsocketConnector();
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                connector, endpoint,
+                new WebsocketConnectionOptions(Map.of(), Map.of(), null, List.of()),
+                URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                task -> {
+                    throw new RejectedExecutionException("executor is saturated");
+                });
+        WebSocket webSocket = mock(WebSocket.class);
 
-            connector.connect(endpoint, null, server.uri());
+        session.createListener().onOpen(webSocket);
+        session.awaitOpen();
 
-            assertEquals("custom-websocket-executor", endpoint.openThreadName.get());
-        } finally {
-            executor.shutdownNow();
-        }
+        assertSame(session, endpoint.session.get());
+        assertTrue(session.isOpen());
+        assertEquals(Set.of(session), connector.getOpenSessions());
+        verify(webSocket).request(1);
     }
 
     @Test

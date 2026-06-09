@@ -21,8 +21,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -139,7 +142,7 @@ public final class TimeboxedExecutor implements AutoCloseable {
     public <T> T callAndWait(@NonNull Callable<T> task, Duration maxDuration) throws TimeoutException {
         Future<T> future = executor.submit(task);
         try {
-            return future.get(maxDuration.toNanos(), TimeUnit.NANOSECONDS);
+            return waitFor(future, maxDuration);
         } catch (TimeoutException e) {
             future.cancel(true);
             throw e;
@@ -150,6 +153,16 @@ public final class TimeboxedExecutor implements AutoCloseable {
         } catch (Exception e) {
             throw rethrow(e);
         }
+    }
+
+    private static <T> T waitFor(Future<T> future, Duration maxDuration) throws Exception {
+        long timeoutNanos = maxDuration.toNanos();
+        if (!ForkJoinTask.inForkJoinPool()) {
+            return future.get(timeoutNanos, TimeUnit.NANOSECONDS);
+        }
+        FutureManagedBlocker<T> blocker = new FutureManagedBlocker<>(future, System.nanoTime() + timeoutNanos);
+        ForkJoinPool.managedBlock(blocker);
+        return blocker.getResult();
     }
 
     private static ExecutorService defaultExecutor() {
@@ -167,5 +180,55 @@ public final class TimeboxedExecutor implements AutoCloseable {
     @Override
     public void close() {
         executor.shutdown();
+    }
+
+    private static final class FutureManagedBlocker<T> implements ForkJoinPool.ManagedBlocker {
+        private final Future<T> future;
+        private final long deadlineNanos;
+        private T result;
+        private Exception error;
+        private boolean done;
+
+        private FutureManagedBlocker(Future<T> future, long deadlineNanos) {
+            this.future = future;
+            this.deadlineNanos = deadlineNanos;
+        }
+
+        @Override
+        public boolean block() {
+            if (!done) {
+                try {
+                    long remainingNanos = deadlineNanos - System.nanoTime();
+                    if (remainingNanos <= 0L) {
+                        throw new TimeoutException();
+                    }
+                    result = future.get(remainingNanos, TimeUnit.NANOSECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    error = e;
+                } catch (ExecutionException | TimeoutException e) {
+                    error = e;
+                } finally {
+                    done = true;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public boolean isReleasable() {
+            return done || future.isDone();
+        }
+
+        private T getResult() throws Exception {
+            if (!done) {
+                result = future.get(0L, TimeUnit.NANOSECONDS);
+                done = true;
+            }
+            if (error != null) {
+                throw error;
+            }
+            return result;
+        }
     }
 }

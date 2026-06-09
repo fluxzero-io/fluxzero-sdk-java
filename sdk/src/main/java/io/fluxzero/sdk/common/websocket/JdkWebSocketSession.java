@@ -170,6 +170,17 @@ class JdkWebSocketSession implements WebsocketSession {
         notifyClose(closeReason);
     }
 
+    void abortConnecting() {
+        closeNotified.set(true);
+        open.set(false);
+        WebSocket webSocket = this.webSocket;
+        if (webSocket != null) {
+            webSocket.abort();
+        }
+        connector.removeOpenSession(this);
+        openFuture.completeExceptionally(new ClosedChannelException());
+    }
+
     private CompletableFuture<WebSocket> sendClose(WebSocket webSocket, WebsocketCloseReason closeReason) {
         return sendFrame(() -> webSocket.sendClose(closeReason.code(), closeReason.reason()))
                 .thenApply(ignored -> webSocket);
@@ -236,6 +247,10 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private void notifyOpen(WebSocket webSocket) {
+        if (closeNotified.get()) {
+            webSocket.abort();
+            return;
+        }
         this.webSocket = webSocket;
         open.set(true);
         connector.addOpenSession(this);
@@ -373,11 +388,11 @@ class JdkWebSocketSession implements WebsocketSession {
     private class Listener implements WebSocket.Listener {
         @Override
         public void onOpen(WebSocket webSocket) {
-            dispatchCallback(() -> notifyOpen(webSocket))
-                    .exceptionally(e -> {
-                        handleOpenDispatchFailure(webSocket, e);
-                        return null;
-                    });
+            try {
+                notifyOpen(webSocket);
+            } catch (Throwable e) {
+                handleOpenDispatchFailure(webSocket, e);
+            }
         }
 
         @Override

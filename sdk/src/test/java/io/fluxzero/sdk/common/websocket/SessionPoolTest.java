@@ -16,9 +16,18 @@ package io.fluxzero.sdk.common.websocket;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +62,40 @@ class SessionPoolTest {
     }
 
     @Test
+    void sessionCreationDoesNotHoldTheMapLock() throws Exception {
+        CountDownLatch firstCreationStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstCreation = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        WebsocketSession secondSession = openSession();
+        SessionPool sessionPool = new SessionPool(2, () -> {
+            if (attempts.getAndIncrement() == 0) {
+                firstCreationStarted.countDown();
+                try {
+                    assertTrue(releaseFirstCreation.await(5, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                return openSession();
+            }
+            return secondSession;
+        });
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<WebsocketSession> first = executor.submit(() -> sessionPool.get(0));
+
+            assertTrue(firstCreationStarted.await(5, TimeUnit.SECONDS));
+            assertSame(secondSession, sessionPool.get(1));
+            assertFalse(first.isDone());
+
+            releaseFirstCreation.countDown();
+            assertTrue(first.get(5, TimeUnit.SECONDS).isOpen());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void constructorRejectsZeroSizedPool() {
         assertThrows(IllegalArgumentException.class, () -> new SessionPool(0, () -> mock(WebsocketSession.class)));
     }
@@ -60,5 +103,9 @@ class SessionPoolTest {
     @Test
     void constructorRejectsNegativeSizedPool() {
         assertThrows(IllegalArgumentException.class, () -> new SessionPool(-1, () -> mock(WebsocketSession.class)));
+    }
+
+    private static WebsocketSession openSession() {
+        return when(mock(WebsocketSession.class).isOpen()).thenReturn(true).getMock();
     }
 }

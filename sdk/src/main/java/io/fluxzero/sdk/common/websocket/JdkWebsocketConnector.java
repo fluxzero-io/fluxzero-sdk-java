@@ -123,14 +123,19 @@ public class JdkWebsocketConnector implements WebsocketConnector {
         JdkWebSocketSession session = new JdkWebSocketSession(this, endpoint, connectionOptions, uri,
                                                              handshakeResponse, executor);
         HandshakeCapture handshakeCapture = new HandshakeCapture(handshakeResponse);
+        CompletableFuture<WebSocket> webSocketFuture = null;
         try {
-            cookieHandler.buildAsync(handshakeCapture, () -> builder.buildAsync(uri, session.createListener())).get();
+            webSocketFuture = cookieHandler.buildAsync(handshakeCapture, () -> builder.buildAsync(
+                    uri, session.createListener()));
+            webSocketFuture.get();
             session.awaitOpen();
             return session;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            abortConnectingSession(session, webSocketFuture);
             throw new IOException("Interrupted while connecting websocket endpoint " + uri, e);
         } catch (ExecutionException | CancellationException e) {
+            abortConnectingSession(session, webSocketFuture);
             throw unwrapConnectionFailure(uri, e);
         } finally {
             cookieHandler.unregister(handshakeCapture);
@@ -147,6 +152,21 @@ public class JdkWebsocketConnector implements WebsocketConnector {
 
     void removeOpenSession(WebsocketSession session) {
         openSessions.remove(session);
+    }
+
+    private static void abortConnectingSession(JdkWebSocketSession session, CompletableFuture<WebSocket> webSocketFuture) {
+        session.abortConnecting();
+        if (webSocketFuture != null) {
+            if (webSocketFuture.isDone()
+                    && !webSocketFuture.isCompletedExceptionally()
+                    && !webSocketFuture.isCancelled()) {
+                WebSocket webSocket = webSocketFuture.getNow(null);
+                if (webSocket != null) {
+                    webSocket.abort();
+                }
+            }
+            webSocketFuture.cancel(true);
+        }
     }
 
     private static HttpClient createHttpClient(HttpClient httpClient, Executor executor,
