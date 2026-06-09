@@ -673,11 +673,11 @@ public class DefaultTracking implements Tracking {
                 result = handle(message, method, handler, config);
             } catch (Throwable e) {
                 try {
-                    stopTracker(message, handler, e);
-                } finally {
                     if (reportResult) {
-                        return reportResult(e, method, message, config);
+                        reportResult(e, method, message, config);
                     }
+                } finally {
+                    stopTracker(message, handler, e);
                 }
                 return completedReport;
             }
@@ -700,11 +700,11 @@ public class DefaultTracking implements Tracking {
             result = handle(message, h, handler, config);
         } catch (Throwable e) {
             try {
-                stopTracker(message, handler, e);
-            } finally {
                 if (reportResult) {
-                    return reportResult(e, h, message, config);
+                    reportResult(e, h, message, config);
                 }
+            } finally {
+                stopTracker(message, handler, e);
             }
             return completedReport;
         }

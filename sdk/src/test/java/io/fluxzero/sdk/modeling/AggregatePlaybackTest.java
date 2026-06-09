@@ -54,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AggregatePlaybackTest {
@@ -754,7 +756,11 @@ class AggregatePlaybackTest {
             doReturn(CompletableFuture.failedFuture(new IllegalStateException("relationship update failed")))
                     .when(fc.client().getEventStoreClient()).updateRelationships(any());
 
-            getCachingDelegate(fc).load(aggregateId, SampleAggregate.class).apply(new CreateSampleAggregate());
+            CompletionException error = assertThrows(CompletionException.class,
+                                                     () -> getCachingDelegate(fc)
+                                                             .load(aggregateId, SampleAggregate.class)
+                                                             .apply(new CreateSampleAggregate()));
+            assertEquals("relationship update failed", error.getCause().getMessage());
 
             assertFalse(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
             assertRelationshipLookupInvalidated(fc, aggregateId);
