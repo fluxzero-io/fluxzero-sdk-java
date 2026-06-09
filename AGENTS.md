@@ -43,4 +43,4 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - Good examples: `fix(tracking): avoid negative pause sleeps`, `refactor(handling): simplify payload resolver ordering`, `test(logging): cover async appender shutdown`.
 - Common types: `feat`, `fix`, `refactor`, `test`, `docs`, `build`, `ci`, `deps`, `perf`, `chore`.
 - Useful domains in this repo include `tracking`, `handling`, `modeling`, `entity`, `websocket`, `serialization`, `logging`, `test-server`, `proxy`, `spring`, `ci`, and `deps`.
-- For non-trivial commits, include a body that explains why the change is needed, the behavioral impact, and the tests that were run.
+- For non-trivial commits, include a body that explains why the change is needed, and the behavioral impact.
