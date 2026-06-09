@@ -32,6 +32,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
@@ -296,9 +297,17 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private void handleBinary(ByteBuffer message, boolean last) {
+        handleBinary(message, last, null);
+    }
+
+    private void handleBinary(ByteBuffer message, boolean last, WebsocketEndpoint.ReceiveTiming receiveTiming) {
         byte[] bytes = appendBinary(message, last);
         if (bytes != null) {
-            endpoint.onMessage(bytes, this);
+            if (receiveTiming == null) {
+                endpoint.onMessage(bytes, this);
+            } else {
+                endpoint.onMessage(bytes, this, receiveTiming);
+            }
         }
     }
 
@@ -366,6 +375,25 @@ class JdkWebSocketSession implements WebsocketSession {
                     result.complete(null);
                 } catch (Throwable e) {
                     result.completeExceptionally(e);
+                    throw e;
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            result.completeExceptionally(e);
+            notifyError(e);
+        }
+        return result;
+    }
+
+    private CompletableFuture<Void> dispatchCallback(LongConsumer task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            callbackExecutor.execute(() -> {
+                try {
+                    task.accept(System.currentTimeMillis());
+                    result.complete(null);
+                } catch (Throwable e) {
+                    result.completeExceptionally(e);
                 }
             });
         } catch (RejectedExecutionException e) {
@@ -397,6 +425,20 @@ class JdkWebSocketSession implements WebsocketSession {
 
         @Override
         public CompletableFuture<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+            if (endpoint.captureReceiveTiming()) {
+                long frameReceivedTimestamp = System.currentTimeMillis();
+                long frameDispatchQueuedTimestamp = System.currentTimeMillis();
+                return dispatchCallback(frameDispatchStartedTimestamp -> {
+                    try {
+                        handleBinary(data, last, new WebsocketEndpoint.ReceiveTiming(
+                                frameReceivedTimestamp, frameDispatchQueuedTimestamp, frameDispatchStartedTimestamp));
+                    } catch (Throwable e) {
+                        notifyError(e);
+                    } finally {
+                        requestNext(webSocket);
+                    }
+                });
+            }
             return dispatchCallback(() -> {
                 try {
                     handleBinary(data, last);

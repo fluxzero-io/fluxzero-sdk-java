@@ -33,6 +33,7 @@ import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
+import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
@@ -146,7 +147,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             AbstractWebsocketClient.class.getName() + ".selectedCompressionAlgorithm";
     protected static final String SELECTED_TRANSPORT_FORMAT_USER_PROPERTY =
             AbstractWebsocketClient.class.getName() + ".selectedTransportFormat";
-    static final String REPLAYED_RESPONSE_METADATA_KEY = "replayedResponse";
+    static final String REPLAYED_RESPONSE_METADATA_KEY = WebsocketResultDiagnostics.REPLAYED_RESPONSE_METADATA_KEY;
+    static final String RESULT_DIAGNOSTICS_PROPERTY = WebsocketResultDiagnostics.MODE_PROPERTY;
+    static final String RESULT_TIMING_METRICS_ENABLED_PROPERTY =
+            WebsocketResultDiagnostics.LEGACY_TIMING_ENABLED_PROPERTY;
 
     public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
     public static ObjectMapper defaultObjectMapper = JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES)
@@ -170,6 +174,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final ExecutorService reconnectExecutor;
     private final Semaphore inFlightWebSocketBytes;
     private final boolean allowMetrics;
+    private final WebsocketResultDiagnostics resultDiagnostics;
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
     private final Serializer fallbackSerializer = new JacksonSerializer();
@@ -222,6 +227,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
+        this.resultDiagnostics = WebsocketResultDiagnostics.from(DefaultPropertySource.getInstance());
         this.inFlightWebSocketBytes = new Semaphore(Math.max(1, clientConfig.getMaxInFlightWebSocketBytes()));
         this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler",
                                                        ObjectUtils.newWorkerPool(this + "-ping",
@@ -478,10 +484,21 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     @Override
     public void onMessage(byte[] bytes, WebsocketSession session) {
-        handleMessage(bytes, session);
+        handleMessage(bytes, session, null);
     }
 
-    protected void handleMessage(byte[] bytes, WebsocketSession session) {
+    @Override
+    public void onMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        handleMessage(bytes, session, receiveTiming);
+    }
+
+    @Override
+    public boolean captureReceiveTiming() {
+        return resultDiagnostics.captureReceiveTiming();
+    }
+
+    protected void handleMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        WebsocketResultDiagnostics.FrameTiming frameTiming = resultDiagnostics.frameTiming(receiveTiming);
         JsonType value;
         try {
             value = transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
@@ -490,22 +507,38 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                         getTransportFormat(session), e);
             return;
         }
+        long decodedTimestamp = resultDiagnostics.timestamp();
+        String sessionId = getNegotiatedSessionId(session);
         if (value instanceof ResultBatch) {
             String batchId = Fluxzero.generateId();
-            ((ResultBatch) value).getResults()
-                    .forEach(r -> executeResultCallback("result",
-                            () -> handleResult(r, batchId, getNegotiatedSessionId(session))));
+            ((ResultBatch) value).getResults().forEach(r -> {
+                long callbackQueuedTimestamp = resultDiagnostics.timestamp();
+                executeResultCallback("result", () -> handleResult(
+                        r, batchId, sessionId,
+                        resultDiagnostics.resultTiming(
+                                frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                                resultDiagnostics.timestamp())));
+            });
         } else {
             WebSocketRequest webSocketRequest = requests.get(((RequestResult) value).getRequestId());
             if (webSocketRequest == null) {
                 log().warn("Could not find outstanding read request for id {} (session {})",
-                           ((RequestResult) value).getRequestId(), getNegotiatedSessionId(session));
+                           ((RequestResult) value).getRequestId(), sessionId);
             }
-            handleResult((RequestResult) value, null, getNegotiatedSessionId(session));
+            long callbackQueuedTimestamp = resultDiagnostics.timestamp();
+            handleResult((RequestResult) value, null, sessionId,
+                         resultDiagnostics.resultTiming(
+                                 frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                                 resultDiagnostics.timestamp()));
         }
     }
 
     protected void handleResult(RequestResult result, String batchId, String sessionId) {
+        handleResult(result, batchId, sessionId, WebsocketResultDiagnostics.ResultTiming.none());
+    }
+
+    protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
         try {
             WebSocketRequest webSocketRequest = requests.remove(result.getRequestId());
             if (webSocketRequest == null) {
@@ -516,7 +549,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                             .with("requestId", webSocketRequest.request.getRequestId(),
                                   "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
                             .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
-                            .with(responseTimingMetadata(result))
+                            .with("resultType", result.getClass().getSimpleName(),
+                                  "requestType", webSocketRequest.request.getClass().getSimpleName())
+                            .with(resultDiagnostics.metadata(result, clientResultTiming))
                             .with(webSocketRequest.correlationData)
                             .with("batchId", batchId)
                             .with("sessionId", sessionId)
@@ -542,27 +577,19 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     static Metadata responseTimingMetadata(RequestResult result) {
-        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
-        return Metadata.of(
-                "requestReceivedTimestamp", requestReceivedTimestamp > 0 ? requestReceivedTimestamp : null,
-                "responseTimestamp", result.getTimestamp(),
-                "serverMsDuration", serverMsDuration(result),
-                REPLAYED_RESPONSE_METADATA_KEY, isReplayedResponse(result) ? true : null);
+        return WebsocketResultDiagnostics.baseMetadata(result);
+    }
+
+    static Metadata clientResultTimingMetadata(WebsocketResultDiagnostics.ResultTiming timing) {
+        return WebsocketResultDiagnostics.clientTimingMetadata(timing);
     }
 
     static Long serverMsDuration(RequestResult result) {
-        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
-        if (requestReceivedTimestamp <= 0) {
-            return null;
-        }
-        long responseTimestamp = result.getTimestamp();
-        // Idempotency can replay a cached result that was created before the retried request reached the server.
-        return responseTimestamp >= requestReceivedTimestamp ? responseTimestamp - requestReceivedTimestamp : 0L;
+        return WebsocketResultDiagnostics.serverMsDuration(result);
     }
 
     static boolean isReplayedResponse(RequestResult result) {
-        long requestReceivedTimestamp = result.getRequestReceivedTimestamp();
-        return requestReceivedTimestamp > 0 && result.getTimestamp() < requestReceivedTimestamp;
+        return WebsocketResultDiagnostics.isReplayedResponse(result);
     }
 
     protected PingRegistration schedulePing(WebsocketSession session) {

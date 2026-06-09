@@ -39,6 +39,26 @@ public interface WebsocketEndpoint {
     void onMessage(byte[] bytes, WebsocketSession session);
 
     /**
+     * Called when a complete binary message has been received, with low-level receive timing when available.
+     *
+     * @param bytes         the full binary message payload
+     * @param session       the session that received the message
+     * @param receiveTiming timing captured by the underlying websocket listener
+     */
+    default void onMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        onMessage(bytes, session);
+    }
+
+    /**
+     * Returns whether this endpoint wants low-level receive timing for binary messages.
+     *
+     * @return {@code true} when the websocket session should capture receive and dispatch timestamps
+     */
+    default boolean captureReceiveTiming() {
+        return false;
+    }
+
+    /**
      * Called when a pong frame has been received.
      *
      * @param data    the pong application data
@@ -61,4 +81,18 @@ public interface WebsocketEndpoint {
      * @param error   the reported error
      */
     void onError(WebsocketSession session, Throwable error);
+
+    /**
+     * Low-level receive timing captured before dispatching to the Fluxzero endpoint.
+     *
+     * @param frameReceivedTimestamp          wall-clock timestamp at the native websocket listener callback
+     * @param frameDispatchQueuedTimestamp    wall-clock timestamp just before endpoint dispatch was queued
+     * @param frameDispatchStartedTimestamp   wall-clock timestamp when endpoint dispatch started
+     */
+    record ReceiveTiming(
+            long frameReceivedTimestamp,
+            long frameDispatchQueuedTimestamp,
+            long frameDispatchStartedTimestamp
+    ) {
+    }
 }

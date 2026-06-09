@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 public abstract class AbstractRequestResult implements RequestResult {
     private long requestReceivedTimestamp;
+    private long responseQueuedTimestamp;
+    private long responseSendStartTimestamp;
 
     /**
      * The timestamp (in epoch milliseconds) when the Fluxzero Runtime received the original request.
@@ -37,5 +39,39 @@ public abstract class AbstractRequestResult implements RequestResult {
     @Override
     public void setRequestReceivedTimestamp(long requestReceivedTimestamp) {
         this.requestReceivedTimestamp = requestReceivedTimestamp;
+    }
+
+    /**
+     * The timestamp (in epoch milliseconds) when the Fluxzero Runtime queued this response for websocket delivery.
+     */
+    @Override
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public long getResponseQueuedTimestamp() {
+        return responseQueuedTimestamp;
+    }
+
+    /**
+     * Updates the timestamp at which the Fluxzero Runtime queued this response for websocket delivery.
+     */
+    @Override
+    public void setResponseQueuedTimestamp(long responseQueuedTimestamp) {
+        this.responseQueuedTimestamp = responseQueuedTimestamp;
+    }
+
+    /**
+     * The timestamp (in epoch milliseconds) just before the Fluxzero Runtime encoded and sent this response.
+     */
+    @Override
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    public long getResponseSendStartTimestamp() {
+        return responseSendStartTimestamp;
+    }
+
+    /**
+     * Updates the timestamp just before the Fluxzero Runtime encoded and sent this response.
+     */
+    @Override
+    public void setResponseSendStartTimestamp(long responseSendStartTimestamp) {
+        this.responseSendStartTimestamp = responseSendStartTimestamp;
     }
 }

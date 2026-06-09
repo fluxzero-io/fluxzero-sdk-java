@@ -26,6 +26,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
@@ -366,6 +367,92 @@ class AbstractWebsocketClientTest {
         } finally {
             client.close();
         }
+    }
+
+    @Test
+    void clientResultTimingMetadataIncludesClientTimestamps() {
+        Metadata metadata = AbstractWebsocketClient.clientResultTimingMetadata(
+                new WebsocketResultDiagnostics.ResultTiming(1_000L, 1_005L, 1_008L, 1_010L, 1_020L, 1_030L));
+
+        assertEquals("1000", metadata.get("clientFrameReceivedTimestamp"));
+        assertEquals("1005", metadata.get("clientFrameDispatchQueuedTimestamp"));
+        assertEquals("1008", metadata.get("clientFrameDispatchStartedTimestamp"));
+        assertEquals("1010", metadata.get("clientDecodedTimestamp"));
+        assertEquals("1020", metadata.get("clientCallbackQueuedTimestamp"));
+        assertEquals("1030", metadata.get("clientCallbackStartedTimestamp"));
+    }
+
+    @Test
+    void clientResultTimingMetadataIsEmptyWithoutTiming() {
+        assertTrue(AbstractWebsocketClient.clientResultTimingMetadata(null).getEntries().isEmpty());
+    }
+
+    @Test
+    void resultDiagnosticsDefaultsToRuntimeTimingMetadata() {
+        WebsocketResultDiagnostics diagnostics = WebsocketResultDiagnostics.from(name -> null);
+        VoidResult result = new VoidResult(42L);
+        result.setRequestReceivedTimestamp(2_000L);
+
+        Metadata metadata = diagnostics.metadata(result, WebsocketResultDiagnostics.ResultTiming.none());
+
+        assertEquals(WebsocketResultDiagnostics.DEFAULT, diagnostics);
+        assertFalse(diagnostics.captureReceiveTiming());
+        assertEquals("2000", metadata.get("requestReceivedTimestamp"));
+        assertFalse(metadata.containsKey("clientDecodedTimestamp"));
+    }
+
+    @Test
+    void legacyTimingPropertyEnablesHeavyDiagnostics() {
+        WebsocketResultDiagnostics diagnostics = WebsocketResultDiagnostics.from(
+                name -> WebsocketResultDiagnostics.LEGACY_TIMING_ENABLED_PROPERTY.equals(name) ? "true" : null);
+
+        assertEquals(WebsocketResultDiagnostics.HEAVY, diagnostics);
+        assertTrue(diagnostics.captureReceiveTiming());
+    }
+
+    @Test
+    void explicitDiagnosticsModeOverridesLegacyTimingProperty() {
+        WebsocketResultDiagnostics diagnostics = WebsocketResultDiagnostics.from(name -> switch (name) {
+            case WebsocketResultDiagnostics.MODE_PROPERTY -> "none";
+            case WebsocketResultDiagnostics.LEGACY_TIMING_ENABLED_PROPERTY -> "true";
+            default -> null;
+        });
+
+        assertEquals(WebsocketResultDiagnostics.NONE, diagnostics);
+        assertFalse(diagnostics.captureReceiveTiming());
+    }
+
+    @Test
+    void heavyDiagnosticsIncludeRuntimeAndClientTimingMetadata() {
+        VoidResult result = new VoidResult(42L);
+        result.setRequestReceivedTimestamp(2_000L);
+        result.setResponseQueuedTimestamp(2_260L);
+        result.setResponseSendStartTimestamp(2_275L);
+        WebsocketResultDiagnostics.FrameTiming frameTiming = WebsocketResultDiagnostics.HEAVY.frameTiming(
+                new WebsocketEndpoint.ReceiveTiming(1_000L, 1_005L, 1_008L));
+        WebsocketResultDiagnostics.ResultTiming resultTiming = WebsocketResultDiagnostics.HEAVY.resultTiming(
+                frameTiming, 1_010L, 1_020L, 1_030L);
+
+        Metadata metadata = WebsocketResultDiagnostics.HEAVY.metadata(result, resultTiming);
+
+        assertEquals("2260", metadata.get("responseQueuedTimestamp"));
+        assertEquals("2275", metadata.get("responseSendStartTimestamp"));
+        assertEquals("1000", metadata.get("clientFrameReceivedTimestamp"));
+        assertEquals("1010", metadata.get("clientDecodedTimestamp"));
+        assertEquals("1030", metadata.get("clientCallbackStartedTimestamp"));
+    }
+
+    @Test
+    void responseTimingMetadataIncludesRuntimeDeliveryTimestamps() {
+        VoidResult result = new VoidResult(42L);
+        result.setRequestReceivedTimestamp(2_000L);
+        result.setResponseQueuedTimestamp(2_260L);
+        result.setResponseSendStartTimestamp(2_275L);
+
+        Metadata metadata = AbstractWebsocketClient.responseTimingMetadata(result);
+
+        assertEquals("2260", metadata.get("responseQueuedTimestamp"));
+        assertEquals("2275", metadata.get("responseSendStartTimestamp"));
     }
 
     @Test
