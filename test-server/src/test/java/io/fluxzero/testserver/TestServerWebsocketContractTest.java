@@ -57,8 +57,6 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Execution;
-import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -86,7 +84,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Execution(ExecutionMode.CONCURRENT)
 class TestServerWebsocketContractTest {
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
@@ -295,7 +292,7 @@ class TestServerWebsocketContractTest {
             CompletableFuture<MessageBatch> waitingBatch = tracking.read(
                     "waiting-tracker", null, ConsumerConfiguration.builder()
                             .name(consumer).maxWaitDuration(Duration.ofSeconds(30)).build());
-            Thread.sleep(250L);
+            assertTrue(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
             assertFalse(waitingBatch.isDone());
 
             await(gateway.truncate(STORED));
