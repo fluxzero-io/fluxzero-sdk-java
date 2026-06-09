@@ -94,7 +94,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     private final String topic;
 
     @Getter(lazy = true)
-    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore);
+    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore, positionStore);
     @Getter(lazy = true)
     private final MessageLogMaintenance messageLogMaintenance =
             new MessageLogMaintenance(messageStore, positionStore, getTrackingStrategy());
@@ -137,8 +137,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration config) {
         return getTrackingStrategy().getBatch(
-                new WebSocketTracker(readRequest(trackerId, lastIndex, config), messageType, LOCAL_CLIENT_ID, null),
-                positionStore);
+                new WebSocketTracker(readRequest(trackerId, lastIndex, config), messageType, LOCAL_CLIENT_ID, null));
     }
 
     @Override
@@ -169,7 +168,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                                                               ConsumerConfiguration config) {
         Read read = readRequest(trackerId, lastIndex, config);
         return getTrackingStrategy().claimSegment(
-                        new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID, null), positionStore)
+                        new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID, null))
                 .thenApply(claim -> new ClaimSegmentResult(read.getRequestId(), claim.getPosition(),
                                                            claim.getSegment()));
     }

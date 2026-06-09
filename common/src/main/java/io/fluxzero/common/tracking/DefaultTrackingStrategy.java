@@ -63,6 +63,7 @@ import static java.util.Optional.ofNullable;
 public class DefaultTrackingStrategy implements TrackingStrategy {
 
     private final MessageStore source;
+    private final PositionStore positionStore;
     private final TaskScheduler scheduler;
     private final int segments;
     private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
@@ -76,18 +77,20 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     private volatile boolean stopped;
 
-    public DefaultTrackingStrategy(MessageStore source) {
-        this(source, new InMemoryTaskScheduler(
+    public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore) {
+        this(source, positionStore, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
                 newWorkerPool("tracking-worker-%s".formatted(source), 8)));
     }
 
-    public DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler) {
-        this(source, scheduler, MAX_SEGMENT);
+    public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler) {
+        this(source, positionStore, scheduler, MAX_SEGMENT);
     }
 
-    protected DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler, int segments) {
+    protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
+                                      int segments) {
         this.source = source;
+        this.positionStore = positionStore;
         this.scheduler = scheduler;
         this.segments = segments;
         sourceRegistration = source.registerMonitor(this::onUpdate);
@@ -95,18 +98,18 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     @Override
-    public CompletableFuture<MessageBatch> getBatch(Tracker tracker, PositionStore positionStore) {
+    public CompletableFuture<MessageBatch> getBatch(Tracker tracker) {
         TrackerRequest<MessageBatch> request = openRequest(tracker, Function.identity());
-        getBatch(tracker, positionStore, request);
+        getBatch(tracker, request);
         return request.future();
     }
 
-    protected void getBatch(Tracker tracker, PositionStore positionStore, TrackerRequest<MessageBatch> request) {
+    protected void getBatch(Tracker tracker, TrackerRequest<MessageBatch> request) {
         TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
         if (request.isDone()) {
             return;
         }
-        int[] newSegment = claimSegment(tracker);
+        int[] newSegment = claimSegmentRange(tracker);
         if (request.isDone()) {
             disconnectClosedRequest(tracker, request);
             return;
@@ -114,7 +117,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         try {
             if (newSegment[0] == newSegment[1]) {
                 waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                                positionStore, request);
+                                request);
                 return;
             }
             int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
@@ -123,7 +126,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             MessageStoreBatch batch;
             Position position;
             do {
-                position = position(tracker, positionStore, newSegment);
+                position = position(tracker, newSegment);
                 batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
                                   filterPredicate(newSegment, position, tracker));
 
@@ -148,7 +151,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             if (batch.messages().isEmpty()) {
                 MessageBatch messageBatch =
                         new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
-                waitForMessages(tracker, messageBatch, positionStore, request);
+                waitForMessages(tracker, messageBatch, request);
                 if (updateVersion < updateNotificationVersion.get()) {
                     var task = waitingTrackers.get(tracker);
                     if (task != null && task.tracker == tracker && task.request == request) {
@@ -165,7 +168,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         } catch (Throwable e) {
             log.error("Failed to get a batch for tracker {}", tracker, e);
             waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), false),
-                            positionStore, request);
+                            request);
         } finally {
             if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
                 onClusterUpdate(oldCluster);
@@ -174,28 +177,28 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     @Override
-    public CompletableFuture<ClaimResult> claimSegment(Tracker tracker, PositionStore positionStore) {
+    public CompletableFuture<ClaimResult> claimSegment(Tracker tracker) {
         TrackerRequest<ClaimResult> request = openRequest(
                 tracker, batch -> new ClaimResult(batch.getPosition(), batch.getSegment()));
-        claimSegment(tracker, positionStore, request);
+        claimSegment(tracker, request);
         return request.future();
     }
 
-    protected void claimSegment(Tracker tracker, PositionStore positionStore, TrackerRequest<ClaimResult> request) {
+    protected void claimSegment(Tracker tracker, TrackerRequest<ClaimResult> request) {
         if (request.isDone()) {
             return;
         }
-        int[] newSegment = claimSegment(tracker);
+        int[] newSegment = claimSegmentRange(tracker);
         if (request.isDone()) {
             disconnectClosedRequest(tracker, request);
             return;
         }
         if (newSegment[0] == newSegment[1]) {
             waitForUpdate(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                          () -> claimSegment(tracker, positionStore, request), request);
+                          () -> claimSegment(tracker, request), request);
         } else {
             completeRequest(tracker, request, new MessageBatch(newSegment, emptyList(), null,
-                                                               position(tracker, positionStore, newSegment), true));
+                                                               position(tracker, newSegment), true));
         }
     }
 
@@ -209,13 +212,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                                 filter);
     }
 
-    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, PositionStore positionStore) {
-        waitForMessages(tracker, emptyBatch, positionStore, currentOrOpenRequest(tracker));
+    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch) {
+        waitForMessages(tracker, emptyBatch, currentOrOpenRequest(tracker));
     }
 
-    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, PositionStore positionStore,
-                                   TrackerRequest<MessageBatch> request) {
-        waitForUpdate(tracker, emptyBatch, () -> getBatch(tracker, positionStore, request), request);
+    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, TrackerRequest<MessageBatch> request) {
+        waitForUpdate(tracker, emptyBatch, () -> getBatch(tracker, request), request);
     }
 
     protected void waitForUpdate(Tracker tracker, MessageBatch emptyBatch, Runnable followUp) {
@@ -257,7 +259,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         }
     }
 
-    protected Position position(Tracker tracker, PositionStore positionStore, int[] segment) {
+    protected Position position(Tracker tracker, int[] segment) {
         if (tracker.clientControlledIndex()) {
             return new Position(segment, ofNullable(tracker.getLastTrackerIndex())
                     .orElseGet(() -> indexFromMillis(currentTimeMillis() - 1000L)));
@@ -310,7 +312,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 .map(cluster -> cluster.getTrackers().size() * maxSize).orElse(maxSize);
     }
 
-    protected int[] claimSegment(Tracker tracker) {
+    protected int[] claimSegmentRange(Tracker tracker) {
         TrackerCluster cluster = clusters.compute(tracker.getConsumerName(), (p, c) -> ofNullable(c)
                 .orElseGet(() -> new TrackerCluster(segments)).withActiveTracker(tracker));
         return cluster.getSegment(tracker);

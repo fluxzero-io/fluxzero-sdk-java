@@ -180,6 +180,22 @@ class WebsocketEndpointTest {
     }
 
     @Test
+    void cancelledAsyncResultSendsNoResponse() {
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run);
+        ServerWebsocketSession session = session("session-1");
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        result.cancel(false);
+        TestCommand command = new TestCommand(result, STORED);
+
+        endpoint.onOpen(session);
+        endpoint.dispatch(session, command);
+
+        assertEquals(1, endpoint.invocations());
+        assertTrue(endpoint.results("session-1").isEmpty());
+        closeEndpoint(endpoint, session);
+    }
+
+    @Test
     void duplicateCommandWithoutStoredResponseIsNotCached() {
         TestEndpoint endpoint = new TestEndpoint(Runnable::run);
         ServerWebsocketSession firstSession = session("session-1");

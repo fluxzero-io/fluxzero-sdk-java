@@ -56,11 +56,10 @@ public interface TrackingStrategy extends Closeable {
      *     <li>Suspend the result until messages become available</li>
      * </ul>
      *
-     * @param tracker       the tracker requesting a batch
-     * @param positionStore to fetch or update tracking positions
+     * @param tracker the tracker requesting a batch
      * @return future completed with the requested batch
      */
-    CompletableFuture<MessageBatch> getBatch(Tracker tracker, PositionStore positionStore);
+    CompletableFuture<MessageBatch> getBatch(Tracker tracker);
 
     /**
      * Claims one or more message segments for the given tracker.
@@ -68,11 +67,10 @@ public interface TrackingStrategy extends Closeable {
      * This method is invoked when segment-based partitioning is enabled. It ensures that each segment is only claimed
      * by a single tracker at a time and may release conflicting claims if necessary.
      *
-     * @param tracker       the tracker attempting to claim a segment
-     * @param positionStore to fetch tracking positions
+     * @param tracker the tracker attempting to claim a segment
      * @return future completed with the claimed segment and current position
      */
-    CompletableFuture<ClaimResult> claimSegment(Tracker tracker, PositionStore positionStore);
+    CompletableFuture<ClaimResult> claimSegment(Tracker tracker);
 
     /**
      * Disconnects trackers that match the provided filter.

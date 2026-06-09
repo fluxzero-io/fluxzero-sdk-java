@@ -78,6 +78,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,6 +100,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
+import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
 import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
@@ -401,7 +403,10 @@ public abstract class WebsocketEndpoint {
             return CompletableFuture.completedFuture(Optional.of(
                     withRequestReceivedTimestamp(response, requestReceivedTimestamp)));
         }
-        if (result instanceof Throwable) {
+        if (result instanceof Throwable e) {
+            if (isCancellation(e)) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
             return CompletableFuture.completedFuture(Optional.of(
                     withRequestReceivedTimestamp(
                             new ErrorResult(request.getRequestId(), "Error in Fluxzero TestServer"),
@@ -425,6 +430,10 @@ public abstract class WebsocketEndpoint {
             CompletableFuture<Optional<RequestResult>> response = new CompletableFuture<>();
             future.whenComplete((r, e) -> {
                 if (e != null) {
+                    if (isCancellation(e)) {
+                        response.complete(Optional.empty());
+                        return;
+                    }
                     log.error("Could not handle request {} ({})", request.getRequestId(), message.getClass(), e);
                     toRequestResult(request, message, e, requestReceivedTimestamp)
                             .whenComplete((errorResponse, error) -> {
@@ -450,6 +459,10 @@ public abstract class WebsocketEndpoint {
         log.warn("Not able to send back result of type {} to client. Contents: {}. Request: {}",
                  result.getClass(), result, request);
         return CompletableFuture.completedFuture(Optional.empty());
+    }
+
+    private boolean isCancellation(Throwable e) {
+        return unwrapException(e) instanceof CancellationException;
     }
 
     private void runWithRequestReceivedTimestamp(long requestReceivedTimestamp, Runnable task) {
