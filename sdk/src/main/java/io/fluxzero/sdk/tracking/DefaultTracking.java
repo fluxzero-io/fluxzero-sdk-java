@@ -518,19 +518,39 @@ public class DefaultTracking implements Tracking {
             TrackingClient trackingClient = Fluxzero.get().client().forNamespace(config.getNamespace())
                     .getTrackingClient(messageType, topic);
             try {
-                DeserializingMessage.forEachInBatch(deserializeMessageList(
+                handleBatch(deserializeMessageList(
                         serializedMessages, topic, trackingClient, activeChunkedMessages, config.getMaxFetchSize()),
-                                                     m -> tryHandle(m, handlers, config, true));
+                            handlers, config, true);
             } catch (BatchProcessingException e) {
                 throw e;
             } catch (Throwable e) {
                 config.getErrorHandler().handleError(
                         e, format("Failed to handle batch of consumer %s", config.getName()),
-                        () -> DeserializingMessage.forEachInBatch(deserializeMessageList(
+                        () -> handleBatch(deserializeMessageList(
                                 serializedMessages, topic, trackingClient, activeChunkedMessages,
-                                config.getMaxFetchSize()), m -> tryHandle(m, handlers, config, false)));
+                                config.getMaxFetchSize()), handlers, config, false));
             }
         };
+    }
+
+    void handleBatch(Iterable<DeserializingMessage> messages, List<Handler<DeserializingMessage>> handlers,
+                     ConsumerConfiguration config, boolean reportResult) {
+        List<CompletableFuture<Void>> resultCompletions = config.awaitAsyncResults()
+                ? new ArrayList<>() : null;
+        DeserializingMessage.forEachInBatch(messages, m -> {
+            CompletionStage<Void> completion = tryHandle(m, handlers, config, reportResult);
+            if (resultCompletions != null && completion != completedReport) {
+                resultCompletions.add(completion.toCompletableFuture());
+            }
+        });
+        awaitAsyncResultCompletions(resultCompletions);
+    }
+
+    private static void awaitAsyncResultCompletions(List<CompletableFuture<Void>> resultCompletions) {
+        if (resultCompletions == null || resultCompletions.isEmpty()) {
+            return;
+        }
+        CompletableFuture.allOf(resultCompletions.toArray(CompletableFuture[]::new)).join();
     }
 
     protected List<DeserializingMessage> deserializeMessageList(
@@ -639,15 +659,26 @@ public class DefaultTracking implements Tracking {
                  message.firstChunk(), message.lastChunk(), message.getMetadata().get(HasMetadata.CHUNK_INDEX));
     }
 
-    private void tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
-                           ConsumerConfiguration config, boolean reportResult) {
+    private CompletionStage<Void> tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
+                                            ConsumerConfiguration config, boolean reportResult) {
+        List<CompletableFuture<Void>> resultCompletions = null;
         for (int i = 0; i < handlers.size(); i++) {
-            tryHandle(message, handlers.get(i), config, reportResult);
+            CompletionStage<Void> completion = tryHandle(message, handlers.get(i), config, reportResult);
+            if (completion != completedReport) {
+                if (resultCompletions == null) {
+                    resultCompletions = new ArrayList<>();
+                }
+                resultCompletions.add(completion.toCompletableFuture());
+            }
         }
+        if (resultCompletions == null) {
+            return completedReport;
+        }
+        return CompletableFuture.allOf(resultCompletions.toArray(CompletableFuture[]::new));
     }
 
-    protected void tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,
-                             ConsumerConfiguration config, boolean reportResult) {
+    protected CompletionStage<Void> tryHandle(DeserializingMessage message, Handler<DeserializingMessage> handler,
+                                              ConsumerConfiguration config, boolean reportResult) {
         HandlerMethod<? super DeserializingMessage> method = getHandlerMethodOrNull(message, handler, config);
         if (method != null) {
             Object result;
@@ -656,25 +687,25 @@ public class DefaultTracking implements Tracking {
             } catch (Throwable e) {
                 try {
                     stopTracker(message, handler, e);
-                    return;
                 } finally {
                     if (reportResult) {
-                        reportResult(e, method, message, config);
+                        return reportResult(e, method, message, config);
                     }
                 }
+                return completedReport;
             }
             try {
                 if (reportResult) {
-                    reportResult(result, method, message, config);
+                    return reportResult(result, method, message, config);
                 }
             } catch (Throwable e) {
                 stopTracker(message, handler, e);
             }
-            return;
+            return completedReport;
         }
         Optional<HandlerInvoker> optionalInvoker = getInvoker(message, handler, config);
         if (optionalInvoker.isEmpty()) {
-            return;
+            return completedReport;
         }
         HandlerInvoker h = optionalInvoker.get();
         Object result;
@@ -683,20 +714,21 @@ public class DefaultTracking implements Tracking {
         } catch (Throwable e) {
             try {
                 stopTracker(message, handler, e);
-                return;
             } finally {
                 if (reportResult) {
-                    reportResult(e, h, message, config);
+                    return reportResult(e, h, message, config);
                 }
             }
+            return completedReport;
         }
         try {
             if (reportResult) {
-                reportResult(result, h, message, config);
+                return reportResult(result, h, message, config);
             }
         } catch (Throwable e) {
             stopTracker(message, handler, e);
         }
+        return completedReport;
     }
 
     @SuppressWarnings("unchecked")

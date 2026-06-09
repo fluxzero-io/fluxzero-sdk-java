@@ -249,10 +249,10 @@ public @interface Consumer {
     /**
      * If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.
      * <p>
-     * Set this to {@code false} for request handlers that may safely publish their correlated result later while the
-     * tracker continues with the next batch.
+     * The default is {@code false}, matching the historical fire-and-forget behavior: asynchronous results are
+     * published when they complete, while the tracker can continue with the next batch.
      */
-    boolean awaitAsyncResults() default true;
+    boolean awaitAsyncResults() default false;
 
     /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.
