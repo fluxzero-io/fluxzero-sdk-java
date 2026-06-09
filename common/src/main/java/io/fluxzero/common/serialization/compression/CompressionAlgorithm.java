@@ -83,9 +83,6 @@ public enum CompressionAlgorithm {
      * Fast compression using the LZ4 codec. Includes original size prefix in output.
      */
     LZ4(1) {
-        private final LZ4Compressor compressor = Lz4.factory.fastCompressor();
-        private final LZ4FastDecompressor decompressor = Lz4.factory.fastDecompressor();
-
         @Override
         public byte[] compress(byte[] uncompressed) {
             byte[] compressedPayload = compressPayload(uncompressed);
@@ -107,13 +104,13 @@ public enum CompressionAlgorithm {
 
         @Override
         byte[] compressPayload(byte[] uncompressed) {
-            return compressor.compress(uncompressed);
+            return Lz4.COMPRESSOR.compress(uncompressed);
         }
 
         @Override
         byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize) {
             byte[] result = new byte[originalSize];
-            decompressor.decompress(compressed, offset, result, 0, originalSize);
+            Lz4.DECOMPRESSOR.decompress(compressed, offset, result, 0, originalSize);
             return result;
         }
     },
@@ -300,7 +297,9 @@ public enum CompressionAlgorithm {
     }
 
     private static final class Lz4 {
-        private static final LZ4Factory factory = fastestInstance();
+        private static final LZ4Factory FACTORY = fastestInstance();
+        private static final LZ4Compressor COMPRESSOR = FACTORY.fastCompressor();
+        private static final LZ4FastDecompressor DECOMPRESSOR = FACTORY.fastDecompressor();
     }
 
     private static final class ResourcePool<T extends AutoCloseable> implements AutoCloseable {

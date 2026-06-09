@@ -313,6 +313,8 @@ public class ProxyServer implements Registration {
                             WebSocketClient.ClientConfig.builder()
                                     .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
                                     .runtimeBaseUrl(url)
+                                    .disableMetrics(!getBooleanProperty(
+                                            ForwardProxyConsumer.METRICS_ENABLED_PROPERTY, true))
                                     .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID",
                                                                          "FLUX_PROJECT_ID", "PROJECT_ID"));
                     getConfiguredCompressionAlgorithms().ifPresent(builder::supportedCompressionAlgorithms);

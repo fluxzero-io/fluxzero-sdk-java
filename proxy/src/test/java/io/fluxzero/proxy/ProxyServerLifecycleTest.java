@@ -36,7 +36,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 
+import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -60,6 +62,8 @@ class ProxyServerLifecycleTest {
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
         String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
         String previousFluxUrl = System.getProperty("FLUX_URL");
+        String previousProxyMetricsEnabled = System.getProperty(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY);
+        String previousProxyCompressionAlgorithms = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
         try {
             testServer = TestServer.startServer(0);
             String runtimeUrl = "ws://localhost:" + localPort(testServer);
@@ -68,6 +72,8 @@ class ProxyServerLifecycleTest {
             System.setProperty("FLUXZERO_PROXY_PORT", "0");
             System.setProperty("PROXY_PORT", String.valueOf(occupiedProxyPort.getLocalPort()));
             System.setProperty("FLUXZERO_BASE_URL", runtimeUrl);
+            System.setProperty(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY, "false");
+            System.setProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, NONE.name());
             System.clearProperty("FLUX_BASE_URL");
             System.clearProperty("FLUX_URL");
 
@@ -82,9 +88,12 @@ class ProxyServerLifecycleTest {
             WebSocketClient.ClientConfig requesterConfig = WebSocketClient.ClientConfig.builder()
                     .name("proxy-lifecycle-test")
                     .runtimeBaseUrl(runtimeUrl)
+                    .supportedCompressionAlgorithms(List.of(NONE))
+                    .disableMetrics(true)
                     .build();
             requester = DefaultFluxzero.builder()
                     .disableAutomaticTracking()
+                    .disableTrackingMetrics()
                     .disableShutdownHook()
                     .disableKeepalive()
                     .build(WebSocketClient.newInstance(requesterConfig));
@@ -114,6 +123,8 @@ class ProxyServerLifecycleTest {
             restoreProperty("FLUXZERO_BASE_URL", previousFluxzeroBaseUrl);
             restoreProperty("FLUX_BASE_URL", previousFluxBaseUrl);
             restoreProperty("FLUX_URL", previousFluxUrl);
+            restoreProperty(ForwardProxyConsumer.METRICS_ENABLED_PROPERTY, previousProxyMetricsEnabled);
+            restoreProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, previousProxyCompressionAlgorithms);
         }
     }
 

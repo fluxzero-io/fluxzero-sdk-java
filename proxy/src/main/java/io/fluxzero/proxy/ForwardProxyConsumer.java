@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.web.WebRequest.getHeaders;
 import static java.time.temporal.ChronoUnit.NANOS;
 import static java.util.Optional.ofNullable;
@@ -61,6 +62,8 @@ import static java.util.Optional.ofNullable;
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 @Slf4j
 public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
+    static final String METRICS_ENABLED_PROPERTY = "FLUXZERO_PROXY_METRICS_ENABLED";
+
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(5)).build();
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
@@ -76,11 +79,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private final Long minIndex;
     @Getter(value = AccessLevel.PROTECTED)
     private final boolean mainConsumer;
+    private final boolean publishMetrics;
 
     public static Registration start(Client client) {
         var consumer = new ForwardProxyConsumer(
                 client, defaultSettings.getConsumer(),
-                IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true);
+                IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true,
+                getBooleanProperty(METRICS_ENABLED_PROPERTY, true));
         consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
         return () -> {
             Collection<Registration> running = consumer.runningConsumers.values();
@@ -110,8 +115,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                         }
                     } else if (isMainConsumer()) {
                         runningConsumers.computeIfAbsent(
-                                settings.getConsumer(), c -> new ForwardProxyConsumer(client, c, s.getIndex(), false)
-                                        .start());
+                                settings.getConsumer(), c -> new ForwardProxyConsumer(
+                                        client, c, s.getIndex(), false, publishMetrics).start());
                     }
                 } catch (Throwable e) {
                     log.error("Failed to handle external request {}. Continuing..", s.getMessageId(), e);
@@ -206,6 +211,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     protected void publishHandleMessageMetrics(SerializedMessage request, boolean exceptionalResult, Instant start) {
+        if (!publishMetrics) {
+            return;
+        }
         try {
             var metadata = Metadata.of(DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
                     client, request, MessageType.WEBREQUEST));
@@ -230,6 +238,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     protected void publishProcessBatchMetrics(Instant start) {
+        if (!publishMetrics) {
+            return;
+        }
         try {
             var metadata = Metadata.of(DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
                     client, null, null));

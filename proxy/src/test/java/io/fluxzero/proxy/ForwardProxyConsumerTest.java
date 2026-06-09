@@ -60,7 +60,8 @@ class ForwardProxyConsumerTest {
     @SneakyThrows
     void setUp() {
         registration = new ForwardProxyConsumer(
-                testFixture.getFluxzero().client(), CONSUMER_NAME, IndexUtils.indexForCurrentTime(), true).start();
+                testFixture.getFluxzero().client(), CONSUMER_NAME, IndexUtils.indexForCurrentTime(), true, true)
+                .start();
         HttpServer server = HttpServer.create(
                 new InetSocketAddress("localhost", 0), 0);
         serverContext = server.createContext("/");
