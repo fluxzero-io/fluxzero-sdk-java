@@ -130,21 +130,11 @@ public @interface Aggregate {
     int checkpointPeriod() default 100;
 
     /**
-     * Whether changes to the aggregate should be committed at the end of a message batch (enabled by default).
-     * <p>
-     * Set to {@code false} to commit updates immediately after each message.
-     *
-     * @deprecated use {@link #commitPolicy()} instead.
-     */
-    @Deprecated(forRemoval = false)
-    boolean commitInBatch() default true;
-
-    /**
      * Controls when aggregate changes are committed and whether multiple commits in the same completion phase may run
      * concurrently.
      * <p>
      * The default value resolves from {@code fluxzero.aggregate.commitPolicy} when present, then from the active
-     * Fluxzero defaults version, and otherwise falls back to the legacy {@link #commitInBatch()} behavior.
+     * Fluxzero defaults version, and otherwise falls back to {@link AggregateCommitPolicy#SYNC_AFTER_BATCH}.
      */
     AggregateCommitPolicy commitPolicy() default AggregateCommitPolicy.DEFAULT;
 

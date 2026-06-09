@@ -35,13 +35,8 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     }
 
     @Test
-    void defaultPolicyFallsBackToLegacyBatchCommit() {
-        assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(LegacyBatchAggregate.class));
-    }
-
-    @Test
-    void defaultPolicyFallsBackToLegacyHandlerCommitWhenCommitInBatchIsFalse() {
-        assertEquals(AggregateCommitPolicy.SYNC_AFTER_HANDLER, resolve(LegacyHandlerAggregate.class));
+    void defaultPolicyFallsBackToSyncAfterBatchCommit() {
+        assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     @Test
@@ -56,7 +51,7 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     void propertyOverridesDefaultPolicy() {
         System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler");
 
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, resolve(LegacyBatchAggregate.class));
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, resolve(DefaultAggregate.class));
     }
 
     @Test
@@ -64,21 +59,21 @@ class DefaultAggregateRepositoryCommitPolicyTest {
         System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
         System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
 
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(LegacyBatchAggregate.class));
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     @Test
-    void defaultPropertyFallsBackToLegacyWhenDefaultsVersionIsAbsent() {
+    void defaultPropertyFallsBackToSyncAfterBatchWhenDefaultsVersionIsAbsent() {
         System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
 
-        assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(LegacyBatchAggregate.class));
+        assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     @Test
     void newerDefaultsVersionUsesAsyncAfterBatch() {
         System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
 
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(LegacyBatchAggregate.class));
+        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
     }
 
     private static AggregateCommitPolicy resolve(Class<?> type) {
@@ -86,11 +81,7 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     }
 
     @Aggregate
-    private static class LegacyBatchAggregate {
-    }
-
-    @Aggregate(commitInBatch = false)
-    private static class LegacyHandlerAggregate {
+    private static class DefaultAggregate {
     }
 
     @Aggregate(commitPolicy = AggregateCommitPolicy.ASYNC_AFTER_HANDLER)
