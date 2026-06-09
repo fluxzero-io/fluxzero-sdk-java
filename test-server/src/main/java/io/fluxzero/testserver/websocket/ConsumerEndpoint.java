@@ -150,16 +150,19 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Handle
     void handle(Read read, ServerWebsocketSession session) {
         trackingStrategy.getBatch(
-                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch
-                        -> doSendResult(session, new ReadResult(read.getRequestId(), batch))), positionStore);
+                        new WebSocketTracker(read, messageType, getClientId(session),
+                                             getNegotiatedSessionId(session)), positionStore)
+                .thenAccept(batch -> doSendResult(session, new ReadResult(read.getRequestId(), batch)));
     }
 
     @Handle
     void handle(ClaimSegment read, ServerWebsocketSession session) {
         trackingStrategy.claimSegment(
-                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch ->
-                        doSendResult(session, new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
-                                                                     batch.getSegment()))), positionStore);
+                        new WebSocketTracker(read, messageType, getClientId(session),
+                                             getNegotiatedSessionId(session)), positionStore)
+                .thenAccept(claim -> doSendResult(session, new ClaimSegmentResult(read.getRequestId(),
+                                                                                  claim.getPosition(),
+                                                                                  claim.getSegment())));
     }
 
     @Handle

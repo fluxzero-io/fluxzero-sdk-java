@@ -136,19 +136,9 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration config) {
-        CompletableFuture<MessageBatch> result = new CompletableFuture<>();
-        getTrackingStrategy().getBatch(
-                new WebSocketTracker(new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                                              config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
-                                              config.getTypeFilter(),
-                                              config.filterMessageTarget(), config.ignoreSegment(),
-                                              config.singleTracker(), config.clientControlledIndex(),
-                                              lastIndex == null ? -1L : lastIndex,
-                                              Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
-                                                      .orElse(null)),
-                                     messageType, LOCAL_CLIENT_ID,
-                                     null, result::complete), positionStore);
-        return result;
+        return getTrackingStrategy().getBatch(
+                new WebSocketTracker(readRequest(trackerId, lastIndex, config), messageType, LOCAL_CLIENT_ID, null),
+                positionStore);
     }
 
     @Override
@@ -177,21 +167,21 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
-        CompletableFuture<ClaimSegmentResult> result = new CompletableFuture<>();
-        Read read = new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                             config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
-                             config.getTypeFilter(),
-                             config.filterMessageTarget(), config.ignoreSegment(),
-                             config.singleTracker(), config.clientControlledIndex(),
-                             lastIndex == null ? -1L : lastIndex,
-                             Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
-                                     .orElse(null));
-        getTrackingStrategy().claimSegment(
-                new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID,
-                                     null, batch ->
-                        result.complete(new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
-                                                                     batch.getSegment()))), positionStore);
-        return result;
+        Read read = readRequest(trackerId, lastIndex, config);
+        return getTrackingStrategy().claimSegment(
+                        new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID, null), positionStore)
+                .thenApply(claim -> new ClaimSegmentResult(read.getRequestId(), claim.getPosition(),
+                                                           claim.getSegment()));
+    }
+
+    private Read readRequest(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+        return new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
+                        config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
+                        config.getTypeFilter(),
+                        config.filterMessageTarget(), config.ignoreSegment(),
+                        config.singleTracker(), config.clientControlledIndex(),
+                        lastIndex == null ? -1L : lastIndex,
+                        Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis).orElse(null));
     }
 
     @Override
