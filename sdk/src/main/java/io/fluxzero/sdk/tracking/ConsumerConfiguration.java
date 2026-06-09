@@ -255,6 +255,17 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     boolean storePositionManually = false;
 
     /**
+     * If true, asynchronous handler results are awaited before the consumer completes the current batch.
+     * <p>
+     * When false, asynchronous results are still published when they complete, but the consumer can store its position
+     * and fetch the next batch without waiting for those futures. This is useful for high-throughput request handlers
+     * where each request has its own response correlation and batch-level ordering is not needed.
+     */
+    @Default
+    @Accessors(fluent = true)
+    boolean awaitAsyncResults = true;
+
+    /**
      * Optional minimum index to start processing messages from.
      */
     Long minIndex;
@@ -438,6 +449,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .ignoreSegment(consumer.ignoreSegment())
                 .clientControlledIndex(consumer.clientControlledIndex())
                 .storePositionManually(consumer.storePositionManually())
+                .awaitAsyncResults(consumer.awaitAsyncResults())
                 .singleTracker(consumer.singleTracker())
                 .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())
                 .maxIndexExclusive(consumer.maxIndexExclusive() < 0 ? null : consumer.maxIndexExclusive())

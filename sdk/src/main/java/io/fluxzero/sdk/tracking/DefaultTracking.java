@@ -832,16 +832,22 @@ public class DefaultTracking implements Tracking {
     protected CompletionStage<Void> reportResult(Object result, HandlerDescriptor h, DeserializingMessage message,
                                                  ConsumerConfiguration config) {
         if (result instanceof CompletionStage<?> s) {
-            CompletableFuture<Void> completion = new CompletableFuture<>();
+            CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             CompletableFuture<?> resultFuture = s.toCompletableFuture();
             outstandingRequests.add(resultFuture);
             s.whenComplete((r, e) -> {
                 try {
                     message.run(m -> reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
                             .toCompletableFuture().join());
-                    completion.complete(null);
+                    if (completion != null) {
+                        completion.complete(null);
+                    }
                 } catch (Throwable t) {
-                    completion.completeExceptionally(t);
+                    if (completion != null) {
+                        completion.completeExceptionally(t);
+                    } else {
+                        close();
+                    }
                 } finally {
                     outstandingRequests.remove(resultFuture);
                     if (e != null) {
@@ -849,7 +855,7 @@ public class DefaultTracking implements Tracking {
                     }
                 }
             });
-            return completion;
+            return completion == null ? completedReport : completion;
         } else {
             if (shouldSendResponse(h, message, result, config)) {
                 if (result instanceof Throwable) {

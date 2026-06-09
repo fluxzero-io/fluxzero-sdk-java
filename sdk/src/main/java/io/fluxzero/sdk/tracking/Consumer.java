@@ -247,6 +247,14 @@ public @interface Consumer {
     boolean storePositionManually() default false;
 
     /**
+     * If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.
+     * <p>
+     * Set this to {@code false} for request handlers that may safely publish their correlated result later while the
+     * tracker continues with the next batch.
+     */
+    boolean awaitAsyncResults() default true;
+
+    /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.
      * <p>
      * If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may
