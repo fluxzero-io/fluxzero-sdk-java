@@ -876,26 +876,58 @@ public class DefaultTracking implements Tracking {
             });
             return completion == null ? completedReport : completion;
         } else {
-            if (shouldSendResponse(h, message, result, config)) {
-                if (result instanceof Throwable) {
-                    result = unwrapException((Throwable) result);
-                    if (!(result instanceof FunctionalException)) {
-                        result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
-                                h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
+            CompletableFuture<Void> postHandlerCompletion = Invocation.resultPublicationBarrier(message);
+            if (postHandlerCompletion.isDone()) {
+                try {
+                    postHandlerCompletion.join();
+                    sendResult(result, h, message, config);
+                } catch (Throwable e) {
+                    sendResult(unwrapException(e), h, message, config);
+                }
+                return completedReport;
+            }
+            CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
+            Object response = result;
+            postHandlerCompletion.whenComplete((ignored, error) -> {
+                try {
+                    message.run(m -> sendResult(
+                            error == null ? response : unwrapException(error), h, message, config));
+                    if (completion != null) {
+                        completion.complete(null);
+                    }
+                } catch (Throwable t) {
+                    if (completion != null) {
+                        completion.completeExceptionally(t);
+                    } else {
+                        close();
                     }
                 }
-                SerializedMessage request = message.getSerializedObject();
-                ResultGateway resultGateway = this.resultGateway.forNamespace(config.getNamespace());
-                try {
-                    resultGateway.respond(result, request.getSource(), request.getRequestId());
-                } catch (Throwable e) {
-                    Object response = result;
-                    config.getErrorHandler().handleError(
-                            e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
-                            () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
-                }
+            });
+            return completion == null ? completedReport : completion;
+        }
+    }
+
+    private void sendResult(Object result, HandlerDescriptor h, DeserializingMessage message,
+                            ConsumerConfiguration config) {
+        if (!shouldSendResponse(h, message, result, config)) {
+            return;
+        }
+        if (result instanceof Throwable) {
+            result = unwrapException((Throwable) result);
+            if (!(result instanceof FunctionalException)) {
+                result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
+                        h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
             }
-            return completedReport;
+        }
+        SerializedMessage request = message.getSerializedObject();
+        ResultGateway resultGateway = this.resultGateway.forNamespace(config.getNamespace());
+        try {
+            resultGateway.respond(result, request.getSource(), request.getRequestId());
+        } catch (Throwable e) {
+            Object response = result;
+            config.getErrorHandler().handleError(
+                    e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
+                    () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
         }
     }
 

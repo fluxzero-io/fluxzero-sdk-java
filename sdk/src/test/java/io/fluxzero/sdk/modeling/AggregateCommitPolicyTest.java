@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -29,15 +30,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
+import static io.fluxzero.common.TestUtils.runWithSystemProperties;
+import static io.fluxzero.sdk.modeling.AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ResourceLock("systemProperties")
 class AggregateCommitPolicyTest {
 
     private static final JacksonSerializer serializer = new JacksonSerializer();
@@ -153,6 +158,57 @@ class AggregateCommitPolicyTest {
 
         commits.completeAll();
         assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void asyncAfterHandlerAwaitAfterBatchRegistersPostHandlerCompletion() throws Exception {
+        CommitProbe commits = new CommitProbe();
+        Entity<String> aggregate = aggregate(
+                "async-handler-await-batch-result",
+                AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
+        AtomicReference<CompletableFuture<Void>> postHandlerCompletion = new AtomicReference<>();
+
+        CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
+                List.of(message("one")), message -> {
+                    Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                    postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
+                }));
+
+        assertTrue(commits.awaitStarted(1));
+        assertTrue(await(() -> postHandlerCompletion.get() != null));
+        assertFalse(postHandlerCompletion.get().isDone());
+        assertFalse(batch.isDone());
+
+        commits.completeAll();
+
+        assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+        assertTrue(postHandlerCompletion.get().isDone());
+    }
+
+    @Test
+    void asyncAfterHandlerAwaitAfterBatchSkipsResultBarrierWhenDisabled() throws Exception {
+        CommitProbe commits = new CommitProbe();
+        AtomicReference<CompletableFuture<Void>> postHandlerCompletion = new AtomicReference<>();
+
+        runWithSystemProperties(() -> {
+            Entity<String> aggregate = aggregate(
+                    "async-handler-await-batch-result-disabled",
+                    AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
+                    List.of(message("one")), message -> {
+                        Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                        postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
+                    }));
+
+            assertTrue(commits.awaitStarted(1));
+            assertTrue(await(() -> postHandlerCompletion.get() != null));
+            assertTrue(postHandlerCompletion.get().isDone());
+            assertFalse(batch.isDone());
+
+            commits.completeAll();
+
+            assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+        }, AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, "false");
     }
 
     @Test

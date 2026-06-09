@@ -20,12 +20,15 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
+import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +38,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -131,6 +136,73 @@ class DefaultTrackingAsyncResultTest {
         tracking.close();
     }
 
+    @Test
+    void resultIsDelayedUntilPostHandlerCompletionSucceeds() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        DeserializingMessage message = message(serializer);
+        CompletableFuture<Void> postHandlerCompletion = new CompletableFuture<>();
+        Invocation.awaitBeforeResultPublication(message, postHandlerCompletion);
+
+        CompletionStage<Void> completion = tracking.report(
+                "ok", descriptor(), message, ConsumerConfiguration.builder().name("web").build());
+
+        assertTrue(completion.toCompletableFuture().isDone());
+        verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
+
+        postHandlerCompletion.complete(null);
+
+        verify(resultGateway).respond("ok", "benchmark-app", 7);
+        tracking.close();
+    }
+
+    @Test
+    void awaitedResultWaitsForPostHandlerCompletion() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        DeserializingMessage message = message(serializer);
+        CompletableFuture<Void> postHandlerCompletion = new CompletableFuture<>();
+        Invocation.awaitBeforeResultPublication(message, postHandlerCompletion);
+
+        CompletionStage<Void> completion = tracking.report(
+                "ok", descriptor(), message,
+                ConsumerConfiguration.builder().name("web").awaitAsyncResults(true).build());
+
+        assertFalse(completion.toCompletableFuture().isDone());
+        verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
+
+        postHandlerCompletion.complete(null);
+
+        assertTrue(completion.toCompletableFuture().isDone());
+        verify(resultGateway).respond("ok", "benchmark-app", 7);
+        tracking.close();
+    }
+
+    @Test
+    void postHandlerCompletionFailurePublishesFailureResult() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        DeserializingMessage message = message(serializer);
+        CompletableFuture<Void> postHandlerCompletion = new CompletableFuture<>();
+        Invocation.awaitBeforeResultPublication(message, postHandlerCompletion);
+
+        tracking.report("ok", descriptor(), message, ConsumerConfiguration.builder().name("web").build());
+
+        postHandlerCompletion.completeExceptionally(new IllegalStateException("commit failed"));
+
+        verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
+        ArgumentCaptor<Object> response = ArgumentCaptor.forClass(Object.class);
+        verify(resultGateway).respond(response.capture(), eq("benchmark-app"), eq(7));
+        assertInstanceOf(TechnicalException.class, response.getValue());
+        tracking.close();
+    }
+
     private static TestTracking tracking(ResultGateway resultGateway, JacksonSerializer serializer) {
         return new TestTracking(resultGateway, serializer);
     }
@@ -138,6 +210,12 @@ class DefaultTrackingAsyncResultTest {
     private static HandlerDescriptor descriptor() {
         HandlerDescriptor descriptor = mock(HandlerDescriptor.class);
         when(descriptor.isPassive()).thenReturn(false);
+        try {
+            when(descriptor.getMethod()).thenReturn(DefaultTrackingAsyncResultTest.class.getDeclaredMethod(
+                    "descriptor"));
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError(e);
+        }
         return descriptor;
     }
 

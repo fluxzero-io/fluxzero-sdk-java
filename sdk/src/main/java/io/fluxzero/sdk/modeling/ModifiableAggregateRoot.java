@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -139,6 +140,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final CommitHandler commitHandler;
+    private final boolean awaitAfterHandlerCommitsBeforeResults;
 
     private final AtomicBoolean waitingForHandlerEnd = new AtomicBoolean(), waitingForBatchEnd = new AtomicBoolean();
     private final List<AppliedEvent> applied = new ArrayList<>(), uncommitted = new ArrayList<>();
@@ -164,6 +166,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.serializer = serializer;
         this.dispatchInterceptor = dispatchInterceptor;
         this.commitHandler = commitHandler;
+        this.awaitAfterHandlerCommitsBeforeResults = ApplicationProperties.getBooleanProperty(
+                AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, true);
     }
 
     @Override
@@ -373,6 +377,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 if (!commitPolicy.commitAfterBatch() && commitPolicy.awaitAfterBatch()
                     && DeserializingMessage.getCurrent() != null) {
                     pendingBatchCompletions.add(completion);
+                    if (awaitAfterHandlerCommitsBeforeResults) {
+                        Invocation.awaitBeforeResultPublication(completion);
+                    }
                     awaitBatchCompletion();
                 } else if (AsyncCompletionScope.isActive()) {
                     AsyncCompletionScope.register(completion);

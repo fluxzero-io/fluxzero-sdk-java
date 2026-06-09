@@ -52,6 +52,19 @@ public enum AggregateCommitPolicy {
      */
     ASYNC_AFTER_BATCH(true, true, true);
 
+    /**
+     * Controls whether request results wait for asynchronous aggregate commits that were started after a handler and
+     * are awaited at batch completion.
+     * <p>
+     * This applies to {@link #ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH}. It does not delay results for
+     * {@link #SYNC_AFTER_BATCH}, because those commits only start at batch completion.
+     * <p>
+     * Set {@code fluxzero.aggregate.awaitAfterHandlerCommitsBeforeResults=false} to publish results immediately while
+     * preserving the aggregate commit policy's batch-completion wait. Defaults to {@code true}.
+     */
+    public static final String AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY =
+            "fluxzero.aggregate.awaitAfterHandlerCommitsBeforeResults";
+
     private final boolean commitAfterBatch;
     private final boolean awaitAfterBatch;
     private final boolean async;
