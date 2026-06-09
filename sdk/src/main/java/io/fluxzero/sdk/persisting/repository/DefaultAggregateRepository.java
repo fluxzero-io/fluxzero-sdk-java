@@ -64,14 +64,13 @@ import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -139,7 +138,6 @@ public class DefaultAggregateRepository implements AggregateRepository {
     public static final String AGGREGATE_COMMIT_POLICY_PROPERTY = "fluxzero.aggregate.commitPolicy";
 
     private static final LocalDate ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION = LocalDate.of(2026, 6, 9);
-    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     private final EventStore eventStore;
     private final EventStoreClient eventStoreClient;
@@ -632,43 +630,30 @@ public class DefaultAggregateRepository implements AggregateRepository {
         if (annotation.commitPolicy() != AggregateCommitPolicy.DEFAULT) {
             return annotation.commitPolicy();
         }
-        String configuredPolicy = ApplicationProperties.getProperty(AGGREGATE_COMMIT_POLICY_PROPERTY);
-        if (configuredPolicy != null && !configuredPolicy.isBlank()) {
-            AggregateCommitPolicy policy = parseCommitPolicy(configuredPolicy);
-            if (policy != AggregateCommitPolicy.DEFAULT) {
-                return policy;
-            }
+        AggregateCommitPolicy configured = configuredCommitPolicy();
+        if (configured != AggregateCommitPolicy.DEFAULT) {
+            return configured;
         }
-        LocalDate defaultsVersion = defaultsVersion();
-        if (defaultsVersion != null && !defaultsVersion.isBefore(ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION)) {
+        if (ApplicationProperties.defaultsVersionAtLeast(ASYNC_AGGREGATE_COMMIT_DEFAULTS_VERSION)) {
             return AggregateCommitPolicy.ASYNC_AFTER_BATCH;
         }
         return annotation.commitInBatch()
                 ? AggregateCommitPolicy.SYNC_AFTER_BATCH : AggregateCommitPolicy.SYNC_AFTER_HANDLER;
     }
 
+    private static AggregateCommitPolicy configuredCommitPolicy() {
+        String value = ApplicationProperties.getProperty(AGGREGATE_COMMIT_POLICY_PROPERTY);
+        return value == null || value.isBlank() ? AggregateCommitPolicy.DEFAULT : parseCommitPolicy(value);
+    }
+
     private static AggregateCommitPolicy parseCommitPolicy(String value) {
         try {
-            return AggregateCommitPolicy.valueOf(value.trim().toUpperCase().replace('-', '_'));
+            return AggregateCommitPolicy.valueOf(value.trim().replace('-', '_').toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new EventSourcingException(
                     "Property `%s` must be one of %s, but found `%s`.".formatted(
                             AGGREGATE_COMMIT_POLICY_PROPERTY,
                             Arrays.toString(AggregateCommitPolicy.values()), value), e);
-        }
-    }
-
-    private static LocalDate defaultsVersion() {
-        String value = ApplicationProperties.getProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
-        } catch (DateTimeParseException e) {
-            throw new EventSourcingException(
-                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
-                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value), e);
         }
     }
 

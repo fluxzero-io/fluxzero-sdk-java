@@ -27,6 +27,9 @@ import io.fluxzero.common.application.SystemPropertiesSource;
 import io.fluxzero.common.encryption.Encryption;
 import io.fluxzero.sdk.Fluxzero;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -65,6 +68,8 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
+
     /**
      * Selects the versioned Fluxzero default behavior profile for applications that do not configure each default
      * explicitly.
@@ -115,6 +120,46 @@ public class ApplicationProperties {
      * {@code fluxzero.cache.memoryPressure.maxTrimWeight}.
      */
     public static final String DEFAULTS_VERSION_PROPERTY = "fluxzero.defaults.version";
+
+    /**
+     * Returns the active Fluxzero defaults version, or {@code null} when compatibility defaults are used.
+     */
+    public static LocalDate getDefaultsVersion() {
+        return getDefaultsVersion(getPropertySource());
+    }
+
+    /**
+     * Returns the Fluxzero defaults version from the given source, or {@code null} when compatibility defaults are used.
+     *
+     * @throws IllegalArgumentException if {@link #DEFAULTS_VERSION_PROPERTY} is not in {@code yyyy.MM.dd} format
+     */
+    public static LocalDate getDefaultsVersion(PropertySource propertySource) {
+        String value = propertySource.get(DEFAULTS_VERSION_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Property `%s` must use format `yyyy.MM.dd`, but found `%s`"
+                                                       .formatted(DEFAULTS_VERSION_PROPERTY, value), e);
+        }
+    }
+
+    /**
+     * Returns whether the active defaults version opts into behavior introduced on or before the given date.
+     */
+    public static boolean defaultsVersionAtLeast(LocalDate version) {
+        return defaultsVersionAtLeast(getPropertySource(), version);
+    }
+
+    /**
+     * Returns whether the given source opts into behavior introduced on or before the given date.
+     */
+    public static boolean defaultsVersionAtLeast(PropertySource propertySource, LocalDate version) {
+        LocalDate defaultsVersion = getDefaultsVersion(propertySource);
+        return defaultsVersion != null && !defaultsVersion.isBefore(version);
+    }
 
     /**
      * Returns the raw string property for the given key, or {@code null} if not found.

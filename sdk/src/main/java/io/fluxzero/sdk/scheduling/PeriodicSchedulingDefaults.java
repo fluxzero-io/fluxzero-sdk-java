@@ -19,8 +19,6 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -31,7 +29,6 @@ final class PeriodicSchedulingDefaults {
     static final String CRON_SCHEMA_METADATA_KEY = "$periodic.cron";
 
     private static final LocalDate DEFAULT_INITIAL_DELAY_DEFAULTS_VERSION = LocalDate.of(2026, 5, 21);
-    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
     private static final Function<String, CronExpression> cronExpression = memoize(PeriodicSchedulingDefaults::parse);
 
     private PeriodicSchedulingDefaults() {
@@ -101,22 +98,6 @@ final class PeriodicSchedulingDefaults {
         if (configured != null) {
             return Boolean.parseBoolean(configured.trim());
         }
-        return Optional.ofNullable(defaultsVersion())
-                .map(version -> !version.isBefore(DEFAULT_INITIAL_DELAY_DEFAULTS_VERSION))
-                .orElse(false);
-    }
-
-    private static LocalDate defaultsVersion() {
-        String value = ApplicationProperties.getProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
-        } catch (DateTimeParseException e) {
-            throw new IllegalStateException(
-                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
-                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value), e);
-        }
+        return ApplicationProperties.defaultsVersionAtLeast(DEFAULT_INITIAL_DELAY_DEFAULTS_VERSION);
     }
 }

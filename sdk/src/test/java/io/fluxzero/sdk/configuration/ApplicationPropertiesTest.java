@@ -14,11 +14,19 @@
 
 package io.fluxzero.sdk.configuration;
 
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.encryption.DefaultEncryption;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+
 import static io.fluxzero.common.TestUtils.callWithSystemProperties;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApplicationPropertiesTest {
     private final DefaultEncryption encryption = new DefaultEncryption();
@@ -40,5 +48,32 @@ class ApplicationPropertiesTest {
         testFixture.withProperty("encrypted", encryption.encrypt("bar"))
                 .whenApplying(fc -> ApplicationProperties.getProperty("encrypted"))
                 .expectResult("bar");
+    }
+
+    @Test
+    void readsDefaultsVersion() {
+        var propertySource = defaultsVersion("2026.06.09");
+
+        assertEquals(LocalDate.of(2026, 6, 9), ApplicationProperties.getDefaultsVersion(propertySource));
+        assertTrue(ApplicationProperties.defaultsVersionAtLeast(propertySource, LocalDate.of(2026, 6, 9)));
+        assertTrue(ApplicationProperties.defaultsVersionAtLeast(propertySource, LocalDate.of(2026, 6, 8)));
+        assertFalse(ApplicationProperties.defaultsVersionAtLeast(propertySource, LocalDate.of(2026, 6, 10)));
+    }
+
+    @Test
+    void missingDefaultsVersionMeansCompatibilityDefaults() {
+        assertNull(ApplicationProperties.getDefaultsVersion(defaultsVersion(null)));
+        assertNull(ApplicationProperties.getDefaultsVersion(defaultsVersion(" ")));
+        assertFalse(ApplicationProperties.defaultsVersionAtLeast(defaultsVersion(null), LocalDate.of(2026, 6, 9)));
+    }
+
+    @Test
+    void rejectsInvalidDefaultsVersion() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApplicationProperties.getDefaultsVersion(defaultsVersion("2026-06-09")));
+    }
+
+    private static PropertySource defaultsVersion(String value) {
+        return name -> ApplicationProperties.DEFAULTS_VERSION_PROPERTY.equals(name) ? value : null;
     }
 }

@@ -26,10 +26,7 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -73,7 +70,6 @@ public final class DefaultCache implements Cache, AutoCloseable {
     public static final String MAX_SIZE_PROPERTY = "fluxzero.cache.maxSize";
 
     private static final int DEFAULT_MAX_SIZE = 1_000_000;
-    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     private final Cache delegate;
 
@@ -234,22 +230,7 @@ public final class DefaultCache implements Cache, AutoCloseable {
     }
 
     private static boolean defaultsVersionUsesAdaptiveCache(PropertySource propertySource) {
-        return Optional.ofNullable(defaultsVersion(propertySource))
-                .map(version -> !version.isBefore(ADAPTIVE_DEFAULTS_VERSION)).orElse(false);
-    }
-
-    private static LocalDate defaultsVersion(PropertySource propertySource) {
-        String value = propertySource.get(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Property `%s` must use format `yyyy.MM.dd`, but found `%s`"
-                                                       .formatted(ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
-                                                                  value), e);
-        }
+        return ApplicationProperties.defaultsVersionAtLeast(propertySource, ADAPTIVE_DEFAULTS_VERSION);
     }
 
     private static SoftReferenceCache newSoftReferenceCache(int maxSize) {

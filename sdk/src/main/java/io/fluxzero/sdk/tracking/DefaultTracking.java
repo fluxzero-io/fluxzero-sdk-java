@@ -50,8 +50,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -127,7 +125,6 @@ import static java.util.stream.Collectors.toMap;
 @Slf4j
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
-    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
     private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
 
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
@@ -306,24 +303,14 @@ public class DefaultTracking implements Tracking {
     }
 
     private static boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
-        return Optional.ofNullable(defaultsVersion(propertySource))
-                .map(version -> !version.isBefore(PER_HANDLER_DEFAULTS_VERSION)).orElse(false);
-    }
-
-    private static LocalDate defaultsVersion(PropertySource propertySource) {
-        String value = propertySource.get(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
         try {
-            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
-        } catch (DateTimeParseException e) {
+            return ApplicationProperties.defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+        } catch (IllegalArgumentException e) {
             throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                     "Invalid Fluxzero defaults version",
-                    "Property `%s` must use format `yyyy.MM.dd`, but found `%s`.".formatted(
-                            ApplicationProperties.DEFAULTS_VERSION_PROPERTY, value),
+                    e.getMessage(),
                     "Set a date like `2026.05.20`, or remove the property to use compatibility defaults.",
-                    null, value), e);
+                    null, propertySource.get(ApplicationProperties.DEFAULTS_VERSION_PROPERTY)), e);
         }
     }
 
