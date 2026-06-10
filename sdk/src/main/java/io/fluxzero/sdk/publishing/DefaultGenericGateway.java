@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -122,7 +123,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 SerializedMessage[] finalMessages = serializedMessages.stream().flatMap(
                         m -> ofNullable(interceptor.apply(m))).toArray(SerializedMessage[]::new);
                 if (finalMessages.length > 0) {
-                    return gatewayClient.append(guarantee, finalMessages);
+                    return AsyncCompletionScope.register(gatewayClient.append(guarantee, finalMessages));
                 }
             } catch (Exception e) {
                 throw new GatewayException(FluxzeroErrors.messageDispatchFailed(

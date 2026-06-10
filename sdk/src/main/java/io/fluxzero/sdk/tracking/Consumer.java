@@ -255,6 +255,16 @@ public @interface Consumer {
     boolean awaitAsyncResults() default false;
 
     /**
+     * If {@code true}, futures returned by fire-and-forget dispatches started during this consumer's batch processing
+     * must complete before the consumer stores its position.
+     * <p>
+     * The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee
+     * before tracker progress is committed without each handler explicitly waiting on the returned future.
+     * Failures while awaiting are handled by this consumer's error handler like other batch processing failures.
+     */
+    boolean awaitSendAndForgetFutures() default true;
+
+    /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.
      * <p>
      * If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may

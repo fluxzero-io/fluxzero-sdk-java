@@ -27,6 +27,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.exception.FunctionalException;
@@ -522,6 +523,19 @@ public class DefaultTracking implements Tracking {
 
     void handleBatch(Iterable<DeserializingMessage> messages, List<Handler<DeserializingMessage>> handlers,
                      ConsumerConfiguration config, boolean reportResult) {
+        runInSendAndForgetCompletionScope(config, () -> doHandleBatch(messages, handlers, config, reportResult));
+    }
+
+    private static void runInSendAndForgetCompletionScope(ConsumerConfiguration config, Runnable task) {
+        if (config.awaitSendAndForgetFutures()) {
+            AsyncCompletionScope.runAndAwait(task);
+        } else {
+            task.run();
+        }
+    }
+
+    private void doHandleBatch(Iterable<DeserializingMessage> messages, List<Handler<DeserializingMessage>> handlers,
+                               ConsumerConfiguration config, boolean reportResult) {
         List<CompletableFuture<Void>> resultCompletions = config.awaitAsyncResults()
                 ? new ArrayList<>() : null;
         DeserializingMessage.forEachInBatch(messages, m -> {

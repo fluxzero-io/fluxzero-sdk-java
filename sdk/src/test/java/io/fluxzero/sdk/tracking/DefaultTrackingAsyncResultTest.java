@@ -20,10 +20,15 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.ResultGateway;
+import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.web.WebRequest;
@@ -33,12 +38,16 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -73,7 +82,7 @@ class DefaultTrackingAsyncResultTest {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);
         when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
-        TestTracking tracking = tracking(resultGateway, serializer);
+        TestTracking tracking = tracking(MessageType.EVENT, resultGateway, serializer);
         CompletableFuture<String> handlerResult = new CompletableFuture<>();
 
         CompletionStage<Void> completion = tracking.report(
@@ -134,6 +143,115 @@ class DefaultTrackingAsyncResultTest {
 
         verify(resultGateway).respond("ok", "benchmark-app", 7);
         tracking.close();
+    }
+
+    @Test
+    void batchCompletionWaitsForSendAndForgetFuturesByDefault() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
+
+        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
+                ConsumerConfiguration.builder().name("web").build(),
+                false));
+
+        TimeUnit.MILLISECONDS.sleep(50L);
+        assertFalse(batchCompletion.isDone());
+
+        sendCompletion.complete(null);
+
+        assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+        tracking.close();
+    }
+
+    @Test
+    void batchCompletionDoesNotWaitForSendAndForgetFuturesWhenDisabled() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
+
+        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
+                ConsumerConfiguration.builder()
+                        .name("web")
+                        .awaitSendAndForgetFutures(false)
+                        .build(),
+                false));
+
+        assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+        assertFalse(sendCompletion.isDone());
+        tracking.close();
+    }
+
+    @Test
+    void batchCompletionFailsWhenSendAndForgetFutureFails() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+
+        CompletionException error = assertThrows(CompletionException.class, () -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handler(() -> AsyncCompletionScope.register(
+                        CompletableFuture.failedFuture(new IllegalStateException("append failed"))))),
+                ConsumerConfiguration.builder().name("web").build(),
+                false));
+
+        assertInstanceOf(IllegalStateException.class, error.getCause());
+        tracking.close();
+    }
+
+    @Test
+    void trackingConsumerLetsErrorHandlerHandleSendAndForgetFutureFailures() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(MessageType.EVENT, resultGateway, serializer);
+        AtomicReference<Throwable> handledError = new AtomicReference<>();
+        CountDownLatch handlerRan = new CountDownLatch(1);
+        CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("web")
+                .errorHandler((error, message, retry) -> {
+                    handledError.set(error);
+                    return error;
+                })
+                .build();
+        java.util.function.Consumer<List<SerializedMessage>> consumer = tracking.consumer(
+                config,
+                List.of(handler(() -> {
+                    AsyncCompletionScope.register(sendCompletion);
+                    handlerRan.countDown();
+                })));
+        Fluxzero fluxzero = mockFluxzero(config, MessageType.EVENT);
+
+        try {
+            CompletableFuture<Void> processing = CompletableFuture.runAsync(() -> {
+                Tracker.current.set(new Tracker("tracker-id", MessageType.EVENT, null, config, null));
+                try {
+                    fluxzero.execute(fc -> consumer.accept(List.of(new Message("event").serialize(serializer))));
+                } finally {
+                    Tracker.current.remove();
+                }
+            });
+
+            assertTrue(handlerRan.await(1, TimeUnit.SECONDS));
+            sendCompletion.completeExceptionally(new IllegalStateException("append failed"));
+
+            assertDoesNotThrow(() -> processing.get(1, TimeUnit.SECONDS));
+        } finally {
+            tracking.close();
+        }
+
+        assertInstanceOf(CompletionException.class, handledError.get());
+        assertInstanceOf(IllegalStateException.class, handledError.get().getCause());
     }
 
     @Test
@@ -204,7 +322,12 @@ class DefaultTrackingAsyncResultTest {
     }
 
     private static TestTracking tracking(ResultGateway resultGateway, JacksonSerializer serializer) {
-        return new TestTracking(resultGateway, serializer);
+        return tracking(MessageType.WEBREQUEST, resultGateway, serializer);
+    }
+
+    private static TestTracking tracking(MessageType messageType, ResultGateway resultGateway,
+                                         JacksonSerializer serializer) {
+        return new TestTracking(messageType, resultGateway, serializer);
     }
 
     private static HandlerDescriptor descriptor() {
@@ -240,15 +363,51 @@ class DefaultTrackingAsyncResultTest {
         return handler;
     }
 
+    private static Handler<DeserializingMessage> handler(Runnable task) {
+        HandlerInvoker invoker = HandlerInvoker.run(task::run);
+        return new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return DefaultTrackingAsyncResultTest.class;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.of(invoker);
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return invoker;
+            }
+        };
+    }
+
+    private static Fluxzero mockFluxzero(ConsumerConfiguration config, MessageType messageType) {
+        Fluxzero fluxzero = mock(Fluxzero.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        Client client = mock(Client.class);
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        when(fluxzero.client()).thenReturn(client);
+        when(client.forNamespace(config.getNamespace())).thenReturn(client);
+        when(client.getTrackingClient(messageType, null)).thenReturn(trackingClient);
+        when(trackingClient.getMessageType()).thenReturn(messageType);
+        return fluxzero;
+    }
+
     private static class TestTracking extends DefaultTracking {
 
-        TestTracking(ResultGateway resultGateway, JacksonSerializer serializer) {
-            super(MessageType.WEBREQUEST, resultGateway, List.of(), List.of(), serializer, mock(HandlerFactory.class));
+        TestTracking(MessageType messageType, ResultGateway resultGateway, JacksonSerializer serializer) {
+            super(messageType, resultGateway, List.of(), List.of(), serializer, mock(HandlerFactory.class));
         }
 
         CompletionStage<Void> report(Object result, HandlerDescriptor descriptor, DeserializingMessage message,
                                      ConsumerConfiguration config) {
             return reportResult(result, descriptor, message, config);
+        }
+
+        java.util.function.Consumer<List<SerializedMessage>> consumer(
+                ConsumerConfiguration config, List<Handler<DeserializingMessage>> handlers) {
+            return createConsumer(config, handlers);
         }
     }
 }

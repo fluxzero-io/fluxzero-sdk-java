@@ -41,6 +41,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -55,6 +56,21 @@ public class ConsumerConfigurationTest {
 
         assertEquals(ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES, config.getMaxFetchBytes());
         assertEquals(ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES, config.effectiveMaxFetchBytes());
+    }
+
+    @Test
+    void builderAwaitsSendAndForgetFuturesByDefault() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("default").build();
+
+        assertTrue(config.awaitSendAndForgetFutures());
+    }
+
+    @Test
+    void consumerAnnotationCanDisableAwaitingSendAndForgetFutures() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                List.of(SendAndForgetOptOutConsumer.class)).findFirst().orElseThrow();
+
+        assertFalse(config.awaitSendAndForgetFutures());
     }
 
     @Test
@@ -477,6 +493,10 @@ public class ConsumerConfigurationTest {
     @Consumer(name = "explicit-default-fetch-bytes",
             maxFetchBytes = ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES)
     static class ExplicitDefaultFetchBytesConsumer {
+    }
+
+    @Consumer(name = "send-and-forget-opt-out", awaitSendAndForgetFutures = false)
+    static class SendAndForgetOptOutConsumer {
     }
 
     @Order(10)
