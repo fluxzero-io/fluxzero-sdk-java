@@ -44,6 +44,13 @@ sequenceDiagram
     A->>A: complete pending command
 ```
 
+### Command Followed by Query
+
+For handlers that update searchable aggregates, handler results wait for asynchronous after-handler aggregate commits by
+default. A command followed by a query can therefore often read the just-committed aggregate/search state. Do not rely on
+this when the query depends on downstream side effects, such as indexing or projections performed by an event handler;
+wait for that projection's own signal or return the needed state from the command handler.
+
 ---
 
 <a name="delivery-semantics"></a>

@@ -197,9 +197,13 @@ fun handle(query: ProjectFacetQuery): CompletableFuture<List<FacetStats>> =
 
 Fluxzero search is **eventually consistent**.
 
-- **The Consistency Window**: When you send a command, the aggregate state is updated immediately (consistent), but the search index update happens asynchronously. There is usually a few-millisecond delay before the document is searchable.
-- **Guarantee**: `sendCommandAndWait` ensures the command was handled, but does NOT guarantee the search index is
-  up-to-date. Agents MUST NOT assume immediate search consistency after command handling.
+- **The Consistency Window**: When you send a command, aggregate state is updated first and indexing may follow
+  asynchronously. For direct searchable aggregate updates, handler results now wait for asynchronous after-handler
+  aggregate commits by default, so `sendCommandAndWait` followed by a query often sees the updated aggregate/search
+  document.
+- **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
+  effect, such as in an event handler or projection handler. In that case, wait for the projection's own completion
+  signal or return the needed state from the command handler.
 - **UI Tip**: For immediate feedback, return the new state directly from the command handler or use WebSockets to notify the UI when the projection is ready.
 
 ---
