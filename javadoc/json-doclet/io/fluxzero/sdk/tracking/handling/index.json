@@ -190,6 +190,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation",
     "kind" : "class"
   }, {
+    "file" : "Invocation.ResultPublicationBarrier.json",
+    "name" : "Invocation.ResultPublicationBarrier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
+    "kind" : "class"
+  }, {
     "file" : "JsonPayloadParameterResolver.json",
     "name" : "JsonPayloadParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.JsonPayloadParameterResolver",

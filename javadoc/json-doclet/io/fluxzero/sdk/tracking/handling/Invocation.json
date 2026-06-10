@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "completedResultPublicationBarrier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.completedResultPublicationBarrier",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "current",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.current",
     "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.handling.Invocation>",
@@ -78,6 +86,43 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "awaitBeforeResultPublication",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#awaitBeforeResultPublication",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers asynchronous work that must complete before the supplied message's handler result is published.\n\n @param message    message whose result should wait for the completion\n @param completion completion to await before result publication; {@code null} is ignored\n"
+  }, {
+    "name" : "awaitBeforeResultPublication",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#awaitBeforeResultPublication",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers asynchronous work that must complete before the current handler result is published.\n <p>\n This method is intended for handler-completion callbacks, such as aggregate commit policies that start work after\n the handler returned but still want request results to reflect the committed state.\n\n @param completion completion to await before result publication; {@code null} is ignored\n"
+  }, {
     "name" : "complete",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#complete",
     "returnType" : "void",
@@ -259,6 +304,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resultPublicationBarrier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#resultPublicationBarrier",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the barrier that must complete before the supplied message's handler result is published.\n\n @param message message whose result publication barrier should be resolved\n @return completion future, or an already completed future when no post-handler work was registered\n"
+  }, {
     "name" : "whenHandlerCompletes",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#whenHandlerCompletes",
     "returnType" : "io.fluxzero.common.Registration",
@@ -277,5 +338,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ResultPublicationBarrier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

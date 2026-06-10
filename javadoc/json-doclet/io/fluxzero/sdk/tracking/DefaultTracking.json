@@ -1031,6 +1031,37 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#sendResult",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "h",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "setThreadLocal",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#setThreadLocal",
     "returnType" : "void",

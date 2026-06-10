@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.AggregateCommitPolicy>",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Controls whether request results wait for asynchronous aggregate commits that were started after a handler and\n are awaited at batch completion.\n <p>\n This applies to {@link #ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH}. It does not delay results for\n {@link #SYNC_AFTER_BATCH}, because those commits only start at batch completion.\n <p>\n Set {@code fluxzero.aggregate.awaitAfterHandlerCommitsBeforeResults=false} to publish results immediately while\n preserving the aggregate commit policy's batch-completion wait. Defaults to {@code true}.\n",
+    "constantValue" : "fluxzero.aggregate.awaitAfterHandlerCommitsBeforeResults"
+  }, {
     "name" : "async",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.async",
     "type" : "boolean",

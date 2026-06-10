@@ -61,6 +61,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "awaitAfterHandlerCommitsBeforeResults",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.awaitAfterHandlerCommitsBeforeResults",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "commitHandler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.commitHandler",
     "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
