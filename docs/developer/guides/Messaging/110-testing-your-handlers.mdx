@@ -1,0 +1,742 @@
+---
+title: Testing your handlers
+description: Testing your handlers
+slug: docs/guides/messaging/testing-your-handlers
+sidebar:
+  order: 110
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Fluxzero comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
+writing behavioral tests for your handlers without needing to mock the infrastructure.
+
+Here’s a basic example:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture testFixture = TestFixture.create(new UserEventHandler());
+
+@Test
+void newUserGetsWelcomeEmail() {
+    testFixture.whenEvent(new CreateUser(userId, myUserProfile))
+            .expectCommands(new SendWelcomeEmail(myUserProfile));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val testFixture = TestFixture.create(UserEventHandler())
+
+@Test
+fun newUserGetsWelcomeEmail() {
+    testFixture.whenEvent(CreateUser(userId, myUserProfile))
+        .expectCommands(SendWelcomeEmail(myUserProfile))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This test ensures that when a `CreateUser` event occurs, a `SendWelcomeEmail` command is issued by the handler.
+
+## Testing complete workflows
+
+You can test full workflows across multiple handlers:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture fixture = TestFixture.create(new UserCommandHandler(), new UserEventHandler());
+
+@Test
+void creatingUserTriggersEmail() {
+    fixture.whenCommand(new CreateUser(userProfile))
+            .expectCommands(new SendWelcomeEmail(userProfile));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val fixture = TestFixture.create(UserCommandHandler(), UserEventHandler())
+
+@Test
+fun creatingUserTriggersEmail() {
+    fixture.whenCommand(CreateUser(userProfile))
+        .expectCommands(SendWelcomeEmail(userProfile))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+Use `expectOnlyCommands()` to ensure that only the expected commands were issued during the when-phase, with no additional commands produced by any of the registered handlers.
+</Aside>
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenCommand(new CreateUser(userProfile))
+       .expectOnlyCommands(new SendWelcomeEmail(userProfile));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenCommand(CreateUser(userProfile))
+    .expectOnlyCommands(SendWelcomeEmail(userProfile))
+```
+
+  </TabItem>
+</Tabs>
+
+You can also match by class, predicate, or Hamcrest matcher:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenCommand(new CreateUser(userProfile))
+       .expectCommands(
+           SendWelcomeEmail.class,
+           isA(AddUserToOrganization.class)
+       );
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenCommand(CreateUser(userProfile))
+    .expectCommands(
+        SendWelcomeEmail::class.java,
+        isA(AddUserToOrganization::class.java)
+    )
+```
+
+  </TabItem>
+</Tabs>
+
+## Chained expectations
+
+Multiple expectations can be chained to test the full sequence of events and commands:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenCommand(new CreateUser(userProfile))
+       .expectCommands(new SendWelcomeEmail(userProfile))
+       .expectEvents(new UserStatsUpdated(...));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenCommand(CreateUser(userProfile))
+    .expectCommands(SendWelcomeEmail(userProfile))
+    .expectEvents(UserStatsUpdated(...))
+```
+
+  </TabItem>
+</Tabs>
+
+You can also chain multiple <strong>inputs</strong> using `.andThen()` to simulate a sequence of events, commands, or queries:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenCommand(new CreateUser(userProfile))
+       .expectCommands(new SendWelcomeEmail(userProfile))
+       .andThen()
+       .whenQuery(new GetUser(userId))
+       .expectResult(userProfile);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenCommand(CreateUser(userProfile))
+    .expectCommands(SendWelcomeEmail(userProfile))
+    .andThen()
+    .whenQuery(GetUser(userId))
+    .expectResult(userProfile)
+```
+
+  </TabItem>
+</Tabs>
+
+This example first triggers a `CreateUser` command, expects a `SendWelcomeEmail` command, and then issues a `GetUser`
+query, asserting that it returns the expected result.
+
+## Using givenXxx() for preconditions
+
+Use `givenCommands`, `givenEvents`, etc., to simulate preconditions:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.givenCommands(new CreateUser(userProfile), new ResetPassword(...))
+       .whenCommand(new UpdatePassword(...))
+       .expectEvents(UpdatePassword.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands(CreateUser(userProfile), ResetPassword(...))
+    .whenCommand(UpdatePassword(...))
+    .expectEvents(UpdatePassword::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+## Providing external JSON files
+
+Test fixtures support loading inputs from external JSON resources. This allows you to keep your tests clean and reuse
+structured input data.
+
+Any `givenXyz(...)`, `whenXyz(...)`, or `expectXyz(...)` method argument that is a `String` ending with `.json` will be
+interpreted as a <strong>classpath resource path</strong>, and deserialized accordingly.
+
+For example:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.givenCommands("create-user.json")
+    .whenQuery(new GetUser(userId))
+    .expectResult("user-profile.json");
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands("create-user.json")
+    .whenQuery(GetUser(userId))
+    .expectResult("user-profile.json")
+```
+
+  </TabItem>
+</Tabs>
+
+If your test class is in the `org.example` package, this will resolve to `/org/example/create-user.json` in the
+classpath, unless the JSON path is absolute (starts with `/`), e.g.:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.givenCommands("/users/create-user.json");
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands("/users/create-user.json")
+```
+
+  </TabItem>
+</Tabs>
+
+### Class resolution with @class
+
+Each JSON file must include a `@class` property to enable deserialization:
+
+```json
+{
+  "@class": "org.example.CreateUser",
+  "userId": "3290328",
+  "email": "foo.bar@example.com"
+}
+```
+
+If your classes or packages are annotated with `@RegisterType`, you can even use simple class names *in Java*:
+
+```json
+{
+  "@class": "CreateUser"
+}
+```
+
+Or partial paths:
+
+```json
+{
+  "@class": "example.CreateUser"
+}
+```
+
+<Aside type="note">
+    Deserialization using just a simple class name is sufficient in Java projects, but not yet in Kotlin,
+    which requires the fully qualified name, e.g.:
+
+    `"@class": "io.fluxzero.yourapp.user.command.CreateUser"`
+</Aside>
+
+### Inheriting from other JSON files
+
+JSON resources can <strong>extend</strong> other resources using the `@extends` keyword:
+
+```json
+{
+  "@extends": "create-user.json",
+  "details": {
+    "lastName": "Johnson"
+  }
+}
+```
+
+This will recursively merge the referenced file (`/org/example/create-user.json`) with the current one, allowing you
+to override or augment deeply nested structures.
+
+<Aside type="tip">
+Inheritance-style JSON is useful for composing scenarios with shared defaults while keeping test data DRY.
+</Aside>
+
+---
+
+## Adding or asserting metadata
+
+Wrap your payload in a `Message` to attach or validate metadata:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void newAdminGetsAdditionalEmail() {
+    testFixture.whenCommand(new Message(new CreateUser(...),
+        Metadata.of("roles", Arrays.asList("Customer", "Admin"))))
+        .expectCommands(new SendWelcomeEmail(...),
+                        new SendAdminEmail(...));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun newAdminGetsAdditionalEmail() {
+    testFixture.whenCommand(
+        Message(CreateUser(...), Metadata.of("roles", listOf("Customer", "Admin")))
+    ).expectCommands(
+        SendWelcomeEmail(...),
+        SendAdminEmail(...)
+    )
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Result and exception assertions
+
+You can assert the result returned by a command or query:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.givenCommands(new CreateUser(userProfile))
+       .whenQuery(new GetUser(userId))
+       .expectResult(userProfile);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands(CreateUser(userProfile))
+    .whenQuery(GetUser(userId))
+    .expectResult(userProfile)
+```
+
+  </TabItem>
+</Tabs>
+
+To assert that an exception occurred:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.givenCommands(new CreateUser(userProfile))
+       .whenCommand(new CreateUser(userProfile))
+       .expectExceptionalResult(IllegalCommandException.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands(CreateUser(userProfile))
+    .whenCommand(CreateUser(userProfile))
+    .expectExceptionalResult(IllegalCommandException::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+## User-aware tests
+
+You can simulate a command being issued by a specific user:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var user = new MyUser("pete");
+
+fixture.whenCommandByUser(user, "confirm-user.json")
+       .expectExceptionalResult(UnauthorizedException.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val user = MyUser("pete")
+
+fixture.whenCommandByUser(user, "confirm-user.json")
+    .expectExceptionalResult(UnauthorizedException::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+You can also pass a user ID string directly instead of a `User` object. The test fixture will resolve it using the
+configured `UserProvider` (by default loaded via Java’s `ServiceLoader`):
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture
+    .givenCommands("create-user-pete.json")
+    .whenCommandByUser("pete", "confirm-user.json")
+    .expectExceptionalResult(UnauthorizedException.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture
+    .givenCommands("create-user-pete.json")
+    .whenCommandByUser("pete", "confirm-user.json")
+    .expectExceptionalResult(UnauthorizedException::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+The string `"pete"` is automatically resolved to a `User` instance using the active `UserProvider`.
+</Aside>
+
+## Verifying side effects
+
+Use `expectThat()` or `expectTrue()` to verify side effects, such as interactions with external services (e.g., using Mockito):
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenCommand("create-user-pete.json")
+       .expectThat(fc -> Mockito.verify(emailService).sendEmail(...));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenCommand("create-user-pete.json")
+    .expectThat { Mockito.verify(emailService).sendEmail(...) }
+```
+
+  </TabItem>
+</Tabs>
+
+## Triggering side effects manually
+
+Use `whenExecuting()` to test code that runs outside the message dispatch loop (e.g., HTTP calls):
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenExecuting(fc -> httpClient.put("/user", "/users/user-profile-pete.json"))
+       .expectEvents("create-user-pete.json");
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenExecuting { httpClient.put("/user", "/users/user-profile-pete.json") }
+    .expectEvents("create-user-pete.json")
+```
+
+  </TabItem>
+</Tabs>
+
+## Asynchronous tests
+
+By default, `TestFixture.create(...)` creates a **synchronous** fixture where handlers are executed in the same thread.
+This makes unit tests fast and deterministic.
+
+However, in production, handlers are typically dispatched **asynchronously** via consumers. To simulate this behavior in tests,
+especially for event-driven workflows or stateful consumers, you can use:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture fixture = TestFixture.createAsync(new MyHandler(), MyStatefulHandler.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val fixture = TestFixture.createAsync(MyHandler(), MyStatefulHandler::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+This ensures that:
+
+- Handlers are tracked using real consumer infrastructure.
+- Asynchronous behavior (e.g., retries, delays, state changes) is tested realistically.
+- `expect...()` calls wait for outcomes, enabling end-to-end flow testing.
+- `given...()` preconditions complete before the `when...()` phase starts.
+
+<Aside type="note">
+Handlers annotated with `@LocalHandler` are still executed synchronously, even in async fixtures—just like in production.
+</Aside>
+
+## Using test fixtures in Spring
+
+Fluxzero integrates seamlessly with Spring Boot. You can inject a `TestFixture` directly:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@SpringBootTest
+class AsyncAppTest {
+
+    @Autowired
+    TestFixture fixture;
+
+    @Test
+    void testSomething() {
+        fixture.whenCommand("commands/my-command.json")
+               .expectEvents("events/expected-event.json");
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@SpringBootTest
+class AsyncAppTest {
+
+    @Autowired
+    lateinit var fixture: TestFixture
+
+    @Test
+    fun testSomething() {
+        fixture.whenCommand("commands/my-command.json")
+            .expectEvents("events/expected-event.json")
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+✅ Spring Boot auto-configures `TestFixture`.
+⚠️ If you're using plain Spring (non-Boot), you must import the test config manually:
+</Aside>
+
+```java
+@Import(FluxzeroTestConfig.class)
+```
+
+---
+
+### Switching to synchronous mode
+
+By default, the injected fixture is asynchronous. To switch to synchronous mode:
+
+**Globally via `application.properties`:**
+
+```properties
+fluxzero.test.sync=true
+```
+
+**Or per test class:**
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@TestPropertySource(properties = "fluxzero.test.sync=true")
+@SpringBootTest
+class SyncAppTest {
+
+    @Autowired
+    TestFixture fixture;
+
+    // test logic...
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@TestPropertySource(properties = ["fluxzero.test.sync=true"])
+@SpringBootTest
+class SyncAppTest {
+
+    @Autowired
+    lateinit var fixture: TestFixture
+
+    // test logic...
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Testing schedules
+
+Fluxzero makes it easy to test time-based workflows. Scheduled messages behave like any other message,
+except they’re delayed until their due time.
+
+Use `TestFixture` to simulate time passing:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture testFixture = TestFixture.create(new UserCommandHandler(), new UserLifecycleHandler());
+
+@Test
+void accountIsTerminatedAfterClosing() {
+    testFixture
+        .givenCommands(new CreateUser(myUserProfile),
+                       new CloseAccount(userId))
+        .whenTimeElapses(Duration.ofDays(30))
+        .expectEvents(new AccountTerminated(userId));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val testFixture = TestFixture.create(UserCommandHandler(), UserLifecycleHandler())
+
+@Test
+fun accountIsTerminatedAfterClosing() {
+    testFixture
+        .givenCommands(CreateUser(myUserProfile), CloseAccount(userId))
+        .whenTimeElapses(Duration.ofDays(30))
+        .expectEvents(AccountTerminated(userId))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+In this test:
+
+- `CloseAccount` schedules an `AccountTerminated` event.
+- `whenTimeElapses(Duration.ofDays(30))` simulates 30 days passing.
+- The test then checks that the event was published.
+
+You can also test cancellation logic:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void accountReopeningCancelsTermination() {
+    testFixture
+        .givenCommands(new CreateUser(myUserProfile),
+                       new CloseAccount(userId),
+                       new ReopenAccount(userId))
+        .whenTimeElapses(Duration.ofDays(30))
+        .expectNoEventsLike(AccountTerminated.class);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun accountReopeningCancelsTermination() {
+    testFixture
+        .givenCommands(CreateUser(myUserProfile),
+                       CloseAccount(userId),
+                       ReopenAccount(userId))
+        .whenTimeElapses(Duration.ofDays(30))
+        .expectNoEventsLike(AccountTerminated::class.java)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+If needed, you can also advance time to a fixed timestamp:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+fixture.whenTimeAdvancesTo(Instant.parse("2050-12-31T00:00:00Z"));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+fixture.whenTimeAdvancesTo(Instant.parse("2050-12-31T00:00:00Z"))
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+Advancing time to an absolute instant is useful for testing deadline-based workflows or calendar-driven schedules.
+</Aside>

@@ -1,0 +1,95 @@
+---
+title: Hello world
+description: Your first working Fluxzero handler in under 3 minutes.
+sidebar:
+  order: 30
+---
+
+import {Aside, TabItem, Tabs} from '@astrojs/starlight/components';
+
+# Your first Fluxzero handler
+
+Let’s make sure everything’s working.
+
+In this mini-tutorial we're going to create the simplest possible Fluxzero app — just a single HTTP endpoint.
+
+---
+
+## 1. Create a project
+
+If you haven’t created a project yet, follow the [installation guide](/docs/getting-started/installation) first.
+
+Once you’ve created it, open it in your editor. For the best experience, use <a href="https://www.jetbrains.com/idea/" target="_blank" rel="noopener noreferrer">
+                                                  IntelliJ IDEA <span aria-hidden="true">↗</span>
+                                                </a>.
+
+---
+
+## 2. Add an endpoint
+
+Create a file `HelloEndpoint.java` (or `.kt`) in the root package:
+
+<Tabs>
+  <TabItem label="Java">
+
+  ```java
+  @Component
+  public class HelloEndpoint {
+
+      @HandleGet("/hello")
+      public String hello() {
+          return "Hello from Fluxzero!";
+      }
+  }
+  ```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+  ```kotlin
+  @Component
+  class HelloEndpoint {
+
+      @HandleGet("/hello")
+      fun hello(): String {
+          return "Hello from Fluxzero!"
+      }
+  }
+  ```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+  You can define HTTP handlers in any app — no routing config or proxies required.
+</Aside>
+
+---
+
+## 3. Run your app
+
+Start the app:
+
+```bash
+./gradlew run
+```
+
+Then open your browser:
+
+```
+http://localhost:8080/hello
+```
+
+You should see:
+
+```
+Hello from Fluxzero!
+```
+
+---
+
+## 4. What's next?
+
+You’ve just built your first Fluxzero handler!
+
+Now that your app is up and running, let’s build something real.

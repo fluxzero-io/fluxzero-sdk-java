@@ -1,0 +1,121 @@
+---
+title: Custom message logs
+description: User-defined message logs
+slug: docs/guides/messaging/custom-message-logs
+sidebar:
+   order: 90
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero supports **custom message logs** in addition to built-in ones like commands, events, and queries.
+
+Most applications won’t need them — but they’re powerful for advanced use cases like:
+
+- Tracking external systems or integrations without cluttering your main event log
+- Publishing low-frequency control signals or batched updates for downstream consumers
+- Isolating workflows with different delivery or retention guarantees
+
+Fluxzero lets you define and handle custom messages by assigning them to **user-defined topics**. Each topic has its own durable log and behaves just like a native command/event/query log.
+
+---
+
+## Handling messages from a custom log
+
+To receive messages from a custom log, annotate your handler with `@HandleCustom` and specify the topic name.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@HandleCustom("metering-points")
+void on(MeteringPoint event) {
+    log.info("Metering point: {}", event);
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@HandleCustom("metering-points")
+fun on(event: MeteringPoint) {
+    log.info("Metering point: {}", event)
+}
+```
+
+</TabItem>
+</Tabs>
+
+Custom handlers support everything native handlers do:
+
+- Stateless or `@Stateful`
+- Optional results if it's a request
+- Use of custom consumers
+- Segment routing and metadata access
+- Full delivery tracking
+
+<Aside type="tip">
+  Custom message topics integrate seamlessly with all Flux features — including tracing, retries, metrics, and error handling.
+</Aside>
+
+---
+
+## Publishing to a custom log
+
+You can publish messages directly to a custom topic using the `customGateway(...)` API.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .sendAndForget(new AuditEntry("User login"));
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .sendAndForget(AuditEntry("User login"))
+```
+
+</TabItem>
+</Tabs>
+
+This gives you full control to emit messages that won’t show up in the main event log — ideal for isolating workflows, logs, or side effects.
+
+---
+
+## Controlling retention
+
+Each log (including custom ones) can have its own retention policy. By default, messages are retained according to the global retention settings — but you can override this per topic.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .setRetentionTime(Duration.ofDays(90));
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+Fluxzero.get()
+    .customGateway("third-party-events")
+    .setRetentionTime(Duration.ofDays(90))
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+  You can also configure retention for built-in logs like <code>command</code>, <code>event</code>, or <code>result</code>, but this is usually only needed for custom topics.
+</Aside>

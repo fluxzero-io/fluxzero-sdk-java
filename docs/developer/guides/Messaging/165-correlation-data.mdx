@@ -1,0 +1,45 @@
+---
+title: Correlation data
+description: Overview of default correlation metadata automatically added to Fluxzero messages.
+slug: docs/guides/messaging/correlation-data
+sidebar:
+  order: 165
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Every message in Fluxzero includes correlation metadata that enables traceability across applications, clients, and handlers.
+This correlation data is automatically added by the Fluxzero SDK to the `Metadata` of published messages.
+
+---
+
+| Metadata key | Description |
+|---------------|-------------|
+| **$applicationId** | Unique identifier of the Fluxzero application instance that produced the message. |
+| **$clientId** | Identifier of the client (SDK instance) within the application. |
+| **$clientName** | Human-readable name of the client, typically derived from configuration or environment. |
+| **$consumer** | Name of the consumer that handled or tracked the message. |
+| **$tracker** | Identifier of the tracker that processed the message batch. |
+| **$correlationId** | Unique correlation ID shared by all messages related to the same logical operation. |
+| **$traceId** | Identifier used for distributed tracing across services and applications. |
+| **$trigger** | Identifies the triggering message or context that caused this message to be published. |
+| **$triggerType** | The type of the triggering message or context (e.g., command, event, schedule). |
+| **$invocation** | Identifier for a specific invocation or execution path, useful for replay and debugging. |
+| **$msDelay** | The delay (in milliseconds) applied before a scheduled message was executed. |
+
+<Aside>
+Flux reserves `$` as a prefix for metadata property names.
+You are allowed to use the `$` prefix for your own metadata properties, but this is unsupported and therefore we
+recommend using a different prefix to avoid conflicts with Fluxzero's internal metadata properties.
+Supported exception: use the SDK-provided trace helpers (for example `Metadata.withTrace(...)`) which intentionally
+write `$trace.*` keys.
+</Aside>
+
+See <Jdoclink className="CorrelationDataProvider" /> for the full list of metadata properties that are propagated by default.
+
+---
+
+<Aside type="tip">
+Correlation metadata makes it easy to trace messages end-to-end across multiple services, handlers, and time windows.
+</Aside>

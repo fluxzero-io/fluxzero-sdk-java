@@ -1,0 +1,202 @@
+---
+title: Message replays
+description: Message replays
+slug: docs/guides/messaging/message-replays
+sidebar:
+  order: 40
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows you to **replay past messages** by tracking from an earlier index in the message log. This is useful for:
+
+- Rebuilding projections or read models
+- Repairing missed or failed messages
+- Retrospectively introducing new functionality
+
+Since message logs — including **commands**, **events**, **errors**, etc. — are durably stored (with **events** retained indefinitely by default), replays are usually available.
+
+## Replaying from the Past
+
+The most common way to initiate a replay is to define a **new consumer** using the `@Consumer` annotation with a `minIndex`.
+
+<Tabs>
+  <TabItem value="Java" label="Java">
+
+```java
+@Consumer(name = "auditReplay", minIndex = 111677748019200000L)
+public class AuditReplayHandler {
+
+    @HandleEvent
+    void on(CreateUser event) {
+        // ... rebuild projections, audit, etc.
+    }
+}
+```
+
+  </TabItem>
+  <TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Consumer(name = "auditReplay", minIndex = 111677748019200000L)
+class AuditReplayHandler {
+
+    @HandleEvent
+    fun on(event: CreateUser) {
+        // ... rebuild projections, audit, etc.
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+  <code>minIndex</code> is the <em>inclusive</em> starting position in the log. You can derive it from a timestamp using <code>IndexUtils</code>.
+</Aside>
+
+<Tabs>
+  <TabItem value="Java" label="Java">
+
+```java
+long index = IndexUtils.indexFromTimestamp(
+    Instant.parse("2024-01-01T00:00:00Z"));
+// -> 111677748019200000L
+```
+
+  </TabItem>
+  <TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val index = IndexUtils.indexFromTimestamp(
+    Instant.parse("2024-01-01T00:00:00Z"))
+// -> 111677748019200000L
+```
+
+  </TabItem>
+</Tabs>
+
+This approach is perfect for:
+
+- Starting **fresh consumers** for replays
+- Bootstrapping projections without interfering with live handlers
+- Keeping logic encapsulated and isolated
+
+## Resetting Existing Consumers
+
+If you want to reset an existing consumer to an earlier point in the log:
+
+<Tabs>
+  <TabItem value="Java" label="Java">
+
+```java
+long replayIndex = 111677748019200000L;
+
+Fluxzero.client()
+    .getTrackingClient(MessageType.EVENT)
+    .resetPosition("myConsumer", replayIndex, Guarantee.STORED);
+```
+
+  </TabItem>
+  <TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val replayIndex = 111677748019200000L
+
+Fluxzero.client()
+    .getTrackingClient(MessageType.EVENT)
+    .resetPosition("myConsumer", replayIndex, Guarantee.STORED)
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="caution">
+  Be careful when replaying on existing handlers to avoid **duplicating side effects** (emails, HTTP calls, etc.). Prefer a dedicated replay consumer when side effects are not replay-safe.
+</Aside>
+
+## Parallel replays with <code>exclusive = false</code>
+
+Sometimes you want the **same handler class** to do both live processing and a historical replay (e.g., to rebuild read models).
+
+Mark the handler’s consumer as <code>exclusive = false</code>:
+
+<Tabs>
+  <TabItem value="Java" label="Java">
+
+```java
+@Consumer(name = "live", exclusive = false)
+public class OrderProcessor {
+
+    @HandleCommand
+    void handle(SendOrder command) {
+        // submit an order
+    }
+}
+```
+
+  </TabItem>
+  <TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Consumer(name = "live", exclusive = false)
+class OrderProcessor {
+
+    @HandleCommand
+    fun handle(command: SendOrder) {
+        // submit an order
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Then register a **second consumer** at runtime that targets the same handler but a different index window:
+
+<Tabs>
+  <TabItem value="Java" label="Java">
+
+```java
+fluxzeroBuilder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("replay")                                  // new consumer
+        .handlerFilter(h -> h instanceof OrderProcessor) // same class
+        .minIndex(111677748019200000L)                   // start of window
+        .maxIndexExclusive(111853279641600000L)          // end of window (exclusive)
+        .build(),
+    MessageType.COMMAND
+);
+```
+
+  </TabItem>
+  <TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+fluxzeroBuilder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("replay")                             // new consumer
+        .handlerFilter { it is OrderProcessor }     // same class
+        .minIndex(111677748019200000L)              // start of window
+        .maxIndexExclusive(111853279641600000L)     // end of window (exclusive)
+        .build(),
+    MessageType.COMMAND
+)
+```
+
+  </TabItem>
+</Tabs>
+
+This spins up a **parallel tracker** that replays messages between the two indices while the original `live` consumer continues uninterrupted.
+
+<Aside type="tip">
+  Great for **bootstrapping read models** or **repair jobs** without disrupting production flow or duplicating classes.
+</Aside>
+
+---
+
+## Handling failures and DLQ flows
+
+For replaying failures from the error log (dynamic DLQ), use the dedicated
+[Dynamic dead-lettering guide](/docs/guides/messaging/dynamic-dead-lettering).

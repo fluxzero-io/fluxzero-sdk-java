@@ -1,0 +1,315 @@
+---
+title: Handling web requests
+description: Handling web requests
+slug: docs/guides/messaging/handling-web-requests
+sidebar:
+  order: 120
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
+variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
+
+Instead of exposing a public HTTP server per application, Fluxzero uses a central Web Gateway that **proxies all external
+HTTP(S) and WebSocket traffic into the Runtime as `WebRequest` messages**. These messages are:
+
+- **Logged** for traceability and auditing
+- **Routed to client applications** using the same handler system as for commands, events, and queries
+- **Handled by consumer applications** which return a `WebResponse`
+
+## Why this design?
+
+This architecture enables several key benefits:
+
+- **Zero exposure**: client apps do not require a public-facing HTTP server and are thus *invisible* to attackers
+- **Back-pressure support**: applications control load by polling their own messages
+- **Audit-friendly**: every incoming request is automatically logged and correlated to its response
+- **Multiple consumers possible**: multiple handlers can react to a `WebRequest`, though typically only one produces the
+  response (others use `passive = true`)
+
+### Example
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleGet("/users")
+public List<UserAccount> listUsers() {
+    return userService.getAllUsers();
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleGet("/users")
+fun listUsers(): List<UserAccount> {
+    return userService.getAllUsers()
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This will match incoming `GET /users` requests and return a list of users. The response is published as a `WebResponse`.
+
+Use the general-purpose `@HandleWeb` annotation if you want to support multiple paths, multiple methods, or define a custom method:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleWeb(value = "/users/{userId}", method = {"GET", "DELETE"})
+public CompletableFuture<?> handleUserRequest(WebRequest request, @PathParam String userId) {
+    return switch (request.getMethod()) {
+        case "GET" -> Fluxzero.query(new GetUser(userId));
+        case "DELETE" -> Fluxzero.sendCommand(new DeleteUser(userId));
+        default -> throw new UnsupportedOperationException();
+    };
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleWeb(value = ["/users/{userId}"], method = ["GET", "DELETE"])
+fun handleUserRequest(request: WebRequest, @PathParam userId: String): CompletableFuture<*> {
+    return when (request.method) {
+        "GET" -> Fluxzero.query(GetUser(userId))
+        "DELETE" -> Fluxzero.sendCommand(DeleteUser(userId))
+        else -> throw UnsupportedOperationException()
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+To match all HTTP methods for a given path, use `HttpRequestMethod.ANY`. This is equivalent to `"*"` and will match any method.
+</Aside>
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleWeb(value = "/users/{userId}", method = HttpRequestMethod.ANY)
+public CompletableFuture<?> handleAllUserMethods(WebRequest request, @PathParam String userId) {
+    // Handle any method (GET, POST, DELETE, etc.)
+    ...
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleWeb(value = ["/users/{userId}"], method = HttpRequestMethod.ANY)
+fun handleAllUserMethods(request: WebRequest, @PathParam userId: String): CompletableFuture<*> {
+    // Handle any method (GET, POST, DELETE, etc.)
+    ...
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Suppressing a response
+
+If you want to listen to a `WebRequest` without returning a response—e.g. for monitoring or audit logging—use `passive = true`:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandlePost(value = "/log", passive = true)
+public void log(WebRequest request) {
+    logService.store(request);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandlePost(value = "/log", passive = true)
+fun log(request: WebRequest) {
+    logService.store(request)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Dynamic path parameters
+
+Use `@PathParam` to extract dynamic segments from the URI:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleGet("/users/{id}")
+public UserAccount getUser(@PathParam String id) {
+    return userService.get(id);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleGet("/users/{id}")
+fun getUser(@PathParam id: String): UserAccount {
+    return userService.get(id)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+If no name is provided to `@PathParam`, the parameter name is used by default.
+
+### Other parameter annotations
+
+You can also use these to extract other parts of the request:
+
+- `@QueryParam` – extract query string values
+- `@HeaderParam` – extract headers
+- `@CookieParam` – extract cookies
+- `@FormParam` – extract form-encoded values (e.g., from POST body)
+
+<Aside type="note">
+All of these annotations support implicit naming and type conversion.
+</Aside>
+
+### URI prefixing and composition with @Path
+
+Use `@Path` on packages, classes, methods, and properties to construct URI paths. Paths are composed from outermost to innermost.
+
+- A path starting with `/` resets the chain
+- Empty paths use the simple name of the enclosing package or class
+- If applied to a property (field or getter), its value is used as a dynamic segment
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Path
+package my.example.api;
+
+@Path("users")
+public class UserHandler {
+
+    @Path("{id}")
+    @HandleGet
+    public User getUser(@PathParam String id) { ... }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This matches `/api/users/{id}`. If `@Path("/users")` had been used on the class instead, it would reset the prefix and match `/users/{id}`.
+
+---
+
+## Serving static files
+
+Use `@ServeStatic` to serve static content directly from your app without an external web server:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@ServeStatic(value = "/web", resourcePath = "/static")
+public class WebAssets {
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This serves files from `/static` (in classpath or filesystem) under the URI path `/web/**`.
+
+### Features
+
+- Supports classpath and file system resources
+- Optional fallback file (e.g. for SPAs)
+- Smart `Cache-Control` headers
+- GZIP and Brotli compression (if precompressed assets are present)
+
+### Full annotation example
+
+```java
+@ServeStatic(
+    value = "/assets",
+    resourcePath = "/public",
+    fallbackFile = "index.html",
+    immutableCandidateExtensions = {"js", "css", "svg"},
+    maxAgeSeconds = 86400
+)
+```
+
+#### Parameters:
+
+- `value`: Web URI path(s) to expose
+- `resourcePath`: Filesystem or classpath root
+- `fallbackFile`: Fallback for unknown paths (e.g. `index.html`)
+- `immutableCandidateExtensions`: Enables long-lived caching for fingerprinted assets
+- `maxAgeSeconds`: Cache duration for other resources
+
+### Example: serving a React app
+
+```java
+@ServeStatic(value = "/app", resourcePath = "/static", fallbackFile = "index.html")
+public class WebFrontend {
+}
+```
+
+This serves:
+
+- `/app/index.html`, `/app/main.js`, etc. from `/static`
+- Falls back to `index.html` for client-side routing
+
+<Aside type="tip">
+Files are resolved from both the file system and classpath. File system files take precedence if both exist.
+</Aside>
+
+To restrict resolution:
+
+- Use `classpath:/...` to only serve classpath files
+- Use `file:/...` to only serve local files
+
+### Combining static and dynamic handlers
+
+You can mix `@ServeStatic` with dynamic handlers:
+
+```java
+@Path("/app")
+@ServeStatic("static")
+public class AppController {
+
+    @HandleGet("/status")
+    public Status getStatus() {
+        return new Status("OK", Instant.now());
+    }
+
+    @HandlePost("/submit")
+    public SubmissionResult submitForm(FormData data) {
+        return formService.handle(data);
+    }
+}
+```
+
+This will:
+
+- Serve `/app/static/**` from the `static/` directory
+- Also handle `/app/status` and `/app/submit` dynamically
+
+<Aside type="note">
+Static routes apply only to unmatched paths and can coexist with dynamic APIs in the same class or package.
+</Aside>

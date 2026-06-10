@@ -1,0 +1,240 @@
+---
+title: FAQs
+description: Common questions about Fluxzero
+sidebar:
+   order: 20
+---
+
+import { Tabs, TabItem, Aside, CardGrid, Card } from '@astrojs/starlight/components';
+
+# Frequently asked questions
+
+Find answers to the most common questions about Fluxzero. Can't find what you're looking for? [Join our community](https://github.com/orgs/fluxzero-io/discussions) or [open an issue](https://github.com/fluxzero-io/fluxzero-sdk-java/issues).
+
+<CardGrid>
+<Card title="🚀 Getting Started" icon="rocket">
+New to Fluxzero? Start here for basics about what it is and how to begin.
+</Card>
+
+<Card title="🏗️ Technical Architecture" icon="setting">
+Deep dive into how Fluxzero works under the hood and architectural decisions.
+</Card>
+
+<Card title="💻 Development & Testing" icon="laptop">
+Questions about writing code, testing, and development workflows with Fluxzero.
+</Card>
+
+<Card title="🚢 Deployment & Operations" icon="rocket">
+Production deployment, scaling, monitoring, and operational concerns.
+</Card>
+
+<Card title="🔄 Migration & Comparison" icon="random">
+Moving from other frameworks and how Fluxzero compares to alternatives.
+</Card>
+</CardGrid>
+
+---
+
+## Getting Started
+
+<details>
+<summary>**What is Fluxzero and how is it different from traditional frameworks?**</summary>
+
+Fluxzero is a backend development platform that eliminates infrastructure complexity by providing a message-driven programming model. Instead of writing REST controllers, repositories, and service layers, you write message handlers that contain pure business logic.
+
+Traditional frameworks require you to manage HTTP routing, database connections, message queues, and service configuration. Fluxzero handles all of this automatically, letting you focus on your application's business logic.
+
+</details>
+
+<details>
+<summary>**Do I need to learn event sourcing to use Fluxzero?**</summary>
+
+No. While Fluxzero supports event sourcing as the default persistence strategy for aggregates, you don't need to understand event sourcing to get started. You can begin by writing simple message handlers and gradually learn more advanced patterns as needed.
+
+Event sourcing is just one of many patterns available in Fluxzero. You can also use document-based storage for simpler use cases.
+
+</details>
+
+<details>
+<summary>**What programming languages does Fluxzero support?**</summary>
+
+Fluxzero currently supports Java and Kotlin. The platform is designed to work with the JVM ecosystem, allowing you to use existing Java libraries and tools.
+
+We chose Java/Kotlin because they provide excellent tooling, type safety, and a mature ecosystem that works well with enterprise development.
+
+</details>
+
+
+<details>
+<summary>**Is Fluxzero suitable for small projects or just enterprise applications?**</summary>
+
+Fluxzero works great for projects of any size. Small projects benefit from faster development and simpler testing, while large projects benefit from built-in scalability and maintainability.
+
+The productivity gains are often most noticeable in small to medium projects where you don't have dedicated DevOps resources.
+
+</details>
+
+---
+
+## Technical Architecture
+
+<details>
+<summary>**How does Fluxzero handle database management?**</summary>
+
+Fluxzero abstracts away database complexity completely. You don't write SQL queries, manage connections, or handle transactions manually.
+
+For aggregates, Fluxzero uses event sourcing by default, storing events in an optimized format. For other data, you can use document-based storage with automatic indexing and search capabilities.
+
+All persistence is handled transparently by the platform.
+
+</details>
+
+<details>
+<summary>**What happens to my HTTP endpoints? Do I still have REST APIs?**</summary>
+
+Yes, you still have HTTP endpoints, but you don't write REST controllers and you do not expose an HTTP server in your application. 
+Instead, you write message handlers, and Fluxzero automatically exposes them as HTTP endpoints through the fluxzero-proxy based on a few annotations.
+
+</details>
+
+<details>
+<summary>**How does Fluxzero handle scaling and performance?**</summary>
+
+Fluxzero is designed to scale horizontally out of the box:
+
+- **Automatic load balancing**: Messages are distributed across instances
+- **Built-in backpressure**: System handles load spikes without manual configuration
+- **Optimized storage**: Event store and document storage are optimized for high throughput
+
+You can scale by simply running more instances of your application.
+
+</details>
+
+<details>
+<summary>**Can I use external databases or am I locked into Fluxzero's storage?**</summary>
+
+Fluxzero uses PostgreSQL as its underlying database, which you can not access directly. However, the platform is designed so you never have to write custom SQL.
+
+For integrations with existing databases, you can use message handlers to read from or write to external systems while keeping your core business logic in Fluxzero's managed storage.
+
+</details>
+
+<details>
+<summary>**How does message routing and delivery work?**</summary>
+
+Fluxzero uses consistent hashing to route messages to specific segments based on routing keys (usually entity IDs). This ensures:
+
+- Messages for the same entity are always processed by the same consumer instance
+- Related operations maintain strict ordering
+- Load is distributed evenly across all instances
+- The system can scale without repartitioning data
+
+</details>
+
+---
+
+## Development & Testing
+
+
+<details>
+<summary>**Can I use my existing Java libraries and frameworks?**</summary>
+
+Yes! Fluxzero runs on the JVM and is compatible with most Java libraries. Typically you won't need any libraries unless you have specific needs. 
+
+</details>
+
+<details>
+<summary>**Can I debug my application like a normal Java application?**</summary>
+
+Yes! Since Fluxzero applications are regular JVM applications, you can use any Java debugger, profiler, or monitoring tool. Set breakpoints in your message handlers and debug normally.
+
+The message-driven architecture actually makes debugging in production easier because you can trace the flow of messages through your application.
+
+</details>
+
+---
+
+## Deployment & Operations
+
+<details>
+<summary>**How do I deploy Fluxzero applications to production?**</summary>
+
+See deployment chapter. 
+
+</details>
+
+<details>
+<summary>**What monitoring and observability features are available?**</summary>
+
+Fluxzero provides comprehensive observability out of the box:
+
+- **Message tracing**: Every message is tracked through the system
+- **Performance metrics**: Built-in metrics for throughput, latency, and errors
+- **Health checks**: Automatic health endpoints for load balancers
+- **Audit logs**: Complete audit trail of all messages and state changes
+
+</details>
+
+<details>
+<summary>**How does Fluxzero handle database migrations and schema changes?**</summary>
+
+Since Fluxzero manages your database schema automatically, you don't need to write database migrations. The platform handles schema evolution transparently.
+
+When you change your message or aggregate structures, we provide best practises for versioning your messages to ensure backward compatibility.
+
+</details>
+
+
+---
+
+## Migration & Comparison
+
+<details>
+<summary>**How does Fluxzero compare to Spring Boot?**</summary>
+
+While Spring Boot provides a framework for building applications, Fluxzero provides a complete platform that eliminates infrastructure concerns:
+
+**Spring Boot**: You write controllers, services, repositories, and configuration  
+**Fluxzero**: You write message handlers with business logic only
+
+**Spring Boot**: You manage databases, message queues, HTTP routing  
+**Fluxzero**: Platform handles all infrastructure automatically
+
+Fluxzero is more opinionated but eliminates much more complexity.
+
+</details>
+
+<details>
+<summary>**Can I migrate an existing Spring Boot application to Fluxzero?**</summary>
+
+Yes, but it requires rethinking your architecture. Instead of migrating code directly, you typically:
+
+1. Identify your business operations (what your controllers do)
+2. Convert these to commands, queries, and events  
+3. Rewrite business logic as message handlers
+4. Remove all infrastructure code (controllers, repositories, configurations)
+
+The business logic stays the same, but the infrastructure layer is completely replaced.
+
+</details>
+
+<details>
+<summary>**How does Fluxzero compare to serverless platforms like AWS Lambda?**</summary>
+
+Fluxzero and serverless solve different problems:
+
+**Serverless**: Great for event-driven functions but requires managing infrastructure between functions  
+**Fluxzero**: Provides a complete application runtime with managed state and message routing
+
+Fluxzero gives you serverless-like developer experience (focus on business logic) but with better performance and state management for complex applications.
+
+</details>
+
+<details>
+<summary>**Is vendor lock-in a concern with Fluxzero?**</summary>
+
+Fluxzero is open source, so you can always self-host or fork the project. Your business logic is written in standard Java/Kotlin without proprietary APIs.
+
+The main dependency is on Fluxzero's message-driven programming model. While this requires some rework to migrate away, your business logic remains portable since it's just Java code.
+
+</details>

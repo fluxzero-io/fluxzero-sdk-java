@@ -1,0 +1,111 @@
+---
+title: Protecting sensitive data
+slug: docs/guides/data-control-and-serialization/protecting-sensitive-data
+sidebar:
+   order: 240
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Fluxzero offers built-in support for handling sensitive information with care using the `@ProtectData` and
+`@DropProtectedData` annotations.
+
+These tools help prevent sensitive fields (e.g., passwords, SSNs, tokens) from being unnecessarily stored, logged, or
+retained — supporting compliance with data protection standards like **GDPR** and **ISO 27001**.
+
+---
+
+## @ProtectData: mark sensitive fields
+
+To prevent a field from being stored with the rest of a message payload, annotate it with `@ProtectData`:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record RegisterCitizen(String name,
+                                  @ProtectData String socialSecurityNumber) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class RegisterCitizen(
+        val name: String,
+        @ProtectData val socialSecurityNumber: String
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+When this message is dispatched, the `socialSecurityNumber` will be:
+
+- **Offloaded** to a separate data vault
+- **Redacted** from the main payload (not visible in logs or message inspectors)
+- **Re-injected** automatically when the message is handled
+
+This happens transparently — you can access the field as usual in handler methods.
+
+---
+
+## @DropProtectedData: remove when done
+
+If the protected data should only be retained **temporarily**, annotate the handler method with `@DropProtectedData`:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @HandleCommand
+    @DropProtectedData
+    void handle(RegisterCitizen command) {
+        validate(command.getSocialSecurityNumber());
+        ...
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @HandleCommand
+    @DropProtectedData
+    fun handle(command: RegisterCitizen) {
+        validate(command.socialSecurityNumber)
+        ...
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+Once this handler completes:
+
+- The injected `socialSecurityNumber` is permanently deleted from storage.
+- Future replays will deserialize the message with that field omitted.
+
+<Aside type="caution">
+This mechanism ensures sensitive fields are usable just-in-time and discarded thereafter.
+</Aside>
+
+---
+
+## Use cases
+
+- Temporary use of sensitive tokens or credentials
+- Compliance with **data minimization** and **retention policies**
+- Preventing accidental exposure in logs or audits
+
+---
+
+## Replays and protected data
+
+During replays, if a message with protected fields is re-invoked **after** data has been dropped, those fields will be
+missing or set to `null`.
+
+<Aside type="note">
+Design your handlers to tolerate this by making such fields optional or guarding usage.
+</Aside>
+
+---
+
+## Notes
+
+- Only **fields** can be annotated with `@ProtectData` (not method parameters).
+- Dropping data is **irreversible**. Make sure all processing is complete before it is removed.
+- Support for nested structures is currently limited — annotate each sensitive field explicitly.

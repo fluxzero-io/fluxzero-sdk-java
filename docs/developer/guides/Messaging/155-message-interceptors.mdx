@@ -1,0 +1,271 @@
+---
+title: Message interceptors
+slug: docs/guides/messaging/message-interceptors
+sidebar:
+   order: 155
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
+
+| Interceptor type | Target phase | Typical use cases |
+|------------------|--------------|-------------------|
+| `Dispatch`       | Before publishing/handling a message | Mutate, block, enrich, or observe outgoing messages |
+| `Handler`        | Around handler execution             | Validation, logging, authentication, result decoration |
+| `Batch`          | Around batch processing              | Tracing, retries, context injection, metrics |
+
+All interceptors are **pluggable**, and can be configured via:
+
+- `FluxzeroBuilder` for global registration
+- `@Consumer(handlerInterceptors = ...)`
+- `@Consumer(batchInterceptors = ...)`
+
+---
+
+## Dispatch interceptor
+
+A `DispatchInterceptor` hooks into the **message dispatch phase**—just before the message is published to Fluxzero or
+handled locally.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public class LoggingInterceptor implements DispatchInterceptor {
+        @Override
+        public Message interceptDispatch(Message message, MessageType type, String topic) {
+            log.info("Dispatching: {} to topic {}", type, topic);
+            return message;
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    class LoggingInterceptor : DispatchInterceptor {
+        override fun interceptDispatch(message: Message, type: MessageType, topic: String): Message {
+            log.info("Dispatching: {} to topic {}", type, topic)
+            return message
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+**Capabilities:**
+
+- `interceptDispatch(...)`: Modify, block, or inspect outgoing messages
+- `modifySerializedMessage(...)`: Mutate message after serialization but before transmission
+- `monitorDispatch(...)`: Observe the final message as it's sent
+
+**Register globally:**
+Assuming you are configuring a `FluxzeroBuilder builder`:
+
+<Tabs>
+  <TabItem label="Java">
+```java
+    builder
+        .addDispatchInterceptor(new LoggingInterceptor(), MessageType.COMMAND, MessageType.EVENT);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+```kotlin
+    builder
+        .addDispatchInterceptor(LoggingInterceptor(), MessageType.COMMAND, MessageType.EVENT)
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Handler interceptor
+
+A `HandlerInterceptor` allows wrapping the execution of handler methods, ideal for:
+
+- **Authorization and access control** — prevent unauthorized commands or queries based on the current user
+- **Auditing and logging** — log incoming messages, handler invocations, or emitted results
+- **Validation hooks** — perform extra validation before or after handler execution
+- **Result transformation** — enrich or reformat results before they’re published or returned
+- **Thread context propagation** — populate thread-local state like correlation IDs or security principals
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public class AuthorizationInterceptor implements HandlerInterceptor {
+        @Override
+        public Function<DeserializingMessage, Object> interceptHandling(
+                Function<DeserializingMessage, Object> next, HandlerInvoker invoker) {
+            return message -> {
+                if (!isAuthorized(message)) {
+                    throw new UnauthorizedException();
+                }
+                return next.apply(message);
+            };
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    class AuthorizationInterceptor : HandlerInterceptor {
+        override fun interceptHandling(
+            next: Function<DeserializingMessage, Any>, invoker: HandlerInvoker
+        ): Function<DeserializingMessage, Any> {
+            return Function { message ->
+                if (!isAuthorized(message)) {
+                    throw UnauthorizedException()
+                }
+                next.apply(message)
+            }
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+**Register via annotation or builder:**
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Consumer(handlerInterceptors = AuthorizationInterceptor.class)
+    public class SecureCommandHandler { ... }
+
+    builder
+        .addHandlerInterceptor(new AuthorizationInterceptor(), true, MessageType.COMMAND);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Consumer(handlerInterceptors = [AuthorizationInterceptor::class])
+    class SecureCommandHandler { ... }
+
+    builder
+        .addHandlerInterceptor(AuthorizationInterceptor(), true, MessageType.COMMAND)
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+Here, `true` for `highPriority` means your interceptor runs before other interceptors.
+</Aside>
+
+---
+
+## Batch interceptor
+
+Wraps around the processing of a **full message batch** by a single consumer, ideal for:
+
+- Structured logging
+- Performance instrumentation
+- Scoped resources (e.g. transactions)
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public class LoggingBatchInterceptor implements BatchInterceptor {
+        @Override
+        public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
+            return batch -> {
+                log.info("Start processing {} messages", batch.size());
+                consumer.accept(batch);
+            };
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    class LoggingBatchInterceptor : BatchInterceptor {
+        override fun intercept(consumer: Consumer<MessageBatch>, tracker: Tracker): Consumer<MessageBatch> {
+            return Consumer { batch ->
+                log.info("Start processing {} messages", batch.size())
+                consumer.accept(batch)
+            }
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+**Global install:**
+Assuming you are configuring a `FluxzeroBuilder builder`:
+
+<Tabs>
+  <TabItem label="Java">
+```java
+    builder
+        .addBatchInterceptor(new LoggingBatchInterceptor(), MessageType.EVENT);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+```kotlin
+    builder
+        .addBatchInterceptor(LoggingBatchInterceptor(), MessageType.EVENT)
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+### Mapping batch interceptor
+
+This specialization of `BatchInterceptor` can rewrite or filter the batch itself:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    MappingBatchInterceptor filterTestMessages = (batch, tracker) -> {
+        var filtered = batch.getMessages().stream()
+                .filter(m -> !m.getMetadata().containsKey("testOnly"))
+                .toList();
+        return batch.withMessages(filtered);
+    };
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val filterTestMessages = MappingBatchInterceptor { batch, _ ->
+        val filtered = batch.messages.stream()
+            .filter { !it.metadata.containsKey("testOnly") }
+            .toList()
+        batch.withMessages(filtered)
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+**Install globally:**
+Assuming you are configuring a `FluxzeroBuilder builder`:
+
+<Tabs>
+  <TabItem label="Java">
+```java
+    builder
+        .addBatchInterceptor(filterTestMessages, MessageType.QUERY);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+```kotlin
+    builder
+        .addBatchInterceptor(filterTestMessages, MessageType.QUERY)
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+Interceptors are a central way to add cross-cutting behavior across all stages of message flow,
+from dispatch to handling and batching — empowering modular, observable, and policy-driven systems.
+
+---
+
+## Summary
+
+| Interceptor | Runs at | Purpose |
+|-------------|---------|---------|
+| **DispatchInterceptor** | Before a message is published or handled locally | Mutate, block, enrich, or log outgoing messages |
+| **HandlerInterceptor** | Around handler method execution | Authorization, validation, logging, result transformation |
+| **BatchInterceptor** | Around an entire batch of messages | Tracing, retries, metrics, resource scoping |
+| **MappingBatchInterceptor** | Specialized batch interceptor | Rewrite or filter whole batches before processing |

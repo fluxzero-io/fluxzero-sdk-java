@@ -1,0 +1,209 @@
+---
+title: Error codes
+description: Stable Fluxzero SDK error codes and how to resolve them.
+slug: docs/errors
+sidebar:
+  order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero SDK exceptions can include a stable error code such as `FZ-SDK-0002`, together with a human-readable
+explanation and contextual values from the failing operation.
+
+Use the code as the durable identifier in logs, alerts, support notes, and issue reports. The explanatory text can
+improve between SDK versions, but published codes are not renumbered, renamed, or reused for a different meaning.
+
+<Aside type="note">
+  To avoid flooding logs during repeated failures, the SDK renders the full multi-line explanation for the first 100
+  occurrences of a code in a JVM. Later occurrences keep the error code, title, compact context, and this documentation
+  URL.
+</Aside>
+
+## Error code index
+
+| Code | Meaning |
+| --- | --- |
+| [`FZ-SDK-0001`](#FZ-SDK-0001) | No Fluxzero instance is available |
+| [`FZ-SDK-0002`](#FZ-SDK-0002) | Request timed out while waiting for a result |
+| [`FZ-SDK-0003`](#FZ-SDK-0003) | Handler invocation failed |
+| [`FZ-SDK-0004`](#FZ-SDK-0004) | Response dispatch failed |
+| [`FZ-SDK-0005`](#FZ-SDK-0005) | Thread interrupted while waiting |
+| [`FZ-SDK-0006`](#FZ-SDK-0006) | Message dispatch failed |
+| [`FZ-SDK-0007`](#FZ-SDK-0007) | No `UserProvider` is configured |
+| [`FZ-SDK-0008`](#FZ-SDK-0008) | Tracking consumer configuration is invalid |
+| [`FZ-SDK-0009`](#FZ-SDK-0009) | Periodic schedule configuration is invalid |
+| [`FZ-SDK-0010`](#FZ-SDK-0010) | Tracking failed during runtime |
+
+<h2 id="FZ-SDK-0001">FZ-SDK-0001: No Fluxzero instance is available</h2>
+
+Fluxzero static helpers such as `Fluxzero.sendCommand(...)`, `Fluxzero.queryAndWait(...)`, and `Fluxzero.currentTime()`
+need an active Fluxzero instance.
+
+**You will usually see this when:**
+
+- Code calls `Fluxzero.get()` or a static helper outside `fluxzero.apply(...)`.
+- Startup code uses static helpers before assigning `Fluxzero.applicationInstance`.
+- A test runs Fluxzero code without using `TestFixture`.
+
+**How to fix:**
+
+- Create a Fluxzero instance and run the code inside `fluxzero.apply(...)`.
+- For application startup, assign `Fluxzero.applicationInstance` before using static helpers.
+- In tests, use `TestFixture.create(...)` or `TestFixture.createAsync(...)`.
+
+<h2 id="FZ-SDK-0002">FZ-SDK-0002: Request timed out while waiting for a result</h2>
+
+Fluxzero dispatched a command, query, web request, or other request-like message, but no matching result arrived before
+the configured timeout.
+
+**You will usually see this when:**
+
+- No matching handler is registered or running.
+- The handler is passive or intentionally does not return a result.
+- The handler runs in another process that uses a different namespace, topic, routing key, or consumer configuration.
+- The request was filtered out by routing, authentication, segment, or consumer rules.
+
+**How to fix:**
+
+- Register a matching handler annotation such as `@HandleCommand`, `@HandleQuery`, or `@HandleWeb`.
+- Make sure the handler process and consumer are started and use the same namespace and topic as the sender.
+- Check routing keys, passive handlers, result return values, and authentication filters.
+- Use fire-and-forget dispatch when no result is expected.
+
+<h2 id="FZ-SDK-0003">FZ-SDK-0003: Handler invocation failed</h2>
+
+A selected handler threw an unexpected exception while processing a message.
+
+**You will usually see this when:**
+
+- Handler code throws a runtime exception.
+- A handler interceptor fails before or after invoking the handler.
+- Parameter resolution, authentication context, or payload assumptions do not match the actual message.
+
+**How to fix:**
+
+- Inspect the original cause and stack trace.
+- Verify the handler assumptions, resolved parameters, authentication context, and payload shape.
+- Use a `FunctionalException`, such as `IllegalCommandException`, for expected business rejections.
+
+<h2 id="FZ-SDK-0004">FZ-SDK-0004: Response dispatch failed</h2>
+
+Fluxzero handled a request but failed while publishing the response back to the requester.
+
+**You will usually see this when:**
+
+- The response payload cannot be serialized.
+- A dispatch interceptor throws while handling the response.
+- The result log, web response channel, or Fluxzero client is unavailable.
+
+**How to fix:**
+
+- Check the original cause in the exception.
+- Verify that the response payload is serializable by the configured serializer.
+- Inspect custom dispatch interceptors.
+- Check connectivity to the Fluxzero client and result or web-response log.
+
+<h2 id="FZ-SDK-0005">FZ-SDK-0005: Thread interrupted while waiting</h2>
+
+The current thread was interrupted while Fluxzero was blocking for a request result or another wait operation.
+
+**You will usually see this when:**
+
+- The application, container, or test runner cancels the thread.
+- Shutdown starts while a request is waiting for a result.
+- Application-level timeout handling interrupts the waiting thread.
+
+**How to fix:**
+
+- Check the caller that owns the interrupted thread.
+- Decide whether interruption is expected during shutdown or cancellation.
+- If the operation is safe to retry, handle the interruption at the application boundary and retry there.
+
+<h2 id="FZ-SDK-0006">FZ-SDK-0006: Message dispatch failed</h2>
+
+Fluxzero tried to publish one or more messages, but dispatch failed before the messages were accepted.
+
+**You will usually see this when:**
+
+- A dispatch interceptor throws.
+- A payload cannot be serialized.
+- The Fluxzero client is closed, misconfigured, or disconnected.
+- Namespace or topic configuration does not match the intended message log.
+
+**How to fix:**
+
+- Check the original cause in the exception.
+- Verify custom dispatch interceptors for the message type.
+- Check serializer configuration for the payload.
+- Check Fluxzero client connectivity, namespace, and topic settings.
+
+<h2 id="FZ-SDK-0007">FZ-SDK-0007: No UserProvider is configured</h2>
+
+`Message.addUser(...)` was called, but Fluxzero could not find a configured `UserProvider`.
+
+**You will usually see this when:**
+
+- Application code attaches a user to a message without registering a `UserProvider`.
+- A test builds messages with users but does not configure user serialization.
+
+**How to fix:**
+
+- Configure a `UserProvider` on the Fluxzero instance.
+- For simple applications, set `UserProvider.defaultUserProvider` before adding users to messages.
+- Remove `Message.addUser(...)` when the message does not need user metadata.
+
+<h2 id="FZ-SDK-0008">FZ-SDK-0008: Tracking consumer configuration is invalid</h2>
+
+Fluxzero could not assign tracking handlers to valid consumer configurations, or tracking was requested for a message type
+that is not supported by the current Fluxzero instance.
+
+**You will usually see this when:**
+
+- Two consumers have the same name.
+- A handler is registered after tracking has already started.
+- A handler does not match any `@Consumer` or `ConsumerConfiguration`.
+- `Fluxzero.tracking(...)` is called for a message type without a tracking component.
+
+**How to fix:**
+
+- Make consumer names unique.
+- Register handlers before tracking starts.
+- Add a matching `@Consumer` annotation or `ConsumerConfiguration`.
+- Use a message type that is configured for tracking in this Fluxzero instance.
+
+<h2 id="FZ-SDK-0009">FZ-SDK-0009: Periodic schedule configuration is invalid</h2>
+
+Fluxzero could not calculate a periodic schedule from `@Periodic` metadata.
+
+**You will usually see this when:**
+
+- `@Periodic` has no cron expression and no positive delay.
+- `MessageScheduler.schedulePeriodic(...)` is called for a type without `@Periodic`.
+- A schedule is meant to be disabled but is not marked with `Periodic.DISABLED`.
+
+**How to fix:**
+
+- Add a cron expression, for example `@Periodic(cron = "0 * * * *")`.
+- Or add a positive delay, for example `@Periodic(delay = 60, timeUnit = TimeUnit.SECONDS)`.
+- Use `@Periodic(cron = Periodic.DISABLED)` when the schedule should be disabled by configuration.
+- Use `schedule(...)` directly when application code calculates the deadline.
+
+<h2 id="FZ-SDK-0010">FZ-SDK-0010: Tracking failed during runtime</h2>
+
+A tracker failed while managing runtime state, such as storing its position or suspending after reaching a configured max
+index.
+
+**You will usually see this when:**
+
+- The tracker cannot store its position.
+- The Fluxzero client or message store is unavailable while tracking is running.
+- The tracker is interrupted during shutdown or cancellation.
+- Message-log maintenance state cannot be checked while suspending a tracker.
+
+**How to fix:**
+
+- Check the original cause in the exception.
+- Verify that the Fluxzero client and message store are reachable.
+- Check whether shutdown, interruption, or disconnect behavior was expected.
+- If the failure happened during normal processing, restart the affected tracker after resolving the underlying cause.

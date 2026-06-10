@@ -1,0 +1,118 @@
+---
+title: Payload validation
+description: Payload validation
+slug: docs/guides/messaging/payload-validation
+sidebar:
+   order: 70
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero automatically validates incoming request payloads using its built-in
+<a href="https://jakarta.ee/specifications/bean-validation/3.1/" target="_blank" rel="noopener noreferrer">Jakarta Validation 3.1 <span aria-hidden="true">↗</span></a>
+implementation. Hibernate Validator is not required for normal SDK payload validation.
+
+This includes support for:
+
+- standard Jakarta constraints such as `@NotNull`, `@NotBlank`, `@Size`, `@Pattern`, numeric constraints, and temporal
+  constraints
+- `@Valid` on nested objects and container/type-use validation
+- validation groups, group sequences, group conversion, and custom constraint validators
+- executable parameter and return-value validation
+- contextual method constraints such as `@AssertTrue` methods that inject parameters via Fluxzero's configured
+  `ParameterResolver`s
+- Constraint violations in command/query/webrequest payloads
+
+If a constraint is violated, the handler method is **never called**. Instead, a `ValidationException` is thrown before the handler is invoked.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+public record CreateUser(@NotBlank String userId,
+                         @NotNull @Valid UserProfile profile) {
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+data class CreateUser(
+    @field:NotBlank val userId: String,
+    @field:NotNull @field:Valid val profile: UserProfile
+)
+```
+
+</TabItem>
+</Tabs>
+
+## Context-aware constraint methods
+
+Constraint methods on a payload may request contextual parameters that the SDK's default validator can inject while a
+message is being handled. It uses the same resolver set as handler method injection, so values such as `User`,
+`Message`, `DeserializingMessage`, `Metadata`, and custom resolver values can be used directly.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+public record CreateUser(@NotBlank String userId) {
+    @AssertTrue(message = "Only admins may create admin users")
+    boolean allowedBy(User user, Message message) {
+        return !userId.startsWith("admin-") || user != null && user.hasRole("admin");
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+data class CreateUser(@field:NotBlank val userId: String) {
+    @AssertTrue(message = "Only admins may create admin users")
+    fun allowedBy(user: User?): Boolean {
+        return !userId.startsWith("admin-") || user?.hasRole("admin") == true
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="note">
+  If a constrained method declares parameters that cannot be resolved in the current validation context, Fluxzero skips
+  that method for that validation run. Keep required structural checks on fields or no-argument constraint methods when
+  a rule must also apply outside message handling.
+</Aside>
+
+You can disable this validation entirely by calling:
+Assuming you are configuring a `FluxzeroBuilder builder`:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+builder.disablePayloadValidation();
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+builder.disablePayloadValidation()
+```
+
+</TabItem>
+</Tabs>
+
+Of course, it's also easy to provide your own validation if desired. Use `replaceValidator(...)` on the
+`FluxzeroBuilder` to replace the configured validator. Convenience methods on `ValidationUtils` delegate to the
+validator of the current `Fluxzero` instance when one is bound, and otherwise fall back to `ValidationUtils.defaultValidator`.
+
+<Aside type="tip">
+  Fluxzero automatically correlates errors with the triggering message (e.g., a command or event).
+  This means you don’t need to log extra context like the message payload or user ID — that information is already available in the audit trail in Fluxzero Runtime.
+  It also encourages using <strong>clear, user-facing error messages</strong> without leaking internal details.
+</Aside>

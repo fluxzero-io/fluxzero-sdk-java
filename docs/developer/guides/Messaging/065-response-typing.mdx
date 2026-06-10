@@ -1,0 +1,98 @@
+---
+title: Response typing
+slug: docs/guides/configuration/response-typing
+sidebar:
+   order: 65
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows you to formalize the expected return type of commands and queries by implementing the `Request<R>` interface. This lets the framework:
+
+- Infer the response type at runtime and during testing
+- Validate handler methods at compile-time (e.g., `@HandleQuery` must return an `R`)
+- Simplify `queryAndWait(...)` or `sendCommand(...)` invocations
+
+Here’s an example for a query:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Value
+public class GetUserProfile implements Request<UserProfile> {
+    String userId;
+
+    @HandleQuery
+    UserProfile handle() {
+        return loadProfile(userId);
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+data class GetUserProfile(val userId: String) : Request<UserProfile> {
+
+    @HandleQuery
+    fun handle(): UserProfile {
+        return loadProfile(userId)
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+Now, when calling this query, the return type is automatically known:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+UserProfile profile = Fluxzero.queryAndWait(new GetUserProfile("123"));
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val profile = Fluxzero.queryAndWait(GetUserProfile("123"))
+```
+
+</TabItem>
+</Tabs>
+
+When implementing `Request<R>`, the expected result type (R) is automatically inferred during testing and execution. This enables type-safe tests like:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+testFixture.whenQuery(new GetUserProfile("123"))
+        .expectResult(profile -> profile.getUserId().equals("123"));
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+testFixture.whenQuery(GetUserProfile("123"))
+        .expectResult { it.userId == "123" }
+```
+
+</TabItem>
+</Tabs>
+
+If a class implements `Request<R>`, Fluxzero will use its declared generic type (R) to check that:
+
+- A compatible handler exists
+- The handler returns the correct result type
+- The correct response is expected during testing
+
+<Aside type="tip">
+  This pattern is highly recommended for queries, as it reduces boilerplate and improves correctness.
+</Aside>

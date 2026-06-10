@@ -1,0 +1,212 @@
+---
+title: Dynamic dead-lettering
+description: Dynamic dead-lettering
+slug: docs/guides/messaging/dynamic-dead-lettering
+sidebar:
+   order: 50
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+The **error log is durable** and **replayable**, which means you can treat it as a **powerful, dynamic DLQ**.
+
+Here’s how:
+
+1. Deploy a special consumer that tracks the error log.
+2. Use `@Trigger` to access and inspect failed messages.
+3. Filter and replay failures based on time, payload type, or originating app.
+
+## Example: retrying failed commands
+
+Let’s assume a bug caused command processing to fail in September 2025. The following setup reprocesses those failed commands:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Consumer(name = "command-dlq",
+        minIndex = 115126095052800000L,
+        maxIndexExclusive = 115295964364800000L) // 2025-09-01 to 2025-10-01
+class CommandReplayHandler {
+
+    @HandleError
+    void retry(ConsoleError error, @Trigger(messageType = MessageType.COMMAND) MyCommand failedCommand) {
+        Fluxzero.sendCommand(failedCommand);
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Consumer(
+    name = "command-dlq",
+    minIndex = 115126095052800000L,
+    maxIndexExclusive = 115295964364800000L) // 2025-09-01 to 2025-10-01
+)
+class CommandReplayHandler {
+
+    @HandleError
+    fun retry(error: ConsoleError, @Trigger(messageType = MessageType.COMMAND) failedCommand: MyCommand) {
+        Fluxzero.sendCommand(failedCommand)
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+  The original <code>MyCommand</code> payload is restored and retried transparently. You can combine this with logic that deduplicates, transforms, or selectively suppresses retries.
+</Aside>
+
+## When to use the Error log
+
+| Use case                    | How the Error log helps             |
+|----------------------------|--------------------------------------|
+| Fix a bug retroactively    | Replay failed commands from the past |
+| Validate new handler logic | Test it against real-world errors    |
+| Retry transient failures   | Re-issue requests with retry logic   |
+| Clean up or suppress errors| Filter out known false-positives     |
+
+The error log acts as a **time-travel debugger** — it gives you full control over how and when to address failures, now or in the future.
+
+---
+
+## Routing with @RoutingKey
+
+In Fluxzero, routing is used to assign messages to **segments** using consistent hashing. This ensures that messages about the same entity — for example, all events for a given `OrderId` — are always handled by the **same consumer**, in **the correct order**.
+
+This is critical when you're handling messages in parallel, but still want to ensure **per-entity consistency**.
+
+### Declaring the routing key
+
+By default, the routing key is derived from the message ID. But you can override this by annotating a field, getter, or method in your payload class with `@RoutingKey`.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+public record ShipOrder(@RoutingKey OrderId orderId) {
+}
+```
+
+```java
+@RoutingKey("customer/id")
+public record OrderPlaced(Customer customer) {
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+data class ShipOrder(
+    @RoutingKey val orderId: OrderId
+)
+```
+
+```kotlin
+@RoutingKey("customer/id")
+data class OrderPlaced(
+    val customer: Customer
+)
+```
+
+</TabItem>
+</Tabs>
+
+This instructs Fluxzero to extract `customer.id` and use it as the routing key when publishing or consuming the message.
+
+### Handler-level routing keys
+
+In advanced cases, you may want to override routing at the handler level, regardless of how the message was published.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@HandleEvent
+@RoutingKey("organisationId")
+void handle(OrganisationUpdate event) {
+    // Will route based on organisationId in metadata or payload
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@HandleEvent
+@RoutingKey("organisationId")
+fun handle(event: OrganisationUpdate) {
+    // Will route based on organisationId in metadata or payload
+}
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="caution">
+  When overriding routing at the handler level, declare your consumer with <code>ignoreSegment = true</code>. Otherwise, certain messages may be silently skipped.
+</Aside>
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Consumer(ignoreSegment = true)
+public class OrganisationHandler {
+    ...
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Consumer(ignoreSegment = true)
+class OrganisationHandler {
+    ...
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Metadata-based routing
+
+You can also extract routing keys from **message metadata**. If the metadata key is missing, Fluxzero falls back to the payload.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@RoutingKey("userId")
+public class AuditLogEntry {
+    ...
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@RoutingKey("userId")
+class AuditLogEntry {
+    ...
+}
+```
+
+</TabItem>
+</Tabs>
+
+### Summary
+
+| Placement      | Meaning                                                                 |
+|----------------|-------------------------------------------------------------------------|
+| Field/getter   | Use the property's value as routing key                                 |
+| Class-level    | Use the named property in metadata or payload                           |
+| Handler method | Overrides routing key used during handling (requires `ignoreSegment`)   |
