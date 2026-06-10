@@ -517,6 +517,37 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "doHandleBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#doHandleBatch",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.lang.Iterable<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reportResult",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "explicitConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#explicitConfigurations",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.tracking.ConsumerConfiguration>",
@@ -1024,6 +1055,27 @@
     }, {
       "name" : "fluxzero",
       "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runInSendAndForgetCompletionScope",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#runInSendAndForgetCompletionScope",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

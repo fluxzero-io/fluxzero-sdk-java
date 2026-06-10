@@ -39,6 +39,17 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.\n <p>\n The default is {@code false}, matching the historical fire-and-forget behavior: asynchronous results are\n published when they complete, while the tracker can continue with the next batch.\n"
   }, {
+    "name" : "awaitSendAndForgetFutures",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, futures returned by fire-and-forget dispatches started during this consumer's batch processing\n must complete before the consumer stores its position.\n <p>\n The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee\n before tracker progress is committed without each handler explicitly waiting on the returned future.\n Failures while awaiting are handled by this consumer's error handler like other batch processing failures.\n"
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#batchInterceptors",
     "returnType" : "java.lang.Class<? extends io.fluxzero.sdk.tracking.BatchInterceptor>[]",

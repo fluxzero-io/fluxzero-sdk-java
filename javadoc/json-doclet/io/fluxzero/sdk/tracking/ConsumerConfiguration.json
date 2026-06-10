@@ -83,6 +83,22 @@
     "documentation" : " If true, asynchronous handler results are awaited before the consumer completes the current batch.\n <p>\n When false, asynchronous results are still published when they complete, but the consumer can store its position\n and fetch the next batch without waiting for those futures. This is the historical default and is useful for\n high-throughput request handlers where each request has its own response correlation and batch-level ordering is\n not needed.\n",
     "constantValue" : null
   }, {
+    "name" : "awaitSendAndForgetFutures",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.awaitSendAndForgetFutures",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : " If true, futures returned by fire-and-forget dispatches started during this consumer's batch processing are\n awaited before the consumer stores its position.\n <p>\n This lets handlers use {@code sendAndForget(..., Guarantee.STORED)} without explicitly joining the returned\n future just to ensure the dispatch has reached its guarantee before the tracker commits progress. Disable this\n for consumers that intentionally let fire-and-forget dispatches complete independently from batch commits.\n Failures while awaiting are handled by this consumer's error handler like other batch processing failures.\n",
+    "constantValue" : null
+  }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.batchInterceptors",
     "type" : "java.util.List<io.fluxzero.sdk.tracking.BatchInterceptor>",
