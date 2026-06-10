@@ -165,7 +165,42 @@ jobs:
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
 
-  # Job 5: Build and push test-server Docker image (runs in parallel after build)
+  # Job 5: Notify fluxzero-site after the SDK build succeeds
+  fluxzero-site:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create fluxzero-site app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.SITE_BUILD_DISPATCHER_APP_ID }}
+          private-key: ${{ secrets.SITE_BUILD_DISPATCHER_PRIVATE_KEY }}
+          owner: fluxzero-io
+          repositories: fluxzero-site
+          permission-contents: write
+
+      - name: Notify fluxzero-site
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'fluxzero-io',
+              repo: 'fluxzero-site',
+              event_type: 'fluxzero-sdk-updated',
+              client_payload: {
+                sdk_repository: `${context.repo.owner}/${context.repo.repo}`,
+                sdk_ref: context.ref,
+                sdk_before: context.payload.before || '',
+                sdk_sha: context.sha,
+                sdk_version: '${{ needs.build-and-test.outputs.version-tag }}',
+                before: context.payload.before || '',
+                after: context.sha,
+              },
+            });
+
+  # Job 6: Build and push test-server Docker image (runs in parallel after build)
   docker-test-server:
     needs: build-and-test
     runs-on: ubuntu-latest
@@ -224,7 +259,7 @@ jobs:
           tags: ${{ steps.metadata-test-server.outputs.tags }}
           labels: ${{ steps.metadata-test-server.outputs.labels }}
 
-  # Job 6: Build and push proxy Docker image (runs in parallel after build)
+  # Job 7: Build and push proxy Docker image (runs in parallel after build)
   docker-proxy:
     needs: build-and-test
     runs-on: ubuntu-latest
