@@ -63,6 +63,7 @@ import static io.fluxzero.sdk.Fluxzero.loadAggregateFor;
 import static io.fluxzero.sdk.Fluxzero.loadEntity;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -89,9 +90,8 @@ public class AggregateEntitiesTest {
     }
 
     void expectEntities(Class<?> parentClass, Predicate<Collection<Entity<?>>> predicate) {
-        testFixture
-                .whenApplying(fc -> loadAggregate("test", (Class<?>) parentClass).allEntities().collect(toList()))
-                .expectResult(predicate);
+        Collection<Entity<?>> entities = loadAggregate("test", (Class<?>) parentClass).allEntities().collect(toList());
+        assertTrue(predicate.test(entities), () -> "Expected entity predicate to match " + entities);
     }
 
     private boolean folderState(Folder root, List<String> path, List<String> expectedFolders, List<String> expectedFiles) {
@@ -1527,42 +1527,54 @@ public class AggregateEntitiesTest {
 
     @Nested
     class MutableEntityTests {
-        private final TestFixture testFixture = TestFixture.create(new CommandHandler()).given(
-                fc -> loadAggregate("test", MutableAggregate.class)
-                        .update(s -> new MutableAggregate(null)));
-
         @Test
         void createMutableEntity() {
-            testFixture.whenCommand(new CreateMutableEntity("childId")).expectThat(
-                    fc -> expectEntity(MutableAggregate.class, e -> "childId".equals(e.id())));
+            String aggregateId = "createMutableEntity";
+            String childId = "createChildId";
+            testFixture(aggregateId).whenCommand(new CreateMutableEntity(childId)).expectThat(
+                    fc -> expectEntity(aggregateId, e -> childId.equals(e.id())));
         }
 
         @Test
         void deleteMutableEntity() {
-            testFixture.givenCommands(new CreateMutableEntity("childId"))
-                    .whenCommand(new DeleteMutableEntity("childId")).expectThat(
-                            fc -> expectNoEntity(MutableAggregate.class, e -> "childId".equals(e.id())));
+            String aggregateId = "deleteMutableEntity";
+            String childId = "deleteChildId";
+            testFixture(aggregateId).givenCommands(new CreateMutableEntity(childId))
+                    .whenCommand(new DeleteMutableEntity(childId)).expectThat(
+                            fc -> expectNoEntity(aggregateId, e -> childId.equals(e.id())));
+        }
+
+        TestFixture testFixture(String aggregateId) {
+            return TestFixture.create(new CommandHandler(aggregateId)).given(
+                    fc -> loadAggregate(aggregateId, MutableAggregate.class)
+                            .update(s -> new MutableAggregate(null)));
         }
 
         class CommandHandler {
+            private final String aggregateId;
+
+            CommandHandler(String aggregateId) {
+                this.aggregateId = aggregateId;
+            }
+
             @HandleCommand
             void handle(Object command) {
-                loadAggregate("test", MutableAggregate.class).apply(command);
+                loadAggregate(aggregateId, MutableAggregate.class).apply(command);
             }
         }
 
-        void expectEntity(Class<?> parentClass, Predicate<Entity<?>> predicate) {
-            expectEntities(parentClass, entities -> entities.stream().anyMatch(predicate));
+        void expectEntity(String aggregateId, Predicate<Entity<?>> predicate) {
+            expectEntities(aggregateId, entities -> entities.stream().anyMatch(predicate));
         }
 
-        void expectNoEntity(Class<?> parentClass, Predicate<Entity<?>> predicate) {
-            expectEntities(parentClass, entities -> entities.stream().noneMatch(predicate));
+        void expectNoEntity(String aggregateId, Predicate<Entity<?>> predicate) {
+            expectEntities(aggregateId, entities -> entities.stream().noneMatch(predicate));
         }
 
-        void expectEntities(Class<?> parentClass, Predicate<Collection<Entity<?>>> predicate) {
-            testFixture
-                    .whenApplying(fc -> loadAggregate("test", (Class) parentClass).allEntities().collect(toList()))
-                    .expectResult(predicate);
+        void expectEntities(String aggregateId, Predicate<Collection<Entity<?>>> predicate) {
+            Collection<Entity<?>> entities =
+                    loadAggregate(aggregateId, MutableAggregate.class).allEntities().collect(toList());
+            assertTrue(predicate.test(entities), () -> "Expected entity predicate to match " + entities);
         }
 
     }
