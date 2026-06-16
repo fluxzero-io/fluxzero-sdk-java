@@ -16,10 +16,10 @@
     "name" : "DEFAULT_USER_KEY",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.DEFAULT_USER_KEY",
     "type" : "java.lang.String",
-    "modifiers" : [ "public", "static" ],
+    "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
     "documentation" : " Default key used in {@link Metadata} to store {@link User} objects.\n",
-    "constantValue" : null
+    "constantValue" : "$user"
   }, {
     "name" : "metadataKey",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.metadataKey",
