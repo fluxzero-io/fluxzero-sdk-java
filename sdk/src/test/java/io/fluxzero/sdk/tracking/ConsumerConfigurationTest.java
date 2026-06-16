@@ -27,6 +27,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Slf4j
+@Isolated
 public class ConsumerConfigurationTest {
     private final Clock nowClock = Clock.fixed(Instant.parse("2022-01-01T00:00:00.000Z"), ZoneId.systemDefault());
     private static final List<String> invocationOrder = new CopyOnWriteArrayList<>();
