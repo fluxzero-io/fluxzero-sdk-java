@@ -149,6 +149,12 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             "Transfer-Encoding",
             "Upgrade");
 
+    private static final Set<String> IMPLEMENTATION_RESPONSE_HEADERS = Set.of(
+            "Server",
+            "X-Powered-By",
+            "X-AspNet-Version",
+            "X-AspNetMvc-Version");
+
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
     }
@@ -981,7 +987,8 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
     private static boolean isForwardableResponseHeader(String name) {
         return name != null && !name.isBlank()
                && !name.startsWith(":")
-               && HOP_BY_HOP_RESPONSE_HEADERS.stream().noneMatch(name::equalsIgnoreCase);
+               && HOP_BY_HOP_RESPONSE_HEADERS.stream().noneMatch(name::equalsIgnoreCase)
+               && IMPLEMENTATION_RESPONSE_HEADERS.stream().noneMatch(name::equalsIgnoreCase);
     }
 
     protected void sendServerError(JettyExchange exchange) {

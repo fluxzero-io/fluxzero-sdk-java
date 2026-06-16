@@ -202,6 +202,8 @@ public class ProxyServer implements Registration {
         server.setStopTimeout(gracefulShutdown ? GRACEFUL_STOP_TIMEOUT_MILLIS : IMMEDIATE_STOP_TIMEOUT_MILLIS);
 
         HttpConfiguration httpConfiguration = new HttpConfiguration();
+        httpConfiguration.setSendServerVersion(false);
+        httpConfiguration.setSendXPoweredBy(false);
         int maxHeaderSize = getIntegerProperty(MAX_HEADER_SIZE_PROPERTY, DEFAULT_MAX_HEADER_SIZE);
         httpConfiguration.setRequestHeaderSize(maxHeaderSize);
         httpConfiguration.setResponseHeaderSize(maxHeaderSize);

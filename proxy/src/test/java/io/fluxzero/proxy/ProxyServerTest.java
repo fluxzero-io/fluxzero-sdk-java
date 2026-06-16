@@ -129,6 +129,36 @@ class ProxyServerTest {
         }
 
         @Test
+        void responsesDoNotExposeServerVersion() {
+            testFixture.whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> assertHeaderAbsent(response.headers(), "Server"));
+        }
+
+        @Test
+        void jettyGeneratedErrorResponsesDoNotExposeServerVersion() throws Exception {
+            String response;
+            try (Socket socket = new Socket("localhost", proxyPort)) {
+                socket.setSoTimeout(3000);
+                OutputStream output = socket.getOutputStream();
+                output.write(("GET /proxy/health HTTP/1.1\r\n"
+                              + "Host: localhost\r\n"
+                              + "X-Oversized: %s\r\n"
+                              + "Connection: close\r\n"
+                              + "\r\n").formatted("x".repeat(ProxyServer.DEFAULT_MAX_HEADER_SIZE + 1))
+                        .getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            }
+
+            assertTrue(response.startsWith("HTTP/1.1 431"), () -> "Expected oversized headers to be rejected, got: "
+                                                                   + response);
+            assertRawHeaderAbsent(response, "Server");
+            assertRawHeaderAbsent(response, "X-Powered-By");
+        }
+
+        @Test
         @ResourceLock("PROXY_HEALTH_ENDPOINT")
         void healthEndpointCanBeConfigured() throws Exception {
             String previousValue = System.getProperty("PROXY_HEALTH_ENDPOINT");
@@ -344,6 +374,10 @@ class ProxyServerTest {
                                     .header("Trailer", "Expires")
                                     .header("Transfer-Encoding", "chunked")
                                     .header("Upgrade", "websocket")
+                                    .header("Server", "backend/1.2.3")
+                                    .header("X-Powered-By", "runtime")
+                                    .header("X-AspNet-Version", "4.0.30319")
+                                    .header("X-AspNetMvc-Version", "5.2")
                                     .header("X-Keep", "yes")
                                     .payload("ok")
                                     .build();
@@ -362,6 +396,10 @@ class ProxyServerTest {
                         assertTrue(response.headers().firstValue("Connection").isEmpty());
                         assertTrue(response.headers().firstValue("Transfer-Encoding").isEmpty());
                         assertTrue(response.headers().firstValue("Upgrade").isEmpty());
+                        assertHeaderAbsent(response.headers(), "Server");
+                        assertHeaderAbsent(response.headers(), "X-Powered-By");
+                        assertHeaderAbsent(response.headers(), "X-AspNet-Version");
+                        assertHeaderAbsent(response.headers(), "X-AspNetMvc-Version");
                     });
         }
 
@@ -1912,6 +1950,20 @@ class ProxyServerTest {
         assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER).isEmpty());
         assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER).isEmpty());
         assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER).isEmpty());
+    }
+
+    private static void assertHeaderAbsent(HttpHeaders headers, String name) {
+        assertTrue(headers.map().keySet().stream().noneMatch(name::equalsIgnoreCase),
+                   () -> "Expected response header to be absent: " + name);
+    }
+
+    private static void assertRawHeaderAbsent(String response, String name) {
+        String headerBlock = response.split("\\R\\R", 2)[0];
+        boolean present = headerBlock.lines()
+                .skip(1)
+                .map(line -> line.split(":", 2)[0].trim())
+                .anyMatch(name::equalsIgnoreCase);
+        assertFalse(present, () -> "Expected raw response header to be absent: " + name + "\n" + headerBlock);
     }
 
     private static Instant assertBenchmarkInstantHeader(HttpHeaders headers, String name) {
