@@ -71,11 +71,7 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     protected User getCurrentUser(DeserializingMessage m) {
-        Optional<RefreshableUser> refreshableUser = m.getContext(RefreshableUser.class);
-        if (refreshableUser.isPresent()) {
-            return refreshableUser.get().user();
-        }
-        return userProvider.fromMessage(m);
+        return getAuthorizingUser(m);
     }
 
     protected User getDispatchUser(Message m, MessageType messageType) {
