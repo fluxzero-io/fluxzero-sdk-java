@@ -69,6 +69,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "IMPLEMENTATION_RESPONSE_HEADERS",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.IMPLEMENTATION_RESPONSE_HEADERS",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "REQUEST_CHUNKING_ENABLED_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler.REQUEST_CHUNKING_ENABLED_PROPERTY",
     "type" : "java.lang.String",

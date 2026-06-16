@@ -26,17 +26,17 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_JWKS_URL"
   }, {
+    "name" : "NAMESPACE_HEADER_MODE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.NAMESPACE_HEADER_MODE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_PROXY_NAMESPACE_HEADER_MODE"
+  }, {
     "name" : "jwtVerifier",
     "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.jwtVerifier",
     "type" : "java.util.function.Supplier<io.fluxzero.proxy.JwtVerifier>",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "namespaceDecoder",
-    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector.namespaceDecoder",
-    "type" : "java.util.function.Function<java.lang.String,java.lang.String>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -54,6 +54,49 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "decodeRawOrSigned",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#decodeRawOrSigned",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "encoded",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeSigned",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#decodeSigned",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "encoded",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMode",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#getMode",
+    "returnType" : "io.fluxzero.proxy.NamespaceSelector.HeaderMode",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "select",
     "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#select",
     "returnType" : "java.lang.String",
@@ -68,9 +111,36 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the\n header identified by {@code FLUXZERO_NAMESPACE_HEADER} and is processed using the {@code namespaceDecoder}\n function to decode it.\n\n @param webRequest the incoming HTTP web request containing the namespace header\n @return the decoded namespace string, or {@code null} if the header is not present or the decoding fails\n"
+    "documentation" : " Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the\n header identified by {@code FLUXZERO_NAMESPACE_HEADER}. The configured namespace header mode determines whether\n raw values are accepted, signed values are required, or the header is rejected completely.\n\n @param webRequest the incoming HTTP web request containing the namespace header\n @return the decoded namespace string, or {@code null} if the header is not present\n"
+  }, {
+    "name" : "verify",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector#verify",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "verifier",
+      "type" : "io.fluxzero.proxy.JwtVerifier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "encoded",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "HeaderMode",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector$HeaderMode",
+    "kind" : "enum",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

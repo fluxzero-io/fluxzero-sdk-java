@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector",
     "kind" : "class"
   }, {
+    "file" : "NamespaceSelector.HeaderMode.json",
+    "name" : "NamespaceSelector.HeaderMode",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector$HeaderMode",
+    "kind" : "enum"
+  }, {
     "file" : "ProxyRequestHandler.json",
     "name" : "ProxyRequestHandler",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",
