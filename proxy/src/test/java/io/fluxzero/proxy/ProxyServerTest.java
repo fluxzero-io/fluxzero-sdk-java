@@ -89,6 +89,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
+import static io.fluxzero.proxy.NamespaceSelector.NAMESPACE_HEADER_MODE_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -1292,27 +1293,74 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        @ResourceLock(JWKS_URL_PROPERTY)
+        void signedModeRejectsUnsignedNamespaceHeader() {
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "signed");
+
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(401, response.statusCode());
+                            assertEquals("Namespace headers should be signed", response.body());
+                        });
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
+        }
+
+        @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        void disabledModeRejectsNamespaceHeader() {
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "disabled");
+
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(401, response.statusCode());
+                            assertEquals("Namespace header is disabled", response.body());
+                        });
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
+        }
+
+        @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        @ResourceLock(JWKS_URL_PROPERTY)
         void getNamespacedWithJwt() {
             var pair = TestJwtUtil.create("test", "test_kid");
             String jwt = pair.getKey();
             String jwksResponse = pair.getValue();
-            withJwksServer(jwksResponse, url ->
-                    testFixture
-                            .registerHandlers(new NamespacedHandler())
-                            .whenApplying(fc -> httpClient.send(
-                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                    BodyHandlers.ofString()).body())
-                            .expectResult("Hello test")
-                            .andThen()
-                            .whenApplying(fc -> httpClient.send(
-                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                    BodyHandlers.ofString()).body())
-                            .expectResult("Hello test"));
-
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "signed");
+                withJwksServer(jwksResponse, url ->
+                        testFixture
+                                .registerHandlers(new NamespacedHandler())
+                                .whenApplying(fc -> httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString()).body())
+                                .expectResult("Hello test")
+                                .andThen()
+                                .whenApplying(fc -> httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString()).body())
+                                .expectResult("Hello test"));
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
 
         }
 
         @Test
+        @ResourceLock(JWKS_URL_PROPERTY)
         void signedNamespaceHeaderIsRevalidatedForRepeatedValues() {
             Instant expiresAt = Instant.now().plusSeconds(2);
             var pair = TestJwtUtil.create("test", "expiring_kid", expiresAt);
