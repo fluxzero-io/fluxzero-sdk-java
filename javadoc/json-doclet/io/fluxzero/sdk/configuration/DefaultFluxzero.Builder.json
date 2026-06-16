@@ -260,7 +260,7 @@
   }, {
     "name" : "maxPublicationDepth",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder.maxPublicationDepth",
-    "type" : "int",
+    "type" : "java.lang.Integer",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1139,6 +1139,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxPublicationDepth",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#maxPublicationDepth",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

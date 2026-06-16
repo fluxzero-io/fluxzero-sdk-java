@@ -115,6 +115,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the decrypted value of the given property name.\n\n <p>If the underlying property is encrypted (i.e., {@link Encryption#isEncrypted(String)} is {@code true}),\n it is decrypted using the configured {@link Encryption} implementation.\n Otherwise, the raw value is returned unchanged.\n\n <p>Values are cached after the first decryption attempt for efficiency.\n\n @param name the property key\n @return the decrypted or original property value, or {@code null} if not found\n"
+  }, {
+    "name" : "resolveEncryptionKey",
+    "qualifiedName" : "io.fluxzero.common.application.DecryptingPropertySource#resolveEncryptionKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
