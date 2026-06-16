@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling.validation;
 
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Range;
@@ -230,18 +231,13 @@ class DefaultValidatorTest {
 
     @Test
     void beanPropertyMethodNameCompatibilityIgnoresNonGetterMethodConstraints() {
-        String property = DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY;
-        String previous = System.getProperty(property);
-        try {
-            System.setProperty(property, "true");
-            subject.assertValid(new ArbitraryMethodConstraint());
-        } finally {
-            if (previous == null) {
-                System.clearProperty(property);
-            } else {
-                System.setProperty(property, previous);
-            }
-        }
+        TestFixture.create()
+                .withProperty(DefaultValidator.BEAN_PROPERTY_METHOD_NAMES_ONLY_PROPERTY, true)
+                .whenApplying(fc -> {
+                    subject.assertValid(new ArbitraryMethodConstraint());
+                    return null;
+                })
+                .expectNoResult();
     }
 
     @Test

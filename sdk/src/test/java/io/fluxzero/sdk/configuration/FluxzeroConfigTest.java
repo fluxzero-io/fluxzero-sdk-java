@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration;
@@ -28,7 +29,6 @@ import java.util.Map;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.QUERY;
-import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -66,8 +66,9 @@ public class FluxzeroConfigTest {
 
     @Test
     void publicationDepthDefaultCanBeConfiguredByProperty() {
-        FluxzeroConfiguration configuration = callWithSystemProperties(
-                DefaultFluxzero::builder, "fluxzero.maxPublicationDepth", "37");
+        FluxzeroConfiguration configuration = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        "fluxzero.maxPublicationDepth", "37")).andThen(existing));
 
         assertEquals(37, configuration.maxPublicationDepth());
     }

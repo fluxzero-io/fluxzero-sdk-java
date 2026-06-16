@@ -10,18 +10,23 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration;
 
+import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.encryption.DefaultEncryption;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.Map;
 
-import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -30,9 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApplicationPropertiesTest {
     private final DefaultEncryption encryption = new DefaultEncryption();
-    private final TestFixture testFixture = callWithSystemProperties(
-                TestFixture::create, "ENCRYPTION_KEY",
-                encryption.getEncryptionKey());
+    private final TestFixture testFixture = TestFixture.create();
 
     @Test
     void ableToReadApplicationProperties() {
@@ -45,9 +48,13 @@ class ApplicationPropertiesTest {
 
     @Test
     void ableToDecrypt() {
-        testFixture.withProperty("encrypted", encryption.encrypt("bar"))
-                .whenApplying(fc -> ApplicationProperties.getProperty("encrypted"))
-                .expectResult("bar");
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new DecryptingPropertySource(
+                        new SimplePropertySource(Map.of("encrypted", encryption.encrypt("bar"))).andThen(existing),
+                        encryption))
+                .build(LocalClient.newInstance())) {
+            assertEquals("bar", fluxzero.apply(fc -> ApplicationProperties.getProperty("encrypted")));
+        }
     }
 
     @Test

@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.repository;
@@ -18,21 +19,13 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
-import org.junit.jupiter.api.AfterEach;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.ResourceLock;
 
 import static io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository.AGGREGATE_COMMIT_POLICY_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@ResourceLock("systemProperties")
 class DefaultAggregateRepositoryCommitPolicyTest {
-
-    @AfterEach
-    void clearProperties() {
-        System.clearProperty(AGGREGATE_COMMIT_POLICY_PROPERTY);
-        System.clearProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY);
-    }
 
     @Test
     void defaultPolicyFallsBackToSyncAfterBatchCommit() {
@@ -41,50 +34,56 @@ class DefaultAggregateRepositoryCommitPolicyTest {
 
     @Test
     void explicitAggregatePolicyWinsOverProperties() {
-        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "sync_after_batch");
-        System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
-
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, resolve(ExplicitAggregate.class));
+        expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, ExplicitAggregate.class,
+                       AGGREGATE_COMMIT_POLICY_PROPERTY, "sync_after_batch",
+                       ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
     }
 
     @Test
     void propertyOverridesDefaultPolicy() {
-        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler");
-
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, resolve(DefaultAggregate.class));
+        expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, DefaultAggregate.class,
+                       AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler");
     }
 
     @Test
     void propertySupportsAsyncAfterHandlerAwaitAfterBatchPolicy() {
-        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler-await-after-batch");
-
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
+        expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, DefaultAggregate.class,
+                       AGGREGATE_COMMIT_POLICY_PROPERTY, "async-after-handler-await-after-batch");
     }
 
     @Test
     void defaultPropertyContinuesToDefaultsVersion() {
-        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
-        System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
-
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
+        expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, DefaultAggregate.class,
+                       AGGREGATE_COMMIT_POLICY_PROPERTY, "default",
+                       ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
     }
 
     @Test
     void defaultPropertyFallsBackToSyncAfterBatchWhenDefaultsVersionIsAbsent() {
-        System.setProperty(AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
-
-        assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(DefaultAggregate.class));
+        expectResolved(AggregateCommitPolicy.SYNC_AFTER_BATCH, DefaultAggregate.class,
+                       AGGREGATE_COMMIT_POLICY_PROPERTY, "default");
     }
 
     @Test
     void newerDefaultsVersionUsesAsyncAfterHandlerAwaitAfterBatch() {
-        System.setProperty(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
-
-        assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, resolve(DefaultAggregate.class));
+        expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, DefaultAggregate.class,
+                       ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
     }
 
     private static AggregateCommitPolicy resolve(Class<?> type) {
         return DefaultAggregateRepository.resolveCommitPolicy(DefaultEntityHelper.getRootAnnotation(type));
+    }
+
+    private static void expectResolved(
+            AggregateCommitPolicy expected, Class<?> type, String... propertyKeysAndValues) {
+        if (propertyKeysAndValues.length % 2 != 0) {
+            throw new IllegalArgumentException("Expected pairs of keys and values");
+        }
+        TestFixture fixture = TestFixture.create();
+        for (int i = 0; i < propertyKeysAndValues.length; i += 2) {
+            fixture.withProperty(propertyKeysAndValues[i], propertyKeysAndValues[i + 1]);
+        }
+        fixture.whenApplying(fc -> resolve(type)).expectResult(expected);
     }
 
     @Aggregate

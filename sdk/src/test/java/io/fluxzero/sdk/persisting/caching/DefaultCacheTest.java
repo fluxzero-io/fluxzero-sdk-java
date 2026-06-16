@@ -19,6 +19,7 @@ import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static io.fluxzero.common.TestUtils.callWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -96,13 +96,18 @@ class DefaultCacheTest {
 
     @Test
     void durationConstructorAppliesExpiryToAdaptiveCache() {
-        DefaultCache cache = cache(callWithSystemProperties(() -> new DefaultCache(1, Duration.ofNanos(-1)),
-                                                           DefaultCache.MODE_PROPERTY, DefaultCache.MODE_ADAPTIVE));
+        TestFixture.create()
+                .withProperty(DefaultCache.MODE_PROPERTY, DefaultCache.MODE_ADAPTIVE)
+                .whenApplying(fc -> {
+                    DefaultCache cache = cache(new DefaultCache(1, Duration.ofNanos(-1)));
 
-        assertInstanceOf(AdaptiveObjectCache.class, cache.delegate());
-        cache.put("foo", "bar");
+                    assertInstanceOf(AdaptiveObjectCache.class, cache.delegate());
+                    cache.put("foo", "bar");
 
-        assertNull(cache.get("foo"));
+                    assertNull(cache.get("foo"));
+                    return null;
+                })
+                .expectNoResult();
     }
 
     private DefaultCache cache(DefaultCache cache) {

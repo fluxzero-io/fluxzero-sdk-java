@@ -309,8 +309,7 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableCacheEvictionMetrics;
         private boolean disableWebResponseCompression;
         private boolean disableAdhocDispatchInterceptor;
-        private int maxPublicationDepth = DefaultPropertySource.getInstance()
-                .getInteger(MAX_PUBLICATION_DEPTH_PROPERTY, RecursivePublicationGuard.DEFAULT_MAX_DEPTH);
+        private Integer maxPublicationDepth;
         private boolean makeApplicationInstance;
         private boolean disableKeepalive;
         private UserProvider userProvider = UserProvider.defaultUserProvider;
@@ -610,6 +609,14 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public int maxPublicationDepth() {
+            return maxPublicationDepth == null
+                    ? propertySource.getInteger(
+                            MAX_PUBLICATION_DEPTH_PROPERTY, RecursivePublicationGuard.DEFAULT_MAX_DEPTH)
+                    : maxPublicationDepth;
+        }
+
+        @Override
         public FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance) {
             this.makeApplicationInstance = makeApplicationInstance;
             return this;
@@ -766,9 +773,10 @@ public class DefaultFluxzero implements Fluxzero {
                                                                              (t, i) -> adhocInterceptor.andThen(i)));
             }
 
-            if (maxPublicationDepth >= 0) {
+            int resolvedMaxPublicationDepth = maxPublicationDepth();
+            if (resolvedMaxPublicationDepth >= 0) {
                 RecursivePublicationGuard recursivePublicationGuard =
-                        new RecursivePublicationGuard(maxPublicationDepth);
+                        new RecursivePublicationGuard(resolvedMaxPublicationDepth);
                 Stream.of(COMMAND, EVENT, QUERY, WEBREQUEST, CUSTOM).forEach(
                         messageType -> dispatchChains.computeIfPresent(
                                 messageType, (t, i) -> i.andThen(recursivePublicationGuard)));

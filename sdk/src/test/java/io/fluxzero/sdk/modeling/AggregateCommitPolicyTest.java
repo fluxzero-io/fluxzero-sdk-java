@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.modeling;
@@ -20,9 +21,9 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -34,15 +35,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-import static io.fluxzero.common.TestUtils.runWithSystemProperties;
 import static io.fluxzero.sdk.modeling.AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ResourceLock("systemProperties")
 class AggregateCommitPolicyTest {
 
     private static final JacksonSerializer serializer = new JacksonSerializer();
@@ -190,25 +189,29 @@ class AggregateCommitPolicyTest {
         CommitProbe commits = new CommitProbe();
         AtomicReference<CompletableFuture<Void>> postHandlerCompletion = new AtomicReference<>();
 
-        runWithSystemProperties(() -> {
-            Entity<String> aggregate = aggregate(
-                    "async-handler-await-batch-result-disabled",
-                    AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
-            CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
-                    List.of(message("one")), message -> {
-                        Invocation.performInvocation(() -> aggregate.update(value -> "first"));
-                        postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
-                    }));
+        TestFixture.create()
+                .withProperty(AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, "false")
+                .whenApplying(fc -> {
+                    Entity<String> aggregate = aggregate(
+                            "async-handler-await-batch-result-disabled",
+                            AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
+                    CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
+                            List.of(message("one")), message -> {
+                                Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                                postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
+                            }));
 
-            assertTrue(commits.awaitStarted(1));
-            assertTrue(await(() -> postHandlerCompletion.get() != null));
-            assertTrue(postHandlerCompletion.get().isDone());
-            assertFalse(batch.isDone());
+                    assertTrue(commits.awaitStarted(1));
+                    assertTrue(await(() -> postHandlerCompletion.get() != null));
+                    assertTrue(postHandlerCompletion.get().isDone());
+                    assertFalse(batch.isDone());
 
-            commits.completeAll();
+                    commits.completeAll();
 
-            assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
-        }, AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, "false");
+                    assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
+                    return null;
+                })
+                .expectNoResult();
     }
 
     @Test
