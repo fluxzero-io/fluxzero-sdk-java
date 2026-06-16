@@ -1312,6 +1312,36 @@ class ProxyServerTest {
 
         }
 
+        @Test
+        void signedNamespaceHeaderIsRevalidatedForRepeatedValues() {
+            Instant expiresAt = Instant.now().plusSeconds(2);
+            var pair = TestJwtUtil.create("test", "expiring_kid", expiresAt);
+            String jwt = pair.getKey();
+            String jwksResponse = pair.getValue();
+            withJwksServer(jwksResponse, url ->
+                    testFixture.registerHandlers(new NamespacedHandler())
+                            .whenApplying(fc -> {
+                                var accepted = httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString());
+                                assertEquals(200, accepted.statusCode());
+                                assertEquals("Hello test", accepted.body());
+
+                                long waitMillis = Math.max(0L,
+                                                           expiresAt.plusSeconds(1).toEpochMilli()
+                                                           - Instant.now().toEpochMilli());
+                                Thread.sleep(waitMillis);
+
+                                return httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString());
+                            })
+                            .verifyResult(rejected -> {
+                                assertEquals(401, rejected.statusCode());
+                                assertEquals("JWT expired", rejected.body());
+                            }));
+        }
+
         @SneakyThrows
         private synchronized static void withJwksServer(String jwksResponse, ThrowingConsumer<String> task) {
             int port = TestUtils.getAvailablePort();

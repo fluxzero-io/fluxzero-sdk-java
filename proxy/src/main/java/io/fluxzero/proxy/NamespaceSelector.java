@@ -37,7 +37,7 @@ public class NamespaceSelector {
     private final Supplier<JwtVerifier> jwtVerifier = memoize(
             () -> ApplicationProperties.mapProperty(JWKS_URL_PROPERTY, JwtVerifier::new));
 
-    private final Function<String, String> namespaceDecoder = memoize(encoded -> {
+    private final Function<String, String> namespaceDecoder = encoded -> {
         if (encoded == null) {
             return null;
         }
@@ -51,7 +51,7 @@ public class NamespaceSelector {
             throw new SecurityException("JWT misses subject claim");
         }
         return sub;
-    });
+    };
 
     /**
      * Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the

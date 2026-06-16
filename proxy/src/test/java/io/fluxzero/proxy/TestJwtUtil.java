@@ -22,6 +22,7 @@ import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 
@@ -30,6 +31,10 @@ public final class TestJwtUtil {
     private static final SecureRandom secureRandom = new SecureRandom();
 
     public static Map.Entry<String, String> create(String subject, String kid) {
+        return create(subject, kid, null);
+    }
+
+    public static Map.Entry<String, String> create(String subject, String kid, Instant expiresAt) {
         try {
             // Generate RSA keypair
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
@@ -69,11 +74,16 @@ public final class TestJwtUtil {
             """.formatted(kid);
 
             // JWT payload
-            String payloadJson = """
+            String payloadJson = expiresAt == null ? """
             {
               "sub": "%s"
             }
-            """.formatted(subject);
+            """.formatted(subject) : """
+            {
+              "sub": "%s",
+              "exp": %d
+            }
+            """.formatted(subject, expiresAt.getEpochSecond());
 
             // Base64url encoding
             String h = base64UrlEncode(headerJson.getBytes(StandardCharsets.UTF_8));
