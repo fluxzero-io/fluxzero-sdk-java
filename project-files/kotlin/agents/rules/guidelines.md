@@ -255,7 +255,8 @@ If a pattern is not documented, ask the user for clarification rather than guess
 ## Kotlin Specific Guidelines
 
 - **Use `::class`**: In Kotlin applications, you can use `::class` directly instead of `::class.java` when referencing
-  types in SDK methods (e.g., in `Fluxzero.generateId(ProjectId::class)` or `@HandleDocument(OrderDocument::class)`).
+  types in SDK methods (e.g., in `Fluxzero.generateId(ProjectId::class)` or
+  `@HandleDocument(documentClass = OrderDocument::class)`).
 - **Data Classes**: Use `data class` for all payloads (Commands, Queries, Events) and Entities to benefit from
   automatic `copy()`, `equals()`, and `hashCode()` implementations.
 - **Extension Logic**: While aggregates should remain "dumb", you can use Kotlin extension functions to keep domain

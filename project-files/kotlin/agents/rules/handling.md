@@ -300,12 +300,17 @@ the [Retroactive Updates](#retroactive-updates) section in this manual.
 
 [//]: # (@formatter:off)
 ```kotlin
-@HandleDocument(OrderDocument::class)
+@HandleDocument
 fun onOrderDocument(document: OrderDocument) {
     // Handle document-related changes
 }
 ```
 [//]: # (@formatter:on)
+
+When no argument is supplied, Fluxzero infers the collection from the first handler parameter. If the parameter type is
+annotated with `@Searchable(collection = "...")`, that collection is used; otherwise the type's simple class name is
+used. Use `@HandleDocument(documentClass = OrderDocument::class)` when the document type cannot be inferred from the
+first parameter, and `@HandleDocument("orders")` when binding directly to a collection name.
 
 ### Retroactive Updates
 

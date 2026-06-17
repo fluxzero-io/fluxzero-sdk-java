@@ -44,7 +44,7 @@ uber-document" (a broad view of the world) by aggregating data from multiple sou
 ```kotlin
 @Stateful
 data class SystemMonitor(@EntityId val id: String, val statuses: List<HealthStatus>) {
-    @HandleDocument(ServerStatus::class)
+    @HandleDocument
     fun onServerUpdate(status: ServerStatus): SystemMonitor {
         // Update internal state based on a change in another document collection
         return this.updateStatus(status)

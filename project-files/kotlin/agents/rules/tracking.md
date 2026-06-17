@@ -175,7 +175,7 @@ adding an **Upcaster**), you may need to rebuild your document collection.
 ```kotlin
 @Consumer(name = "rebuild-orders-v2", minIndex = 0)
 class OrderRebuilder {
-    @HandleDocument(OrderDocument::class)
+    @HandleDocument
     fun onOrder(doc: OrderDocument): OrderDocument {
         // Returning the document triggers an update in the store
         return doc

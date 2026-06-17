@@ -182,7 +182,7 @@ adding an **Upcaster**), you may need to rebuild your document collection.
 
 @Consumer(name = "rebuild-orders-v2", minIndex = 0)
 public class OrderRebuilder {
-    @HandleDocument(OrderDocument.class)
+    @HandleDocument
     OrderDocument onOrder(OrderDocument doc) {
         // Returning the document triggers an update in the store
         return doc;

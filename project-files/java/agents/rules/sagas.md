@@ -45,7 +45,7 @@ uber-document" (a broad view of the world) by aggregating data from multiple sou
 
 @Stateful
 public record SystemMonitor(@EntityId String id, List<HealthStatus> statuses) {
-    @HandleDocument(ServerStatus.class)
+    @HandleDocument
     SystemMonitor onServerUpdate(ServerStatus status) {
         // Update internal state based on a change in another document collection
         return this.updateStatus(status);

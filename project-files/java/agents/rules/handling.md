@@ -291,12 +291,17 @@ the [Retroactive Updates](#retroactive-updates) section.
 
 [//]: # (@formatter:off)
 ```java
-@HandleDocument(OrderDocument.class)
+@HandleDocument
 void onOrderDocument(OrderDocument document) {
     // Handle document-related changes
 }
 ```
 [//]: # (@formatter:on)
+
+When no argument is supplied, Fluxzero infers the collection from the first handler parameter. If the parameter type is
+annotated with `@Searchable(collection = "...")`, that collection is used; otherwise the type's simple class name is
+used. Use `@HandleDocument(documentClass = OrderDocument.class)` when the document type cannot be inferred from the
+first parameter, and `@HandleDocument("orders")` when binding directly to a collection name.
 
 <a name="handleerror"></a>
 
