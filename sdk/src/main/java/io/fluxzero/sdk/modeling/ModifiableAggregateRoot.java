@@ -105,6 +105,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         return ofNullable((ModifiableAggregateRoot<T>) activeAggregates.get().get(aggregateId.toString()));
     }
 
+    /**
+     * Returns the active aggregate for the given id if its type is compatible with the requested aggregate type.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Optional<ModifiableAggregateRoot<T>> getIfActive(Object aggregateId, Class<T> aggregateType) {
+        return getIfActive(aggregateId).filter(active -> aggregateType.isAssignableFrom(active.type()))
+                .map(active -> (ModifiableAggregateRoot<T>) active);
+    }
+
     public static Map<String, Class<?>> getActiveAggregatesFor(@NonNull Object entityId) {
         List<Entity<?>> candidates = activeAggregates.get().values().stream()
                 .filter(a -> a.getEntity(entityId).isPresent()).collect(Collectors.toList());
@@ -123,6 +132,22 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
         return ModifiableAggregateRoot.<T>getIfActive(aggregateId).orElseGet(
+                () -> new ModifiableAggregateRoot<>(loader.get(), commitPolicy, eventPublication, publicationStrategy,
+                                                    eventRouting, eventSourced, entityHelper, serializer,
+                                                    dispatchInterceptor, commitHandler));
+    }
+
+    /**
+     * Loads or creates a modifiable aggregate, reusing an active aggregate only when its type matches the requested
+     * aggregate type.
+     */
+    public static <T> Entity<T> load(
+            Object aggregateId, Class<T> aggregateType, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting, boolean eventSourced,
+            EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
+            CommitHandler commitHandler) {
+        return ModifiableAggregateRoot.<T>getIfActive(aggregateId, aggregateType).orElseGet(
                 () -> new ModifiableAggregateRoot<>(loader.get(), commitPolicy, eventPublication, publicationStrategy,
                                                     eventRouting, eventSourced, entityHelper, serializer,
                                                     dispatchInterceptor, commitHandler));

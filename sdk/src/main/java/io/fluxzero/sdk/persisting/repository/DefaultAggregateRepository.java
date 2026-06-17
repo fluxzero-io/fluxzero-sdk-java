@@ -390,7 +390,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
 
         public Entity<T> load(Object id) {
             return ModifiableAggregateRoot.load(
-                    id, () -> aggregateCache.compute(id.toString(), (stringId, v) -> {
+                    id, type, () -> aggregateCache.compute(id.toString(), (stringId, v) -> {
                         if (v != null) {
                             if (type.isAssignableFrom(v.type())) {
                                 return v;

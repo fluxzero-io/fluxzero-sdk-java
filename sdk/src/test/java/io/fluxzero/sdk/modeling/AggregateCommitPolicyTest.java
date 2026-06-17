@@ -58,6 +58,17 @@ class AggregateCommitPolicyTest {
     }
 
     @Test
+    void typedLoadDoesNotReuseActiveAggregateWithDifferentType() {
+        CommitProbe commits = new CommitProbe(true);
+        AtomicBoolean integerAggregateLoaded = new AtomicBoolean();
+
+        DeserializingMessage.forEachInBatch(List.of(message("type-mismatch")),
+                                            message -> Invocation.performInvocation(
+                                                    () -> loadDifferentTypedAggregateWithActiveSameId(
+                                                            commits, integerAggregateLoaded)));
+    }
+
+    @Test
     void afterHandlerPolicyStartsCommitBeforeBatchCompletes() {
         CommitProbe commits = new CommitProbe(true);
         Entity<String> aggregate = aggregate("handler", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
@@ -329,6 +340,35 @@ class AggregateCommitPolicyTest {
                 delegate, policy, EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
                 AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer,
                 DispatchInterceptor.noOp, commits::commit);
+    }
+
+    private static Void loadDifferentTypedAggregateWithActiveSameId(
+            CommitProbe commits, AtomicBoolean integerAggregateLoaded) {
+        Entity<String> stringAggregate = ModifiableAggregateRoot.load(
+                "same-id", String.class, () -> immutableAggregate("same-id", "before"),
+                AggregateCommitPolicy.SYNC_AFTER_HANDLER, EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
+                AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer, DispatchInterceptor.noOp,
+                commits::commit);
+        stringAggregate.update(value -> "after");
+
+        Entity<Integer> integerAggregate = ModifiableAggregateRoot.load(
+                "same-id", Integer.class, () -> {
+                    integerAggregateLoaded.set(true);
+                    return ImmutableAggregateRoot.<Integer>builder()
+                            .id("same-id")
+                            .type(Integer.class)
+                            .value(1)
+                            .entityHelper(entityHelper)
+                            .serializer(serializer)
+                            .build();
+                }, AggregateCommitPolicy.SYNC_AFTER_HANDLER, EventPublication.DEFAULT,
+                EventPublicationStrategy.DEFAULT, AggregateEventRouting.MESSAGE_ROUTING_KEY, true,
+                entityHelper, serializer, DispatchInterceptor.noOp, commits::commit);
+
+        assertTrue(integerAggregateLoaded.get());
+        assertEquals(Integer.class, integerAggregate.type());
+        assertEquals(1, integerAggregate.get());
+        return null;
     }
 
     private static Entity<String> immutableAggregate(String id, String value) {
