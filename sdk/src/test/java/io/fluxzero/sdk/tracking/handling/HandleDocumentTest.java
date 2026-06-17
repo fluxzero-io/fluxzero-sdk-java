@@ -19,6 +19,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
 import io.fluxzero.sdk.test.TestFixture;
 import lombok.Builder;
@@ -141,11 +142,32 @@ public class HandleDocumentTest {
                         .getValue().equals("bar"));
     }
 
+    @Test
+    void handleDocumentWithIdSubtype() {
+        testFixture.registerHandlers(new Object() {
+                    @HandleDocument
+                    void handle(DocumentWithId document) {
+                        Fluxzero.publishEvent(document.identifier().getFunctionalId());
+                    }
+                })
+                .whenExecuting(fc -> Fluxzero.index(new DocumentWithId(new DocumentId("CMA"))).get())
+                .expectOnlyEvents("CMA");
+    }
+
     @Revision(1)
     @Value
     @Builder(toBuilder = true)
     static class MyDocument {
         String value;
+    }
+
+    record DocumentWithId(DocumentId identifier) {
+    }
+
+    static class DocumentId extends Id<DocumentWithId> {
+        public DocumentId(String functionalId) {
+            super(functionalId);
+        }
     }
 
 }

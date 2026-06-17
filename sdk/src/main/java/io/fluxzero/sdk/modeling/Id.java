@@ -16,6 +16,14 @@ package io.fluxzero.sdk.modeling;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.BeanProperty;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fluxzero.common.Leaf;
 import io.fluxzero.common.api.HasId;
@@ -24,6 +32,7 @@ import io.fluxzero.sdk.tracking.handling.validation.ValidationException;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
@@ -47,6 +56,7 @@ import java.util.Objects;
  * @param <T> the entity type. I.e.: a typical class will look something like
  *            {@code public class ProjectId extends Id<Project>}.
  */
+@JsonDeserialize(using = Id.IdDeserializer.class)
 public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
     @JsonValue
     @Getter
@@ -212,5 +222,78 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
     @Override
     public int compareTo(Id<?> o) {
         return repositoryId.compareTo(o.repositoryId);
+    }
+
+    /**
+     * Deserializes concrete {@link Id} subtypes from their scalar {@link #functionalId} representation.
+     */
+    public static class IdDeserializer extends JsonDeserializer<Id<?>> implements ContextualDeserializer {
+        private final Class<? extends Id<?>> targetType;
+
+        public IdDeserializer() {
+            this(null);
+        }
+
+        private IdDeserializer(Class<? extends Id<?>> targetType) {
+            this.targetType = targetType;
+        }
+
+        @Override
+        public JsonDeserializer<?> createContextual(DeserializationContext context, BeanProperty property)
+                throws JsonMappingException {
+            var type = property == null ? context.getContextualType() : property.getType();
+            if (type == null) {
+                return this;
+            }
+            Class<?> rawType = idType(type);
+            if (!Id.class.isAssignableFrom(rawType)) {
+                return this;
+            }
+            @SuppressWarnings("unchecked")
+            Class<? extends Id<?>> idType = (Class<? extends Id<?>>) rawType;
+            return new IdDeserializer(idType);
+        }
+
+        private static Class<?> idType(JavaType type) {
+            if (Id.class.isAssignableFrom(type.getRawClass())) {
+                return type.getRawClass();
+            }
+            for (int i = 0; i < type.containedTypeCount(); i++) {
+                JavaType containedType = type.containedType(i);
+                if (containedType != null && Id.class.isAssignableFrom(containedType.getRawClass())) {
+                    return containedType.getRawClass();
+                }
+            }
+            return type.getRawClass();
+        }
+
+        @Override
+        public Id<?> deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            if (targetType == null) {
+                return context.reportInputMismatch(Id.class, "Could not determine concrete Id subtype");
+            }
+            String functionalId;
+            if (parser.currentToken() != null && parser.currentToken().isScalarValue()) {
+                functionalId = parser.getValueAsString();
+            } else {
+                JsonNode node = parser.getCodec().readTree(parser);
+                JsonNode functionalIdNode = node.get("functionalId");
+                if (functionalIdNode == null) {
+                    return context.reportInputMismatch(
+                            targetType, "Expected scalar Id value or object with `functionalId` field");
+                }
+                functionalId = functionalIdNode.asText();
+            }
+            try {
+                return (Id<?>) ReflectionUtils.getTypeMetadata(targetType)
+                        .invoker(targetType.getDeclaredConstructor(String.class), true)
+                        .invoke(null, functionalId);
+            } catch (NoSuchMethodException e) {
+                return context.reportInputMismatch(
+                        targetType, "Id subtype %s must declare a single String constructor", targetType.getName());
+            } catch (Exception e) {
+                throw JsonMappingException.from(parser, "Could not deserialize Id subtype " + targetType.getName(), e);
+            }
+        }
     }
 }

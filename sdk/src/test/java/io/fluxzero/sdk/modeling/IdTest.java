@@ -40,6 +40,17 @@ class IdTest {
     }
 
     @Test
+    void deserializeIdSubtypeFromScalarString() {
+        assertEquals(new MockId("fooBar"), JsonUtils.fromJson("\"fooBar\"", MockId.class));
+    }
+
+    @Test
+    void deserializeIdSubtypeFromScalarStringInCollection() {
+        assertEquals(new OwnerIds(List.of(new MockId("fooBar"))),
+                     JsonUtils.fromJson("{\"ids\":[\"fooBar\"]}", OwnerIds.class));
+    }
+
+    @Test
     void convert() {
         assertEquals(defaultOwner, JsonUtils.convertValue(defaultOwner, Owner.class));
     }
@@ -84,5 +95,8 @@ class IdTest {
         protected MockId(String id) {
             super(id, Owner.class, "mock-", false);
         }
+    }
+
+    record OwnerIds(List<MockId> ids) {
     }
 }
