@@ -111,6 +111,11 @@ class MessageRoutingInterceptorTest {
     }
 
     @Test
+    void testAnnotationOnInterfaceType() {
+        testInvocation(new Message(new AnnotationOnInterfaceTypePayload(), Metadata.of("$user", "bar")));
+    }
+
+    @Test
     void testMetaAnnotationOnField() {
         testInvocation(new AnnotationViaMetaOnField());
     }
@@ -236,6 +241,13 @@ class MessageRoutingInterceptorTest {
 
     @RoutingKey(value = "foo")
     private static class AnnotationOnType {
+    }
+
+    @RoutingKey(value = "$user")
+    private interface AnnotationOnInterfaceType {
+    }
+
+    private static class AnnotationOnInterfaceTypePayload implements AnnotationOnInterfaceType {
     }
 
     private static class AnnotationOnExtendedField extends AnnotationOnField {
