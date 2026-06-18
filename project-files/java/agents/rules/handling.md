@@ -648,6 +648,8 @@ Routing safety notes:
   defaults).
 - This means static serving ignores `/api/...` by default, so API handlers under `/api` will not clash with static
   fallback routes.
+- Clean URLs are enabled by default: extensionless requests try the exact path, `<path>.html`,
+  `<path>/index.html`, and then the configured fallback file. Set `cleanUrls = false` to disable this behavior.
 - Recommended convention: keep HTTP APIs under `/api` and reserve non-`/api` paths for SPA/static routes.
 - If you use a different API prefix, set `ignorePaths` explicitly.
 - In Fluxzero Cloud, you can still expose a separate API host through proxy mapping (for example

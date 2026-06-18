@@ -1225,6 +1225,42 @@ public class HandleWebTest {
         }
 
         @Test
+        void serveCleanUrlHtmlFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/about")
+                    .expectWebResult(testContents("About clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlNestedHtmlFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs/intro")
+                    .expectWebResult(testContents("Docs intro clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlDirectoryIndexFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs")
+                    .expectWebResult(testContents("Docs index clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlFallbackFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/unknown-route")
+                    .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void cleanUrlsCanBeDisabled() {
+            TestFixture.create(new CleanUrlsDisabledClasspathHandler()).whenGet("/clean-disabled/about")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
+        void dontServeRootStaticHandlerForDefaultApiIgnorePath() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/api/whatever")
+                    .expectExceptionalResult(TimeoutException.class);
+        }
+
+        @Test
         void dontServeFallbackIfIgnorePath() {
             testFixture.whenGet("/static/api/whatever")
                     .expectExceptionalResult(TimeoutException.class);
@@ -1273,6 +1309,15 @@ public class HandleWebTest {
         @Path
         @ServeStatic(value = "static", resourcePath = "classpath:/web/static")
         static class RelativeClasspathHandler {
+        }
+
+        @ServeStatic(value = "/", resourcePath = "classpath:/web/static")
+        static class RootClasspathHandler {
+        }
+
+        @ServeStatic(value = "/clean-disabled", resourcePath = "classpath:/web/static", fallbackFile = "",
+                cleanUrls = false)
+        static class CleanUrlsDisabledClasspathHandler {
         }
 
         @ServeStatic

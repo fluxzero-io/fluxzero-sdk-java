@@ -239,6 +239,7 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
 
 - Supports classpath and file system resources
 - Optional fallback file (e.g. for SPAs)
+- Clean URLs for statically exported routes
 - Smart `Cache-Control` headers
 - GZIP and Brotli compression (if precompressed assets are present)
 
@@ -249,6 +250,7 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
     value = "/assets",
     resourcePath = "/public",
     fallbackFile = "index.html",
+    cleanUrls = true,
     immutableCandidateExtensions = {"js", "css", "svg"},
     maxAgeSeconds = 86400
 )
@@ -259,6 +261,7 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
 - `value`: Web URI path(s) to expose
 - `resourcePath`: Filesystem or classpath root
 - `fallbackFile`: Fallback for unknown paths (e.g. `index.html`)
+- `cleanUrls`: Whether extensionless paths first try `<path>.html` and `<path>/index.html` before the fallback
 - `immutableCandidateExtensions`: Enables long-lived caching for fingerprinted assets
 - `maxAgeSeconds`: Cache duration for other resources
 
@@ -273,7 +276,10 @@ public class WebFrontend {
 This serves:
 
 - `/app/index.html`, `/app/main.js`, etc. from `/static`
+- `/app/onboarding` from `/static/onboarding.html` or `/static/onboarding/index.html` when clean URLs are enabled
 - Falls back to `index.html` for client-side routing
+
+Set `cleanUrls = false` if extensionless paths should only try the exact path before the fallback.
 
 <Aside type="tip">
 Files are resolved from both the file system and classpath. File system files take precedence if both exist.

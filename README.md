@@ -2452,6 +2452,7 @@ This will serve all files under `/static` (from the classpath or file system) un
 
 - Supports both **file system** and **classpath** resources
 - Optional **fallback file** (e.g. for single-page apps)
+- Clean URLs for statically exported routes
 - Automatic `Cache-Control` headers
 - Compression via Brotli and GZIP (if precompressed variants exist)
 
@@ -2462,6 +2463,7 @@ This will serve all files under `/static` (from the classpath or file system) un
         value = "/assets",
         resourcePath = "/public",
         fallbackFile = "index.html",
+        cleanUrls = true,
         immutableCandidateExtensions = {"js", "css", "svg"},
         maxAgeSeconds = 86400
 )
@@ -2472,6 +2474,8 @@ This will serve all files under `/static` (from the classpath or file system) un
 - `value`: Web path(s) where static content is served. Relative paths are prefixed by `@Path` values.
 - `resourcePath`: The resource root (either on the file system or classpath).
 - `fallbackFile`: A file to serve when the requested path doesn’t exist (e.g. `index.html`). Set to `""` to disable.
+- `cleanUrls`: Whether extensionless paths first try `<path>.html` and `<path>/index.html` before the fallback. Set to
+  `false` to disable.
 - `immutableCandidateExtensions`: Extensions that are eligible for aggressive caching if fingerprinted (e.g.
   `main.123abc.js`).
 - `maxAgeSeconds`: Default cache duration for non-immutable resources.
@@ -2486,6 +2490,8 @@ public class WebFrontend { ...
 ```
 
 This will serve files under `/app/**` and fallback to `index.html` for unknown paths—ideal for single-page apps.
+Requests without a file extension also support statically exported clean URLs: `/app/onboarding` tries the exact path,
+then `/app/onboarding.html`, then `/app/onboarding/index.html`, and only then the configured fallback.
 
 > 📁 Files in `/static` on the classpath (e.g. under `resources/static/`) or `/static` on disk will be served.
 
