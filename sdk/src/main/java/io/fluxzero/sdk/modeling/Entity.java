@@ -588,7 +588,8 @@ public interface Entity<T> {
 
     /**
      * Retrieves an entity based on the provided entity ID. The entity can be matched either by its primary ID or by any
-     * of its aliases.
+     * of its aliases. If an alias matches another entity's primary ID, the entity that owns the alias property is
+     * returned.
      *
      * @param entityId the ID or alias of the entity to search for; if null, an empty {@code Optional} is returned
      * @param <C>      the type parameter representing the content or payload of the entity
@@ -601,9 +602,14 @@ public interface Entity<T> {
             return Optional.empty();
         }
         String entityIdString = entityId.toString();
-        return allEntities().filter(
-                e -> e.id() != null && (e.id().toString().equals(entityIdString) || e.aliases().stream().anyMatch(
-                        a -> a != null && a.toString().equals(entityIdString)))).findFirst().map(e -> (Entity<C>) e);
+        List<Entity<?>> entities = allEntities().toList();
+        return entities.stream()
+                .filter(e -> e.aliases().stream().anyMatch(a -> a != null && a.toString().equals(entityIdString)))
+                .findFirst()
+                .or(() -> entities.stream()
+                        .filter(e -> e.id() != null && e.id().toString().equals(entityIdString))
+                        .findFirst())
+                .map(e -> (Entity<C>) e);
     }
 
     /**
