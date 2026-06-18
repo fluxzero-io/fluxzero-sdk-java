@@ -44,10 +44,10 @@ public class DefaultPropertySource implements PropertySource {
     public DefaultPropertySource() {
         this.delegate = PropertySource.join(
                 EnvironmentVariablesSource.INSTANCE, new SystemPropertiesSource(),
-                new FluxzeroAdditionalPropertiesSource(),
-                new ApplicationEnvironmentPropertiesSource(),
-                new ApplicationPropertiesSource(),
-                new FluxzeroPropertiesSource());
+                substituting(new FluxzeroAdditionalPropertiesSource()),
+                substituting(new ApplicationEnvironmentPropertiesSource()),
+                substituting(new ApplicationPropertiesSource()),
+                substituting(new FluxzeroPropertiesSource()));
     }
 
     private final PropertySource delegate;
@@ -55,5 +55,9 @@ public class DefaultPropertySource implements PropertySource {
     @Override
     public String get(String name) {
         return delegate.get(name);
+    }
+
+    private PropertySource substituting(PropertySource propertySource) {
+        return new SubstitutingPropertySource(propertySource, this);
     }
 }
