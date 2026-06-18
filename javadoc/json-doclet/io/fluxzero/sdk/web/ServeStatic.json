@@ -25,6 +25,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "cleanUrls",
+    "qualifiedName" : "io.fluxzero.sdk.web.ServeStatic#cleanUrls",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether extensionless requests should also try clean URL candidates before falling back.\n <p>\n When enabled, a request such as {@code /app/about} first tries the exact file, then {@code /app/about.html},\n then {@code /app/about/index.html}, and finally the configured {@link #fallbackFile()}.\n\n @return Whether clean URL resolution is enabled.\n"
+  }, {
     "name" : "fallbackFile",
     "qualifiedName" : "io.fluxzero.sdk.web.ServeStatic#fallbackFile",
     "returnType" : "java.lang.String",

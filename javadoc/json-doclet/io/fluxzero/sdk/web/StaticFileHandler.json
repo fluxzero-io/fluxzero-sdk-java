@@ -30,6 +30,14 @@
     "documentation" : null,
     "constantValue" : "classpath:"
   }, {
+    "name" : "cleanUrls",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.cleanUrls",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "fallbackFile",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.fallbackFile",
     "type" : "java.lang.String",
@@ -196,6 +204,68 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "webRoot",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "fsBaseDirectory",
+      "type" : "java.nio.file.Path",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "resourceBaseUri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "fallbackFile",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "ignorePaths",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "immutableCandidateExtensions",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxAgeSeconds",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanUrls",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "StaticFileHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#StaticFileHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRoot",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -327,6 +397,54 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "StaticFileHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#StaticFileHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "webRoot",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resourceBasePath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallbackFile",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "ignorePaths",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "immutableCandidateExtensions",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxAgeSeconds",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanUrls",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "close",
@@ -407,6 +525,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getCandidatePaths",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#getCandidatePaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanUrls",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getExtension",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#getExtension",
     "returnType" : "java.lang.String",
@@ -477,6 +616,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasFileExtension",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#hasFileExtension",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isExistingFile",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#isExistingFile",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.nio.file.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isHandler",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#isHandler",
     "returnType" : "boolean",
@@ -507,6 +678,38 @@
     }, {
       "name" : "fileSize",
       "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveExistingPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#resolveExistingPath",
+    "returnType" : "java.nio.file.Path",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveFallbackPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#resolveFallbackPath",
+    "returnType" : "java.nio.file.Path",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedPath",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -578,6 +781,22 @@
     }, {
       "name" : "request",
       "type" : "io.fluxzero.sdk.web.WebRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stripTrailingSlash",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#stripTrailingSlash",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

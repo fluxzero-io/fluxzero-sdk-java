@@ -510,7 +510,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Retrieves an entity based on the provided entity ID. The entity can be matched either by its primary ID or by any\n of its aliases.\n\n @param entityId the ID or alias of the entity to search for; if null, an empty {@code Optional} is returned\n @param <C>      the type parameter representing the content or payload of the entity\n @return an {@code Optional} containing the matching entity if found, or an empty {@code Optional} if no match\n exists\n"
+    "documentation" : " Retrieves an entity based on the provided entity ID. The entity can be matched either by its primary ID or by any\n of its aliases. If an alias matches another entity's primary ID, the entity that owns the alias property is\n returned.\n\n @param entityId the ID or alias of the entity to search for; if null, an empty {@code Optional} is returned\n @param <C>      the type parameter representing the content or payload of the entity\n @return an {@code Optional} containing the matching entity if found, or an empty {@code Optional} if no match\n exists\n"
   }, {
     "name" : "getSequenceNumber",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity#getSequenceNumber",
