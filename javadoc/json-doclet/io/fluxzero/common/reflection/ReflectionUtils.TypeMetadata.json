@@ -752,6 +752,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "propertyAccessor",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#propertyAccessor",
+    "returnType" : "java.util.Optional<java.lang.reflect.Method>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "methodName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "propertyMember",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#propertyMember",
     "returnType" : "java.util.Optional<java.lang.reflect.Member>",
