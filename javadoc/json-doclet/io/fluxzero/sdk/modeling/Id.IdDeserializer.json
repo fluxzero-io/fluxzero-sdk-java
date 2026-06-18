@@ -1,0 +1,115 @@
+{
+  "name" : "IdDeserializer",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Deserializes concrete {@link Id} subtypes from their scalar {@link #functionalId} representation.\n",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.JsonDeserializer<io.fluxzero.sdk.modeling.Id<?>>",
+  "interfaces" : [ "com.fasterxml.jackson.databind.deser.ContextualDeserializer" ],
+  "fields" : [ {
+    "name" : "targetType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer.targetType",
+    "type" : "java.lang.Class<? extends io.fluxzero.sdk.modeling.Id<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "IdDeserializer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer#IdDeserializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "IdDeserializer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer#IdDeserializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetType",
+      "type" : "java.lang.Class<? extends io.fluxzero.sdk.modeling.Id<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "createContextual",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer#createContextual",
+    "returnType" : "com.fasterxml.jackson.databind.JsonDeserializer<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.DeserializationContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "com.fasterxml.jackson.databind.BeanProperty",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "com.fasterxml.jackson.databind.JsonMappingException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deserialize",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer#deserialize",
+    "returnType" : "io.fluxzero.sdk.modeling.Id<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.DeserializationContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer#idType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

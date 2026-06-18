@@ -160,6 +160,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Id",
     "kind" : "class"
   }, {
+    "file" : "Id.IdDeserializer.json",
+    "name" : "Id.IdDeserializer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdDeserializer",
+    "kind" : "class"
+  }, {
     "file" : "ImmutableAggregateRoot.json",
     "name" : "ImmutableAggregateRoot",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot",
