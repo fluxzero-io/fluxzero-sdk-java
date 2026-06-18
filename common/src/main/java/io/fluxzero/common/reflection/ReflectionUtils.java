@@ -1269,10 +1269,16 @@ public class ReflectionUtils {
         }
 
         private Optional<Member> propertyMember(String propertyName) {
-            return method("get" + StringUtils.capitalize(propertyName))
-                    .filter(ReflectionUtils::hasReturnType).map(m -> (Member) m)
-                    .or(() -> method(propertyName).filter(ReflectionUtils::hasReturnType).map(m -> (Member) m))
+            return propertyAccessor("get" + StringUtils.capitalize(propertyName)).map(m -> (Member) m)
+                    .or(() -> propertyAccessor(propertyName).map(m -> (Member) m))
                     .or(() -> field(propertyName).map(field -> (Member) field));
+        }
+
+        private Optional<Method> propertyAccessor(String methodName) {
+            return methods(methodName).stream()
+                    .filter(method -> method.getParameterCount() == 0)
+                    .filter(ReflectionUtils::hasReturnType)
+                    .findFirst();
         }
 
         @Getter
