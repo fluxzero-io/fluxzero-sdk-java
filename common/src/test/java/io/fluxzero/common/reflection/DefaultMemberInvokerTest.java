@@ -15,9 +15,19 @@
 
 package io.fluxzero.common.reflection;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Proxy;
+import java.net.URL;
+import java.net.URLClassLoader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultMemberInvokerTest {
 
@@ -62,6 +72,40 @@ class DefaultMemberInvokerTest {
         var invoker = DefaultMemberInvoker.asInvoker(InvokerTarget.class.getDeclaredMethod("addOne", int.class));
 
         assertEquals(42, invoker.invoke(target, 41));
+    }
+
+    @Test
+    void readsAnnotationAttributeFromDifferentClassLoaderWithoutLambdaWarning() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultMemberInvoker.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        URL testClasses = DefaultMemberInvokerTest.class.getProtectionDomain().getCodeSource().getLocation();
+        try (URLClassLoader isolatedLoader = new URLClassLoader(new URL[] { testClasses }, null)) {
+            Class<?> annotationType = Class.forName(IsolatedAnnotation.class.getName(), true, isolatedLoader);
+            Annotation annotation = (Annotation) Proxy.newProxyInstance(isolatedLoader, new Class<?>[] {
+                    annotationType }, (proxy, method, args) -> switch (method.getName()) {
+                case "annotationType" -> annotationType;
+                case "value" -> "isolated";
+                case "toString" -> "@IsolatedAnnotation(\"isolated\")";
+                case "hashCode" -> 0;
+                case "equals" -> proxy == args[0];
+                default -> method.getDefaultValue();
+            });
+
+            assertEquals("isolated", ReflectionUtils.getAnnotationAttribute(annotation, "value", String.class)
+                    .orElseThrow());
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertTrue(appender.list.stream().noneMatch(event -> event.getFormattedMessage()
+                .contains("Failed to create lambda type method invoke")));
+    }
+
+    private @interface IsolatedAnnotation {
+        String value();
     }
 
     private static class InvokerTarget {
