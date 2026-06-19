@@ -1226,6 +1226,27 @@ public class HandleWebTest {
         }
 
         @Test
+        void serveFileWithDoubleDotInName() {
+            testFixture.whenGet("/static/_next/static/media/font..woff2")
+                    .expectWebResult(r -> testContents("font bytes with double dots").test(r)
+                                          && !"text/html".equals(r.getContentType()));
+        }
+
+        @Test
+        void rejectTraversalSegmentFromStaticRoot() {
+            TestFixture.create(new NoFallbackClasspathHandler())
+                    .whenGet("/static/../index.html")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
+        void rejectNestedTraversalSegment() {
+            TestFixture.create(new NoFallbackClasspathHandler())
+                    .whenGet("/static/assets/../index.html")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
         void serveFallback() {
             testFixture.whenGet("/static/whatever/bla")
                     .expectResult(testContents("<!DOCTYPE html>"));
@@ -1311,6 +1332,11 @@ public class HandleWebTest {
             String get() {
                 return "dynamicGet";
             }
+        }
+
+        @Path
+        @ServeStatic(value = "/static", resourcePath = "classpath:/web/static", fallbackFile = "")
+        static class NoFallbackClasspathHandler {
         }
 
         @Path

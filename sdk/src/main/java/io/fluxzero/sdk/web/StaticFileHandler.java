@@ -281,8 +281,7 @@ public class StaticFileHandler implements Closeable {
     }
 
     private Path resolveSecurePath(String requestedPath) {
-        if (requestedPath == null || requestedPath.isBlank()
-            || requestedPath.contains("..") || requestedPath.contains("\\")) {
+        if (isUnsafeRequestedPath(requestedPath)) {
             return resolveFallbackPath(requestedPath);
         }
 
@@ -295,6 +294,13 @@ public class StaticFileHandler implements Closeable {
 
         // Try fallback file if configured
         return resolveFallbackPath(requestedPath);
+    }
+
+    private static boolean isUnsafeRequestedPath(String requestedPath) {
+        if (requestedPath == null || requestedPath.isBlank() || requestedPath.contains("\\")) {
+            return true;
+        }
+        return Arrays.stream(requestedPath.split("/")).anyMatch(".."::equals);
     }
 
     private Path resolveExistingPath(String requestedPath) {
