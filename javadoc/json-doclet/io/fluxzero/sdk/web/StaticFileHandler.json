@@ -664,6 +664,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isUnsafeRequestedPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#isUnsafeRequestedPath",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "parseRange",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#parseRange",
     "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.ByteRange",
