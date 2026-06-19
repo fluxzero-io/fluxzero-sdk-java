@@ -1219,6 +1219,13 @@ public class HandleWebTest {
         }
 
         @Test
+        void serveFileWithTildeInName() {
+            testFixture.whenGet("/static/_next/static/chunks/0lfk1~y7byb20.js")
+                    .expectWebResult(r -> testContents("window.__tildeChunkLoaded = true;").test(r)
+                                          && !"text/html".equals(r.getContentType()));
+        }
+
+        @Test
         void serveFallback() {
             testFixture.whenGet("/static/whatever/bla")
                     .expectResult(testContents("<!DOCTYPE html>"));

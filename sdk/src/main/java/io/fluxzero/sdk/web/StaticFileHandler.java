@@ -282,7 +282,7 @@ public class StaticFileHandler implements Closeable {
 
     private Path resolveSecurePath(String requestedPath) {
         if (requestedPath == null || requestedPath.isBlank()
-            || requestedPath.contains("..") || requestedPath.contains("~") || requestedPath.contains("\\")) {
+            || requestedPath.contains("..") || requestedPath.contains("\\")) {
             return resolveFallbackPath(requestedPath);
         }
 
