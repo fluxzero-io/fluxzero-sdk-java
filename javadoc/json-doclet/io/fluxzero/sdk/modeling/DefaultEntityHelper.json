@@ -20,7 +20,7 @@
   }, {
     "name" : "assertLegalMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.assertLegalMatchers",
-    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.HasMessage>>",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.modeling.DefaultEntityHelper.MessageWithEntity>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -190,6 +190,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "assertLegalHandlerConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegalHandlerConfiguration",
+    "returnType" : "io.fluxzero.common.handling.HandlerConfiguration<io.fluxzero.sdk.modeling.DefaultEntityHelper.MessageWithEntity>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "assertLegalRecursive",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#assertLegalRecursive",
     "returnType" : "void",
@@ -285,6 +296,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns an exception if the value is illegal for the current entity, or {@code Optional.empty()} if legal.\n"
+  }, {
+    "name" : "compareAssertLegalMethods",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#compareAssertLegalMethods",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "explicitlyTargetsOtherEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#explicitlyTargetsOtherEntity",
@@ -402,6 +434,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Convenience method that returns {@code true} if {@link #checkLegality} yields no error.\n"
+  }, {
+    "name" : "parameterTypeNames",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#parameterTypeNames",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

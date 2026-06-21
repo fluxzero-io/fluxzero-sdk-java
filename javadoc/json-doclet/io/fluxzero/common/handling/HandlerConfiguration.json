@@ -74,6 +74,17 @@
     } ],
     "documentation" : " Optional hook to validate resolved arguments before invoking a handler method.\n",
     "constantValue" : null
+  }, {
+    "name" : "samePriorityMethodComparator",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerConfiguration.samePriorityMethodComparator",
+    "type" : "java.util.Comparator<java.lang.reflect.Executable>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional comparator used to order methods that have the same annotation priority. Returning {@code 0} preserves\n the default specificity and inspection-order tie-breakers.\n",
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "HandlerConfiguration",

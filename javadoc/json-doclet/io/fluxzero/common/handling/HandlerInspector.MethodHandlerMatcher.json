@@ -21,14 +21,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "comparator",
-    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.comparator",
-    "type" : "java.util.Comparator<io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<?>>",
-    "modifiers" : [ "final", "protected", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "config",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher.config",
     "type" : "io.fluxzero.common.handling.HandlerConfiguration<? super M>",
@@ -267,6 +259,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "comparator",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#comparator",
+    "returnType" : "java.util.Comparator<io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher<?>>",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "compare",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher#compare",
     "returnType" : "int",
@@ -294,6 +302,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "leftExecutable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "rightPriority",
       "type" : "int",
       "varArgs" : false,
@@ -311,6 +324,16 @@
     }, {
       "name" : "rightMethodIndex",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rightExecutable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "samePriorityMethodComparator",
+      "type" : "java.util.Comparator<java.lang.reflect.Executable>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

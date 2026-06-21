@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.HasMessage", "io.fluxzero.sdk.modeling.HasEntity" ],
   "fields" : [ {
+    "name" : "afterHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity.afterHandler",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "entity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity.entity",
     "type" : "io.fluxzero.sdk.modeling.Entity<?>",
@@ -43,6 +51,31 @@
     }, {
       "name" : "entity",
       "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "MessageWithEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity#MessageWithEntity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterHandler",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
