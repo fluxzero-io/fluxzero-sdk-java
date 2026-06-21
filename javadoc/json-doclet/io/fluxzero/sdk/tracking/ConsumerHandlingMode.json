@@ -1,0 +1,86 @@
+{
+  "name" : "ConsumerHandlingMode",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Controls whether handlers for a consumer are invoked in the tracker thread or offloaded to a worker thread.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.tracking.ConsumerHandlingMode>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ConsumerHandlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode#ConsumerHandlingMode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "parse",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode#parse",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Parses a user-facing handling mode value.\n\n @param value configured value\n @return parsed handling mode\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode#valueOf",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode#values",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ASYNC",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC",
+    "annotations" : [ ],
+    "documentation" : " Invoke handlers on a worker thread while preserving the Fluxzero tracking context.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Inherit the handling mode from the message-type default consumer, app-wide default, or SDK defaults version.\n"
+  }, {
+    "name" : "SYNC",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC",
+    "annotations" : [ ],
+    "documentation" : " Invoke handlers in the tracker thread.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

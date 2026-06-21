@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
     "kind" : "class"
   }, {
+    "file" : "ConsumerHandlingMode.json",
+    "name" : "ConsumerHandlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+    "kind" : "enum"
+  }, {
     "file" : "DefaultTracking.json",
     "name" : "DefaultTracking",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking",

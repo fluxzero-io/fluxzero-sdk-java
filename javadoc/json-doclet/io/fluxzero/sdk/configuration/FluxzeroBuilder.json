@@ -186,6 +186,43 @@
     "varArgs" : false,
     "documentation" : " Update the default consumer configuration for the specified message type.\n <p>\n When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE}, this configuration is\n used as the template for the generated per-handler consumers.\n"
   }, {
+    "name" : "configureDefaultConsumerHandlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#configureDefaultConsumerHandlingMode",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlingMode",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures the app-wide default handler execution mode for consumers whose own mode and message-type default\n consumer mode are both {@link ConsumerHandlingMode#DEFAULT}.\n <p>\n Message-type defaults configured through {@link #configureDefaultConsumerHandlingMode(ConsumerHandlingMode,\n MessageType...)} or {@link #configureDefaultConsumer(MessageType, UnaryOperator)} take precedence over this\n app-wide default.\n"
+  }, {
+    "name" : "configureDefaultConsumerHandlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#configureDefaultConsumerHandlingMode",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlingMode",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTypes",
+      "type" : "io.fluxzero.common.MessageType[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Configures the default handler execution mode for specific message types, or the whole app when no message types\n are supplied.\n <p>\n Explicit {@link io.fluxzero.sdk.tracking.Consumer @Consumer} and custom {@link ConsumerConfiguration} handling\n modes still take precedence over these defaults.\n"
+  }, {
     "name" : "disableAdhocDispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#disableAdhocDispatchInterceptor",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

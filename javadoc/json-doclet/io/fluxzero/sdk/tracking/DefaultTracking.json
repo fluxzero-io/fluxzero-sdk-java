@@ -24,14 +24,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "chunkedMessageHandlerExecutor",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.chunkedMessageHandlerExecutor",
-    "type" : "java.util.concurrent.ExecutorService",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "completedReport",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.completedReport",
     "type" : "java.util.concurrent.CompletionStage<java.lang.Void>",
@@ -67,6 +59,14 @@
     "name" : "handlerFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.handlerFilter",
     "type" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageHandlerExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.messageHandlerExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -191,6 +191,27 @@
     "parameters" : [ {
       "name" : "resultCompletions",
       "type" : "java.util.List<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitResultIfConfigured",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#awaitResultIfConfigured",
+    "returnType" : "java.util.concurrent.CompletionStage<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -745,6 +766,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "handleAsync",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#handleAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handleBatch",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#handleBatch",
     "returnType" : "void",
@@ -1031,6 +1073,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveDefaultHandlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#resolveDefaultHandlingMode",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "retainTrackingTopics",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#retainTrackingTopics",
     "returnType" : "java.util.List<java.lang.String>",
@@ -1128,6 +1186,27 @@
     }, {
       "name" : "value",
       "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldHandleOnWorker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#shouldHandleOnWorker",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1444,6 +1523,11 @@
     }, {
       "name" : "user",
       "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adhocInterceptors",
+      "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.publishing.DispatchInterceptor>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

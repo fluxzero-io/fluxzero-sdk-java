@@ -30,6 +30,33 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "captureContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#captureContext",
+    "returnType" : "java.util.function.Supplier<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "supplier",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Captures the current completion scope and returns a supplier that re-enters it when executed.\n <p>\n This is intended for framework-managed worker threads that still belong to the same logical handler or batch\n processing operation. If no scope is active, the original supplier is returned unchanged.\n\n @param supplier supplier to execute with the captured scope\n @param <T>      result type\n @return a context-aware supplier\n"
+  }, {
+    "name" : "currentScope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#currentScope",
+    "returnType" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isActive",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#isActive",
     "returnType" : "boolean",
@@ -93,6 +120,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Runs the supplied task inside a new completion scope and waits for all futures registered in that scope.\n <p>\n If both the task and asynchronous completion fail, the asynchronous failure is added as a suppressed exception\n to the task failure.\n\n @param task the task that may register asynchronous completion work\n"
+  }, {
+    "name" : "runWithScope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runWithScope",
+    "returnType" : "T",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "scope",
+      "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "throwUnchecked",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#throwUnchecked",

@@ -171,6 +171,17 @@
     "varArgs" : false,
     "documentation" : " Interceptors applied to individual handler method invocations.\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global\n handler interceptors configured via {@link FluxzeroBuilder} keep their existing position in the chain; consumer\n interceptors are only sorted relative to other interceptors declared on the same consumer.\n"
   }, {
+    "name" : "handlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#handlingMode",
+    "returnType" : "io.fluxzero.sdk.tracking.ConsumerHandlingMode",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Controls whether handlers assigned to this consumer are invoked in the tracker thread or offloaded to a worker\n thread.\n <p>\n {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer, app-wide default, or versioned\n SDK defaults. Existing applications without a defaults version continue to resolve to synchronous handling.\n"
+  }, {
     "name" : "ignoreSegment",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#ignoreSegment",
     "returnType" : "boolean",

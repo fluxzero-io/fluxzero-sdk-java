@@ -27,6 +27,22 @@
     "documentation" : " Assigns unconfigured handlers to the shared default application consumer for their message type.\n",
     "constantValue" : "defaultAppConsumer"
   }, {
+    "name" : "DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Prefix for message-type specific default handler execution mode properties.\n <p>\n For example, {@code fluxzero.tracking.defaultHandlingMode.webrequest = async} changes only web request default\n consumers while {@link #DEFAULT_HANDLING_MODE_PROPERTY} still applies app-wide.\n",
+    "constantValue" : "fluxzero.tracking.defaultHandlingMode."
+  }, {
+    "name" : "DEFAULT_HANDLING_MODE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_HANDLING_MODE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " App-wide default handler execution mode used when a consumer and its message-type default consumer both use\n {@link ConsumerHandlingMode#DEFAULT}.\n",
+    "constantValue" : "fluxzero.tracking.defaultHandlingMode"
+  }, {
     "name" : "DEFAULT_MAX_FETCH_BYTES",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.DEFAULT_MAX_FETCH_BYTES",
     "type" : "long",
@@ -268,6 +284,20 @@
     "documentation" : " Interceptors that wrap handler execution for additional behavior (e.g. logging, metrics, authorization).\n <p>\n These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. Global\n handler interceptors configured via {@code FluxzeroBuilder} keep their existing position in the chain; consumer\n interceptors are only sorted relative to other interceptors in the same consumer configuration.\n",
     "constantValue" : null
   }, {
+    "name" : "handlingMode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.handlingMode",
+    "type" : "io.fluxzero.sdk.tracking.@lombok.NonNull ConsumerHandlingMode",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Controls whether handlers assigned to this consumer execute in the tracker thread or on a worker thread.\n <p>\n {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer's resolved mode. If that is also\n default, Fluxzero falls back to {@link #defaultHandlingModeProperty(MessageType)},\n {@link #DEFAULT_HANDLING_MODE_PROPERTY}, and versioned SDK defaults.\n",
+    "constantValue" : null
+  }, {
     "name" : "ignoreSegment",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.ignoreSegment",
     "type" : "boolean",
@@ -507,6 +537,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a stream of {@code ConsumerConfiguration}s by inspecting the given handler classes and their packages.\n Includes both class-level and package-level {@code @Consumer} annotations.\n"
+  }, {
+    "name" : "defaultHandlingModeProperty",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#defaultHandlingModeProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the property key for a message-type specific default handler execution mode.\n\n @param messageType message type to configure\n @return property key using the lowercase message type name\n"
   }, {
     "name" : "exclusivityPriority",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration#exclusivityPriority",

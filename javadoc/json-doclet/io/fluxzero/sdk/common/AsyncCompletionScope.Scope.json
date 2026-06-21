@@ -33,7 +33,7 @@
     "name" : "add",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope#add",
     "returnType" : "void",
-    "modifiers" : [ ],
+    "modifiers" : [ "synchronized" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -68,7 +68,12 @@
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "snapshot",
+      "type" : "java.util.List<io.fluxzero.sdk.common.AsyncCompletionScope.Completion>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
