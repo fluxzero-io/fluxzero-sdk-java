@@ -26,6 +26,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
@@ -62,6 +63,13 @@ public class HandlerConfiguration<M> {
      */
     @Default
     boolean invokeMultipleMethods = false;
+
+    /**
+     * Optional comparator used to order methods that have the same annotation priority. Returning {@code 0} preserves
+     * the default specificity and inspection-order tie-breakers.
+     */
+    @Default
+    Comparator<Executable> samePriorityMethodComparator = (left, right) -> 0;
 
     /**
      * A filter applied to candidate methods to determine if they are valid handlers for the given context.

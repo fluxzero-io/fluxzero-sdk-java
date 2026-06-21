@@ -40,7 +40,6 @@ import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.silentTest;
-import static io.fluxzero.common.handling.HandlerInspector.MethodHandlerMatcher.comparator;
 import static io.fluxzero.common.reflection.ReflectionUtils.ensureAccessible;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAllMethods;
 import static java.util.Arrays.stream;
@@ -185,7 +184,7 @@ public class HandlerInspector {
                         .filter(m -> config.methodMatches(targetClass, m))
                         .flatMap(m -> Stream.of(
                                 new MethodHandlerMatcher<>(m, targetClass, parameterResolvers, config)))
-                        .sorted(comparator).collect(toList()),
+                        .sorted(MethodHandlerMatcher.comparator(config)).collect(toList()),
                 config.invokeMultipleMethods());
     }
 
@@ -202,15 +201,20 @@ public class HandlerInspector {
      */
     @Getter
     public static class MethodHandlerMatcher<M> implements HandlerMatcher<Object, M> {
-        protected static final Comparator<MethodHandlerMatcher<?>> comparator = (left, right) -> compare(
-                left.getPriority(),
-                new Specificity(left.getClassForSpecificity(), Integer.MAX_VALUE),
-                left.getParameterCount(),
-                left.getMethodIndex(),
-                right.getPriority(),
-                new Specificity(right.getClassForSpecificity(), Integer.MAX_VALUE),
-                right.getParameterCount(),
-                right.getMethodIndex());
+        protected static Comparator<MethodHandlerMatcher<?>> comparator(HandlerConfiguration<?> config) {
+            return (left, right) -> compare(
+                    left.getPriority(),
+                    new Specificity(left.getClassForSpecificity(), Integer.MAX_VALUE),
+                    left.getParameterCount(),
+                    left.getMethodIndex(),
+                    left.getExecutable(),
+                    right.getPriority(),
+                    new Specificity(right.getClassForSpecificity(), Integer.MAX_VALUE),
+                    right.getParameterCount(),
+                    right.getMethodIndex(),
+                    right.getExecutable(),
+                    config.samePriorityMethodComparator());
+        }
 
         private final int methodIndex;
         private final Executable executable;
@@ -547,10 +551,13 @@ public class HandlerInspector {
                     computeSpecificity(message),
                     parameterCount,
                     methodIndex,
+                    executable,
                     other.priority,
                     other.computeSpecificity(message),
                     other.parameterCount,
-                    other.methodIndex);
+                    other.methodIndex,
+                    other.executable,
+                    config.samePriorityMethodComparator());
         }
 
         protected int methodIndex(Method instanceMethod, Class<?> instanceType) {
@@ -587,9 +594,16 @@ public class HandlerInspector {
         }
 
         protected static int compare(int leftPriority, Specificity leftSpecificity, int leftParameterCount,
-                                     int leftMethodIndex, int rightPriority, Specificity rightSpecificity,
-                                     int rightParameterCount, int rightMethodIndex) {
+                                     int leftMethodIndex, Executable leftExecutable,
+                                     int rightPriority, Specificity rightSpecificity,
+                                     int rightParameterCount, int rightMethodIndex,
+                                     Executable rightExecutable,
+                                     Comparator<Executable> samePriorityMethodComparator) {
             int result = Integer.compare(rightPriority, leftPriority);
+            if (result != 0) {
+                return result;
+            }
+            result = samePriorityMethodComparator.compare(leftExecutable, rightExecutable);
             if (result != 0) {
                 return result;
             }

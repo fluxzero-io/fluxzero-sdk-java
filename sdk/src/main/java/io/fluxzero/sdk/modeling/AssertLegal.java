@@ -83,7 +83,8 @@ import java.lang.annotation.Target;
  *
  * <h2>Ordering</h2>
  * Multiple legality methods may be invoked. Their execution order is determined by {@link #priority()},
- * with higher values taking precedence.
+ * with higher values taking precedence. Methods with the same priority are invoked in deterministic order by method
+ * name and signature.
  *
  * <h2>Execution timing</h2>
  * By default, checks run immediately during handler execution. You can defer them until after the handler completes
@@ -99,7 +100,7 @@ public @interface AssertLegal {
     /**
      * Determines the order of assertions if there are multiple annotated methods. A method with higher priority will be
      * invoked before methods with a lower priority. Use {@link #HIGHEST_PRIORITY} to ensure that the check is performed
-     * first.
+     * first. Methods with the same priority are invoked in deterministic order by method name and signature.
      */
     int priority() default DEFAULT_PRIORITY;
 

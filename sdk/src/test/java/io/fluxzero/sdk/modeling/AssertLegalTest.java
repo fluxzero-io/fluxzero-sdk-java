@@ -25,6 +25,7 @@ import jakarta.validation.constraints.Null;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -85,6 +86,13 @@ public class AssertLegalTest {
     }
 
     @Test
+    void testSamePriorityAssertionsAreInvokedByMethodName() {
+        CommandWithSamePriorityAssertions command = new CommandWithSamePriorityAssertions();
+        testFixture.whenCommand(command)
+                .expectThat(fc -> assertEquals(List.of("alpha", "bravo", "zulu"), command.getInvocations()));
+    }
+
+    @Test
     void testAssertionsForDifferentModels() {
         CommandWithAssertionsForDifferentModels
                 command = new CommandWithAssertionsForDifferentModels();
@@ -110,6 +118,16 @@ public class AssertLegalTest {
     @Test
     void testAssertLegalAfterApply() {
         testFixture.whenCommand(new CommandWithAssertAfterApply()).expectExceptionalResult(MockException.class);
+    }
+
+    @Test
+    void testBeforeAndAfterHandlerAssertionsAreFilteredSeparately() {
+        CommandWithMixedBeforeAndAfterAssertions command = new CommandWithMixedBeforeAndAfterAssertions();
+        testFixture.whenCommand(command)
+                .expectThat(fc -> {
+                    assertEquals(1, command.getBeforeCount().get());
+                    assertEquals(1, command.getAfterCount().get());
+                });
     }
 
     @Test
@@ -247,6 +265,26 @@ public class AssertLegalTest {
     }
 
     @Value
+    private static class CommandWithSamePriorityAssertions {
+        List<String> invocations = new ArrayList<>();
+
+        @AssertLegal
+        private void zulu() {
+            invocations.add("zulu");
+        }
+
+        @AssertLegal
+        private void alpha() {
+            invocations.add("alpha");
+        }
+
+        @AssertLegal
+        private void bravo() {
+            invocations.add("bravo");
+        }
+    }
+
+    @Value
     private static class CommandWithAssertionsForDifferentModels {
         AtomicInteger assertionCount = new AtomicInteger();
 
@@ -298,6 +336,28 @@ public class AssertLegalTest {
         @Apply
         TestModel apply() {
             return new TestModel(this);
+        }
+    }
+
+    @Value
+    private static class CommandWithMixedBeforeAndAfterAssertions {
+        AtomicInteger beforeCount = new AtomicInteger();
+        AtomicInteger afterCount = new AtomicInteger();
+
+        @AssertLegal
+        void aaaBefore(@Nullable TestModel model) {
+            beforeCount.incrementAndGet();
+            if (model != null) {
+                throw new IllegalStateException("Before-handler assertion should run before apply");
+            }
+        }
+
+        @AssertLegal(afterHandler = true)
+        void zzzAfter(@Nullable TestModel model) {
+            afterCount.incrementAndGet();
+            if (model == null) {
+                throw new IllegalStateException("After-handler assertion should run after apply");
+            }
         }
     }
 
