@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Thread-local scope for asynchronous work started from completion callbacks.
@@ -125,6 +126,45 @@ public final class AsyncCompletionScope {
         return stack != null && !stack.isEmpty();
     }
 
+    /**
+     * Captures the current completion scope and returns a supplier that re-enters it when executed.
+     * <p>
+     * This is intended for framework-managed worker threads that still belong to the same logical handler or batch
+     * processing operation. If no scope is active, the original supplier is returned unchanged.
+     *
+     * @param supplier supplier to execute with the captured scope
+     * @param <T>      result type
+     * @return a context-aware supplier
+     */
+    public static <T> Supplier<T> captureContext(Supplier<T> supplier) {
+        Scope captured = currentScope();
+        return captured == null ? supplier : () -> runWithScope(captured, supplier);
+    }
+
+    private static Scope currentScope() {
+        Deque<Scope> stack = scopes.get();
+        return stack == null || stack.isEmpty() ? null : stack.peek();
+    }
+
+    private static <T> T runWithScope(Scope scope, Supplier<T> supplier) {
+        Deque<Scope> stack = scopes.get();
+        boolean createdStack = false;
+        if (stack == null) {
+            stack = new ArrayDeque<>();
+            scopes.set(stack);
+            createdStack = true;
+        }
+        stack.push(scope);
+        try {
+            return supplier.get();
+        } finally {
+            stack.pop();
+            if (createdStack || stack.isEmpty()) {
+                scopes.remove();
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static <E extends Throwable> void throwUnchecked(Throwable error) throws E {
         throw (E) error;
@@ -133,23 +173,27 @@ public final class AsyncCompletionScope {
     private static final class Scope {
         private final List<Completion> completions = new ArrayList<>();
 
-        void add(CompletableFuture<?> future, Runnable afterCompletion) {
+        synchronized void add(CompletableFuture<?> future, Runnable afterCompletion) {
             completions.add(new Completion(future, afterCompletion));
         }
 
         Throwable await() {
-            if (completions.isEmpty()) {
+            List<Completion> snapshot;
+            synchronized (this) {
+                snapshot = List.copyOf(completions);
+            }
+            if (snapshot.isEmpty()) {
                 return null;
             }
             Throwable waitFailure = null;
             try {
-                CompletableFuture.allOf(completions.stream()
+                CompletableFuture.allOf(snapshot.stream()
                                                 .map(Completion::future)
                                                 .toArray(CompletableFuture[]::new)).join();
             } catch (Throwable e) {
                 waitFailure = e;
             }
-            Throwable callbackFailure = runCompletionCallbacks();
+            Throwable callbackFailure = runCompletionCallbacks(snapshot);
             if (waitFailure != null) {
                 if (callbackFailure != null) {
                     waitFailure.addSuppressed(callbackFailure);
@@ -159,9 +203,9 @@ public final class AsyncCompletionScope {
             return callbackFailure;
         }
 
-        private Throwable runCompletionCallbacks() {
+        private Throwable runCompletionCallbacks(List<Completion> snapshot) {
             Throwable failure = null;
-            for (Completion completion : completions) {
+            for (Completion completion : snapshot) {
                 if (completion.afterCompletion() == null) {
                     continue;
                 }

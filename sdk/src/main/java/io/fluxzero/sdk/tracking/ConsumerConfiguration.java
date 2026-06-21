@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
@@ -36,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -88,6 +90,21 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
 
     /**
+     * App-wide default handler execution mode used when a consumer and its message-type default consumer both use
+     * {@link ConsumerHandlingMode#DEFAULT}.
+     */
+    public static final String DEFAULT_HANDLING_MODE_PROPERTY = "fluxzero.tracking.defaultHandlingMode";
+
+    /**
+     * Prefix for message-type specific default handler execution mode properties.
+     * <p>
+     * For example, {@code fluxzero.tracking.defaultHandlingMode.webrequest = async} changes only web request default
+     * consumers while {@link #DEFAULT_HANDLING_MODE_PROPERTY} still applies app-wide.
+     */
+    public static final String DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX =
+            DEFAULT_HANDLING_MODE_PROPERTY + ".";
+
+    /**
      * Default serialized payload byte limit per tracking fetch.
      */
     public static final long DEFAULT_MAX_FETCH_BYTES = 100L * 1024L * 1024L;
@@ -97,6 +114,17 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * before read requests are sent.
      */
     public static final long USE_DEFAULT_MAX_FETCH_BYTES = -1L;
+
+    /**
+     * Returns the property key for a message-type specific default handler execution mode.
+     *
+     * @param messageType message type to configure
+     * @return property key using the lowercase message type name
+     */
+    public static String defaultHandlingModeProperty(MessageType messageType) {
+        return DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX
+               + messageType.name().toLowerCase(Locale.ROOT);
+    }
 
     /**
      * Unique name for the consumer. Used for tracking and identifying its state.
@@ -278,6 +306,17 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     @Default
     @Accessors(fluent = true)
     boolean awaitSendAndForgetFutures = true;
+
+    /**
+     * Controls whether handlers assigned to this consumer execute in the tracker thread or on a worker thread.
+     * <p>
+     * {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer's resolved mode. If that is also
+     * default, Fluxzero falls back to {@link #defaultHandlingModeProperty(MessageType)},
+     * {@link #DEFAULT_HANDLING_MODE_PROPERTY}, and versioned SDK defaults.
+     */
+    @Default
+    @NonNull
+    ConsumerHandlingMode handlingMode = ConsumerHandlingMode.DEFAULT;
 
     /**
      * Optional minimum index to start processing messages from.
@@ -465,6 +504,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .storePositionManually(consumer.storePositionManually())
                 .awaitAsyncResults(consumer.awaitAsyncResults())
                 .awaitSendAndForgetFutures(consumer.awaitSendAndForgetFutures())
+                .handlingMode(consumer.handlingMode())
                 .singleTracker(consumer.singleTracker())
                 .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())
                 .maxIndexExclusive(consumer.maxIndexExclusive() < 0 ? null : consumer.maxIndexExclusive())

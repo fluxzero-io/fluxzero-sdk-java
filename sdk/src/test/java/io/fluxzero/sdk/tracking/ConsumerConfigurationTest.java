@@ -65,6 +65,21 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
+    void builderDefaultsHandlingModeToDefault() {
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("default").build();
+
+        assertEquals(ConsumerHandlingMode.DEFAULT, config.getHandlingMode());
+    }
+
+    @Test
+    void consumerAnnotationCanConfigureHandlingMode() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                List.of(AsyncHandlingConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(ConsumerHandlingMode.ASYNC, config.getHandlingMode());
+    }
+
+    @Test
     void consumerAnnotationCanDisableAwaitingSendAndForgetFutures() {
         ConsumerConfiguration config = ConsumerConfiguration.configurations(
                 List.of(SendAndForgetOptOutConsumer.class)).findFirst().orElseThrow();
@@ -504,6 +519,10 @@ public class ConsumerConfigurationTest {
 
     @Consumer(name = "send-and-forget-opt-out", awaitSendAndForgetFutures = false)
     static class SendAndForgetOptOutConsumer {
+    }
+
+    @Consumer(name = "async-handling", handlingMode = ConsumerHandlingMode.ASYNC)
+    static class AsyncHandlingConsumer {
     }
 
     @Order(10)

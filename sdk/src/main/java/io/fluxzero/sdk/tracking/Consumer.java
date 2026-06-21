@@ -265,6 +265,15 @@ public @interface Consumer {
     boolean awaitSendAndForgetFutures() default true;
 
     /**
+     * Controls whether handlers assigned to this consumer are invoked in the tracker thread or offloaded to a worker
+     * thread.
+     * <p>
+     * {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer, app-wide default, or versioned
+     * SDK defaults. Existing applications without a defaults version continue to resolve to synchronous handling.
+     */
+    ConsumerHandlingMode handlingMode() default ConsumerHandlingMode.DEFAULT;
+
+    /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.
      * <p>
      * If {@code true} (default), a handler will only be active in this consumer. If {@code false}, the same handler may

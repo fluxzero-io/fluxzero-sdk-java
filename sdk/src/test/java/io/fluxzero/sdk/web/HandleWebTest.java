@@ -26,14 +26,17 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import io.fluxzero.sdk.tracking.ErrorHandler;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -93,6 +96,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -675,6 +679,65 @@ public class HandleWebTest {
                     .expectThat(fc -> assertEquals(
                             "Handler \"Handler\" failed to handle a web request GET /users/abc",
                             errorMessage.get()));
+        }
+
+        @Test
+        void defaultsVersionRunsWebRequestHandlersAsync() {
+            AtomicReference<Thread> batchThread = new AtomicReference<>();
+            AtomicReference<Thread> handlerThread = new AtomicReference<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.set(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build()),
+                                    new ThreadRecordingHandler(handlerThread))
+                    .whenGet("/thread")
+                    .expectResult("thread")
+                    .expectThat(fc -> assertNotEquals(batchThread.get(), handlerThread.get()));
+        }
+
+        @Test
+        void explicitSyncWebRequestHandlingOverridesDefaultsVersion() {
+            AtomicReference<Thread> batchThread = new AtomicReference<>();
+            AtomicReference<Thread> handlerThread = new AtomicReference<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .handlingMode(ConsumerHandlingMode.SYNC)
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.set(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build()),
+                                    new ThreadRecordingHandler(handlerThread))
+                    .whenGet("/thread")
+                    .expectResult("thread")
+                    .expectThat(fc -> assertEquals(batchThread.get(), handlerThread.get()));
+        }
+
+        private class ThreadRecordingHandler {
+            private final AtomicReference<Thread> handlerThread;
+
+            private ThreadRecordingHandler(AtomicReference<Thread> handlerThread) {
+                this.handlerThread = handlerThread;
+            }
+
+            @HandleGet("/thread")
+            String thread() {
+                handlerThread.set(Thread.currentThread());
+                return "thread";
+            }
         }
 
         private class Handler {
@@ -1323,6 +1386,39 @@ public class HandleWebTest {
                     .andThen()
                     .whenGet("")
                     .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void defaultsVersionRunsServeStaticHandlersAsync() {
+            CompletableFuture<Thread> batchThread = new CompletableFuture<>();
+            CompletableFuture<Thread> handlerThread = new CompletableFuture<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.complete(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build())
+                                            .addHandlerInterceptor((next, invoker) -> message -> {
+                                                handlerThread.complete(Thread.currentThread());
+                                                return next.apply(message);
+                                            }, MessageType.WEBREQUEST),
+                                    new ClasspathHandler())
+                    .whenExecuting(fc -> {
+                        fc.webRequestGateway().sendAndForget(
+                                Guarantee.STORED, WebRequest.get("/static/index.html").build()).get(1,
+                                                                                                    TimeUnit.SECONDS);
+                        assertTrue(batchThread.get(1, TimeUnit.SECONDS) != null);
+                        assertTrue(handlerThread.get(1, TimeUnit.SECONDS) != null);
+                    })
+                    .expectThat(fc -> {
+                        assertNotEquals(batchThread.getNow(null), handlerThread.getNow(null));
+                    });
         }
 
         @Path

@@ -27,6 +27,8 @@ import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
@@ -47,6 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -143,6 +146,169 @@ class DefaultTrackingAsyncResultTest {
 
         verify(resultGateway).respond("ok", "benchmark-app", 7);
         tracking.close();
+    }
+
+    @Test
+    void asyncHandlingModeOffloadsSynchronousHandlerAndPropagatesContext() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        ConsumerConfiguration config = asyncConfig(true);
+        Fluxzero fluxzero = mockFluxzero(config, MessageType.WEBREQUEST);
+        Thread trackerThread = Thread.currentThread();
+        AtomicReference<Thread> handlerThread = new AtomicReference<>();
+        AtomicReference<Boolean> trackerVisible = new AtomicReference<>();
+        AtomicReference<Boolean> fluxzeroVisible = new AtomicReference<>();
+        AtomicReference<Boolean> messageVisible = new AtomicReference<>();
+
+        try {
+            fluxzero.execute(fc -> {
+                Tracker.current.set(new Tracker("tracker-id", MessageType.WEBREQUEST, null, config, null));
+                try {
+                    tracking.handleBatch(
+                            List.of(message(serializer)),
+                            List.of(handler(() -> {
+                                handlerThread.set(Thread.currentThread());
+                                trackerVisible.set(Tracker.current().map(Tracker::getTrackerId)
+                                                           .filter("tracker-id"::equals).isPresent());
+                                fluxzeroVisible.set(Fluxzero.getOptionally().orElse(null) == fluxzero);
+                                messageVisible.set(DeserializingMessage.getOptionally().isPresent());
+                            })),
+                            config,
+                            true);
+                } finally {
+                    Tracker.current.remove();
+                }
+            });
+        } finally {
+            tracking.close();
+        }
+
+        assertNotEquals(trackerThread, handlerThread.get());
+        assertTrue(trackerVisible.get());
+        assertTrue(fluxzeroVisible.get());
+        assertTrue(messageVisible.get());
+    }
+
+    @Test
+    void asyncHandlingModeDoesNotWaitByDefault() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseHandler = new CompletableFuture<>();
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer)),
+                    List.of(handler(() -> {
+                        handlerStarted.countDown();
+                        releaseHandler.join();
+                    })),
+                    ConsumerConfiguration.builder()
+                            .name("web")
+                            .handlingMode(ConsumerHandlingMode.ASYNC)
+                            .build(),
+                    true);
+
+            assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
+            assertFalse(releaseHandler.isDone());
+        } finally {
+            releaseHandler.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncHandlingModeWaitsWhenAwaitAsyncResultsIsEnabled() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseHandler = new CompletableFuture<>();
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+
+        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handler(() -> {
+                    handlerStarted.countDown();
+                    releaseHandler.join();
+                })),
+                asyncConfig(true),
+                true));
+
+        try {
+            assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
+            TimeUnit.MILLISECONDS.sleep(50L);
+            assertFalse(batchCompletion.isDone());
+
+            releaseHandler.complete(null);
+
+            assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+        } finally {
+            releaseHandler.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncHandlingModePropagatesAdhocDispatchInterceptors() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        AtomicReference<Boolean> adhocInterceptorVisible = new AtomicReference<>();
+        DispatchInterceptor interceptor = DispatchInterceptor.noOp;
+
+        try {
+            AdhocDispatchInterceptor.runWithAdhocInterceptor(
+                    () -> tracking.handleBatch(
+                            List.of(message(serializer)),
+                            List.of(handler(() -> adhocInterceptorVisible.set(
+                                    AdhocDispatchInterceptor.getAdhocInterceptor(MessageType.EVENT).isPresent()))),
+                            asyncConfig(true),
+                            true),
+                    interceptor,
+                    MessageType.EVENT);
+        } finally {
+            tracking.close();
+        }
+
+        assertTrue(adhocInterceptorVisible.get());
+    }
+
+    @Test
+    void awaitedAsyncHandlingModeWaitsForSendAndForgetFutures() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
+        CountDownLatch handlerRan = new CountDownLatch(1);
+
+        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handler(() -> {
+                    AsyncCompletionScope.register(sendCompletion);
+                    handlerRan.countDown();
+                })),
+                asyncConfig(true),
+                true));
+
+        try {
+            assertTrue(handlerRan.await(1, TimeUnit.SECONDS));
+            TimeUnit.MILLISECONDS.sleep(50L);
+            assertFalse(batchCompletion.isDone());
+
+            sendCompletion.complete(null);
+
+            assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+        } finally {
+            sendCompletion.complete(null);
+            tracking.close();
+        }
     }
 
     @Test
@@ -381,6 +547,14 @@ class DefaultTrackingAsyncResultTest {
                 return invoker;
             }
         };
+    }
+
+    private static ConsumerConfiguration asyncConfig(boolean awaitAsyncResults) {
+        return ConsumerConfiguration.builder()
+                .name("web")
+                .handlingMode(ConsumerHandlingMode.ASYNC)
+                .awaitAsyncResults(awaitAsyncResults)
+                .build();
     }
 
     private static Fluxzero mockFluxzero(ConsumerConfiguration config, MessageType messageType) {

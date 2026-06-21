@@ -36,6 +36,8 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
@@ -84,6 +86,9 @@ import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.DEFAULT;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_HANDSHAKE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
@@ -141,7 +146,7 @@ public class DefaultTracking implements Tracking {
             new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
-    private final ExecutorService chunkedMessageHandlerExecutor = newWorkerPool("tracking-chunked-message-handler", 8);
+    private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
 
     /**
@@ -241,7 +246,18 @@ public class DefaultTracking implements Tracking {
     private Stream<ConsumerConfiguration> explicitConfigurations(List<?> handlers) {
         return Stream.concat(
                 ConsumerConfiguration.configurations(handlers.stream().map(ReflectionUtils::asClass).collect(toList())),
-                customConfigurations.stream());
+                customConfigurations.stream()).map(this::resolveDefaultHandlingMode);
+    }
+
+    private ConsumerConfiguration resolveDefaultHandlingMode(ConsumerConfiguration configuration) {
+        if (configuration.getHandlingMode() != DEFAULT) {
+            return configuration;
+        }
+        ConsumerHandlingMode fallbackMode = defaultConfigurations.stream().findFirst()
+                .map(ConsumerConfiguration::getHandlingMode)
+                .filter(mode -> mode != DEFAULT)
+                .orElse(SYNC);
+        return configuration.toBuilder().handlingMode(fallbackMode).build();
     }
 
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
@@ -702,7 +718,7 @@ public class DefaultTracking implements Tracking {
             } catch (Throwable e) {
                 stopTracker(message, handler, e);
             }
-            return completedReport;
+            return awaitResultIfConfigured(result, config);
         }
         Optional<HandlerInvoker> optionalInvoker = getInvoker(message, handler, config);
         if (optionalInvoker.isEmpty()) {
@@ -729,7 +745,14 @@ public class DefaultTracking implements Tracking {
         } catch (Throwable e) {
             stopTracker(message, handler, e);
         }
-        return completedReport;
+        return awaitResultIfConfigured(result, config);
+    }
+
+    private CompletionStage<Void> awaitResultIfConfigured(Object result, ConsumerConfiguration config) {
+        if (!config.awaitAsyncResults() || !(result instanceof CompletionStage<?> stage)) {
+            return completedReport;
+        }
+        return stage.thenApply(ignored -> null);
     }
 
     @SuppressWarnings("unchecked")
@@ -772,14 +795,8 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
-        if (message instanceof ChunkedDeserializingMessage) {
-            Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
-            Tracker tracker = Tracker.current().orElse(null);
-            User user = User.getCurrent();
-            return supplyAsync(
-                    () -> withHandlerContext(message, fluxzero, tracker, user,
-                                             () -> doHandle(message, h, handler, config)),
-                    chunkedMessageHandlerExecutor);
+        if (shouldHandleOnWorker(message, config)) {
+            return handleAsync(message, () -> doHandle(message, h, handler, config));
         }
         return doHandle(message, h, handler, config);
     }
@@ -787,16 +804,24 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     protected Object handle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
                             Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
-        if (message instanceof ChunkedDeserializingMessage) {
-            Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
-            Tracker tracker = Tracker.current().orElse(null);
-            User user = User.getCurrent();
-            return supplyAsync(
-                    () -> withHandlerContext(message, fluxzero, tracker, user,
-                                             () -> doHandle(message, h, handler, config)),
-                    chunkedMessageHandlerExecutor);
+        if (shouldHandleOnWorker(message, config)) {
+            return handleAsync(message, () -> doHandle(message, h, handler, config));
         }
         return doHandle(message, h, handler, config);
+    }
+
+    private boolean shouldHandleOnWorker(DeserializingMessage message, ConsumerConfiguration config) {
+        return message instanceof ChunkedDeserializingMessage || config.getHandlingMode() == ASYNC;
+    }
+
+    private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
+        Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
+        Tracker tracker = Tracker.current().orElse(null);
+        User user = User.getCurrent();
+        Map<MessageType, DispatchInterceptor> adhocInterceptors = AdhocDispatchInterceptor.captureAdhocInterceptors();
+        Supplier<T> contextAwareTask = AsyncCompletionScope.captureContext(
+                () -> withHandlerContext(message, fluxzero, tracker, user, adhocInterceptors, task));
+        return supplyAsync(contextAwareTask, messageHandlerExecutor);
     }
 
     @SuppressWarnings("unchecked")
@@ -825,7 +850,7 @@ public class DefaultTracking implements Tracking {
     }
 
     protected <T> T withHandlerContext(DeserializingMessage message, Fluxzero fluxzero, Tracker tracker, User user,
-                                       Supplier<T> task) {
+                                       Map<MessageType, DispatchInterceptor> adhocInterceptors, Supplier<T> task) {
         Fluxzero previousFluxzero = Fluxzero.instance.get();
         Tracker previousTracker = Tracker.current.get();
         User previousUser = User.getCurrent();
@@ -833,7 +858,8 @@ public class DefaultTracking implements Tracking {
             setThreadLocal(Fluxzero.instance, fluxzero);
             setThreadLocal(Tracker.current, tracker);
             setThreadLocal(User.current, user);
-            return message.apply(m -> task.get());
+            return AdhocDispatchInterceptor.runWithAdhocInterceptors(
+                    () -> message.apply(m -> task.get()), adhocInterceptors);
         } finally {
             setThreadLocal(Fluxzero.instance, previousFluxzero);
             setThreadLocal(Tracker.current, previousTracker);
@@ -974,7 +1000,7 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public void close() {
         shutdownFunction.get().merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests))
-                .merge(chunkedMessageHandlerExecutor::shutdown)
+                .merge(messageHandlerExecutor::shutdown)
                 .cancel();
     }
 }

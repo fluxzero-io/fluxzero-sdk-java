@@ -77,6 +77,44 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
     }
 
     /**
+     * Captures the current thread-local ad hoc interceptors so they can be restored on another worker thread.
+     *
+     * @return immutable snapshot of the current ad hoc interceptors
+     */
+    public static Map<MessageType, DispatchInterceptor> captureAdhocInterceptors() {
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        return current == null || current.isEmpty() ? Map.of() : Map.copyOf(current);
+    }
+
+    /**
+     * Executes the given task with a previously captured ad hoc interceptor context.
+     *
+     * @param task              the task to run
+     * @param adhocInterceptors captured ad hoc interceptors
+     * @param <T>               the return type of the task
+     * @return the task result
+     */
+    @SneakyThrows
+    public static <T> T runWithAdhocInterceptors(Callable<T> task,
+                                                 Map<MessageType, DispatchInterceptor> adhocInterceptors) {
+        Map<MessageType, DispatchInterceptor> previous = delegates.get();
+        try {
+            if (adhocInterceptors == null || adhocInterceptors.isEmpty()) {
+                delegates.remove();
+            } else {
+                delegates.set(new HashMap<>(adhocInterceptors));
+            }
+            return task.call();
+        } finally {
+            if (previous == null) {
+                delegates.remove();
+            } else {
+                delegates.set(previous);
+            }
+        }
+    }
+
+    /**
      * Executes the given {@link Callable} while temporarily enabling the provided interceptor for the specified message
      * types.
      * <p>
@@ -93,7 +131,8 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
     public static <T> T runWithAdhocInterceptor(Callable<T> task, DispatchInterceptor adhocInterceptor,
                                                 MessageType... messageTypes) {
         Map<MessageType, DispatchInterceptor> previous = delegates.get();
-        Map<MessageType, DispatchInterceptor> merged = Optional.ofNullable(previous).orElseGet(HashMap::new);
+        Map<MessageType, DispatchInterceptor> merged =
+                previous == null ? new HashMap<>() : new HashMap<>(previous);
         Stream<MessageType> typeStream =
                 (messageTypes.length == 0 ? EnumSet.allOf(MessageType.class).stream() : Arrays.stream(messageTypes));
         typeStream.forEach(messageType -> merged.compute(

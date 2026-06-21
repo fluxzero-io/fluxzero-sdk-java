@@ -23,12 +23,17 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.QUERY;
+import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -114,6 +119,106 @@ public class FluxzeroConfigTest {
                     .get(COMMAND).getFirst().effectiveMaxFetchBytes());
             assertEquals(0L, defaultMaxFetchBytes);
             assertEquals(8192L, customMaxFetchBytes);
+        }
+    }
+
+    @Test
+    void compatibilityDefaultsResolveConsumerHandlingModeToSync() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of()))
+                .build(LocalClient.newInstance())) {
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(WEBREQUEST).getHandlingMode());
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getHandlingMode());
+        }
+    }
+
+    @Test
+    void defaultsVersionEnablesAsyncWebRequestHandling() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.20")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(WEBREQUEST).getHandlingMode());
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getHandlingMode());
+        }
+    }
+
+    @Test
+    void appDefaultConsumerHandlingModeCanBeConfiguredByProperty() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ConsumerConfiguration.DEFAULT_HANDLING_MODE_PROPERTY, "async")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(EVENT).getHandlingMode());
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(WEBREQUEST).getHandlingMode());
+        }
+    }
+
+    @Test
+    void messageTypeDefaultConsumerHandlingModeCanBeConfiguredByProperty() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ConsumerConfiguration.DEFAULT_HANDLING_MODE_PROPERTY, "async",
+                        ConsumerConfiguration.defaultHandlingModeProperty(COMMAND), "sync",
+                        ConsumerConfiguration.DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX
+                        + "WEBREQUEST", "sync")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getHandlingMode());
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(WEBREQUEST).getHandlingMode());
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(QUERY).getHandlingMode());
+        }
+    }
+
+    @Test
+    void messageTypeDefaultConsumerHandlingModeOverridesAppDefault() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .configureDefaultConsumerHandlingMode(ASYNC)
+                .configureDefaultConsumer(COMMAND, c -> c.toBuilder().handlingMode(SYNC).build())
+                .build(LocalClient.newInstance())) {
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getHandlingMode());
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(QUERY).getHandlingMode());
+        }
+    }
+
+    @Test
+    void defaultConsumerHandlingModeCanBeConfiguredForSpecificMessageTypes() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .configureDefaultConsumerHandlingMode(ASYNC, WEBREQUEST, QUERY)
+                .build(LocalClient.newInstance())) {
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(WEBREQUEST).getHandlingMode());
+            assertEquals(ASYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(QUERY).getHandlingMode());
+            assertEquals(SYNC, fluxzero.configuration().defaultConsumerConfigurations()
+                    .get(COMMAND).getHandlingMode());
+        }
+    }
+
+    @Test
+    void customConsumerDefaultHandlingModeInheritsMessageTypeDefault() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.20")).andThen(existing))
+                .addConsumerConfiguration(ConsumerConfiguration.builder().name("web-custom").build(), WEBREQUEST)
+                .addConsumerConfiguration(ConsumerConfiguration.builder().name("command-custom").build(), COMMAND)
+                .build(LocalClient.newInstance())) {
+            assertEquals(ConsumerHandlingMode.DEFAULT, ConsumerConfiguration.builder().name("raw").build()
+                    .getHandlingMode());
+            assertEquals(ASYNC, fluxzero.configuration().customConsumerConfigurations()
+                    .get(WEBREQUEST).getFirst().getHandlingMode());
+            assertEquals(SYNC, fluxzero.configuration().customConsumerConfigurations()
+                    .get(COMMAND).getFirst().getHandlingMode());
         }
     }
 

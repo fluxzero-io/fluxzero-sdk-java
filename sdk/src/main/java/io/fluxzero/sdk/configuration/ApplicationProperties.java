@@ -112,6 +112,14 @@ public class ApplicationProperties {
      *         end of the current message batch. Existing applications can keep the legacy behavior with
      *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.06.20}</td>
+     *         <td>{@code fluxzero.tracking.defaultHandlingMode.webrequest = async}</td>
+     *         <td>Web request handlers assigned through default consumers are invoked on worker threads by default.
+     *         Existing applications can keep synchronous handling with
+     *         {@code fluxzero.tracking.defaultHandlingMode.webrequest = sync} or by configuring the web request default
+     *         consumer with {@code handlingMode = SYNC}.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with
