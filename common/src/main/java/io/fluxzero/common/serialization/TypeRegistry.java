@@ -47,4 +47,14 @@ public interface TypeRegistry {
      * @return an {@code Optional} containing the resolved fully qualified class name, or empty if not found
      */
     Optional<String> getTypeName(String alias);
+
+    /**
+     * Returns whether the given fully qualified class name is registered in this registry.
+     *
+     * @param fullyQualifiedName the fully qualified class name to check
+     * @return {@code true} if the type is registered, {@code false} otherwise
+     */
+    default boolean isRegistered(String fullyQualifiedName) {
+        return false;
+    }
 }

@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import io.fluxzero.common.reflection.ReflectionUtils;
 
+import java.io.IOException;
+
 import static com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
 public class GlobalTypeIdResolver extends TypeIdResolverBase {
@@ -34,8 +36,14 @@ public class GlobalTypeIdResolver extends TypeIdResolverBase {
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) {
-        return context.constructType(ReflectionUtils.classForName(id));
+    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+        Class<?> clazz = ReflectionUtils.classForName(id);
+        if (!AllowlistTypeValidator.instance.isAllowed(clazz.getName())) {
+            throw new IllegalArgumentException(
+                    "Deserialization of type " + id + " is not allowed. "
+                    + "Only types from trusted packages or registered via @RegisterType may be used in @class.");
+        }
+        return context.constructType(clazz);
     }
 
     @Override
