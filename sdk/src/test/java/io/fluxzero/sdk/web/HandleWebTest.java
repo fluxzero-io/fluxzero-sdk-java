@@ -68,7 +68,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.net.HttpCookie;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
@@ -76,11 +78,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.ANY;
@@ -1421,6 +1426,21 @@ public class HandleWebTest {
                     });
         }
 
+        @Test
+        void serveFromJarResourceUri() throws Exception {
+            java.nio.file.Path jar = Files.createTempFile("fluxzero-static-handler", ".jar");
+            jar.toFile().deleteOnExit();
+            try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
+                output.putNextEntry(new JarEntry("web/static/index.html"));
+                output.write("<!doctype html><p>from jar</p>".getBytes(StandardCharsets.UTF_8));
+                output.closeEntry();
+            }
+
+            URI resourceBaseUri = URI.create("jar:" + jar.toUri() + "!/web/static/");
+            TestFixture.create(new JarStaticHandler(resourceBaseUri)).whenGet("/jar")
+                    .expectWebResult(testContents("from jar"));
+        }
+
         @Path
         @ServeStatic(value = "/static", ignorePaths = "/static/api/*", resourcePath = "classpath:/web/static")
         static class ClasspathHandler {
@@ -1458,6 +1478,12 @@ public class HandleWebTest {
                 super("/file", Paths.get(FileUtils.getFile(
                         FileSystemHandler.class, "/web/static/index.html")).toAbsolutePath().toString()
                         .replace("/index.html", ""), "index.html");
+            }
+        }
+
+        static class JarStaticHandler extends StaticFileHandler {
+            JarStaticHandler(URI resourceBaseUri) {
+                super("/jar", null, resourceBaseUri, "index.html", Set.of(), Set.of("html"), 86400L);
             }
         }
 

@@ -275,7 +275,7 @@ public class StaticFileHandler implements Closeable {
         String raw = jarResourceUri.getRawSchemeSpecificPart();
         int sep = raw.indexOf("!/");
         if (sep != -1) {
-            return URI.create(raw.substring(0, sep));
+            return URI.create("jar:" + raw.substring(0, sep));
         }
         throw new IllegalArgumentException("Invalid jar URI: " + jarResourceUri);
     }
