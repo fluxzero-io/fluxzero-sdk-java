@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.LazyInputStream;
+import io.fluxzero.common.ThrowingSupplier;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
@@ -35,7 +36,6 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
-import org.springframework.util.function.ThrowingSupplier;
 
 import java.beans.ConstructorProperties;
 import java.beans.Transient;
@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static io.fluxzero.common.ObjectUtils.asSupplier;
 import static io.fluxzero.sdk.web.WebUtils.asHeaderMap;
 import static java.util.stream.Collectors.toList;
 
@@ -122,13 +123,13 @@ public class WebResponse extends Message {
 
     public static WebResponse ok(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                  Map<String, String> headers) {
-        return ok(new LazyInputStream(inputStreamSupplier), headers);
+        return ok(new LazyInputStream(asSupplier(inputStreamSupplier::get)), headers);
     }
 
     public static WebResponse partial(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                       Map<String, String> headers) {
-        return builder().status(206).singleValuedHeaders(headers).payload(new LazyInputStream(inputStreamSupplier))
-                .build();
+        return builder().status(206).singleValuedHeaders(headers)
+                .payload(new LazyInputStream(asSupplier(inputStreamSupplier::get))).build();
     }
 
     public static WebResponse notModified(Map<String, String> headers) {
