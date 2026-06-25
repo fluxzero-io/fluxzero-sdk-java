@@ -27,6 +27,7 @@ import io.fluxzero.common.TimingUtils;
 import io.fluxzero.common.api.BooleanResult;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ConnectEvent;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.DisconnectEvent;
 import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.JsonType;
@@ -35,14 +36,21 @@ import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
+import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.api.tracking.ReadFromIndexResult;
+import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportCodec;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.testserver.TestServerVersion;
 import io.fluxzero.testserver.metrics.MetricsLog;
@@ -60,7 +68,9 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -68,12 +78,17 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -85,8 +100,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
+import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.RUNTIME_SESSION_ID_USER_PROPERTY;
 import static java.lang.String.format;
 import static java.lang.System.currentTimeMillis;
@@ -95,6 +109,16 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public abstract class WebsocketEndpoint {
     private static final int DEFAULT_COMMAND_REQUEST_STRIPES = 16;
+    private static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
+    private static final int MAX_WEBSOCKET_FRAGMENT_BYTES = getPositiveIntegerProperty(
+            "maxWebSocketFragmentBytes", ServerWebsocketSession.DEFAULT_MAX_BINARY_FRAGMENT_BYTES);
+    private static final int WEBSOCKET_RESULT_BATCH_SIZE = getPositiveIntegerProperty(
+            "webSocketResultBatchSize", 1024);
+    private static final int TARGET_WEBSOCKET_RESULT_BATCH_BYTES = getPositiveIntegerProperty(
+            "targetWebSocketResultBatchBytes", 4 * 1024 * 1024);
+    private static final int ESTIMATED_RESULT_OVERHEAD_BYTES = 256;
+    protected static Duration webSocketSendTimeout =
+            Duration.ofMillis(getPositiveIntegerProperty("webSocketSendTimeoutMs", 30_000));
 
     private static final ObjectMapper defaultObjectMapper = JsonMapper.builder()
             .findAndAddModules().disable(WRITE_DATES_AS_TIMESTAMPS)
@@ -117,9 +141,11 @@ public abstract class WebsocketEndpoint {
     private final boolean ownsCommandIdempotencyStore;
 
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
+    private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
     private final TaskScheduler pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
+    private final Semaphore inFlightWebSocketBytes = new Semaphore(DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
     private final ThreadLocal<Long> requestReceivedTimestamps = new ThreadLocal<>();
     protected final AtomicBoolean shuttingDown = new AtomicBoolean();
     protected volatile boolean shutDown;
@@ -184,7 +210,8 @@ public abstract class WebsocketEndpoint {
         activeSessionIds.add(sessionId);
         commandIdempotencyStore.registerSession(getClientId(session), sessionId);
         sessionBacklogs.put(sessionId, new SessionBacklog(
-                Backlog.forConsumer(results -> sendResultBatch(session, results)), session));
+                Backlog.forOrderedAsyncConsumer(results -> sendResultBatchAsync(session, results),
+                                                WEBSOCKET_RESULT_BATCH_SIZE), session));
 
         registerMetrics(new ConnectEvent(
                                 getClientName(session), getClientId(session), sessionId,
@@ -193,9 +220,8 @@ public abstract class WebsocketEndpoint {
         schedulePing(session);
     }
 
-    @SneakyThrows
-    protected JsonType deserializeRequest(ServerWebsocketSession session, byte[] bytes) {
-        return objectMapper.readValue(decompress(bytes, getCompressionAlgorithm(session)), JsonType.class);
+    protected JsonType deserializeRequest(ServerWebsocketSession session, byte[] bytes) throws IOException {
+        return transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
     }
 
     public void onMessage(byte[] bytes, ServerWebsocketSession session) {
@@ -377,7 +403,10 @@ public abstract class WebsocketEndpoint {
             return CompletableFuture.completedFuture(Optional.of(
                     withRequestReceivedTimestamp(response, requestReceivedTimestamp)));
         }
-        if (result instanceof Throwable) {
+        if (result instanceof Throwable e) {
+            if (isCancellation(e)) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
             return CompletableFuture.completedFuture(Optional.of(
                     withRequestReceivedTimestamp(
                             new ErrorResult(request.getRequestId(), "Error in Fluxzero TestServer"),
@@ -401,6 +430,10 @@ public abstract class WebsocketEndpoint {
             CompletableFuture<Optional<RequestResult>> response = new CompletableFuture<>();
             future.whenComplete((r, e) -> {
                 if (e != null) {
+                    if (isCancellation(e)) {
+                        response.complete(Optional.empty());
+                        return;
+                    }
                     log.error("Could not handle request {} ({})", request.getRequestId(), message.getClass(), e);
                     toRequestResult(request, message, e, requestReceivedTimestamp)
                             .whenComplete((errorResponse, error) -> {
@@ -426,6 +459,10 @@ public abstract class WebsocketEndpoint {
         log.warn("Not able to send back result of type {} to client. Contents: {}. Request: {}",
                  result.getClass(), result, request);
         return CompletableFuture.completedFuture(Optional.empty());
+    }
+
+    private boolean isCancellation(Throwable e) {
+        return unwrapException(e) instanceof CancellationException;
     }
 
     private void runWithRequestReceivedTimestamp(long requestReceivedTimestamp, Runnable task) {
@@ -469,26 +506,241 @@ public abstract class WebsocketEndpoint {
     }
 
     protected void sendResultBatch(ServerWebsocketSession session, List<RequestResult> results) {
+        sendResultBatchAsync(session, results).join();
+    }
+
+    protected CompletableFuture<Void> sendResultBatchAsync(ServerWebsocketSession session,
+                                                           List<RequestResult> results) {
+        CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+        for (List<RequestResult> batch : splitResultBatch(results)) {
+            result = result.thenCompose(ignored -> sendResultBatchChunkAsync(session, batch));
+        }
+        return result;
+    }
+
+    private CompletableFuture<Void> sendResultBatchChunkAsync(ServerWebsocketSession session,
+                                                              List<RequestResult> results) {
         try {
             var result = results.size() == 1 ? results.getFirst() : new ResultBatch(results);
             if (session.isOpen()) {
                 try {
-                    byte[] bytes = objectMapper.writeValueAsBytes(result);
-                    session.sendBinary(ByteBuffer.wrap(compress(bytes, getCompressionAlgorithm(session))));
+                    byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(result));
+                    return sendEncodedResultBatch(session, results, result, bytes);
                 } catch (Exception e) {
-                    log.error("Failed to send websocket result to client {}, id {} (session {})",
-                              getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return handleSendFailure(session, results, result, e);
                 }
             } else {
                 findAlternativeBacklog(session).ifPresentOrElse(b -> b.add(results), ()
                         -> log.info("Not sending batch of {}. Could not find any suitable sessions for client {}.",
                                     results.size(), getClientId(session)));
+                return CompletableFuture.completedFuture(null);
             }
         } catch (Throwable e) {
             log.error("Failed to send websocket result to client {}, id {} (session {})",
                       getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
-            throw e;
+            return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private List<List<RequestResult>> splitResultBatch(List<RequestResult> results) {
+        if (results.size() <= 1) {
+            return List.of(results);
+        }
+        List<List<RequestResult>> batches = new ArrayList<>();
+        List<RequestResult> batch = new ArrayList<>();
+        int estimatedBatchBytes = 0;
+        for (RequestResult result : results) {
+            int estimatedResultBytes = estimateResultBytes(result);
+            if (!batch.isEmpty()
+                    && estimatedBatchBytes + estimatedResultBytes > TARGET_WEBSOCKET_RESULT_BATCH_BYTES) {
+                batches.add(List.copyOf(batch));
+                batch.clear();
+                estimatedBatchBytes = 0;
+            }
+            batch.add(result);
+            estimatedBatchBytes += estimatedResultBytes;
+        }
+        if (!batch.isEmpty()) {
+            batches.add(List.copyOf(batch));
+        }
+        return batches;
+    }
+
+    private int estimateResultBytes(RequestResult result) {
+        int size = ESTIMATED_RESULT_OVERHEAD_BYTES;
+        if (result instanceof ReadResult readResult) {
+            return size + estimateMessageBatchBytes(readResult.getMessageBatch());
+        }
+        if (result instanceof ReadFromIndexResult readFromIndexResult) {
+            return size + estimateSerializedMessagesBytes(readFromIndexResult.getMessages());
+        }
+        if (result instanceof StringResult stringResult) {
+            return size + estimateStringBytes(stringResult.getResult());
+        }
+        if (result instanceof ErrorResult errorResult) {
+            return size + estimateStringBytes(errorResult.getMessage());
+        }
+        return size;
+    }
+
+    private int estimateMessageBatchBytes(MessageBatch batch) {
+        return batch == null ? 0 : estimateSerializedMessagesBytes(batch.getMessages());
+    }
+
+    private int estimateSerializedMessagesBytes(List<SerializedMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return 0;
+        }
+        int result = 0;
+        for (SerializedMessage message : messages) {
+            result += estimateSerializedMessageBytes(message);
+        }
+        return result;
+    }
+
+    private int estimateSerializedMessageBytes(SerializedMessage message) {
+        if (message == null) {
+            return 0;
+        }
+        int result = 128;
+        Data<byte[]> data = message.getData();
+        if (data != null) {
+            byte[] value = data.getValue();
+            result += value == null ? 0 : value.length;
+            result += estimateStringBytes(data.getType()) + estimateStringBytes(data.getFormat());
+        }
+        Metadata metadata = message.getMetadata();
+        if (metadata != null && metadata.getEntries() != null) {
+            for (Map.Entry<String, String> entry : metadata.getEntries().entrySet()) {
+                result += estimateStringBytes(entry.getKey()) + estimateStringBytes(entry.getValue());
+            }
+        }
+        result += estimateStringBytes(message.getSource());
+        result += estimateStringBytes(message.getTarget());
+        result += estimateStringBytes(message.getMessageId());
+        return result;
+    }
+
+    private int estimateStringBytes(String value) {
+        return value == null ? 0 : value.length() * 2;
+    }
+
+    private CompletableFuture<Void> sendEncodedResultBatch(ServerWebsocketSession session,
+                                                           List<RequestResult> results, JsonType result,
+                                                           byte[] bytes) throws InterruptedException {
+        int permits = acquireInFlightWebSocketBytes(bytes.length);
+        CompletableFuture<Void> sendFuture;
+        try {
+            sendFuture = session.sendBinaryAsync(ByteBuffer.wrap(bytes), MAX_WEBSOCKET_FRAGMENT_BYTES);
+            if (sendFuture == null) {
+                session.sendBinary(ByteBuffer.wrap(bytes));
+                sendFuture = CompletableFuture.completedFuture(null);
+            }
+            sendFuture = withSendTimeout(sendFuture);
+        } catch (Throwable e) {
+            inFlightWebSocketBytes.release(permits);
+            return handleTransportSendFailure(session, results, result, e);
+        }
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        sendFuture.whenComplete((ignored, error) -> {
+            inFlightWebSocketBytes.release(permits);
+            if (error == null) {
+                completion.complete(null);
+                return;
+            }
+            handleTransportSendFailure(session, results, result, unwrapCompletionException(error))
+                    .whenComplete((v, failure) -> {
+                        if (failure == null) {
+                            completion.complete(null);
+                        } else {
+                            completion.completeExceptionally(failure);
+                        }
+                    });
+        });
+        return completion;
+    }
+
+    private CompletableFuture<Void> withSendTimeout(CompletableFuture<Void> sendFuture) {
+        if (webSocketSendTimeout == null || webSocketSendTimeout.isZero() || webSocketSendTimeout.isNegative()) {
+            return sendFuture;
+        }
+        return sendFuture.orTimeout(webSocketSendTimeout.toNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    private int acquireInFlightWebSocketBytes(int byteCount) throws InterruptedException {
+        int permits = Math.max(1, Math.min(byteCount, DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES));
+        inFlightWebSocketBytes.acquire(permits);
+        return permits;
+    }
+
+    private static int getPositiveIntegerProperty(String name, int defaultValue) {
+        String value = System.getProperty(name);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            int parsed = Integer.parseInt(value.strip());
+            return parsed > 0 ? parsed : defaultValue;
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    private CompletableFuture<Void> handleSendFailure(ServerWebsocketSession session, List<RequestResult> results,
+                                                      JsonType result, Throwable error) {
+        Throwable e = unwrapCompletionException(error);
+        if (isClosedChannel(e)) {
+            findAlternativeBacklog(session).ifPresentOrElse(b -> b.add(results), ()
+                    -> log.info("Not sending batch of {}. Could not find any suitable sessions for client {}.",
+                                results.size(), getClientId(session)));
+            return CompletableFuture.completedFuture(null);
+        }
+        log.error("Failed to send websocket result {} to client {}, id {} (session {})",
+                  result, getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
+        return CompletableFuture.failedFuture(e);
+    }
+
+    private CompletableFuture<Void> handleTransportSendFailure(ServerWebsocketSession session,
+                                                               List<RequestResult> results, JsonType result,
+                                                               Throwable error) {
+        Throwable e = unwrapCompletionException(error);
+        if (isTransportSendFailure(e)) {
+            log.warn("Websocket send failed for result {} to client {}, id {} (session {}). Aborting session.",
+                     result, getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
+            findAlternativeBacklog(session).ifPresentOrElse(b -> b.add(results), ()
+                    -> log.info("Not sending batch of {}. Could not find any suitable sessions for client {}.",
+                                results.size(), getClientId(session)));
+            abortTransport(session, "Websocket send failed: " + sendFailureReason(e));
+            return CompletableFuture.completedFuture(null);
+        }
+        log.error("Failed to send websocket result {} to client {}, id {} (session {})",
+                  result, getClientName(session), getClientId(session), getNegotiatedSessionId(session), e);
+        return CompletableFuture.failedFuture(e);
+    }
+
+    private boolean isClosedChannel(Throwable e) {
+        return e instanceof ClosedChannelException
+               || ofNullable(e.getMessage()).map(m -> m.contains("Channel is closed")).orElse(false);
+    }
+
+    private boolean isTransportSendFailure(Throwable e) {
+        return isClosedChannel(e)
+               || e instanceof IOException
+               || e instanceof TimeoutException
+               || ofNullable(e.getMessage()).map(m -> m.contains("No buffer space available")
+                       || m.contains("Broken pipe")
+                       || m.contains("Connection reset")).orElse(false);
+    }
+
+    private String sendFailureReason(Throwable e) {
+        return ofNullable(e.getMessage()).filter(m -> !m.isBlank()).orElse(e.getClass().getSimpleName());
+    }
+
+    private Throwable unwrapCompletionException(Throwable e) {
+        return e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
     }
 
     protected Optional<SessionBacklog> findAlternativeBacklog(ServerWebsocketSession closedSession) {
@@ -550,12 +802,24 @@ public abstract class WebsocketEndpoint {
         }
     }
 
+    private void abortTransport(ServerWebsocketSession session, String reason) {
+        WebsocketCloseReason closeReason = new WebsocketCloseReason(
+                WebsocketCloseReason.UNEXPECTED_CONDITION, reason);
+        String sessionId = getNegotiatedSessionId(session);
+        log.warn("Disconnecting session {} due to {}", sessionId, reason);
+        session.abort(closeReason);
+        onClose(session, closeReason);
+    }
+
     public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         String sessionId = getNegotiatedSessionId(session);
-        activeSessionIds.remove(sessionId);
+        boolean wasActive = activeSessionIds.remove(sessionId);
         commandIdempotencyStore.unregisterSession(getClientId(session), sessionId);
         ofNullable(sessionBacklogs.remove(sessionId)).ifPresent(SessionBacklog::shutDown);
         ofNullable(pingDeadlines.remove(sessionId)).ifPresent(PingRegistration::cancel);
+        if (!wasActive) {
+            return;
+        }
         if (!shuttingDown.get()) {
             if (closeReason.code() != WebsocketCloseReason.UNEXPECTED_CONDITION
                 && closeReason.code() > WebsocketCloseReason.NO_STATUS_CODE) {
@@ -629,7 +893,20 @@ public abstract class WebsocketEndpoint {
                 .or(() -> ofNullable(session.getRequestParameterMap().get("compression"))
                         .map(List::getFirst)
                         .map(CompressionAlgorithm::valueOf))
-                .orElse(null);
+                .orElse(CompressionAlgorithm.LZ4);
+    }
+
+    protected WebSocketTransportFormat getTransportFormat(ServerWebsocketSession session) {
+        return ofNullable(
+                        session.getUserProperties().get(WebsocketDeploymentUtils.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY))
+                .filter(WebSocketTransportFormat.class::isInstance)
+                .map(WebSocketTransportFormat.class::cast)
+                .orElse(WebSocketTransportFormat.JSON);
+    }
+
+    protected WebSocketTransportCodec transportCodec(ServerWebsocketSession session) {
+        return transportCodecs.computeIfAbsent(getTransportFormat(session),
+                                               format -> WebSocketTransportCodecs.forFormat(format, objectMapper));
     }
 
     @SuppressWarnings("unchecked")
@@ -669,7 +946,7 @@ public abstract class WebsocketEndpoint {
                         .map(Object::toString).orElseThrow());
     }
 
-    protected void registerMetrics(JsonType event, ServerWebsocketSession session) {
+    protected void registerMetrics(Object event, ServerWebsocketSession session) {
         metricsLog.registerMetrics(event, sessionMetadata(session));
     }
 

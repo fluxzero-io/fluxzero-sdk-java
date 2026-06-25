@@ -18,19 +18,20 @@ package io.fluxzero.sdk.configuration;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
-import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
@@ -63,6 +64,35 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      */
     FluxzeroBuilder configureDefaultConsumer(MessageType messageType,
                                              UnaryOperator<ConsumerConfiguration> updateFunction);
+
+    /**
+     * Configures the app-wide default handler execution mode for consumers whose own mode and message-type default
+     * consumer mode are both {@link ConsumerHandlingMode#DEFAULT}.
+     * <p>
+     * Message-type defaults configured through {@link #configureDefaultConsumerHandlingMode(ConsumerHandlingMode,
+     * MessageType...)} or {@link #configureDefaultConsumer(MessageType, UnaryOperator)} take precedence over this
+     * app-wide default.
+     */
+    default FluxzeroBuilder configureDefaultConsumerHandlingMode(ConsumerHandlingMode handlingMode) {
+        return configureDefaultConsumerHandlingMode(handlingMode, new MessageType[0]);
+    }
+
+    /**
+     * Configures the default handler execution mode for specific message types, or the whole app when no message types
+     * are supplied.
+     * <p>
+     * Explicit {@link io.fluxzero.sdk.tracking.Consumer @Consumer} and custom {@link ConsumerConfiguration} handling
+     * modes still take precedence over these defaults.
+     */
+    default FluxzeroBuilder configureDefaultConsumerHandlingMode(
+            ConsumerHandlingMode handlingMode, MessageType... messageTypes) {
+        for (MessageType messageType : messageTypes == null || messageTypes.length == 0
+                ? MessageType.values() : messageTypes) {
+            configureDefaultConsumer(
+                    messageType, c -> c.toBuilder().handlingMode(handlingMode).build());
+        }
+        return this;
+    }
 
     /**
      * Adds a specific consumer configuration for one or more message types.

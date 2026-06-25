@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -26,7 +25,7 @@ import java.util.List;
  */
 @Value
 @Builder
-public class JvmMemoryMetrics implements JsonType {
+public class JvmMemoryMetrics {
 
     /**
      * Current heap memory used in bytes.
@@ -68,7 +67,7 @@ public class JvmMemoryMetrics implements JsonType {
      */
     @Value
     @Builder
-    public static class MemoryPoolMetrics implements JsonType {
+    public static class MemoryPoolMetrics {
         /**
          * The name of the memory pool (e.g., "G1 Eden Space", "Metaspace").
          */

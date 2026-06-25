@@ -20,6 +20,8 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TimingUtils;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.UuidFactory;
@@ -54,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.IntStream;
 
@@ -70,6 +73,7 @@ public class TrackerIntegrationBenchmark {
         int clientCount = ApplicationProperties.getIntegerProperty("clientCount", 6);
         int threadCount = ApplicationProperties.getIntegerProperty("threadCount", 1);
         int consumerCount = ApplicationProperties.getIntegerProperty("consumerCount", 200);
+        int consumerMaxFetchSize = ApplicationProperties.getIntegerProperty("consumerMaxFetchSize", 1024);
         int messageCount = ApplicationProperties.getIntegerProperty("messageCount", 20_000);
         int publisherCount = ApplicationProperties.getIntegerProperty("publisherCount", 4);
         int publishBatchSize = ApplicationProperties.getIntegerProperty("publishBatchSize", 8);
@@ -86,7 +90,7 @@ public class TrackerIntegrationBenchmark {
         String jfrSettings = ApplicationProperties.getProperty("jfrSettings", "profile");
 
         run(UuidFactory.defaultIdentityProvider.nextFunctionalId(),
-            port, clientCount, consumerCount, threadCount, messageCount, publisherCount,
+            port, clientCount, consumerCount, threadCount, messageCount, consumerMaxFetchSize, publisherCount,
             publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile,
             jfrSettings);
         log.info("Shutting down");
@@ -96,7 +100,7 @@ public class TrackerIntegrationBenchmark {
 
     @SneakyThrows
     void run(String namespace, int port, int clientCount, int consumerCount, int threadCount,
-             int messageCount, int publisherCount,
+             int messageCount, int consumerMaxFetchSize, int publisherCount,
              int publishBatchSize, int distinctKeys, int payloadBytes, int benchmarkTimeoutMs,
              BenchmarkMode mode, ClientMode clientMode, PipelineMode pipelineMode, String jfrFile,
              String jfrSettings) {
@@ -105,15 +109,17 @@ public class TrackerIntegrationBenchmark {
 
         log.info("""
                          Starting TrackerIntegrationBenchmark with namespace={}, port={}, clientCount={}, consumerCount={}, threadCount={}, messageCount={}, \
-                         publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
+                         consumerMaxFetchSize={}, publisherCount={}, publishBatchSize={}, distinctKeys={}, payloadBytes={}, \
                          benchmarkTimeoutMs={}, mode={}, clientMode={}, pipelineMode={}, jfrFile={}
                          """.replaceAll("\\s+", " "),
-                 namespace, port, clientCount, consumerCount, threadCount, messageCount, publisherCount, publishBatchSize,
-                 distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode, pipelineMode, jfrFile);
+                 namespace, port, clientCount, consumerCount, threadCount, messageCount, consumerMaxFetchSize,
+                 publisherCount, publishBatchSize, distinctKeys, payloadBytes, benchmarkTimeoutMs, mode, clientMode,
+                 pipelineMode, jfrFile);
 
         int totalCount = consumerCount * messageCount;
         CountDownLatch latch = new CountDownLatch(totalCount);
         ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer = new ConcurrentHashMap<>();
 
         // LocalClient namespaces have separate in-memory stores; use the root client so default consumers and publishers
         // share the same message log.
@@ -131,7 +137,8 @@ public class TrackerIntegrationBenchmark {
 
             for (int j = 0; j < consumerCount; j++) {
                 String consumerName = "consumer-%d".formatted(j);
-                fluxzeroBuilder.addConsumerConfiguration(consumerConfiguration(consumerName, threadCount));
+                fluxzeroBuilder.addConsumerConfiguration(consumerConfiguration(consumerName, threadCount,
+                                                                               consumerMaxFetchSize));
             }
 
             Fluxzero fluxzero = fluxzeroBuilder.build(benchmarkClient);
@@ -157,15 +164,16 @@ public class TrackerIntegrationBenchmark {
             publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys, payloadBytes);
             log.info("Waiting for benchmark to complete");
             timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
-                            jfrFile, jfrSettings,
+                            lastIndexPerConsumer, jfrFile, jfrSettings,
                             () -> registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch,
-                                                    deliveriesPerConsumer));
+                                                    deliveriesPerConsumer, lastIndexPerConsumer));
         } else {
-            registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch, deliveriesPerConsumer);
+            registerConsumers(pipelineMode, clients, consumerCount, threadCount, latch, deliveriesPerConsumer,
+                              lastIndexPerConsumer);
             Thread.sleep(1000);
             log.info("Waiting for benchmark to complete");
             timeConsumption(totalCount, consumerCount, messageCount, benchmarkTimeoutMs, latch, deliveriesPerConsumer,
-                            jfrFile, jfrSettings,
+                            lastIndexPerConsumer, jfrFile, jfrSettings,
                             () -> publishEvents(mode, publishers, messageCount, publishBatchSize, distinctKeys,
                                                 payloadBytes));
         }
@@ -177,11 +185,13 @@ public class TrackerIntegrationBenchmark {
 
     private static void registerConsumers(PipelineMode pipelineMode, List<Fluxzero> clients, int consumerCount,
                                           int threadCount, CountDownLatch latch,
-                                          ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer) {
+                                          ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer,
+                                          ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer) {
         log.info("Registering {} consumers", pipelineMode);
         switch (pipelineMode) {
             case TRACKER_ONLY, DESERIALIZE_ONLY ->
-                    registerRawTrackers(pipelineMode, clients, consumerCount, threadCount, latch);
+                    registerRawTrackers(pipelineMode, clients, consumerCount, threadCount, latch,
+                                        deliveriesPerConsumer, lastIndexPerConsumer);
             case DIRECT_HANDLER -> clients.forEach(c -> c.tracking(MessageType.EVENT).start(c, new DirectHandler(latch)));
             case NOOP_HANDLER -> clients.forEach(c -> c.registerHandlers(new NoopHandler(latch)));
             case PAYLOAD_HANDLER -> clients.forEach(c -> c.registerHandlers(new PayloadHandler(latch)));
@@ -191,20 +201,34 @@ public class TrackerIntegrationBenchmark {
     }
 
     private static void registerRawTrackers(PipelineMode pipelineMode, List<Fluxzero> clients, int consumerCount,
-                                            int threadCount, CountDownLatch latch) {
+                                            int threadCount, CountDownLatch latch,
+                                            ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer,
+                                            ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer) {
         clients.forEach(client -> {
             for (int i = 0; i < consumerCount; i++) {
                 String consumerName = "consumer-%d".formatted(i);
                 ConsumerConfiguration configuration = consumerConfiguration(consumerName, threadCount);
-                DefaultTracker.start(createRawConsumer(pipelineMode, client, latch),
+                DefaultTracker.start(createRawConsumer(pipelineMode, client, latch, consumerName,
+                                                       deliveriesPerConsumer, lastIndexPerConsumer),
                                      MessageType.EVENT, configuration, client);
             }
         });
     }
 
     private static java.util.function.Consumer<List<SerializedMessage>> createRawConsumer(
-            PipelineMode pipelineMode, Fluxzero fluxzero, CountDownLatch latch) {
+            PipelineMode pipelineMode, Fluxzero fluxzero, CountDownLatch latch, String consumerName,
+            ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer,
+            ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer) {
         return messages -> {
+            deliveriesPerConsumer.computeIfAbsent(consumerName, ignored -> new LongAdder()).add(messages.size());
+            messages.stream().map(SerializedMessage::getIndex).filter(Objects::nonNull).max(Long::compareTo)
+                    .ifPresent(lastIndex -> lastIndexPerConsumer.computeIfAbsent(
+                            consumerName, ignored -> new AtomicLong()).accumulateAndGet(lastIndex, Math::max));
+            if (ApplicationProperties.getBooleanProperty("logRawBatches", false)) {
+                log.info("Raw batch for {} size={}, firstIndex={}, lastIndex={}", consumerName, messages.size(),
+                         messages.isEmpty() ? null : messages.getFirst().getIndex(),
+                         messages.isEmpty() ? null : messages.getLast().getIndex());
+            }
             if (pipelineMode == PipelineMode.TRACKER_ONLY) {
                 countDown(latch, messages.size());
                 return;
@@ -216,8 +240,15 @@ public class TrackerIntegrationBenchmark {
     }
 
     private static ConsumerConfiguration consumerConfiguration(String consumerName, int threadCount) {
+        return consumerConfiguration(
+                consumerName, threadCount, ApplicationProperties.getIntegerProperty("consumerMaxFetchSize", 1024));
+    }
+
+    private static ConsumerConfiguration consumerConfiguration(String consumerName, int threadCount,
+                                                              int maxFetchSize) {
         return ConsumerConfiguration.builder().name(consumerName)
                 .handlerFilter(o -> true)
+                .maxFetchSize(maxFetchSize)
                 .maxWaitDuration(Duration.ofSeconds(10))
                 .exclusive(false)
                 .minIndex(-1L)
@@ -233,7 +264,8 @@ public class TrackerIntegrationBenchmark {
 
     private static void timeConsumption(int totalCount, int consumerCount, int messageCount, int benchmarkTimeoutMs,
                                         CountDownLatch latch,
-                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer, String jfrFile,
+                                        ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer,
+                                        ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer, String jfrFile,
                                         String jfrSettings, Runnable setup) {
         Recording recording = startRecording(jfrFile, jfrSettings);
         try {
@@ -242,7 +274,7 @@ public class TrackerIntegrationBenchmark {
                 if (!latch.await(benchmarkTimeoutMs, TimeUnit.MILLISECONDS)) {
                     log.error("Benchmark timed out after {} ms with {} events remaining",
                               benchmarkTimeoutMs, latch.getCount());
-                    logMissingConsumers(messageCount, deliveriesPerConsumer);
+                    logMissingConsumers(messageCount, deliveriesPerConsumer, lastIndexPerConsumer);
                     throw new IllegalStateException("Timed out with %s events remaining".formatted(latch.getCount()));
                 }
                 return null;
@@ -292,13 +324,85 @@ public class TrackerIntegrationBenchmark {
         }
         // Keep TestServer command-idempotency results from a previous benchmark JVM from matching this run.
         String clientId = "client-" + clientIndex + "-" + runId;
-        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+        WebSocketClient.ClientConfig.ClientConfigBuilder builder = WebSocketClient.ClientConfig.builder()
                 .name(clientName)
                 .id(clientId)
                 .namespace(namespace)
-                .runtimeBaseUrl("ws://localhost:" + port)
-                .build();
+                .runtimeBaseUrl("ws://localhost:" + port);
+        String transportFormats = ApplicationProperties.getProperty("transportFormats", null);
+        if (transportFormats != null && !transportFormats.isBlank()) {
+            builder.supportedTransportFormats(parseTransportFormats(transportFormats));
+        }
+        String compressionAlgorithms = ApplicationProperties.getProperty("compressionAlgorithms", null);
+        if (compressionAlgorithms != null && !compressionAlgorithms.isBlank()) {
+            builder.supportedCompressionAlgorithms(parseCompressionAlgorithms(compressionAlgorithms));
+        }
+        Integer maxInFlightWebSocketBytes = ApplicationProperties.getIntegerProperty("maxInFlightWebSocketBytes");
+        if (maxInFlightWebSocketBytes != null) {
+            builder.maxInFlightWebSocketBytes(maxInFlightWebSocketBytes);
+        }
+        Integer maxWebSocketFragmentBytes = ApplicationProperties.getIntegerProperty("maxWebSocketFragmentBytes");
+        if (maxWebSocketFragmentBytes != null) {
+            builder.maxWebSocketFragmentBytes(maxWebSocketFragmentBytes);
+        }
+        Integer webSocketSendTimeoutMs = ApplicationProperties.getIntegerProperty("webSocketSendTimeoutMs");
+        if (webSocketSendTimeoutMs != null) {
+            builder.webSocketSendTimeout(Duration.ofMillis(webSocketSendTimeoutMs));
+        }
+        boolean disableWebSocketMetrics = ApplicationProperties.getBooleanProperty("disableWebSocketMetrics", false);
+        builder.disableMetrics(disableWebSocketMetrics);
+        WebSocketClient.ClientConfig clientConfig = builder.build();
+        int eventGatewaySessions = ApplicationProperties.getIntegerProperty("eventGatewaySessions", -1);
+        if (eventGatewaySessions > 0) {
+            clientConfig = clientConfig.withGatewaySessions(MessageType.EVENT, eventGatewaySessions);
+        }
+        int eventTrackingSessions = ApplicationProperties.getIntegerProperty("eventTrackingSessions", -1);
+        int eventTrackingCacheSize = ApplicationProperties.getIntegerProperty("eventTrackingCacheSize", -1);
+        if (eventTrackingSessions > 0 || eventTrackingCacheSize >= 0) {
+            WebSocketClient.TrackingClientConfig.TrackingClientConfigBuilder trackingConfigBuilder =
+                    clientConfig.getTrackingConfigs().get(MessageType.EVENT).toBuilder();
+            if (eventTrackingSessions > 0) {
+                trackingConfigBuilder.sessions(eventTrackingSessions);
+            }
+            if (eventTrackingCacheSize >= 0) {
+                trackingConfigBuilder.cacheSize(eventTrackingCacheSize);
+            }
+            WebSocketClient.TrackingClientConfig trackingConfig = trackingConfigBuilder.build();
+            clientConfig = clientConfig.withTrackingConfig(MessageType.EVENT, trackingConfig);
+        }
+        if (clientIndex == 0) {
+            log.info("WebSocket benchmark knobs: transportFormats={}, compressionAlgorithms={}, "
+                     + "eventGatewaySessions={}, "
+                     + "eventTrackingSessions={}, eventTrackingCacheSize={}, maxInFlightWebSocketBytes={}, "
+                     + "maxWebSocketFragmentBytes={}, webSocketSendTimeout={}, "
+                     + "disableWebSocketMetrics={}",
+                     clientConfig.getSupportedTransportFormats(),
+                     clientConfig.getSupportedCompressionAlgorithms(),
+                     clientConfig.getGatewaySessions().get(MessageType.EVENT),
+                     clientConfig.getTrackingConfigs().get(MessageType.EVENT).getSessions(),
+                     clientConfig.getTrackingConfigs().get(MessageType.EVENT).getCacheSize(),
+                     clientConfig.getMaxInFlightWebSocketBytes(),
+                     clientConfig.getMaxWebSocketFragmentBytes(),
+                     clientConfig.getWebSocketSendTimeout(),
+                     clientConfig.isDisableMetrics());
+        }
         return WebSocketClient.newInstance(clientConfig);
+    }
+
+    private static List<WebSocketTransportFormat> parseTransportFormats(String value) {
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::strip)
+                .filter(v -> !v.isEmpty())
+                .map(v -> WebSocketTransportFormat.valueOf(v.toUpperCase(Locale.ROOT)))
+                .toList();
+    }
+
+    private static List<CompressionAlgorithm> parseCompressionAlgorithms(String value) {
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::strip)
+                .filter(v -> !v.isEmpty())
+                .map(v -> CompressionAlgorithm.valueOf(v.toUpperCase(Locale.ROOT)))
+                .toList();
     }
 
     static class DirectHandler implements io.fluxzero.common.handling.Handler<DeserializingMessage> {
@@ -382,15 +486,18 @@ public class TrackerIntegrationBenchmark {
     }
 
     static void logMissingConsumers(int expectedPerConsumer,
-                                    ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer) {
+                                    ConcurrentHashMap<String, LongAdder> deliveriesPerConsumer,
+                                    ConcurrentHashMap<String, AtomicLong> lastIndexPerConsumer) {
         deliveriesPerConsumer.entrySet().stream()
                 .map(entry -> new ConsumerProgress(entry.getKey(), entry.getValue().sum(), expectedPerConsumer))
                 .filter(progress -> progress.missing() > 0)
                 .sorted((left, right) -> Long.compare(right.missing(), left.missing()))
                 .limit(20)
-                .forEach(progress -> log.error("Consumer {} received {} / {} events (missing {})",
+                .forEach(progress -> log.error("Consumer {} received {} / {} events (missing {}), lastIndex={}",
                                                progress.consumer(), progress.received(), progress.expected(),
-                                               progress.missing()));
+                                               progress.missing(),
+                                               Optional.ofNullable(lastIndexPerConsumer.get(progress.consumer()))
+                                                       .map(AtomicLong::get).orElse(null)));
     }
 
     static void warmUp(List<Fluxzero> clients) {

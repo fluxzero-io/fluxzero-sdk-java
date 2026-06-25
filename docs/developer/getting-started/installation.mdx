@@ -1,0 +1,225 @@
+---
+title: Installation
+description: Install Fluxzero from CLI, via UI or manually
+sidebar:
+   order: 20
+tableOfContents: true
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import ProjectGenerator from '~/components/ProjectGenerator.astro';
+
+Installation can be done in multiple ways. 
+The recommended way is to use our CLI, but if you prefer not to install anything you can also use our project generator form to create a ready-to-go project.
+
+## Use our project generator
+
+In case you prefer not to install our CLI, you can generate a project using the form below. 
+This will create a zip file with a ready-to-go Fluxzero project that you can download and run locally.
+
+<ProjectGenerator />
+
+## Using the Fluxzero CLI
+
+To build Fluxzero projects, the only thing you need is Java 21+. However, we recommend using the **Fluxzero CLI** as it is the most convenient way to get started quickly. The CLI is a command line tool that helps you scaffold, build, and run Fluxzero applications.
+
+<Steps>
+
+1. Get the Fluxzero CLI
+
+   <Tabs>
+      <TabItem label="Bash">
+         ```shell
+            curl -o- -s -L https://fluxzero.io/cli.sh | bash
+         ```
+
+         This script will perform the following actions
+         - Check if you have Java 21+ installed
+         - Download the latest Fluxzero CLI release 
+         - Install the CLI in `~/.fluxzero/bin/fz`
+         - (Optionally) Install Fluxzero command `fz` into `/usr/local/bin`
+      </TabItem>
+
+      {/* <TabItem label="Docker">
+         If you prefer to use Docker, you can run the Fluxzero CLI in a container. This is useful if you don't want to install Java or the CLI on your local machine.
+
+         Create an alias in your shell configuration file (e.g., `.bashrc`, `.zshrc`):
+         ```shell
+            alias fz='docker run --rm -it -v .:/project fluxzero/cli:latest' 
+         ```
+
+      </TabItem> */}
+
+      <TabItem label="Manually">
+         If you prefer, you can install the Fluxzero CLI with a few steps yourself
+         1. Download the latest [flux-cli.jar](https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/fluxzero-cli.jar)
+         2. Place it in your home directory under `.fluxzero/flux-cli.jar`
+         3. Create an alias in your shell configuration file (e.g., `.bashrc`, `.zshrc`):
+            ```shell
+            alias fz='java -jar ~/.fluxzero/flux-cli.jar'
+            ```
+
+         ❗️ Note that the CLI is only tested on Java 21. We recommend to install `temurin 21` for the best compatibility.
+      </TabItem>
+         
+      
+   </Tabs>
+
+   
+
+    
+
+2. Generate a new project
+
+   ```shell
+      fz init 
+   ```
+   This command will prompt you for a few questions to set up your project:
+
+    <img src="/terminal/fz-init-noargs.gif" />
+
+    You can also pass options directly, for example:
+
+   ```shell
+      fz init --name my-project 
+   ```
+
+   The cli will ask you which template you want to use. See `fz -h` for more options.
+
+3. Build your project
+
+   ```shell
+      cd my-project
+      ./gradlew build
+   ```
+
+</Steps>
+
+## Manually
+
+### Maven
+
+Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
+`dependencyManagement` section to centralize version management:
+
+```xml
+
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>fluxzero-bom</artifactId>
+            <version>${fluxzero.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+Then declare only the dependencies you actually need (no version required):
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>io.fluxzero</groupId>
+        <artifactId>sdk</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>io.fluxzero</groupId>
+        <artifactId>sdk</artifactId>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>io.fluxzero</groupId>
+        <artifactId>test-server</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>io.fluxzero</groupId>
+        <artifactId>proxy</artifactId>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+<Aside>
+The `test-server` and `proxy` modules are optional, and can be included if you want to test your
+ application locally against an in-memory Flux runtime.
+</Aside>
+
+#### Annotation processing
+
+For Java versions above 21, you must explicitly register the Fluxzero SDK as an annotation processor.
+This ensures that all of Fluxzero’s annotations are properly detected during compilation.
+
+Add the Fluxzero SDK to the `annotationProcessorPaths` of your maven-compiler-plugin:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <parameters>true</parameters>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>sdk</artifactId>
+            </path>
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+```
+
+<Aside>
+If you already use Lombok or other annotation processors, simply add the Fluxzero SDK alongside them
+in the same list as shown above.
+</Aside>
+
+---
+
+### Gradle
+
+Use [platform BOM support](https://docs.gradle.org/current/userguide/platforms.html) to align dependency versions
+automatically:
+
+<details>
+<summary><strong>Kotlin DSL (build.gradle.kts)</strong></summary>
+
+```kotlin
+dependencies {
+    implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
+    implementation("io.fluxzero:sdk")
+    testImplementation("io.fluxzero:sdk", classifier = "tests")
+    testImplementation("io.fluxzero:test-server")
+    testImplementation("io.fluxzero:proxy")
+    annotationProcessor("io.fluxzero:sdk")
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Groovy DSL (build.gradle)</strong></summary>
+
+```groovy
+dependencies {
+    implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
+    implementation 'io.fluxzero:sdk'
+    testImplementation('io.fluxzero:sdk') {
+        classifier = 'tests'
+    }
+    testImplementation 'io.fluxzero:test-server'
+    testImplementation 'io.fluxzero:proxy'
+    annotationProcessor 'io.fluxzero:sdk'
+}
+```
+
+</details>
+
+---
+
+<Aside type="tip">
+You only need to update the version number **once** in the BOM reference. All included modules will automatically align with it.
+</Aside>

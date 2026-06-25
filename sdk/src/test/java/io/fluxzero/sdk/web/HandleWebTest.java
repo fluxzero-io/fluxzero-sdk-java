@@ -26,14 +26,17 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import io.fluxzero.sdk.tracking.ErrorHandler;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -93,6 +96,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -677,6 +681,65 @@ public class HandleWebTest {
                             errorMessage.get()));
         }
 
+        @Test
+        void defaultsVersionRunsWebRequestHandlersAsync() {
+            AtomicReference<Thread> batchThread = new AtomicReference<>();
+            AtomicReference<Thread> handlerThread = new AtomicReference<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.set(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build()),
+                                    new ThreadRecordingHandler(handlerThread))
+                    .whenGet("/thread")
+                    .expectResult("thread")
+                    .expectThat(fc -> assertNotEquals(batchThread.get(), handlerThread.get()));
+        }
+
+        @Test
+        void explicitSyncWebRequestHandlingOverridesDefaultsVersion() {
+            AtomicReference<Thread> batchThread = new AtomicReference<>();
+            AtomicReference<Thread> handlerThread = new AtomicReference<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .handlingMode(ConsumerHandlingMode.SYNC)
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.set(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build()),
+                                    new ThreadRecordingHandler(handlerThread))
+                    .whenGet("/thread")
+                    .expectResult("thread")
+                    .expectThat(fc -> assertEquals(batchThread.get(), handlerThread.get()));
+        }
+
+        private class ThreadRecordingHandler {
+            private final AtomicReference<Thread> handlerThread;
+
+            private ThreadRecordingHandler(AtomicReference<Thread> handlerThread) {
+                this.handlerThread = handlerThread;
+            }
+
+            @HandleGet("/thread")
+            String thread() {
+                handlerThread.set(Thread.currentThread());
+                return "thread";
+            }
+        }
+
         private class Handler {
             @Path("/getViaPath")
             @HandleWeb(method = GET)
@@ -1219,9 +1282,73 @@ public class HandleWebTest {
         }
 
         @Test
+        void serveFileWithTildeInName() {
+            testFixture.whenGet("/static/_next/static/chunks/0lfk1~y7byb20.js")
+                    .expectWebResult(r -> testContents("window.__tildeChunkLoaded = true;").test(r)
+                                          && !"text/html".equals(r.getContentType()));
+        }
+
+        @Test
+        void serveFileWithDoubleDotInName() {
+            testFixture.whenGet("/static/_next/static/media/font..woff2")
+                    .expectWebResult(r -> testContents("font bytes with double dots").test(r)
+                                          && !"text/html".equals(r.getContentType()));
+        }
+
+        @Test
+        void rejectTraversalSegmentFromStaticRoot() {
+            TestFixture.create(new NoFallbackClasspathHandler())
+                    .whenGet("/static/../index.html")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
+        void rejectNestedTraversalSegment() {
+            TestFixture.create(new NoFallbackClasspathHandler())
+                    .whenGet("/static/assets/../index.html")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
         void serveFallback() {
             testFixture.whenGet("/static/whatever/bla")
                     .expectResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void serveCleanUrlHtmlFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/about")
+                    .expectWebResult(testContents("About clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlNestedHtmlFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs/intro")
+                    .expectWebResult(testContents("Docs intro clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlDirectoryIndexFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/docs")
+                    .expectWebResult(testContents("Docs index clean URL"));
+        }
+
+        @Test
+        void serveCleanUrlFallbackFromRootStaticHandler() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/unknown-route")
+                    .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
+        void cleanUrlsCanBeDisabled() {
+            TestFixture.create(new CleanUrlsDisabledClasspathHandler()).whenGet("/clean-disabled/about")
+                    .expectWebResult(r -> r.getStatus() == 404);
+        }
+
+        @Test
+        void dontServeRootStaticHandlerForDefaultApiIgnorePath() {
+            TestFixture.create(new RootClasspathHandler()).whenGet("/api/whatever")
+                    .expectExceptionalResult(TimeoutException.class);
         }
 
         @Test
@@ -1261,6 +1388,39 @@ public class HandleWebTest {
                     .expectWebResult(testContents("<!DOCTYPE html>"));
         }
 
+        @Test
+        void defaultsVersionRunsServeStaticHandlersAsync() {
+            CompletableFuture<Thread> batchThread = new CompletableFuture<>();
+            CompletableFuture<Thread> handlerThread = new CompletableFuture<>();
+
+            TestFixture.createAsync(DefaultFluxzero.builder()
+                                            .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                    ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                    "2026.06.20")).andThen(existing))
+                                            .configureDefaultConsumer(MessageType.WEBREQUEST, c -> c.toBuilder()
+                                                    .awaitAsyncResults(true)
+                                                    .batchInterceptor((consumer, tracker) -> batch -> {
+                                                        batchThread.complete(Thread.currentThread());
+                                                        consumer.accept(batch);
+                                                    })
+                                                    .build())
+                                            .addHandlerInterceptor((next, invoker) -> message -> {
+                                                handlerThread.complete(Thread.currentThread());
+                                                return next.apply(message);
+                                            }, MessageType.WEBREQUEST),
+                                    new ClasspathHandler())
+                    .whenExecuting(fc -> {
+                        fc.webRequestGateway().sendAndForget(
+                                Guarantee.STORED, WebRequest.get("/static/index.html").build()).get(1,
+                                                                                                    TimeUnit.SECONDS);
+                        assertTrue(batchThread.get(1, TimeUnit.SECONDS) != null);
+                        assertTrue(handlerThread.get(1, TimeUnit.SECONDS) != null);
+                    })
+                    .expectThat(fc -> {
+                        assertNotEquals(batchThread.getNow(null), handlerThread.getNow(null));
+                    });
+        }
+
         @Path
         @ServeStatic(value = "/static", ignorePaths = "/static/api/*", resourcePath = "classpath:/web/static")
         static class ClasspathHandler {
@@ -1271,8 +1431,22 @@ public class HandleWebTest {
         }
 
         @Path
+        @ServeStatic(value = "/static", resourcePath = "classpath:/web/static", fallbackFile = "")
+        static class NoFallbackClasspathHandler {
+        }
+
+        @Path
         @ServeStatic(value = "static", resourcePath = "classpath:/web/static")
         static class RelativeClasspathHandler {
+        }
+
+        @ServeStatic(value = "/", resourcePath = "classpath:/web/static")
+        static class RootClasspathHandler {
+        }
+
+        @ServeStatic(value = "/clean-disabled", resourcePath = "classpath:/web/static", fallbackFile = "",
+                cleanUrls = false)
+        static class CleanUrlsDisabledClasspathHandler {
         }
 
         @ServeStatic

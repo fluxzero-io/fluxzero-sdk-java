@@ -19,7 +19,9 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.IdentityProvider;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -29,6 +31,7 @@ import lombok.experimental.NonFinal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 /**
@@ -75,6 +78,8 @@ import java.util.function.BiConsumer;
 public class Invocation {
 
     private static final ThreadLocal<Invocation> current = new ThreadLocal<>();
+    private static final CompletableFuture<Void> completedResultPublicationBarrier =
+            CompletableFuture.completedFuture(null);
     String handler;
     @Getter(AccessLevel.NONE)
     @NonFinal
@@ -218,9 +223,65 @@ public class Invocation {
         return () -> callbacks.remove(callback);
     }
 
+    /**
+     * Registers asynchronous work that must complete before the current handler result is published.
+     * <p>
+     * This method is intended for handler-completion callbacks, such as aggregate commit policies that start work after
+     * the handler returned but still want request results to reflect the committed state.
+     *
+     * @param completion completion to await before result publication; {@code null} is ignored
+     */
+    public static void awaitBeforeResultPublication(CompletableFuture<?> completion) {
+        DeserializingMessage currentMessage = DeserializingMessage.getCurrent();
+        if (currentMessage != null) {
+            awaitBeforeResultPublication(currentMessage, completion);
+        }
+    }
+
+    /**
+     * Registers asynchronous work that must complete before the supplied message's handler result is published.
+     *
+     * @param message    message whose result should wait for the completion
+     * @param completion completion to await before result publication; {@code null} is ignored
+     */
+    public static void awaitBeforeResultPublication(DeserializingMessage message, CompletableFuture<?> completion) {
+        if (completion == null) {
+            return;
+        }
+        message.computeContextIfAbsent(ResultPublicationBarrier.class, ignored -> new ResultPublicationBarrier())
+                .add(completion);
+    }
+
+    /**
+     * Returns the barrier that must complete before the supplied message's handler result is published.
+     *
+     * @param message message whose result publication barrier should be resolved
+     * @return completion future, or an already completed future when no post-handler work was registered
+     */
+    public static CompletableFuture<Void> resultPublicationBarrier(DeserializingMessage message) {
+        return message.getContext(ResultPublicationBarrier.class)
+                .map(ResultPublicationBarrier::completion)
+                .orElse(completedResultPublicationBarrier);
+    }
+
     private void complete(Object result, Throwable error) {
         if (callbacks != null) {
-            callbacks.forEach(c -> c.accept(result, error));
+            AsyncCompletionScope.runAndAwait(() -> callbacks.forEach(c -> c.accept(result, error)));
+        }
+    }
+
+    private static final class ResultPublicationBarrier {
+        private final List<CompletableFuture<?>> completions = new ArrayList<>();
+
+        private synchronized void add(CompletableFuture<?> completion) {
+            completions.add(completion);
+        }
+
+        private synchronized CompletableFuture<Void> completion() {
+            if (completions.isEmpty()) {
+                return completedResultPublicationBarrier;
+            }
+            return CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new));
         }
     }
 }

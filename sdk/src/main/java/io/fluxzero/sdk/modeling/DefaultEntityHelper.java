@@ -31,6 +31,7 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import lombok.Value;
 
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,6 +50,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValues;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
+import static java.util.stream.Collectors.joining;
 
 /**
  * The {@code DefaultEntityHelper} provides the default implementation of the {@link EntityHelper} interface.
@@ -86,7 +88,7 @@ public class DefaultEntityHelper implements EntityHelper {
 
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
     private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
-    private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> assertLegalMatchers;
+    private final Function<Class<?>, HandlerMatcher<Object, MessageWithEntity>> assertLegalMatchers;
     private final boolean disablePayloadValidation;
 
     /**
@@ -104,10 +106,40 @@ public class DefaultEntityHelper implements EntityHelper {
             List resolvers = parameterResolvers.stream().map(r -> r instanceof EntityParameterResolver ? entityParameterResolver : r).toList();
             return inspect(type, resolvers, applyHandlerConfiguration(checkCompatibility, entityParameterResolver));
         });
-        this.assertLegalMatchers = memoize(type -> inspect(
-                type, (List) parameterResolvers, HandlerConfiguration.builder().methodAnnotation(AssertLegal.class)
-                        .invokeMultipleMethods(true).build()));
+        this.assertLegalMatchers = memoize(type -> inspect(type, (List) parameterResolvers,
+                                                           assertLegalHandlerConfiguration()));
         this.disablePayloadValidation = disablePayloadValidation;
+    }
+
+    private static HandlerConfiguration<MessageWithEntity> assertLegalHandlerConfiguration() {
+        return HandlerConfiguration.<MessageWithEntity>builder().methodAnnotation(AssertLegal.class)
+                .invokeMultipleMethods(true)
+                .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
+                .messageFilter((message, executable, handlerAnnotation, targetClass) ->
+                        getAnnotation(executable, AssertLegal.class)
+                                .map(assertLegal -> assertLegal.afterHandler() == message.isAfterHandler())
+                                .orElse(false))
+                .build();
+    }
+
+    private static int compareAssertLegalMethods(Executable left, Executable right) {
+        int result = left.getName().compareTo(right.getName());
+        if (result != 0) {
+            return result;
+        }
+        result = parameterTypeNames(left).compareTo(parameterTypeNames(right));
+        if (result != 0) {
+            return result;
+        }
+        result = left.getDeclaringClass().getName().compareTo(right.getDeclaringClass().getName());
+        if (result != 0) {
+            return result;
+        }
+        return left.toGenericString().compareTo(right.toGenericString());
+    }
+
+    private static String parameterTypeNames(Executable executable) {
+        return Arrays.stream(executable.getParameterTypes()).map(Class::getName).collect(joining(","));
     }
 
     protected static HandlerConfiguration<DeserializingMessageWithEntity> applyHandlerConfiguration(
@@ -292,11 +324,9 @@ public class DefaultEntityHelper implements EntityHelper {
         if (value == null) {
             return;
         }
-        MessageWithEntity message = new MessageWithEntity(value, entity);
+        MessageWithEntity message = new MessageWithEntity(value, entity, afterHandler);
         Collection<Object> additionalProperties = new HashSet<>(getAnnotatedPropertyValues(target, AssertLegal.class));
         assertLegalMatchers.apply(targetType).getInvoker(target, message)
-                .filter(i -> getAnnotation(i.getMethod(), AssertLegal.class).map(
-                        a -> a.afterHandler() == afterHandler).orElse(false))
                 .ifPresent(s -> {
                     Object additionalObject = s.invoke((first, second) -> Stream.concat(
                             first instanceof Collection<?> c ? c.stream() : Stream.of(first),
@@ -354,14 +384,20 @@ public class DefaultEntityHelper implements EntityHelper {
     protected static class MessageWithEntity implements HasMessage, HasEntity {
         Entity<?> entity;
         Object payload;
+        boolean afterHandler;
 
         public MessageWithEntity(Object payload, Entity<?> entity) {
+            this(payload, entity, false);
+        }
+
+        public MessageWithEntity(Object payload, Entity<?> entity, boolean afterHandler) {
             this.payload = payload;
             this.entity = entity;
+            this.afterHandler = afterHandler;
         }
 
         public MessageWithEntity withEntity(Entity<?> entity) {
-            return new MessageWithEntity(payload, entity);
+            return new MessageWithEntity(payload, entity, afterHandler);
         }
 
         @Override

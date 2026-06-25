@@ -10,10 +10,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.tracking.client;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.tracking.MessageBatch;
@@ -47,14 +49,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -294,6 +296,34 @@ class DefaultTrackerTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    void clientControlledStorePositionUsesSentGuaranteeAndDoesNotWaitOrRetry() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .clientControlledIndex(true)
+                .build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        CompletableFuture<Void> firstStorePosition = new CompletableFuture<>();
+        setRunning(defaultTracker, true);
+
+        when(trackingClient.storePosition(eq("consumer"), any(), anyLong(), eq(Guarantee.SENT))).thenReturn(
+                firstStorePosition).thenThrow(new IllegalStateException("direct failure"));
+
+        Method method = DefaultTracker.class.getDeclaredMethod("storePosition", Long.class, int[].class);
+        method.setAccessible(true);
+
+        assertDoesNotThrow(() -> method.invoke(defaultTracker, 41L, new int[]{0, 128}));
+        assertDoesNotThrow(() -> method.invoke(defaultTracker, 42L, new int[]{0, 128}));
+        assertDoesNotThrow(() -> firstStorePosition.completeExceptionally(new IllegalStateException("async failure")));
+
+        verify(trackingClient, times(1)).storePosition(eq("consumer"), any(), eq(41L), eq(Guarantee.SENT));
+        verify(trackingClient, times(1)).storePosition(eq("consumer"), any(), eq(42L), eq(Guarantee.SENT));
+        verify(trackingClient, times(2)).storePosition(eq("consumer"), any(), anyLong(), eq(Guarantee.SENT));
+        verify(trackingClient, never()).storePosition(eq("consumer"), any(), anyLong());
     }
 
     @Test

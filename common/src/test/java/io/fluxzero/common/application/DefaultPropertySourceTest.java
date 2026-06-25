@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.fluxzero.common.application;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +28,7 @@ import static io.fluxzero.common.TestUtils.runWithSystemProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@Isolated
 class DefaultPropertySourceTest {
     @TempDir
     Path tempDir;
@@ -45,6 +47,16 @@ class DefaultPropertySourceTest {
             assertEquals("bar", source.get("propertiesFile.foo"));
             assertEquals("someOtherValue", source.get("foo"));
         }, "foo", "someOtherValue");
+    }
+
+    @Test
+    void substitutesApplicationPropertiesFileValues() {
+        runWithSystemProperties(() -> {
+            DefaultPropertySource source = new DefaultPropertySource();
+            assertEquals("fromSystem", source.get("propertiesFile.fromSystem"));
+            assertEquals("${missing.literal.alias}", source.get("propertiesFile.unresolved"));
+            assertEquals("default-value", source.get("propertiesFile.withDefault"));
+        }, "external.system.alias", "fromSystem");
     }
 
     @Test
@@ -130,6 +142,45 @@ class DefaultPropertySourceTest {
             assertEquals("fromClasspathAdditional", source.get("additional.classpath"));
         }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY,
                                 "classpath:additional-fluxzero.properties");
+    }
+
+    @Test
+    void substitutesAdditionalPropertiesFileValues() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, """
+                additional.alias=${external.additional.alias:}
+                additional.default=${missing.additional.alias:fallback}
+                """);
+
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("fromSystem", source.get("additional.alias"));
+            assertEquals("fallback", source.get("additional.default"));
+        }, FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString(),
+                                "external.additional.alias", "fromSystem");
+    }
+
+    @Test
+    void systemPropertiesAreNotSubstitutedByDefault() {
+        runWithSystemProperties(() -> {
+            var source = new DefaultPropertySource();
+
+            assertEquals("${missing.system.alias}", source.get("literal.system.alias"));
+        }, "literal.system.alias", "${missing.system.alias}");
+    }
+
+    @Test
+    void substitutionCyclesFailFast() throws Exception {
+        Path secrets = tempDir.resolve("application-secrets.properties");
+        Files.writeString(secrets, """
+                cycle.a=${cycle.b}
+                cycle.b=${cycle.a}
+                """);
+
+        assertThrows(IllegalStateException.class, () -> runWithSystemProperties(
+                () -> new DefaultPropertySource().get("cycle.a"),
+                FluxzeroAdditionalPropertiesSource.CONFIG_LOCATIONS_PROPERTY, secrets.toUri().toString()));
     }
 
     @Test

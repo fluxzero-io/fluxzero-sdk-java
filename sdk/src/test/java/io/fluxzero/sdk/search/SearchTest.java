@@ -20,8 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
-import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.FacetStats;
@@ -50,6 +50,7 @@ import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.persisting.search.SearchHit;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.test.Given;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.test.When;
@@ -92,6 +93,10 @@ import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 public class SearchTest {
 
@@ -1111,6 +1116,58 @@ public class SearchTest {
                     .andThen()
                     .whenApplying(fc -> Fluxzero.getDocuments(List.of("id1", "id2", "id3"), "test", JsonNode.class))
                     .expectResult(r -> r.stream().distinct().count() == 2);
+        }
+    }
+
+    @Nested
+    class AsyncTests {
+
+        @Test
+        void fetchAsyncUsesSearchClientAsync() {
+            TestFixture.create().spy()
+                    .givenDocument(new SomeDocument(), "id1", "test")
+                    .whenApplying(fc -> {
+                        SearchClient searchClient = fc.client().getSearchClient();
+                        clearInvocations(searchClient);
+
+                        List<SerializedDocument> result = fc.documentStore().search("test")
+                                .fetchAsync(25, SerializedDocument.class).join();
+
+                        verify(searchClient).searchAsync(any(SearchDocuments.class), eq(25));
+                        return result;
+                    }).expectResult(r -> r.size() == 1 && "id1".equals(r.getFirst().getId()));
+        }
+
+        @Test
+        void countAsyncUsesSearchClientStatisticsAsync() {
+            TestFixture.create().spy()
+                    .givenDocument(new SomeDocument(), "id1", "test")
+                    .whenApplying(fc -> {
+                        SearchClient searchClient = fc.client().getSearchClient();
+                        clearInvocations(searchClient);
+
+                        Long result = fc.documentStore().search("test").countAsync().join();
+
+                        verify(searchClient).fetchStatisticsAsync(any(SearchQuery.class), eq(List.of()), eq(List.of()));
+                        return result;
+                    }).expectResult(1L);
+        }
+
+        @Test
+        void facetStatsAsyncUsesSearchClientAsyncAndFiltersMetadataFacets() {
+            TestFixture.create().spy()
+                    .givenDocument(new SomeDocument(), "id1", "test")
+                    .whenApplying(fc -> {
+                        SearchClient searchClient = fc.client().getSearchClient();
+                        clearInvocations(searchClient);
+
+                        List<FacetStats> result = fc.documentStore().search("test").facetStatsAsync().join();
+
+                        verify(searchClient).fetchFacetStatsAsync(any(SearchQuery.class));
+                        return result;
+                    }).<List<FacetStats>>expectResult(stats -> stats.size() == 7
+                                                             && stats.contains(new FacetStats(
+                            "custom", "testCustom", 1)));
         }
     }
 

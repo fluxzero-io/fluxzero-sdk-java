@@ -54,13 +54,12 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     private final String topic;
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
-        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, null);
+        this(newMaintenance(messageStore), messageType, (String) null);
     }
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType,
                             CommandIdempotencyStore commandIdempotencyStore) {
-        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, null,
-             commandIdempotencyStore);
+        this(newMaintenance(messageStore), messageType, null, commandIdempotencyStore);
     }
 
     /**
@@ -73,8 +72,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
      */
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType, String topic,
                             CommandIdempotencyStore commandIdempotencyStore) {
-        this(new DefaultTrackingStrategy(messageStore), messageStore, new InMemoryPositionStore(), messageType, topic,
-             commandIdempotencyStore);
+        this(newMaintenance(messageStore), messageType, topic, commandIdempotencyStore);
     }
 
     /**
@@ -101,6 +99,11 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
                             CommandIdempotencyStore commandIdempotencyStore) {
         this(maintenance.getTrackingStrategy(), maintenance.getMessageStore(), maintenance.getPositionStore(),
              messageType, topic, commandIdempotencyStore);
+    }
+
+    private ConsumerEndpoint(MessageLogMaintenance maintenance, MessageType messageType, String topic) {
+        this(maintenance.getTrackingStrategy(), maintenance.getMessageStore(), maintenance.getPositionStore(),
+             messageType, topic);
     }
 
     public ConsumerEndpoint(TrackingStrategy trackingStrategy, MessageStore messageStore,
@@ -148,18 +151,20 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
-    void handle(Read read, ServerWebsocketSession session) {
-        trackingStrategy.getBatch(
-                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch
-                        -> doSendResult(session, new ReadResult(read.getRequestId(), batch))), positionStore);
+    CompletableFuture<ReadResult> handle(Read read, ServerWebsocketSession session) {
+        return trackingStrategy.getBatch(
+                        new WebSocketTracker(read, messageType, getClientId(session),
+                                             getNegotiatedSessionId(session)))
+                .thenApply(batch -> new ReadResult(read.getRequestId(), batch));
     }
 
     @Handle
-    void handle(ClaimSegment read, ServerWebsocketSession session) {
-        trackingStrategy.claimSegment(
-                new WebSocketTracker(read, messageType, getClientId(session), getNegotiatedSessionId(session), batch ->
-                        doSendResult(session, new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
-                                                                     batch.getSegment()))), positionStore);
+    CompletableFuture<ClaimSegmentResult> handle(ClaimSegment read, ServerWebsocketSession session) {
+        return trackingStrategy.claimSegment(
+                        new WebSocketTracker(read, messageType, getClientId(session),
+                                             getNegotiatedSessionId(session)))
+                .thenApply(claim -> new ClaimSegmentResult(read.getRequestId(), claim.getPosition(),
+                                                           claim.getSegment()));
     }
 
     @Handle
@@ -184,7 +189,8 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Handle
     ReadFromIndexResult handle(ReadFromIndex read) {
         return new ReadFromIndexResult(read.getRequestId(),
-                                       messageStore.getBatch(read.getMinIndex(), read.getMaxSize(), true));
+                                       messageStore.getBatch(read.getMinIndex(), read.getMaxSize(), true,
+                                                             read.getMaxBytes()));
     }
 
     @Handle
@@ -214,6 +220,12 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Override
     protected boolean shouldHandleIdempotently(Command command) {
         return messageType != METRICS && super.shouldHandleIdempotently(command);
+    }
+
+    private static MessageLogMaintenance newMaintenance(MessageStore messageStore) {
+        PositionStore positionStore = new InMemoryPositionStore();
+        return new MessageLogMaintenance(messageStore, positionStore,
+                                         new DefaultTrackingStrategy(messageStore, positionStore));
     }
 
     @Override

@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -27,7 +28,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 
 /**
@@ -115,22 +116,25 @@ public class InMemoryMessageStore implements MessageStore {
 
     @Override
     public List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive) {
+        return getBatch(minIndex, maxSize, inclusive, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> getBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("maxSize must be non-negative");
         }
         if (maxSize == 0) {
             return List.of();
         }
-        Collection<SerializedMessage> messages = filterMessages(messageLog.tailMap(
-                Optional.ofNullable(minIndex).map(i -> inclusive ? i : i + 1L).orElse(-1L)).values());
-        ArrayList<SerializedMessage> result = new ArrayList<>(Math.min(maxSize, 1024));
-        for (SerializedMessage message : messages) {
-            result.add(message);
-            if (result.size() == maxSize) {
-                break;
-            }
-        }
-        return result;
+        return MessageStoreBatch.scan(messagesFrom(minIndex, inclusive), maxSize, maxBytes, message -> true)
+                .messages();
+    }
+
+    @Override
+    public MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                       Predicate<? super SerializedMessage> filter) {
+        return MessageStoreBatch.scan(messagesFrom(minIndex, inclusive), maxSize, maxBytes, filter);
     }
 
     public void notifyMonitors() {
@@ -151,6 +155,11 @@ public class InMemoryMessageStore implements MessageStore {
 
     protected Collection<SerializedMessage> filterMessages(Collection<SerializedMessage> messages) {
         return messages;
+    }
+
+    protected Collection<SerializedMessage> messagesFrom(Long minIndex, boolean inclusive) {
+        return filterMessages(messageLog.tailMap(
+                Optional.ofNullable(minIndex).map(i -> inclusive ? i : i + 1L).orElse(-1L)).values());
     }
 
     protected SerializedMessage getMessage(long index) {

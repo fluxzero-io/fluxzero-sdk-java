@@ -18,6 +18,8 @@ import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
+
 /**
  * Request to fetch a batch of messages from a given log starting from a given index.
  * <p>
@@ -42,4 +44,20 @@ public class ReadFromIndex extends Request {
      * the specified index.
      */
     int maxSize;
+
+    /**
+     * Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.
+     */
+    long maxBytes;
+
+    @ConstructorProperties({"minIndex", "maxSize", "maxBytes"})
+    public ReadFromIndex(long minIndex, int maxSize, long maxBytes) {
+        this.minIndex = minIndex;
+        this.maxSize = maxSize;
+        this.maxBytes = maxBytes;
+    }
+
+    public ReadFromIndex(long minIndex, int maxSize) {
+        this(minIndex, maxSize, 0L);
+    }
 }

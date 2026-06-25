@@ -1,0 +1,199 @@
+---
+title: Handling WebSocket messages
+description: Handling WebSocket messages
+slug: docs/guides/messaging/handling-websocket-messages
+sidebar:
+  order: 130
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Fluxzero provides first-class support for **WebSocket communication**, enabling stateful or stateless message
+handling using the same annotation-based model as other requests.
+
+WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Fluxzero Runtime, and can
+be consumed and responded to like any other request type.
+
+---
+
+## Two styles of WebSocket handling
+
+### 1. Stateless handlers (singleton style)
+
+Use annotations like @HandleSocketOpen, @HandleSocketMessage, and @HandleSocketClose directly on singleton handler classes:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleSocketOpen("/chat")
+public String onOpen() {
+    return "Welcome!";
+}
+
+@HandleSocketMessage("/chat")
+public String onMessage(String incoming) {
+    return "Echo: " + incoming;
+}
+
+@HandleSocketClose("/chat")
+public void onClose(SocketSession session) {
+    System.out.println("Socket closed: " + session.sessionId());
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleSocketOpen("/chat")
+fun onOpen(): String {
+    return "Welcome!"
+}
+
+@HandleSocketMessage("/chat")
+fun onMessage(incoming: String): String {
+    return "Echo: $incoming"
+}
+
+@HandleSocketClose("/chat")
+fun onClose(session: SocketSession) {
+    println("Socket closed: ${session.sessionId()}")
+}
+```
+
+  </TabItem>
+</Tabs>
+
+You can return a response directly from `onOpen` or `onMessage`. For more control, inject `SocketSession` and send messages manually.
+
+Other available annotations:
+
+- @HandleSocketPong — handle pong responses
+- @HandleSocketHandshake — override default handshake logic
+
+### 2. Stateful sessions with @SocketEndpoint
+
+Use @SocketEndpoint to create a new handler instance per session, allowing you to store session-local state:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@SocketEndpoint
+@Path("/chat")
+public class ChatSession {
+
+    private final List<String> messages = new ArrayList<>();
+
+    @HandleSocketOpen
+    public String onOpen() {
+        return "Connected!";
+    }
+
+    @HandleSocketMessage
+    public void onMessage(String text, SocketSession session) {
+        messages.add(text);
+        session.sendMessage("Stored message: " + text);
+    }
+
+    @HandleSocketClose
+    public void onClose() {
+        System.out.println("Messages in this session: " + messages.size());
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@SocketEndpoint
+@Path("/chat")
+class ChatSession {
+
+    private val messages = mutableListOf<String>()
+
+    @HandleSocketOpen
+    fun onOpen(): String {
+        return "Connected!"
+    }
+
+    @HandleSocketMessage
+    fun onMessage(text: String, session: SocketSession) {
+        messages += text
+        session.sendMessage("Stored message: $text")
+    }
+
+    @HandleSocketClose
+    fun onClose() {
+        println("Messages in this session: ${messages.size}")
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Stateful sessions are ideal for authentication, accumulating messages, buffering, or managing cursors and sequences.
+
+<Aside type="note">
+@SocketEndpoint handlers are prototype-scoped—one instance per session.
+</Aside>
+
+<Aside type="tip">
+You can annotate socket handlers with @Consumer to isolate tracking, replay behavior, or log positions.
+</Aside>
+
+---
+
+## Automatic ping-pong and keep-alive
+
+Fluxzero automatically manages ping/pong logic for connections handled by @SocketEndpoint:
+
+- Sends pings at regular intervals (default: every 60 seconds)
+- Closes the session if a pong isn’t received in time
+- Customizable using the `aliveCheck` attribute
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(pingDelay = 30, pingTimeout = 15))
+public class MySession {
+    // ...
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@SocketEndpoint(
+    aliveCheck = SocketEndpoint.AliveCheck(pingDelay = 30, pingTimeout = 15)
+)
+class MySession {
+    // ...
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Annotation                 | Description                                        |
+|----------------------------|----------------------------------------------------|
+| @HandleSocketOpen          | Handles WebSocket connection opening              |
+| @HandleSocketMessage       | Handles incoming WebSocket messages (text/binary) |
+| @HandleSocketPong          | Handles pong responses (e.g. from keep-alive)     |
+| @HandleSocketClose         | Handles WebSocket session closure                 |
+| @HandleSocketHandshake     | Customizes the initial handshake                  |
+| @SocketEndpoint            | Declares a per-session WebSocket handler class    |
+| SocketSession (injected)   | Allows sending messages, pinging, and closing     |
+
+<Aside type="tip">
+Fluxzero WebSocket support is secure, observable, and fully integrated into your message-driven architecture.
+</Aside>

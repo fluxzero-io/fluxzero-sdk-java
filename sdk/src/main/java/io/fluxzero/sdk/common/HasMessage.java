@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
@@ -130,7 +131,7 @@ public interface HasMessage extends HasMetadata {
         Message m = toMessage();
         String routingValue = null;
         Class<?> payloadType = m.getPayloadClass();
-        RoutingKey typeAnnotation = Optional.ofNullable(payloadType.getAnnotation(RoutingKey.class))
+        RoutingKey typeAnnotation = getAnnotation(payloadType, RoutingKey.class)
                 .filter(a -> !a.value().isBlank()).orElse(null);
         if (typeAnnotation != null) {
             return getRoutingKey(typeAnnotation.value());

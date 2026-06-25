@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 /**
  * A thread-safe pool of reusable {@link WebsocketSession} objects, supporting concurrent access and routing.
@@ -53,6 +54,7 @@ import java.util.function.Supplier;
 @Slf4j
 public class SessionPool implements AutoCloseable {
     private final Map<Integer, WebsocketSession> sessionMap;
+    private final Object[] sessionLocks;
     private final int size;
     private final AtomicInteger counter = new AtomicInteger();
     private final Supplier<WebsocketSession> sessionFactory;
@@ -65,6 +67,7 @@ public class SessionPool implements AutoCloseable {
         this.sessionFactory = sessionFactory;
         this.size = size;
         this.sessionMap = new ConcurrentHashMap<>();
+        this.sessionLocks = IntStream.range(0, size).mapToObj(i -> new Object()).toArray();
     }
 
     public WebsocketSession get() {
@@ -79,15 +82,21 @@ public class SessionPool implements AutoCloseable {
     }
 
     protected WebsocketSession get(int index) {
-        return sessionMap.compute(index, (i, s) -> {
+        WebsocketSession session = sessionMap.get(index);
+        if (!isClosed(session)) {
+            return session;
+        }
+        synchronized (sessionLocks[index]) {
+            WebsocketSession s = sessionMap.get(index);
             while (isClosed(s)) {
                 if (shuttingDown.get()) {
                     throw new ClientClosedException();
                 }
                 s = sessionFactory.get();
             }
+            sessionMap.put(index, s);
             return s;
-        });
+        }
     }
 
     @Override

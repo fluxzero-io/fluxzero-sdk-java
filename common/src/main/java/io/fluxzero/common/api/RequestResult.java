@@ -57,4 +57,34 @@ public interface RequestResult extends JsonType {
      */
     default void setRequestReceivedTimestamp(long requestReceivedTimestamp) {
     }
+
+    /**
+     * The timestamp (in epoch milliseconds) when the Fluxzero Runtime queued this response for websocket delivery.
+     * <p>
+     * A value of {@code 0} means the runtime did not provide this timestamp.
+     */
+    default long getResponseQueuedTimestamp() {
+        return 0L;
+    }
+
+    /**
+     * Updates the timestamp at which the Fluxzero Runtime queued this response for websocket delivery.
+     */
+    default void setResponseQueuedTimestamp(long responseQueuedTimestamp) {
+    }
+
+    /**
+     * The timestamp (in epoch milliseconds) just before the Fluxzero Runtime encoded and sent this response.
+     * <p>
+     * A value of {@code 0} means the runtime did not provide this timestamp.
+     */
+    default long getResponseSendStartTimestamp() {
+        return 0L;
+    }
+
+    /**
+     * Updates the timestamp just before the Fluxzero Runtime encoded and sent this response.
+     */
+    default void setResponseSendStartTimestamp(long responseSendStartTimestamp) {
+    }
 }

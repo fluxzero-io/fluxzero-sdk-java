@@ -18,7 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.web.WebRequest;
 
-import java.util.function.Function;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
@@ -33,36 +33,66 @@ import static io.fluxzero.sdk.common.ClientUtils.memoize;
 public class NamespaceSelector {
     public static final String FLUXZERO_NAMESPACE_HEADER = "Fluxzero-Namespace";
     public static final String JWKS_URL_PROPERTY = "FLUXZERO_PROXY_JWKS_URL";
+    public static final String NAMESPACE_HEADER_MODE_PROPERTY = "FLUXZERO_PROXY_NAMESPACE_HEADER_MODE";
 
     private final Supplier<JwtVerifier> jwtVerifier = memoize(
             () -> ApplicationProperties.mapProperty(JWKS_URL_PROPERTY, JwtVerifier::new));
 
-    private final Function<String, String> namespaceDecoder = memoize(encoded -> {
+    /**
+     * Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the
+     * header identified by {@code FLUXZERO_NAMESPACE_HEADER}. The configured namespace header mode determines whether
+     * raw values are accepted, signed values are required, or the header is rejected completely.
+     *
+     * @param webRequest the incoming HTTP web request containing the namespace header
+     * @return the decoded namespace string, or {@code null} if the header is not present
+     */
+    public String select(WebRequest webRequest) {
+        String encoded = webRequest.getHeader(FLUXZERO_NAMESPACE_HEADER);
         if (encoded == null) {
             return null;
         }
-        var verifier = jwtVerifier.get();
+        return switch (getMode()) {
+            case RAW -> decodeRawOrSigned(encoded);
+            case SIGNED -> decodeSigned(encoded);
+            case DISABLED -> throw new SecurityException("Namespace header is disabled");
+        };
+    }
+
+    private String decodeRawOrSigned(String encoded) {
+        JwtVerifier verifier = jwtVerifier.get();
+        return verifier == null ? encoded : verify(verifier, encoded);
+    }
+
+    private String decodeSigned(String encoded) {
+        JwtVerifier verifier = jwtVerifier.get();
         if (verifier == null) {
-            return encoded;
+            throw new SecurityException("Namespace headers should be signed");
         }
+        return verify(verifier, encoded);
+    }
+
+    private static String verify(JwtVerifier verifier, String encoded) {
         var claims = verifier.verify(encoded);
         String sub = claims.getString("sub");
         if (sub == null) {
             throw new SecurityException("JWT misses subject claim");
         }
         return sub;
-    });
-
-    /**
-     * Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the
-     * header identified by {@code FLUXZERO_NAMESPACE_HEADER} and is processed using the {@code namespaceDecoder}
-     * function to decode it.
-     *
-     * @param webRequest the incoming HTTP web request containing the namespace header
-     * @return the decoded namespace string, or {@code null} if the header is not present or the decoding fails
-     */
-    public String select(WebRequest webRequest) {
-        return namespaceDecoder.apply(webRequest.getHeader(FLUXZERO_NAMESPACE_HEADER));
     }
 
+    private static HeaderMode getMode() {
+        String configuredMode = ApplicationProperties.getProperty(NAMESPACE_HEADER_MODE_PROPERTY, HeaderMode.RAW.name());
+        try {
+            return HeaderMode.valueOf(configuredMode.trim().replace('-', '_').toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(NAMESPACE_HEADER_MODE_PROPERTY
+                                               + " must be one of raw, signed or disabled", e);
+        }
+    }
+
+    private enum HeaderMode {
+        RAW,
+        SIGNED,
+        DISABLED
+    }
 }

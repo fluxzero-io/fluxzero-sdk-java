@@ -1,0 +1,366 @@
+---
+title: Role-based access control
+description: Role-based access control
+slug: docs/guides/messaging/role-based-access-control
+sidebar:
+   order: 71
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows you to restrict message handling based on the authenticated user's roles. This access control happens **before** the message reaches the handler — similar to how payload validation is enforced.
+
+There are several annotations for declaring user and role requirements.
+
+## @RequiresAnyRole
+
+Use this annotation to ensure that a handler is only invoked if the user has **at least one** of the specified roles.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@HandleCommand
+@RequiresAnyRole({"admin", "editor"})
+void handle(UpdateArticle command) { ... }
+```
+
+```java
+@RequiresAnyRole("admin")
+public record DeleteAccount(String userId) {
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@HandleCommand
+@RequiresAnyRole(["admin", "editor"])
+fun handle(command: UpdateArticle) { ... }
+```
+
+```kotlin
+@RequiresAnyRole("admin")
+data class DeleteAccount(val userId: String)
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+    You can use enum-based roles too. See how [here](#enum-based-role-annotations).
+</Aside>
+
+## @ForbidsAnyRole
+
+This annotation works the other way around — it **prevents** message handling if the user has any of the specified roles.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@ForbidsAnyRole("guest")
+@HandleCommand
+void handle(SensitiveOperation command) { ... }
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@ForbidsAnyRole("guest")
+@HandleCommand
+fun handle(command: SensitiveOperation) { ... }
+```
+
+</TabItem>
+</Tabs>
+
+## @RequiresUser
+
+Ensures that a message can only be handled if an **authenticated user** is present. If no user is found, the message is rejected with an `UnauthenticatedException`.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@RequiresUser
+@HandleCommand
+void handle(UpdateProfile command) { ... }
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@RequiresUser
+@HandleCommand
+fun handle(command: UpdateProfile) { ... }
+```
+
+</TabItem>
+</Tabs>
+
+## @NoUserRequired
+
+Allows a message to be processed even if **no authenticated user** is present — ideal for public APIs or health checks.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@NoUserRequired
+@HandleCommand
+void handle(SignUpUser command) { ... }
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@NoUserRequired
+@HandleCommand
+fun handle(command: SignUpUser) { ... }
+```
+
+</TabItem>
+</Tabs>
+
+## @ForbidsUser
+
+Prevents message handling if an **authenticated user is present**. This is useful for restricting certain flows to unauthenticated users — such as guest signups.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@ForbidsUser
+@HandleCommand
+void handle(SignUpAsGuest command) { ... }
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@ForbidsUser
+@HandleCommand
+fun handle(command: SignUpAsGuest) { ... }
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Controlling behavior on unauthorized access
+
+All authorization annotations include an optional `throwIfUnauthorized()` property (default: `true`) that controls what happens when access is denied.
+
+- If `throwIfUnauthorized = true`:
+  - If a user is required but not present, an `UnauthenticatedException` is thrown.
+  - If a user is present but lacks required roles, an `UnauthorizedException` is thrown.
+
+- If `throwIfUnauthorized = false`:
+  - The message is silently skipped, allowing delegation to other eligible handlers (if any).
+
+<Aside type="tip">
+  Skipping unauthorized messages with <code>throwIfUnauthorized = false</code> is useful for fallback scenarios or role-specific handler resolution.
+</Aside>
+
+---
+
+## Role annotations support nesting and overrides
+
+Fluxzero evaluates annotations hierarchically:
+
+- If `@RequiresAnyRole("admin")` is placed on a **package**, it applies to all handlers and payloads in that package.
+- You can override it on specific classes or methods.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+// package-info.java
+@RequiresUser
+package com.myapp.handlers;
+```
+
+```java
+@NoUserRequired
+@HandleCommand
+void handle(PublicPing ping) { ... } // Overrides the package-level requirement
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+// No direct package annotations in Kotlin, use class-level instead
+@RequiresUser
+class SecuredHandler {
+    @HandleCommand
+    fun handle(command: UpdateAccount) { ... }
+}
+
+@NoUserRequired
+class PublicHandler {
+    @HandleCommand
+    fun handle(command: PublicPing) { ... }
+}
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Enum-based role annotations
+
+You can define custom annotations using enums for structured roles.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+public enum Role {
+    ADMIN, EDITOR, USER
+}
+
+@RequiresAnyRole
+@Target({ElementType.TYPE, ElementType.METHOD})
+public @interface RequiresRole {
+    Role[] value();
+}
+```
+
+```java
+@HandleCommand
+@RequiresRole(Role.ADMIN)
+void handle(DeleteAccount command) { ... }
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+enum class Role {
+    ADMIN, EDITOR, USER
+}
+
+@RequiresAnyRole
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
+annotation class RequiresRole(val value: Array<Role>)
+```
+
+```kotlin
+@HandleCommand
+@RequiresRole([Role.ADMIN])
+fun handle(command: DeleteAccount) { ... }
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Best practices
+
+- Use role annotations on **payload classes** to guarantee strict access checks across environments.
+- Apply them on **handlers** to allow fallback logic or specialization by role.
+- Set **default access rules at the package level**, and override them as needed.
+- Create **custom annotations** to avoid repeating role strings throughout your codebase.
+
+---
+
+<Aside type="tip">
+  Access control is enforced before the handler runs. There’s no need to log user context or payload — Fluxzero maintains full correlation in logs, errors, and audit trails automatically.
+</Aside>
+
+---
+
+## Where does user info come from?
+
+User roles are resolved by the configured `UserProvider`, which extracts user info from message metadata (e.g. headers or tokens). Fluxzero uses a pluggable SPI to register this provider.
+
+<Aside type="tip">
+  In tests, you can override or mock the <code>UserProvider</code> via the <code>TestFixture</code> API.
+</Aside>
+
+---
+
+## Providing your own user logic
+
+You can implement a custom `UserProvider` to extract users from headers, JWT tokens, cookies, etc.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+public class MyUserProvider extends AbstractUserProvider {
+    public MyUserProvider() {
+        super("Authorization", MyUser.class);
+    }
+
+    @Override
+    public User fromMessage(HasMessage message) {
+        if (message.toMessage() instanceof WebRequest request) {
+            return decodeToken(request.getHeader("Authorization"));
+        }
+        return super.fromMessage(message);
+    }
+
+    private User decodeToken(String header) {
+        // Parse and validate JWT token here
+        return ...;
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+class MyUserProvider : AbstractUserProvider("Authorization", MyUser::class.java) {
+    override fun fromMessage(message: HasMessage): User {
+        val request = message.toMessage() as? WebRequest
+        return request?.getHeader("Authorization")?.let { decodeToken(it) } ?: super.fromMessage(message)
+    }
+
+    private fun decodeToken(header: String): User {
+        // Your decoding logic here
+        return ...
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## System and testing support
+
+Your `UserProvider` can also implement:
+
+- `getSystemUser()` — returns the default **system-level user** (used in tests and scheduled handlers)
+- `getUserById(...)` — used by test utilities like `fixture.whenCommandByUser(...)`
+
+This ensures consistent behavior across environments.
+
+---
+
+## Registering your user provider
+
+To register your custom `UserProvider`, use Java's SPI mechanism:
+
+```
+src/main/resources/META-INF/services/io.fluxzero.sdk.tracking.handling.authentication.UserProvider
+```
+
+Add each provider class (one per line):
+
+```
+com

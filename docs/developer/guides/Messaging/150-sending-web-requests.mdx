@@ -1,0 +1,228 @@
+---
+title: Sending web requests
+description: Sending web requests
+slug: docs/guides/messaging/sending-web-requests
+sidebar:
+  order: 150
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
+
+Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+
+- A **local handler** if the URL is **relative**, or
+- A **connected remote client or proxy** if the URL is **absolute**
+
+---
+
+## Sending a request
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+WebRequest request = WebRequest.get("https://api.example.com/data")
+        .header("Authorization", "Bearer token123")
+        .build();
+
+WebResponse response = Fluxzero.get()
+        .webRequestGateway().sendAndWait(request);
+
+String body = response.getBodyString();
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val request = WebRequest.get("https://api.example.com/data")
+    .header("Authorization", "Bearer token123")
+    .build()
+
+val response = Fluxzero.get()
+    .webRequestGateway().sendAndWait(request)
+
+val body = response.bodyString
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+All outbound requests are logged as `WebRequest` messages and fully traceable within the Fluxzero Runtime.
+</Aside>
+
+---
+
+## Asynchronous and fire-and-forget
+
+You can send requests asynchronously:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+Fluxzero.get().webRequestGateway()
+        .send(request)
+        .thenAccept(response -> log.info("Received: {}", response.getBodyString()));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.get().webRequestGateway()
+    .send(request)
+    .thenAccept { response -> log.info("Received: {}", response.bodyString) }
+```
+
+  </TabItem>
+</Tabs>
+
+Or send them fire-and-forget:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+Fluxzero.get().webRequestGateway()
+        .sendAndForget(Guarantee.STORED, request);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.get().webRequestGateway()
+    .sendAndForget(Guarantee.STORED, request)
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Relative vs absolute URLs
+
+Flux distinguishes between relative and absolute URLs:
+
+- **Absolute URLs** (e.g., `https://api.example.com/...`)
+  → Sent via the Flux **Web Proxy** and executed externally
+- **Relative URLs** (e.g., `/internal/task`)
+  → Routed to local handlers in other connected Flux apps
+
+This enables request-response flows across distributed services without coupling.
+
+---
+
+## Isolating traffic with `consumer`
+
+Use the `consumer` field in `WebRequestSettings` to isolate requests:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .consumer("external-api-xyz")
+        .timeout(Duration.ofSeconds(5))
+        .build();
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val settings = WebRequestSettings.builder()
+    .consumer("external-api-xyz")
+    .timeout(Duration.ofSeconds(5))
+    .build()
+```
+
+  </TabItem>
+</Tabs>
+
+This allows you to:
+
+- Isolate third-party API traffic (e.g., apply rate limits)
+- Use different retry or error-handling strategies
+- Segment outbound traffic by destination
+
+<Aside type="note">
+The `consumer` determines which internal message processor will handle the request, making fault isolation and custom behavior easier.
+</Aside>
+
+---
+
+## Mocking external endpoints in tests
+
+Fluxzero supports mocking remote responses by defining handlers that match the outgoing `WebRequest`.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+static class EndpointMock {
+    @HandleGet("https://api.example.com/1.1/locations")
+    WebResponse handleLocations() {
+        return WebResponse.builder()
+                .header("X-Limit", "100")
+                .payload("/example-api/get-locations.json")
+                .build();
+    }
+}
+
+@Test
+void testGetLocations() {
+    TestFixture.create(new EndpointMock())
+            .whenGet("https://api.example.com/1.1/locations")
+            .<List<ExampleLocation>>expectResult(r -> r.size() == 2);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+class EndpointMock {
+    @HandleGet("https://api.example.com/1.1/locations")
+    fun handleLocations(): WebResponse {
+        return WebResponse.builder()
+            .header("X-Limit", "100")
+            .payload("/example-api/get-locations.json")
+            .build()
+    }
+}
+
+@Test
+fun testGetLocations() {
+    TestFixture.create(EndpointMock())
+        .whenGet("https://api.example.com/1.1/locations")
+        .expectResult<List<ExampleLocation>> { it.size == 2 }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+You can match mocked requests by:
+
+- Method (GET, POST, etc.)
+- URL
+- Headers, body, or other attributes
+
+<Aside type="tip">
+This enables full end-to-end testing of flows that depend on external APIs—without requiring actual network calls.
+</Aside>
+
+---
+
+## Summary
+
+- ✅ Use `WebRequest` for all outbound HTTP calls
+- ✅ Requests are routed based on the URL (relative → internal, absolute → proxy)
+- ✅ All traffic is logged and observable
+- ✅ Supports retries, timeouts, and consumer-based isolation
+- ✅ Easily mock remote endpoints in tests

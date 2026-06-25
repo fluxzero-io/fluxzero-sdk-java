@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.spring;
@@ -58,9 +59,12 @@ public @interface ConditionalOnProperty {
         @Override
         @SneakyThrows
         public boolean matches(@NotNull ConditionContext context, AnnotatedTypeMetadata metadata) {
-            String value = ApplicationProperties.getProperty(
-                    metadata.getAllAnnotationAttributes(ConditionalOnProperty.class.getName()).getFirst("value")
-                            .toString());
+            String propertyName = metadata.getAllAnnotationAttributes(ConditionalOnProperty.class.getName())
+                    .getFirst("value").toString();
+            String value = ApplicationProperties.getProperty(propertyName);
+            if (value == null) {
+                value = context.getEnvironment().getProperty(propertyName);
+            }
             String pattern =
                     metadata.getAllAnnotationAttributes(ConditionalOnProperty.class.getName()).getFirst("pattern")
                             .toString();

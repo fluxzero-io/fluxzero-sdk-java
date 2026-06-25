@@ -24,6 +24,7 @@ import io.fluxzero.common.tracking.DefaultTrackingStrategy;
 import io.fluxzero.common.tracking.InMemoryPositionStore;
 import io.fluxzero.common.tracking.MessageLogMaintenance;
 import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.common.tracking.PositionStore;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -101,7 +102,8 @@ public class ProducerEndpoint extends WebsocketEndpoint {
     }
 
     private static MessageLogMaintenance newMaintenance(MessageStore store) {
-        return new MessageLogMaintenance(store, new InMemoryPositionStore(), new DefaultTrackingStrategy(store));
+        PositionStore positionStore = new InMemoryPositionStore();
+        return new MessageLogMaintenance(store, positionStore, new DefaultTrackingStrategy(store, positionStore));
     }
 
     @Override

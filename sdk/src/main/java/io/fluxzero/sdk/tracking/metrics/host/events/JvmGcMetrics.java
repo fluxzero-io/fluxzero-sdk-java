@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -26,7 +25,7 @@ import java.util.List;
  */
 @Value
 @Builder
-public class JvmGcMetrics implements JsonType {
+public class JvmGcMetrics {
 
     /**
      * Metrics for each garbage collector.
@@ -38,7 +37,7 @@ public class JvmGcMetrics implements JsonType {
      */
     @Value
     @Builder
-    public static class GcCollectorMetrics implements JsonType {
+    public static class GcCollectorMetrics {
         /**
          * The name of the garbage collector (e.g., "G1 Young Generation", "G1 Old Generation").
          */

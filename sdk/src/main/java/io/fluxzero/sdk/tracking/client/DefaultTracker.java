@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.client;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
@@ -130,9 +131,9 @@ public class DefaultTracker implements Runnable, Registration {
      */
     public static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType, String topic,
                                      ConsumerConfiguration config, Fluxzero fluxzero) {
-        return start(
-                consumer, messageType, topic, withFluxzeroBatchInterceptors(config, messageType, fluxzero),
-                fluxzero.client());
+        ConsumerConfiguration trackerConfig = withFluxzeroBatchInterceptors(config, messageType, fluxzero);
+        fluxzero.execute(fc -> trackerConfig.effectiveMaxFetchBytes());
+        return start(consumer, messageType, topic, trackerConfig, fluxzero.client());
     }
 
     /**
@@ -442,25 +443,53 @@ public class DefaultTracker implements Runnable, Registration {
         if (index != null) {
             lastProcessedIndex = index;
             if (autoStorePosition) {
-                retryOnFailure(
-                        () -> {
-                            try {
-                                trackingClient.storePosition(tracker.getName(), segment, index).get();
-                                return null;
-                            } catch (InterruptedException e) {
-                                currentThread().interrupt();
-                                if (!running.get()) {
-                                    return null;
-                                }
-                                throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
-                                        "storing tracker position", tracker, segment, index, e), e);
-                            } catch (Exception e) {
-                                throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
-                                        "storing tracker position", tracker, segment, index, e), e);
-                            }
-                        }, retryDelay, e2 -> running.get());
+                if (tracker.getConfiguration().clientControlledIndex()) {
+                    storeClientControlledPosition(index, segment);
+                } else {
+                    storePositionSynchronously(index, segment);
+                }
             }
         }
+    }
+
+    private void storePositionSynchronously(Long index, int[] segment) {
+        retryOnFailure(
+                () -> {
+                    try {
+                        trackingClient.storePosition(tracker.getName(), segment, index).get();
+                        return null;
+                    } catch (InterruptedException e) {
+                        currentThread().interrupt();
+                        if (!running.get()) {
+                            return null;
+                        }
+                        throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                                "storing tracker position", tracker, segment, index, e), e);
+                    } catch (Exception e) {
+                        throw new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                                "storing tracker position", tracker, segment, index, e), e);
+                    }
+                }, retryDelay, e2 -> running.get());
+    }
+
+    private void storeClientControlledPosition(Long index, int[] segment) {
+        try {
+            trackingClient.storePosition(tracker.getName(), segment, index, Guarantee.SENT)
+                    .whenComplete((ignored, error) -> {
+                        if (error != null) {
+                            logFailedClientControlledStorePosition(index, segment, error);
+                        }
+                    });
+        } catch (Exception e) {
+            logFailedClientControlledStorePosition(index, segment, e);
+        }
+    }
+
+    private void logFailedClientControlledStorePosition(Long index, int[] segment, Throwable error) {
+        TrackingException trackingException = new TrackingException(FluxzeroErrors.trackingRuntimeFailed(
+                "storing tracker position", tracker, segment, index, error), error);
+        log.warn("Failed to store client-controlled position for consumer {}, tracker {}.",
+                 tracker.getName(), tracker.getTrackerId(), trackingException);
     }
 
     protected void cancelAndDisconnect() {
@@ -509,6 +538,5 @@ public class DefaultTracker implements Runnable, Registration {
             });
         }
     }
-
 
 }

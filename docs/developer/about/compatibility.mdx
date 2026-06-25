@@ -1,0 +1,127 @@
+---
+title: Compatibility & dependencies
+description: Fluxzero position on backward compatibility
+sidebar:
+   order: 30
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+
+All minor versions are backward compatible, meaning that you can upgrade to a newer minor version without breaking your code.
+
+However, you should always check the [changelog](/docs/changelog) for any breaking changes.
+
+## Java Version
+
+Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
+compatible with recent versions.
+
+---
+
+## Runtime Dependencies
+
+### Serialization
+
+| Dependency                                               | Scope   |
+|----------------------------------------------------------|---------|
+| `com.fasterxml.jackson.core:jackson-databind`            | runtime |
+| `com.fasterxml.jackson.datatype:jackson-datatype-jsr310` | runtime |
+| `com.fasterxml.jackson.datatype:jackson-datatype-jdk8`   | runtime |
+| `org.msgpack:msgpack-core`                               | runtime |
+| `org.lz4:lz4-java`                                       | runtime |
+
+### Payload Validation
+
+Fluxzero includes its own SDK-focused Jakarta Validation implementation. Normal payload validation does not require
+Hibernate Validator, Expression Language, or their runtime dependencies.
+
+| Dependency                                  | Scope   |
+|---------------------------------------------|---------|
+| `jakarta.validation:jakarta.validation-api` | compile |
+
+### Web and Transport
+
+| Dependency                            | Scope   |
+|---------------------------------------|---------|
+| `io.undertow:undertow-websockets-jsr` | runtime |
+| `io.jooby:jooby`                      | runtime |
+
+### Utilities
+
+| Dependency                         | Scope   |
+|------------------------------------|---------|
+| `org.apache.commons:commons-lang3` | runtime |
+
+---
+
+## Optional Integrations
+
+### Spring Support
+
+| Dependency                           | Scope    |
+|--------------------------------------|----------|
+| `org.springframework:spring-context` | optional |
+| `org.springframework:spring-test`    | test     |
+
+---
+
+## Kotlin support
+
+Fluxzero provides full support for Kotlin, including:
+
+- Use of [data classes](https://kotlinlang.org/docs/guides/data-classes.html), which behave like Java records
+- Optional types (e.g., `String?`) instead of `@Nullable`
+- Seamless use of Kotlin-specific language features (e.g., `when`, `sealed class`, `companion object`)
+- Support for `Class<T>` parameters passed as `MyClass::class` or `MyClass::class.java`
+- Automatic recognition of Kotlin modules during deserialization (see below)
+
+### Automatic Jackson integration
+
+Fluxzero includes [Jackson Kotlin Module](https://github.com/FasterXML/jackson-module-kotlin) integration when
+available on the classpath. You do not need to manually register the module or use a service loader.
+If the `jackson-module-kotlin` dependency is present, it will be loaded dynamically for JSON (de)serialization.
+
+<Aside type="note">
+Fluxzero does not require a Kotlin dependency itself. Kotlin support is purely optional and works
+automatically when Kotlin and its Jackson module are used in your application.
+</Aside>
+
+---
+
+### Kotlin dependencies
+
+| Dependency                                           | Scope    |
+|------------------------------------------------------|----------|
+| `com.fasterxml.jackson.module:jackson-module-kotlin` | optional |
+| `org.jetbrains.kotlin:kotlin-stdlib-jdk8`            | optional |
+| `org.jetbrains.kotlin:kotlin-reflect`                | optional |
+| `org.jetbrains.kotlin:kotlin-test`                   | test     |
+
+---
+
+## Test Dependencies
+
+| Dependency                                   | Scope |
+|----------------------------------------------|-------|
+| `org.junit.jupiter:junit-jupiter-engine`     | test  |
+| `org.junit.platform:junit-platform-launcher` | test  |
+| `org.mockito:mockito-core`                   | test  |
+| `org.jooq:joor`                              | test  |
+| `org.hamcrest:hamcrest-library`              | test  |
+| `org.jboss.resteasy:resteasy-undertow`       | test  |
+
+---
+
+> ℹ️ Dependencies marked as `optional` are **not required** unless you use the corresponding integration.
+> For example, Spring or Kotlin support is automatically detected when available but safely ignored otherwise.
+
+---
+
+## Versioning Policy
+
+Fluxzero aims to stay up-to-date with its core dependencies. We strive to:
+
+- Use the **latest stable versions** where possible,
+- Avoid breaking backward compatibility for common transitive consumers,
+- Update frequently, especially for frameworks like **Jackson**, **Spring**, **Jakarta Validation**, and **JUnit**.

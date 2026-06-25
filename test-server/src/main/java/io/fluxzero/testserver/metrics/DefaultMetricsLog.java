@@ -16,7 +16,6 @@ package io.fluxzero.testserver.metrics;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fluxzero.common.api.Data;
-import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.Revision;
@@ -48,13 +47,13 @@ public class DefaultMetricsLog implements MetricsLog {
     }
 
     @Override
-    public CompletableFuture<Void> registerMetrics(JsonType event, Metadata metadata) {
+    public CompletableFuture<Void> registerMetrics(Object event, Metadata metadata) {
         var finalMetadata = metadata.with("$applicationId", "FluxzeroTestServer");
         return CompletableFuture.supplyAsync(() -> serializeMetrics(event, finalMetadata), workerPool)
                 .thenCompose(this::appendMetrics);
     }
 
-    private SerializedMessage serializeMetrics(JsonType event, Metadata metadata) {
+    private SerializedMessage serializeMetrics(Object event, Metadata metadata) {
         try {
             Revision revision = event.getClass().getAnnotation(Revision.class);
             byte[] payload = objectMapper.writeValueAsBytes(event);

@@ -84,6 +84,16 @@ public @interface ServeStatic {
     String fallbackFile() default "index.html";
 
     /**
+     * Whether extensionless requests should also try clean URL candidates before falling back.
+     * <p>
+     * When enabled, a request such as {@code /app/about} first tries the exact file, then {@code /app/about.html},
+     * then {@code /app/about/index.html}, and finally the configured {@link #fallbackFile()}.
+     *
+     * @return Whether clean URL resolution is enabled.
+     */
+    boolean cleanUrls() default true;
+
+    /**
      * File extensions considered candidates for immutable caching when their filenames are fingerprinted.
      * <p>
      * Fingerprinted files (e.g., {@code app.abc123.js}) with one of these extensions will receive

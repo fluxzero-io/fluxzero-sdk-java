@@ -233,6 +233,45 @@ public class AggregateEntitiesTest {
         }
 
         @Test
+        void getEntityByAliasReturnsAliasOwningEntity() {
+            testFixture
+                    .whenApplying(fc -> loadAggregate("test", Aggregate.class).getEntity(new GrandChildAlias()))
+                    .expectResult(result -> result.map(Entity::id).filter("grandChild"::equals).isPresent());
+        }
+
+        @Test
+        void loadEntityByAliasReturnsAliasOwningEntity() {
+            testFixture
+                    .whenApplying(fc -> loadEntity(new GrandChildAlias()))
+                    .expectResult(entity -> "grandChild".equals(entity.id()));
+        }
+
+        @Test
+        void getEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
+            TestFixture.create()
+                    .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
+                            .update(ignored -> new AliasCollisionAggregate(
+                                    "alias-collision",
+                                    new AliasCollisionChild("shared"),
+                                    new AliasCollisionOwner("owner", "shared"))))
+                    .whenApplying(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
+                            .getEntity("shared"))
+                    .expectResult(result -> result.map(Entity::id).filter("owner"::equals).isPresent());
+        }
+
+        @Test
+        void loadEntityByAliasPrefersAliasOwnerOverEntityIdMatch() {
+            TestFixture.create()
+                    .given(fc -> loadAggregate("alias-collision", AliasCollisionAggregate.class)
+                            .update(ignored -> new AliasCollisionAggregate(
+                                    "alias-collision",
+                                    new AliasCollisionChild("shared"),
+                                    new AliasCollisionOwner("owner", "shared"))))
+                    .whenApplying(fc -> loadEntity("shared"))
+                    .expectResult(entity -> "owner".equals(entity.id()));
+        }
+
+        @Test
         void loadEmptyEntityById() {
             testFixture.whenApplying(fc -> loadAggregateFor(new MissingChildId("missing")))
                     .expectResult(e -> e.isEmpty() && e.type().equals(MissingChild.class));
@@ -2274,6 +2313,17 @@ public class AggregateEntitiesTest {
     }
 
     record AliasConnection(@EntityId String connectionId) {
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    record AliasCollisionAggregate(@EntityId String id, @Member AliasCollisionChild child,
+                                   @Member AliasCollisionOwner owner) {
+    }
+
+    record AliasCollisionChild(@EntityId String childId) {
+    }
+
+    record AliasCollisionOwner(@EntityId String ownerId, @Alias String childAlias) {
     }
 
     @io.fluxzero.sdk.modeling.Aggregate

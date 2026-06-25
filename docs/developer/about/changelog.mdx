@@ -1,0 +1,118 @@
+---
+title: Changelog
+description: Complete release history for fluxzero-sdk-java
+slug: docs/changelog
+sidebar:
+  order: 05
+---
+
+import { getCollection } from 'astro:content';
+
+import { marked } from 'marked';
+
+export const releases = await getCollection('changelogReleases');
+
+export function groupReleasesByQuarter(releases) {
+  // Group releases by quarter
+  const groupedByQuarter = new Map();
+  
+  for (const release of releases) {
+    const quarterKey = release.data.quarterKey;
+    if (!groupedByQuarter.has(quarterKey)) {
+      groupedByQuarter.set(quarterKey, []);
+    }
+    groupedByQuarter.get(quarterKey).push(release.data);
+  }
+  
+  // Convert to array and sort by quarter (most recent first)
+  const quarters = Array.from(groupedByQuarter.entries()).map(([quarterKey, releases]) => {
+    // Sort releases within quarter by version (most recent first)
+    releases.sort((a, b) => {
+      const versionA = a.version.split('.').map(Number);
+      const versionB = b.version.split('.').map(Number);
+      
+      for (let i = 0; i < Math.max(versionA.length, versionB.length); i++) {
+        const numA = versionA[i] || 0;
+        const numB = versionB[i] || 0;
+        if (numA !== numB) return numB - numA;
+      }
+      return 0;
+    });
+    
+    // Calculate version range for quarter
+    const versions = releases.map(r => r.version);
+    const minVersion = versions[versions.length - 1];
+    const maxVersion = versions[0];
+    
+    return {
+      quarterKey,
+      year: releases[0].year,
+      quarter: releases[0].quarter,
+      releases,
+      minVersion,
+      maxVersion
+    };
+  });
+  
+  // Sort quarters by year and quarter (most recent first)
+  quarters.sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    // Extract quarter number for comparison
+    const qNumA = parseInt(a.quarter.replace('Q', ''));
+    const qNumB = parseInt(b.quarter.replace('Q', ''));
+    return qNumB - qNumA;
+  });
+  
+  return quarters;
+}
+
+export function groupQuartersByYear(quarters) {
+  const yearGroups = new Map();
+  
+  for (const quarter of quarters) {
+    if (!yearGroups.has(quarter.year)) {
+      yearGroups.set(quarter.year, []);
+    }
+    yearGroups.get(quarter.year).push(quarter);
+  }
+  
+  // Convert to array and sort by year (most recent first)
+  return Array.from(yearGroups.entries())
+    .sort(([yearA], [yearB]) => yearB - yearA)
+    .map(([year, quarters]) => ({
+      year,
+      quarters: quarters.sort((a, b) => {
+        const qNumA = parseInt(a.quarter.replace('Q', ''));
+        const qNumB = parseInt(b.quarter.replace('Q', ''));
+        return qNumB - qNumA;
+      })
+    }));
+}
+
+export const quarterGroups = groupReleasesByQuarter(releases);
+export const yearGroups = groupQuartersByYear(quarterGroups);
+
+:::note
+This changelog is automatically generated from the [GitHub releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) and shows releases from version 0.1192.0 onwards.
+:::
+
+{yearGroups.map(({ year, quarters }) => (
+  <div key={year}>
+    <h2>{year}</h2>
+    
+    {quarters.map(({ quarterKey, quarter, releases, minVersion, maxVersion }) => (
+      <div key={quarterKey}>
+        <h3>
+          {quarterKey} - release {minVersion === maxVersion ? minVersion : `${minVersion} - ${maxVersion}`}
+        </h3>
+        
+        {releases.map((release) => (
+          <details key={release.version}>
+            <summary>{release.version} ({release.date})</summary>
+            <div set:html={marked.parse(release.body)} />
+          </details>
+        ))}
+      </div>
+    ))}
+  </div>
+))}

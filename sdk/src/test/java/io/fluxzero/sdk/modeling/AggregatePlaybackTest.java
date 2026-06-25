@@ -20,6 +20,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.sdk.Fluxzero;
@@ -28,6 +29,7 @@ import io.fluxzero.sdk.common.logging.ConsoleError;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
 import io.fluxzero.sdk.persisting.repository.CachingAggregateRepository;
 import io.fluxzero.sdk.test.TestFixture;
@@ -38,6 +40,7 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
+import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import lombok.Builder;
 import org.junit.jupiter.api.Test;
 
@@ -47,20 +50,27 @@ import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.ERROR;
 import static io.fluxzero.sdk.Fluxzero.loadAggregate;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -68,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AggregatePlaybackTest {
@@ -112,6 +123,31 @@ class AggregatePlaybackTest {
     }
 
     @Test
+    void aggregateMetadataEntityResolutionIsCachedForMessage() throws NoSuchMethodException {
+        Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
+        Parameter parameter = method.getParameters()[0];
+        HandleEvent handleEvent = method.getAnnotation(HandleEvent.class);
+        CountingEntityParameterResolver resolver = new CountingEntityParameterResolver();
+
+        testFixture.whenExecuting(fc -> {
+            Entity<SampleAggregate> aggregate = loadAggregate("sample", SampleAggregate.class);
+            aggregate.apply(new CreateSampleAggregate());
+            aggregate.apply(new SetPrimaryValue("value-1"));
+
+            DeserializingMessage primaryValueEvent = fc.eventStore().getEvents("sample").toList().get(1);
+            primaryValueEvent.apply(message -> {
+                assertTrue(resolver.matches(parameter, handleEvent, message));
+                assertResolvedAtPrimaryValueEvent(resolveEntity(resolver, parameter, handleEvent, message));
+                assertTrue(resolver.matches(parameter, handleEvent, message));
+                assertResolvedAtPrimaryValueEvent(resolveEntity(resolver, parameter, handleEvent, message));
+                return null;
+            });
+
+            assertEquals(1, resolver.loadCount);
+        }).expectNoErrors();
+    }
+
+    @Test
     void aggregateMetadataLoadsAggregateRootWhenLegacyEventsHaveNoRelationships() throws NoSuchMethodException {
         Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
         Parameter parameter = method.getParameters()[0];
@@ -137,6 +173,88 @@ class AggregatePlaybackTest {
             assertNotNull(resolved.previous());
             assertNull(resolved.previous().get().primaryValue());
         }).expectNoErrors();
+    }
+
+    @Test
+    void aggregateParameterInjectionRespectsIgnoreUnknownEventsForColdAggregate() {
+        testFixture.whenExecuting(fc -> {
+            String aggregateId = "ignore-unknown";
+            storeEvent(fc, aggregateId, IgnoringUnknownAggregate.class,
+                       new CreateIgnoringUnknownAggregate("created"), "legacy-client", 0L);
+            storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+
+            assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents(aggregateId, -1L, 1)
+                    .findFirst().orElseThrow();
+            IgnoringUnknownParameterHandler handler = new IgnoringUnknownParameterHandler();
+            var inspectedHandler = HandlerInspector.createHandler(
+                    handler, HandleEvent.class, List.of(new PayloadParameterResolver(), new EntityParameterResolver()));
+
+            assertDoesNotThrow(() -> createEvent.apply(message ->
+                    inspectedHandler.getInvoker(message).orElseThrow().invoke()));
+            assertEquals(new IgnoringUnknownAggregate("created"), handler.observed.get());
+        }).expectNoErrors();
+    }
+
+    @Test
+    void untypedAggregateLoadIgnoresUnknownEventsAfterDiscoveringIgnoringAggregateType() {
+        String aggregateId = "untyped-ignore-unknown";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.<IgnoringUnknownAggregate>loadAggregate(aggregateId))
+                .<Entity<IgnoringUnknownAggregate>>expectResult(
+                        aggregate -> aggregate.type().equals(IgnoringUnknownAggregate.class)
+                                     && aggregate.sequenceNumber() == 1L
+                                     && new IgnoringUnknownAggregate("created").equals(aggregate.get()));
+    }
+
+    @Test
+    void untypedAggregateLoadTreatsUnknownRelationshipTypeAsDiscoverableFromEvents() {
+        String aggregateId = "unknown-relationship-type";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    fc.client().getEventStoreClient().repairRelationships(new RepairRelationships(
+                            aggregateId, "com.example.MovedAggregate", Set.of(aggregateId), STORED)).get();
+                    assertEquals(Void.class, fc.aggregateRepository().getAggregatesFor(aggregateId).get(aggregateId));
+                })
+                .whenApplying(fc -> Fluxzero.<IgnoringUnknownAggregate>loadAggregate(aggregateId))
+                .<Entity<IgnoringUnknownAggregate>>expectResult(
+                        aggregate -> aggregate.type().equals(IgnoringUnknownAggregate.class)
+                                     && aggregate.sequenceNumber() == 1L
+                                     && new IgnoringUnknownAggregate("created").equals(aggregate.get()));
+    }
+
+    @Test
+    void untypedAggregateLoadFailsWhenFirstEventTypeIsUnknown() {
+        String aggregateId = "first-event-unknown";
+
+        testFixture.given(fc -> {
+                    storeUnknownEvent(fc, aggregateId, IgnoringUnknownAggregate.class);
+                    storeLegacyEvent(fc, aggregateId, new CreateIgnoringUnknownAggregate("created"), "legacy-client");
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.loadAggregate(aggregateId))
+                .expectExceptionalResult(EventSourcingException.class);
+    }
+
+    @Test
+    void untypedAggregateLoadStillFailsForUnknownEventsWhenDiscoveredTypeDoesNotIgnoreThem() {
+        String aggregateId = "untyped-fail-unknown";
+
+        testFixture.given(fc -> {
+                    storeLegacyEvent(fc, aggregateId, new CreateStrictUnknownAggregate("created"), "legacy-client");
+                    storeUnknownEvent(fc, aggregateId, StrictUnknownAggregate.class);
+                    assertTrue(fc.aggregateRepository().getAggregatesFor(aggregateId).isEmpty());
+                })
+                .whenApplying(fc -> Fluxzero.loadAggregate(aggregateId))
+                .expectExceptionalResult(EventSourcingException.class);
     }
 
     @Test
@@ -297,9 +415,13 @@ class AggregatePlaybackTest {
                 serializedMessage.setIndex(syntheticIndices[i]);
             }
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
+            cacheRelationshipLookup(fc, "stale-sample-child", "sample", SampleAggregate.class);
             invokeCachingAggregateTracker(
                     fc, sampleEvents.stream().map(DeserializingMessage::getSerializedObject).toList());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
+            assertRelationshipLookupInvalidated(fc, "stale-sample-child");
         }).expectNoErrors();
     }
 
@@ -531,9 +653,11 @@ class AggregatePlaybackTest {
             assertEquals(createEvent.getMessageId(), indexedHead.lastEventId());
             assertEquals(createEvent.getIndex(), indexedHead.lastEventIndex());
             assertFalse(indexedHead == stale);
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
 
             stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
         }).expectNoErrors();
     }
 
@@ -547,8 +671,10 @@ class AggregatePlaybackTest {
             delegateRepository.load("sample", SampleAggregate.class).apply(new SetPrimaryValue("value-1"));
 
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
             stale.update(aggregate -> aggregate.toBuilder().auxiliaryFlag(true).build());
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
         }).expectNoErrors();
     }
 
@@ -567,6 +693,7 @@ class AggregatePlaybackTest {
             delegateRepository.load("sample", SampleAggregate.class).apply(new SetSecondFlag());
             assertTrue(fc.cache().containsKey(aggregateCacheKey("sample")));
             assertNull(delegateRepository.load("sample", SampleAggregate.class).lastEventIndex());
+            assertRelationshipLookupCached(fc, "sample", SampleAggregate.class);
 
             storeEvent(fc, "sample", SampleAggregate.class,
                        new SetSecondFlag(), "foreign-client", 4L);
@@ -578,6 +705,7 @@ class AggregatePlaybackTest {
             assertEquals("foreign-client", foreignEvent.getSerializedObject().getSource());
             invokeCachingAggregateTracker(fc, List.of(foreignEvent.getSerializedObject()));
             assertFalse(fc.cache().containsKey(aggregateCacheKey("sample")));
+            assertRelationshipLookupInvalidated(fc, "sample");
 
             AtomicReference<Entity<SampleAggregate>> rawHead = new AtomicReference<>();
             Entity<SampleAggregate> resolved = primaryValueEvent.apply(message -> {
@@ -590,6 +718,53 @@ class AggregatePlaybackTest {
             assertTrue(rawHead.get().get().firstFlag());
             assertTrue(rawHead.get().get().secondFlag());
             assertResolvedAtPrimaryValueEvent(resolved);
+        }).expectNoErrors();
+    }
+
+    @Test
+    void foreignTrackerReplayFailureClearsRelationshipLookupCache() throws Exception {
+        testFixture.whenExecuting(fc -> {
+            String aggregateId = "failing-replay";
+            AggregateRepository delegateRepository = getCachingDelegate(fc);
+            delegateRepository.load(aggregateId, SampleAggregate.class).apply(new CreateSampleAggregate());
+
+            DeserializingMessage createEvent = fc.eventStore().getEvents(aggregateId).findFirst().orElseThrow();
+            createEvent.getSerializedObject().setSource(fc.client().id());
+            invokeCachingAggregateTracker(fc, List.of(createEvent.getSerializedObject()));
+
+            assertTrue(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupCached(fc, aggregateId, SampleAggregate.class);
+
+            storeEvent(fc, aggregateId, SampleAggregate.class, new FailingPlaybackEvent(), "foreign-client", 1L);
+            DeserializingMessage failingEvent = fc.eventStore().getEvents(aggregateId).skip(1).findFirst().orElseThrow();
+
+            invokeCachingAggregateTracker(fc, List.of(failingEvent.getSerializedObject()));
+
+            assertFalse(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupInvalidated(fc, aggregateId);
+        }).expectNoErrors();
+    }
+
+    @Test
+    void commitFailureClearsRelationshipLookupCache() throws Exception {
+        TestFixture spyFixture = TestFixture.create().spy();
+        spyFixture.whenExecuting(fc -> {
+            String aggregateId = "commit-failure";
+            assertTrue(getCachingDelegate(fc).getAggregatesFor(aggregateId).isEmpty());
+            assertTrue(fc.configuration().relationshipsCache().containsKey(aggregateId));
+
+            doReturn(CompletableFuture.failedFuture(new IllegalStateException("relationship update failed")))
+                    .when(fc.client().getEventStoreClient()).updateRelationships(any());
+
+            CompletionException error = assertThrows(CompletionException.class,
+                                                     () -> getCachingDelegate(fc)
+                                                             .load(aggregateId, SampleAggregate.class)
+                                                             .apply(new CreateSampleAggregate()));
+            assertEquals("relationship update failed", error.getCause().getMessage());
+
+            assertFalse(fc.cache().containsKey(aggregateCacheKey(aggregateId)));
+            assertRelationshipLookupInvalidated(fc, aggregateId);
+            assertTrue(fc.eventStore().getEvents(aggregateId).findAny().isEmpty());
         }).expectNoErrors();
     }
 
@@ -668,6 +843,23 @@ class AggregatePlaybackTest {
         return "$Aggregate:" + aggregateId;
     }
 
+    private static void assertRelationshipLookupCached(Fluxzero fluxzero, String entityId,
+                                                       Class<?> aggregateType) throws Exception {
+        assertEquals(aggregateType, getCachingDelegate(fluxzero).getAggregatesFor(entityId).get(entityId));
+        assertTrue(fluxzero.configuration().relationshipsCache().containsKey(entityId));
+    }
+
+    private static void assertRelationshipLookupInvalidated(Fluxzero fluxzero, String entityId) {
+        assertFalse(fluxzero.configuration().relationshipsCache().containsKey(entityId));
+    }
+
+    private static void cacheRelationshipLookup(Fluxzero fluxzero, String entityId, String aggregateId,
+                                                Class<?> aggregateType) {
+        LinkedHashMap<String, Class<?>> lookup = new LinkedHashMap<>();
+        lookup.put(aggregateId, aggregateType);
+        fluxzero.configuration().relationshipsCache().put(entityId, lookup);
+    }
+
     private static Method entityMethod(String methodName) throws NoSuchMethodException {
         return EntityInjectionEligibilityHandler.class.getDeclaredMethod(methodName, Entity.class);
     }
@@ -711,6 +903,25 @@ class AggregatePlaybackTest {
     static class ProbeHandler {
         @HandleEvent
         void handle(Entity<SampleAggregate> entity) {
+        }
+    }
+
+    static class CountingEntityParameterResolver extends EntityParameterResolver {
+        private int loadCount;
+
+        @Override
+        Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
+            loadCount++;
+            return super.loadAggregate(aggregateId, aggregateType);
+        }
+    }
+
+    static class IgnoringUnknownParameterHandler {
+        final AtomicReference<IgnoringUnknownAggregate> observed = new AtomicReference<>();
+
+        @HandleEvent
+        void handle(CreateIgnoringUnknownAggregate event, IgnoringUnknownAggregate aggregate) {
+            observed.set(aggregate);
         }
     }
 
@@ -759,6 +970,28 @@ class AggregatePlaybackTest {
         }
     }
 
+    record CreateIgnoringUnknownAggregate(String value) {
+        @Apply
+        IgnoringUnknownAggregate apply() {
+            return new IgnoringUnknownAggregate(value);
+        }
+    }
+
+    @Aggregate(ignoreUnknownEvents = true)
+    record IgnoringUnknownAggregate(String value) {
+    }
+
+    record CreateStrictUnknownAggregate(String value) {
+        @Apply
+        StrictUnknownAggregate apply() {
+            return new StrictUnknownAggregate(value);
+        }
+    }
+
+    @Aggregate
+    record StrictUnknownAggregate(String value) {
+    }
+
     record CreateSampleAggregate() {
         @Apply
         SampleAggregate apply() {
@@ -791,6 +1024,13 @@ class AggregatePlaybackTest {
         @Apply
         SampleAggregate apply(SampleAggregate aggregate) {
             return aggregate.toBuilder().secondFlag(true).build();
+        }
+    }
+
+    record FailingPlaybackEvent() {
+        @Apply
+        SampleAggregate apply(SampleAggregate aggregate) {
+            throw new IllegalStateException("failing playback");
         }
     }
 

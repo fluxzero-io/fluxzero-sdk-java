@@ -23,28 +23,41 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.InetAddress;
+import java.net.ProxySelector;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class JdkWebsocketConnectorTest {
 
@@ -127,35 +142,125 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
-    void defaultConnectorDispatchesOpenCallbackOnDedicatedExecutor() throws Exception {
-        try (TestWebSocketServer server = TestWebSocketServer.start()) {
-            JdkWebsocketConnector connector = new JdkWebsocketConnector();
-            RecordingEndpoint endpoint = new RecordingEndpoint();
+    void abortedConnectingSessionIgnoresLateOpenCallback() {
+        RecordingEndpoint endpoint = new RecordingEndpoint();
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                new JdkWebsocketConnector(), endpoint,
+                new WebsocketConnectionOptions(Map.of(), Map.of(), null, List.of()),
+                URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                Runnable::run);
+        WebSocket webSocket = mock(WebSocket.class);
 
-            connector.connect(endpoint, null, server.uri());
+        session.abortConnecting();
+        session.createListener().onOpen(webSocket);
 
-            String threadName = endpoint.openThreadName.get();
-            assertTrue(threadName.startsWith(JdkWebsocketConnector.DEFAULT_EXECUTOR_THREAD_PREFIX),
-                       "Expected open callback on Fluxzero websocket executor but was " + threadName);
-            assertFalse(threadName.startsWith("ForkJoinPool.commonPool"),
-                        "Open callback should not run on the JVM common pool");
+        assertFalse(session.isOpen());
+        assertNull(endpoint.session.get());
+        verify(webSocket).abort();
+    }
+
+    @Test
+    void openCallbackDoesNotDependOnCallbackExecutorCapacity() throws Exception {
+        RecordingEndpoint endpoint = new RecordingEndpoint();
+        JdkWebsocketConnector connector = new JdkWebsocketConnector();
+        JdkWebSocketSession session = new JdkWebSocketSession(
+                connector, endpoint,
+                new WebsocketConnectionOptions(Map.of(), Map.of(), null, List.of()),
+                URI.create("ws://localhost/test"),
+                new JdkWebsocketConnector.CapturedHandshakeResponse(),
+                task -> {
+                    throw new RejectedExecutionException("executor is saturated");
+                });
+        WebSocket webSocket = mock(WebSocket.class);
+
+        session.createListener().onOpen(webSocket);
+        session.awaitOpen();
+
+        assertSame(session, endpoint.session.get());
+        assertTrue(session.isOpen());
+        assertEquals(Set.of(session), connector.getOpenSessions());
+        verify(webSocket).request(1);
+    }
+
+    @Test
+    void connectorDerivesJdkHttpClientOnlyOnceAcrossConnections() throws Exception {
+        CountingHttpClient httpClient = new CountingHttpClient();
+        JdkWebsocketConnector connector = new JdkWebsocketConnector(httpClient);
+        List<TestWebSocketServer> servers = new ArrayList<>();
+        List<WebsocketSession> sessions = new ArrayList<>();
+        int configurationReadsAfterConstruction = httpClient.configurationReads();
+        try {
+            for (int i = 0; i < 4; i++) {
+                String runtimeSessionId = "runtime" + i;
+                TestWebSocketServer server = TestWebSocketServer.start(runtimeSessionId);
+                servers.add(server);
+
+                WebsocketSession session = connector.connect(new RecordingEndpoint(), null, server.uri());
+                sessions.add(session);
+
+                assertEquals(runtimeSessionId,
+                             WebSocketCapabilities.getRuntimeSessionId(
+                                     session.getHandshakeResponseHeaders()).orElseThrow());
+            }
+
+            assertEquals(configurationReadsAfterConstruction, httpClient.configurationReads(),
+                         "Base HttpClient configuration should not be recopied for every websocket connection");
+        } finally {
+            WebsocketCloseReason closeReason =
+                    new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete");
+            sessions.forEach(session -> session.abort(closeReason));
+            for (TestWebSocketServer server : servers) {
+                server.close();
+            }
         }
     }
 
     @Test
-    void connectorUsesSuppliedHttpClientExecutorForOpenCallback() throws Exception {
-        ExecutorService executor = Executors.newSingleThreadExecutor(task ->
-                Thread.ofPlatform().daemon(true).name("custom-websocket-executor").unstarted(task));
-        try (TestWebSocketServer server = TestWebSocketServer.start()) {
-            HttpClient httpClient = HttpClient.newBuilder().executor(executor).build();
-            JdkWebsocketConnector connector = new JdkWebsocketConnector(httpClient);
-            RecordingEndpoint endpoint = new RecordingEndpoint();
+    void parallelConnectsCaptureHandshakeHeadersForOverlappingHandshakes() throws Exception {
+        int connectionCount = 4;
+        JdkWebsocketConnector connector = new JdkWebsocketConnector();
+        ExecutorService connectExecutor = Executors.newFixedThreadPool(connectionCount);
+        CountDownLatch requestsRead = new CountDownLatch(connectionCount);
+        CountDownLatch releaseResponses = new CountDownLatch(1);
+        List<TestWebSocketServer> servers = new ArrayList<>();
+        List<CompletableFuture<WebsocketSession>> connections = new ArrayList<>();
+        List<WebsocketSession> sessions = new ArrayList<>();
+        try {
+            for (int i = 0; i < connectionCount; i++) {
+                TestWebSocketServer server =
+                        TestWebSocketServer.startDelayed("parallel-runtime" + i, requestsRead, releaseResponses);
+                servers.add(server);
+                connections.add(CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return connector.connect(new RecordingEndpoint(), null, server.uri());
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
+                }, connectExecutor));
+            }
 
-            connector.connect(endpoint, null, server.uri());
+            assertTrue(requestsRead.await(5, TimeUnit.SECONDS),
+                       "Timed out waiting for overlapping websocket handshakes");
+            releaseResponses.countDown();
 
-            assertEquals("custom-websocket-executor", endpoint.openThreadName.get());
+            for (int i = 0; i < connectionCount; i++) {
+                WebsocketSession session = connections.get(i).get(5, TimeUnit.SECONDS);
+                sessions.add(session);
+                assertEquals("parallel-runtime" + i,
+                             WebSocketCapabilities.getRuntimeSessionId(
+                                     session.getHandshakeResponseHeaders()).orElseThrow());
+            }
         } finally {
-            executor.shutdownNow();
+            releaseResponses.countDown();
+            WebsocketCloseReason closeReason =
+                    new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "test complete");
+            sessions.forEach(session -> session.abort(closeReason));
+            connections.forEach(connection -> connection.cancel(true));
+            connectExecutor.shutdownNow();
+            for (TestWebSocketServer server : servers) {
+                server.close();
+            }
         }
     }
 
@@ -286,6 +391,29 @@ class JdkWebsocketConnectorTest {
     }
 
     @Test
+    void sessionSendsLargeBinaryMessageAsOrderedFragments() throws Exception {
+        try (TestWebSocketServer server = TestWebSocketServer.start()) {
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            WebsocketSession session = connector.connect(new RecordingEndpoint(), null, server.uri());
+
+            session.sendBinaryAsync(ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5}), 2).get(5, TimeUnit.SECONDS);
+
+            Frame first = server.readFrame();
+            Frame second = server.readFrame();
+            Frame third = server.readFrame();
+            assertFalse(first.fin());
+            assertEquals(0x2, first.opcode());
+            assertArrayEquals(new byte[]{1, 2}, first.payload());
+            assertFalse(second.fin());
+            assertEquals(0x0, second.opcode());
+            assertArrayEquals(new byte[]{3, 4}, second.payload());
+            assertTrue(third.fin());
+            assertEquals(0x0, third.opcode());
+            assertArrayEquals(new byte[]{5}, third.payload());
+        }
+    }
+
+    @Test
     void closeSendsCloseFrameRemovesOpenSessionAndNotifiesEndpointOnce() throws Exception {
         try (TestWebSocketServer server = TestWebSocketServer.start()) {
             JdkWebsocketConnector connector = new JdkWebsocketConnector();
@@ -396,7 +524,95 @@ class JdkWebsocketConnectorTest {
         }
     }
 
-    private record Frame(int opcode, byte[] payload) {
+    private static class CountingHttpClient extends HttpClient {
+        private final AtomicInteger configurationReads = new AtomicInteger();
+        private final SSLContext sslContext;
+
+        private CountingHttpClient() throws Exception {
+            this.sslContext = SSLContext.getDefault();
+        }
+
+        private int configurationReads() {
+            return configurationReads.get();
+        }
+
+        @Override
+        public Optional<CookieHandler> cookieHandler() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Duration> connectTimeout() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Redirect followRedirects() {
+            configurationReads.incrementAndGet();
+            return Redirect.NEVER;
+        }
+
+        @Override
+        public Optional<ProxySelector> proxy() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public SSLContext sslContext() {
+            configurationReads.incrementAndGet();
+            return sslContext;
+        }
+
+        @Override
+        public SSLParameters sslParameters() {
+            configurationReads.incrementAndGet();
+            return new SSLParameters();
+        }
+
+        @Override
+        public Optional<Authenticator> authenticator() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public Version version() {
+            configurationReads.incrementAndGet();
+            return Version.HTTP_1_1;
+        }
+
+        @Override
+        public Optional<java.util.concurrent.Executor> executor() {
+            configurationReads.incrementAndGet();
+            return Optional.empty();
+        }
+
+        @Override
+        public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(
+                HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(
+                HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler,
+                HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private record Frame(boolean fin, int opcode, byte[] payload) {
+        private Frame(int opcode, byte[] payload) {
+            this(true, opcode, payload);
+        }
     }
 
     private static class TestWebSocketServer implements Closeable {
@@ -418,6 +634,15 @@ class JdkWebsocketConnectorTest {
 
         static TestWebSocketServer start() throws IOException {
             return start(new SuccessfulHandshake());
+        }
+
+        static TestWebSocketServer start(String runtimeSessionId) throws IOException {
+            return start(new SuccessfulHandshake(runtimeSessionId));
+        }
+
+        static TestWebSocketServer startDelayed(String runtimeSessionId, CountDownLatch requestsRead,
+                                                CountDownLatch releaseResponses) throws IOException {
+            return start(new DelayedSuccessfulHandshake(runtimeSessionId, requestsRead, releaseResponses));
         }
 
         static TestWebSocketServer startRejected(int statusCode) throws IOException {
@@ -467,7 +692,7 @@ class JdkWebsocketConnectorTest {
                     payload[i] = (byte) (payload[i] ^ mask[i % 4]);
                 }
             }
-            return new Frame(first & 0x0F, payload);
+            return new Frame((first & 0x80) == 0x80, first & 0x0F, payload);
         }
 
         private void awaitHandshake() throws Exception {
@@ -538,6 +763,16 @@ class JdkWebsocketConnectorTest {
         }
 
         private static class SuccessfulHandshake implements Handshake {
+            private final String runtimeSessionId;
+
+            private SuccessfulHandshake() {
+                this("runtime123");
+            }
+
+            private SuccessfulHandshake(String runtimeSessionId) {
+                this.runtimeSessionId = runtimeSessionId;
+            }
+
             @Override
             public void write(OutputStream output, Map<String, List<String>> requestHeaders) throws Exception {
                 String key = requestHeaders.get("Sec-WebSocket-Key").getFirst();
@@ -546,13 +781,33 @@ class JdkWebsocketConnectorTest {
                         Upgrade: websocket\r
                         Connection: Upgrade\r
                         Sec-WebSocket-Accept: %s\r
-                        Fluxzero-Runtime-Session-Id: runtime123\r
+                        Fluxzero-Runtime-Session-Id: %s\r
                         Fluxzero-Runtime-Version: 9.8.7\r
                         Fluxzero-Selected-Compression-Algorithm: GZIP\r
                         \r
-                        """.formatted(acceptKey(key));
+                        """.formatted(acceptKey(key), runtimeSessionId);
                 output.write(response.getBytes(StandardCharsets.US_ASCII));
                 output.flush();
+            }
+        }
+
+        private static class DelayedSuccessfulHandshake extends SuccessfulHandshake {
+            private final CountDownLatch requestsRead;
+            private final CountDownLatch releaseResponses;
+
+            private DelayedSuccessfulHandshake(String runtimeSessionId, CountDownLatch requestsRead,
+                                               CountDownLatch releaseResponses) {
+                super(runtimeSessionId);
+                this.requestsRead = requestsRead;
+                this.releaseResponses = releaseResponses;
+            }
+
+            @Override
+            public void write(OutputStream output, Map<String, List<String>> requestHeaders) throws Exception {
+                requestsRead.countDown();
+                assertTrue(releaseResponses.await(5, TimeUnit.SECONDS),
+                           "Timed out waiting to release websocket handshake response");
+                super.write(output, requestHeaders);
             }
         }
 

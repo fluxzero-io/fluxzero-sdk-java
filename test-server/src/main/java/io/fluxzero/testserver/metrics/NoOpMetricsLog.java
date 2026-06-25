@@ -14,14 +14,13 @@
 
 package io.fluxzero.testserver.metrics;
 
-import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.Metadata;
 
 import java.util.concurrent.CompletableFuture;
 
 public class NoOpMetricsLog implements MetricsLog {
     @Override
-    public CompletableFuture<Void> registerMetrics(JsonType event, Metadata metadata) {
+    public CompletableFuture<Void> registerMetrics(Object event, Metadata metadata) {
         return CompletableFuture.completedFuture(null);
     }
 }

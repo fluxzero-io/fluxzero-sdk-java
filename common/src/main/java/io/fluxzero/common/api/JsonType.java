@@ -88,9 +88,6 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = ErrorResult.class, name = "error"),
         @JsonSubTypes.Type(value = BooleanResult.class, name = "boolean"),
         @JsonSubTypes.Type(value = StringResult.class, name = "string"),
-        @JsonSubTypes.Type(value = ConnectEvent.class, name = "connectEvent"),
-        @JsonSubTypes.Type(value = DisconnectEvent.class, name = "disconnectEvent"),
-        @JsonSubTypes.Type(value = RuntimeLifecycleEvent.class, name = "runtimeLifecycleEvent"),
         @JsonSubTypes.Type(value = RequestBatch.class, name = "requestBatch"),
         @JsonSubTypes.Type(value = ResultBatch.class, name = "resultBatch"),
 

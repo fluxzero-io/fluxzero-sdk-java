@@ -35,12 +35,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimeoutTest {
@@ -155,6 +157,64 @@ class TimeoutTest {
         CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, null, null);
         try {
             assertEquals("200000", request.getMetadata().get(RequestHandler.REQUEST_TIMEOUT_METADATA_KEY));
+        } finally {
+            future.cancel(true);
+            requestHandler.close();
+        }
+    }
+
+    @Test
+    void defaultRequestHandlerCancelsTimeoutTaskAfterCompletion() throws Exception {
+        class UnhandledRequest { }
+
+        TestFixture fixture = TestFixture.create();
+        DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
+                "timeout-cancel-test");
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                Metadata.empty(), "message-id", System.currentTimeMillis());
+        CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(60),
+                                                                                    null);
+        ScheduledThreadPoolExecutor timeoutExecutor = getField(requestHandler, "timeoutExecutor");
+        try {
+            assertEquals(1, timeoutExecutor.getQueue().size());
+
+            requestHandler.handleResults(List.of(chunk("final", true, request.getRequestId())));
+
+            assertEquals("final", new String(future.get(1, TimeUnit.SECONDS).getData().getValue()));
+            assertEquals(0, timeoutExecutor.getQueue().size());
+        } finally {
+            future.cancel(true);
+            requestHandler.close();
+        }
+    }
+
+    @Test
+    void defaultRequestHandlerCompletesPendingRequestsWhenClosed() throws Exception {
+        class UnhandledRequest { }
+
+        TestFixture fixture = TestFixture.create();
+        DefaultRequestHandler requestHandler = new DefaultRequestHandler(
+                fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
+                "timeout-close-test");
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
+                Metadata.empty(), "message-id", System.currentTimeMillis());
+        CompletableFuture<SerializedMessage> future = requestHandler.prepareRequest(request, Duration.ofSeconds(60),
+                                                                                    null);
+        ScheduledThreadPoolExecutor timeoutExecutor = getField(requestHandler, "timeoutExecutor");
+        try {
+            assertEquals(1, timeoutExecutor.getQueue().size());
+
+            requestHandler.close();
+
+            var error = assertThrows(java.util.concurrent.ExecutionException.class,
+                                     () -> future.get(1, TimeUnit.SECONDS));
+            assertTrue(error.getCause() instanceof IllegalStateException);
+            assertTrue(error.getCause().getMessage().contains("closed"));
+            assertEquals(0, ((Map<?, ?>) getField(requestHandler, "callbacks")).size());
+            assertEquals(0, timeoutExecutor.getQueue().size());
         } finally {
             future.cancel(true);
             requestHandler.close();

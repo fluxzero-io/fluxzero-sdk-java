@@ -87,7 +87,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         SerializedMessage serializedMessage = message == null ? null
                 : dispatchInterceptor.modifySerializedMessage(message.serialize(serializer), message, RESULT, null);
         if (serializedMessage != null) {
-            dispatchInterceptor.monitorDispatch(message, RESULT, null, client.namespace());
+            dispatchInterceptor.monitorDispatch(message, RESULT, null, client.namespace(), false);
         }
         return serializedMessage;
     }

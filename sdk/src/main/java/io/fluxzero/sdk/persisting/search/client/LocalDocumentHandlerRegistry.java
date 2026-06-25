@@ -49,7 +49,7 @@ public class LocalDocumentHandlerRegistry implements HasLocalHandlers {
         if (initialized.compareAndSet(false, true)) {
             searchStore.registerMonitor((collection, messages) -> serializer.deserializeMessages(
                     messages.stream(), MessageType.DOCUMENT, collection).forEach(message -> {
-                dispatchInterceptor.monitorDispatch(message.toMessage(), MessageType.DOCUMENT, collection, null);
+                dispatchInterceptor.monitorDispatch(message.toMessage(), MessageType.DOCUMENT, collection, null, false);
                 handle(message);
             }));
         }

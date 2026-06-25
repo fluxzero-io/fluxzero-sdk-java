@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -41,12 +42,14 @@ import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
-import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
@@ -85,6 +88,11 @@ public class ProxyServer implements Registration {
     public static final int DEFAULT_MIN_THREADS = 8;
 
     /**
+     * Default maximum in-flight web requests accepted by the proxy. A value of {@code 0} disables this guardrail.
+     */
+    public static final int DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS = 0;
+
+    /**
      * Default maximum queued outgoing websocket sends per session.
      */
     public static final int DEFAULT_MAX_PENDING_WEBSOCKET_SENDS = 1024;
@@ -96,7 +104,9 @@ public class ProxyServer implements Registration {
     static final String MAX_THREADS_PROPERTY = "FLUXZERO_PROXY_MAX_THREADS";
     static final String MIN_THREADS_PROPERTY = "FLUXZERO_PROXY_MIN_THREADS";
     static final String USE_VIRTUAL_THREADS_PROPERTY = "FLUXZERO_PROXY_USE_VIRTUAL_THREADS";
+    static final String MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY = "FLUXZERO_PROXY_MAX_IN_FLIGHT_WEB_REQUESTS";
     static final String MAX_PENDING_WEBSOCKET_SENDS_PROPERTY = "FLUXZERO_PROXY_MAX_PENDING_WEBSOCKET_SENDS";
+    static final String COMPRESSION_ALGORITHMS_PROPERTY = "FLUXZERO_PROXY_COMPRESSION_ALGORITHMS";
 
     private static final long UNLIMITED_WEBSOCKET_SIZE = 0L;
     private static final long IMMEDIATE_STOP_TIMEOUT_MILLIS = 0L;
@@ -192,6 +202,8 @@ public class ProxyServer implements Registration {
         server.setStopTimeout(gracefulShutdown ? GRACEFUL_STOP_TIMEOUT_MILLIS : IMMEDIATE_STOP_TIMEOUT_MILLIS);
 
         HttpConfiguration httpConfiguration = new HttpConfiguration();
+        httpConfiguration.setSendServerVersion(false);
+        httpConfiguration.setSendXPoweredBy(false);
         int maxHeaderSize = getIntegerProperty(MAX_HEADER_SIZE_PROPERTY, DEFAULT_MAX_HEADER_SIZE);
         httpConfiguration.setRequestHeaderSize(maxHeaderSize);
         httpConfiguration.setResponseHeaderSize(maxHeaderSize);
@@ -208,6 +220,7 @@ public class ProxyServer implements Registration {
                 MAX_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_REQUEST_BODY_SIZE));
         proxyHandler.setMaxMultipartRequestBodySize(getLongProperty(
                 MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY, DEFAULT_MAX_MULTIPART_REQUEST_BODY_SIZE));
+        proxyHandler.setMaxInFlightWebRequests(getConfiguredMaxInFlightWebRequests());
         proxyHandler.setMaxPendingWebsocketSends(getConfiguredMaxPendingWebsocketSends());
 
         server.setHandler(createHandler(server, proxyHandler, getProperty("PROXY_HEALTH_ENDPOINT", "/proxy/health")));
@@ -232,13 +245,22 @@ public class ProxyServer implements Registration {
         threadPool.setName("fluxzero-proxy");
         if (getBooleanProperty(USE_VIRTUAL_THREADS_PROPERTY, false)) {
             if (supportsVirtualThreadWorkers()) {
-                ((VirtualThreads.Configurable) threadPool).setUseVirtualThreads(true);
+                threadPool.setVirtualThreadsExecutor(VirtualThreads.getDefaultVirtualThreadsExecutor());
             } else {
                 log.warn("{} is enabled but virtual-thread workers are only supported on Java 25+",
                          USE_VIRTUAL_THREADS_PROPERTY);
             }
         }
         return threadPool;
+    }
+
+    private static int getConfiguredMaxInFlightWebRequests() {
+        int maxInFlight = getIntegerProperty(MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY,
+                                             DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
+        if (maxInFlight < 0) {
+            throw new IllegalArgumentException(MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY + " must be >= 0");
+        }
+        return maxInFlight;
     }
 
     private static int getConfiguredMaxPendingWebsocketSends() {
@@ -288,15 +310,37 @@ public class ProxyServer implements Registration {
 
     private static Client createConfiguredClient() {
         return Optional.ofNullable(getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL"))
-                .map(url -> WebSocketClient.newInstance(
-                        WebSocketClient.ClientConfig.builder()
-                                .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
-                                .runtimeBaseUrl(url)
-                                .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID",
-                                                                       "FLUX_PROJECT_ID", "PROJECT_ID"))
-                                .build()))
+                .map(url -> {
+                    WebSocketClient.ClientConfig.ClientConfigBuilder builder =
+                            WebSocketClient.ClientConfig.builder()
+                                    .name(getProperty("FLUXZERO_APPLICATION_NAME", "$proxy"))
+                                    .runtimeBaseUrl(url)
+                                    .disableMetrics(!getBooleanProperty(
+                                            ForwardProxyConsumer.METRICS_ENABLED_PROPERTY, true))
+                                    .namespace(getFirstAvailableProperty("FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID",
+                                                                         "FLUX_PROJECT_ID", "PROJECT_ID"));
+                    getConfiguredCompressionAlgorithms().ifPresent(builder::supportedCompressionAlgorithms);
+                    return WebSocketClient.newInstance(builder.build());
+                })
                 .orElseThrow(() -> new IllegalStateException(
                         "FLUXZERO_BASE_URL, FLUX_BASE_URL or FLUX_URL property is not set"));
+    }
+
+    static Optional<List<CompressionAlgorithm>> getConfiguredCompressionAlgorithms() {
+        String algorithms = getProperty(COMPRESSION_ALGORITHMS_PROPERTY, null);
+        if (algorithms == null || algorithms.isBlank()) {
+            return Optional.empty();
+        }
+        List<CompressionAlgorithm> parsedAlgorithms = Arrays.stream(algorithms.split(","))
+                .map(String::strip)
+                .filter(value -> !value.isBlank())
+                .map(CompressionAlgorithm::valueOf)
+                .distinct()
+                .toList();
+        if (parsedAlgorithms.isEmpty()) {
+            throw new IllegalArgumentException(COMPRESSION_ALGORITHMS_PROPERTY + " must not be empty when configured");
+        }
+        return Optional.of(parsedAlgorithms);
     }
 
     private static int getConfiguredPort() {
@@ -333,8 +377,7 @@ public class ProxyServer implements Registration {
     }
 
     boolean isUsingVirtualThreads() {
-        return server.getThreadPool() instanceof VirtualThreads.Configurable configurable
-               && configurable.isUseVirtualThreads();
+        return VirtualThreads.isUseVirtualThreads(server.getThreadPool());
     }
 
     private long connectorIdleTimeout() {

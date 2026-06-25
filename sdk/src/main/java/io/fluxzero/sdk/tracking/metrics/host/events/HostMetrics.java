@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -29,7 +28,7 @@ import java.time.Instant;
  */
 @Value
 @Builder
-public class HostMetrics implements JsonType {
+public class HostMetrics {
 
     /**
      * The timestamp when these metrics were collected.

@@ -15,7 +15,6 @@
 package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.JsonType;
 import lombok.Value;
 
 /**
@@ -24,7 +23,7 @@ import lombok.Value;
  * This is distinct from a handler failure: no handler method was invoked and no handler result should be expected.
  */
 @Value
-public class IgnoreMessageEvent implements JsonType {
+public class IgnoreMessageEvent {
     /**
      * Reason emitted when an indexed request is skipped because its effective timeout expired before handler invocation.
      */

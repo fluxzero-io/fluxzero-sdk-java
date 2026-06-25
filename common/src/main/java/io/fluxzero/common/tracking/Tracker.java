@@ -16,7 +16,6 @@ package io.fluxzero.common.tracking;
 
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.api.tracking.MessageBatch;
 
 import java.util.Comparator;
 import java.util.function.Predicate;
@@ -35,7 +34,6 @@ import static io.fluxzero.common.TimingUtils.isMissedDeadline;
  * <h2>Responsibilities</h2>
  * A {@code Tracker} is responsible for:
  * <ul>
- *     <li>Receiving batches of messages via {@link #send(MessageBatch)}</li>
  *     <li>Declaring the range of segments it is responsible for</li>
  *     <li>Filtering messages by type, target, and segment hash</li>
  *     <li>Tracking its last consumed index and activity deadline</li>
@@ -75,6 +73,14 @@ public interface Tracker extends Comparable<Tracker> {
      * @return the maximum number of messages this tracker wants to consume in a single batch.
      */
     int getMaxSize();
+
+    /**
+     * @return the maximum serialized payload bytes this tracker wants to consume in a single batch, or {@code 0} for
+     * no byte limit.
+     */
+    default long getMaxBytes() {
+        return 0L;
+    }
 
     /**
      * @return the system deadline (epoch millis) by which this tracker expects a new batch. If this deadline is missed,
@@ -138,23 +144,6 @@ public interface Tracker extends Comparable<Tracker> {
      */
     default Predicate<String> getTypeFilter() {
         return s -> true;
-    }
-
-    /**
-     * Sends a batch of messages to this tracker.
-     *
-     * @param batch the batch to deliver
-     */
-    void send(MessageBatch batch);
-
-    /**
-     * Sends an empty batch (typically used to signal idle or shutdown). Default implementation forwards to
-     * {@link #send(MessageBatch)}.
-     *
-     * @param batch an empty batch instance
-     */
-    default void sendEmptyBatch(MessageBatch batch) {
-        send(batch);
     }
 
     /**

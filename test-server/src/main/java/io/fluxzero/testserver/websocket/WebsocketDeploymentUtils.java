@@ -17,6 +17,7 @@ package io.fluxzero.testserver.websocket;
 
 import io.fluxzero.common.MemoizingFunction;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.testserver.TestServerVersion;
 import org.eclipse.jetty.http.HttpFields;
 import org.eclipse.jetty.websocket.server.ServerUpgradeRequest;
@@ -45,6 +46,8 @@ public class WebsocketDeploymentUtils {
             WebsocketDeploymentUtils.class.getName() + ".runtimeSessionId";
     public static final String SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY =
             WebsocketDeploymentUtils.class.getName() + ".selectedCompressionAlgorithm";
+    public static final String SELECTED_TRANSPORT_FORMAT_USER_PROPERTY =
+            WebsocketDeploymentUtils.class.getName() + ".selectedTransportFormat";
 
     /**
      * Registers a namespace-aware endpoint route.
@@ -91,9 +94,24 @@ public class WebsocketDeploymentUtils {
                                       compressionAlgorithm.name());
         });
 
+        WebSocketTransportFormat transportFormat = selectTransportFormat(requestHeaders);
+        userProperties.put(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, transportFormat);
+        response.getHeaders().put(WebSocketCapabilities.SELECTED_TRANSPORT_FORMAT_HEADER, transportFormat.name());
+
         URI requestUri = request.getHttpURI().toURI();
         return new JettyWebsocketHandshake(requestUri, parseQuery(request.getHttpURI().getQuery()),
                                            requestHeaders, userProperties);
+    }
+
+    private static WebSocketTransportFormat selectTransportFormat(Map<String, List<String>> requestHeaders) {
+        List<WebSocketTransportFormat> supported = WebSocketCapabilities.getSupportedTransportFormats(requestHeaders);
+        for (WebSocketTransportFormat transportFormat : supported) {
+            if (transportFormat == WebSocketTransportFormat.CBOR
+                || transportFormat == WebSocketTransportFormat.JSON) {
+                return transportFormat;
+            }
+        }
+        return WebSocketTransportFormat.JSON;
     }
 
     private static Map<String, List<String>> copyHeaders(HttpFields headers) {

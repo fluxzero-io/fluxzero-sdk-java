@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.persisting.search;
@@ -18,6 +19,7 @@ import io.fluxzero.common.api.search.DocumentStats.FieldStats;
 import io.fluxzero.common.api.search.Group;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -56,6 +58,17 @@ public interface GroupSearch {
     Map<Group, Map<String, FieldStats>> aggregate(String... fields);
 
     /**
+     * Asynchronously performs aggregation over the given fields for each group.
+     * <p>
+     * This is the asynchronous counterpart of {@link #aggregate(String...)}. The returned future completes with the
+     * same grouped statistics map as the synchronous method.
+     *
+     * @param fields The fields to aggregate within each group.
+     * @return A future with a map from group identifiers to aggregated statistics per field.
+     */
+    CompletableFuture<Map<Group, Map<String, FieldStats>>> aggregateAsync(String... fields);
+
+    /**
      * Counts the number of documents in each group.
      * <p>
      * This is a shorthand for aggregating with default count statistics and extracting the count
@@ -66,5 +79,15 @@ public interface GroupSearch {
     default Map<Group, Long> count() {
         return aggregate().entrySet().stream().collect(toMap(Map.Entry::getKey, e ->
                 e.getValue().values().stream().findFirst().map(FieldStats::getCount).orElse(0L)));
+    }
+
+    /**
+     * Asynchronously counts the number of documents in each group.
+     *
+     * @return A future with a map from group identifiers to document counts.
+     */
+    default CompletableFuture<Map<Group, Long>> countAsync() {
+        return aggregateAsync().thenApply(result -> result.entrySet().stream().collect(toMap(Map.Entry::getKey, e ->
+                e.getValue().values().stream().findFirst().map(FieldStats::getCount).orElse(0L))));
     }
 }

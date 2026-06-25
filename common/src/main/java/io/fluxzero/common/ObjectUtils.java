@@ -47,6 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -142,6 +143,30 @@ public class ObjectUtils {
             }
         }
         return list;
+    }
+
+    /**
+     * Returns a prefix of the list whose cumulative weight stays within {@code maxWeight}.
+     * <p>
+     * If the first item already exceeds {@code maxWeight}, it is still included so callers can make progress.
+     * A {@code maxWeight} of {@code 0} or lower leaves the list unchanged.
+     */
+    public static <T> List<T> limitByCumulativeWeight(List<T> list, long maxWeight,
+                                                      ToLongFunction<T> weightFunction) {
+        if (maxWeight <= 0L || list.isEmpty()) {
+            return list;
+        }
+        ArrayList<T> result = new ArrayList<>(Math.min(list.size(), 1024));
+        long weight = 0L;
+        for (T item : list) {
+            long itemWeight = weightFunction.applyAsLong(item);
+            if (!result.isEmpty() && weight + itemWeight > maxWeight) {
+                break;
+            }
+            result.add(item);
+            weight += itemWeight;
+        }
+        return result;
     }
 
     /**

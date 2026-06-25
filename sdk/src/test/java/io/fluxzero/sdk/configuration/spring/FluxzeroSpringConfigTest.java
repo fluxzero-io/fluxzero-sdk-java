@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.configuration.spring;
@@ -17,13 +18,12 @@ package io.fluxzero.sdk.configuration.spring;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.SimplePropertySource;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
-import io.fluxzero.sdk.persisting.caching.Cache;
-import io.fluxzero.sdk.persisting.caching.CacheEviction;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.TrackSelf;
@@ -41,21 +41,21 @@ import lombok.NonNull;
 import lombok.Value;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.stereotype.Component;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Map;
@@ -74,6 +74,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = FluxzeroSpringConfigTest.Config.class)
+@TestPropertySource(properties = {"existingProperty=test", "emptyProperty="})
 @Slf4j
 public class FluxzeroSpringConfigTest {
     private static final User mockUser = mock(User.class);
@@ -81,18 +82,6 @@ public class FluxzeroSpringConfigTest {
 
     static {
         when(mockUserProvider.fromMessage(any(DeserializingMessage.class))).thenReturn(mockUser);
-    }
-
-    @BeforeAll
-    static void beforeAll() {
-        System.setProperty("existingProperty", "test");
-        System.setProperty("emptyProperty", "");
-    }
-
-    @AfterEach
-    void tearDown() {
-        System.clearProperty("existingProperty");
-        System.clearProperty("emptyProperty");
     }
 
     @Autowired
@@ -119,7 +108,7 @@ public class FluxzeroSpringConfigTest {
     }
 
     @Test
-    void testDefaultCacheReplaced() {
+    void testCacheReplaced() {
         assertTrue(fluxzero.cache() instanceof CustomCache);
     }
 
@@ -212,15 +201,14 @@ public class FluxzeroSpringConfigTest {
 
     @Test
     void explicitStatefulIncludeFilterDoesNotInstantiateHandlerBean() {
-        System.setProperty("explicitStatefulScan", "true");
         try (var context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().getPropertySources().addFirst(
+                    new MapPropertySource("testProperties", Map.of("explicitStatefulScan", "true")));
             context.register(ExplicitStatefulScanConfig.class);
             assertDoesNotThrow(context::refresh);
             assertThrows(NoSuchBeanDefinitionException.class, () -> context.getBean(ExplicitlyIncludedStatefulHandler.class));
             assertTrue(context.getBeansOfType(FluxzeroPrototype.class).values().stream()
                                .anyMatch(prototype -> prototype.getType().equals(ExplicitlyIncludedStatefulHandler.class)));
-        } finally {
-            System.clearProperty("explicitStatefulScan");
         }
     }
 

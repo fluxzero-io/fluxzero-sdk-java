@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -50,7 +49,7 @@ import static java.util.Collections.emptyList;
  *
  * @see WebRequest
  * @see WebResponse
- * @see CompressionUtils
+ * @see CompressionAlgorithm#GZIP
  */
 public class WebResponseCompressingInterceptor implements DispatchInterceptor {
 
@@ -156,8 +155,7 @@ public class WebResponseCompressingInterceptor implements DispatchInterceptor {
      * @return a new {@link SerializedMessage} with compressed payload and updated headers
      */
     protected SerializedMessage compress(SerializedMessage response) {
-        var result = response.withData(
-                response.getData().map(bytes -> CompressionUtils.compress(bytes, CompressionAlgorithm.GZIP)));
+        var result = response.withData(response.getData().map(CompressionAlgorithm.GZIP::compress));
         var headers = WebUtils.getHeaders(result.getMetadata());
         headers.put("Content-Encoding", List.of("gzip"));
         headers.put("Content-Length", List.of(String.valueOf(result.getData().getValue().length)));

@@ -94,7 +94,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     private final String topic;
 
     @Getter(lazy = true)
-    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore);
+    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore, positionStore);
     @Getter(lazy = true)
     private final MessageLogMaintenance messageLogMaintenance =
             new MessageLogMaintenance(messageStore, positionStore, getTrackingStrategy());
@@ -136,49 +136,51 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration config) {
-        CompletableFuture<MessageBatch> result = new CompletableFuture<>();
-        getTrackingStrategy().getBatch(
-                new WebSocketTracker(new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                                              config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
-                                              config.filterMessageTarget(), config.ignoreSegment(),
-                                              config.singleTracker(), config.clientControlledIndex(),
-                                              lastIndex == null ? -1L : lastIndex,
-                                              Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
-                                                      .orElse(null)),
-                                     messageType, LOCAL_CLIENT_ID,
-                                     null, result::complete), positionStore);
-        return result;
+        return getTrackingStrategy().getBatch(
+                new WebSocketTracker(readRequest(trackerId, lastIndex, config), messageType, LOCAL_CLIENT_ID, null));
     }
 
     @Override
     public List<SerializedMessage> readFromIndex(long minIndex, int maxSize) {
-        return messageStore.getBatch(minIndex, maxSize, true);
+        return readFromIndex(minIndex, maxSize, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
+        return messageStore.getBatch(minIndex, maxSize, true, maxBytes);
     }
 
     @Override
     public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize) {
-        return messageStore.getBatch(minIndexInclusive, maxSize, true).stream()
-                .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
-                .toList();
+        return readRange(minIndexInclusive, maxIndexExclusive, maxSize, 0L);
+    }
+
+    @Override
+    public List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,
+                                             long maxBytes) {
+        return messageStore.scanBatch(
+                minIndexInclusive, maxSize, true, maxBytes,
+                message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive).messages();
     }
 
     @Override
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
-        CompletableFuture<ClaimSegmentResult> result = new CompletableFuture<>();
-        Read read = new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
-                             config.getMaxWaitDuration().toMillis(), config.getTypeFilter(),
-                             config.filterMessageTarget(), config.ignoreSegment(),
-                             config.singleTracker(), config.clientControlledIndex(),
-                             lastIndex == null ? -1L : lastIndex,
-                             Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis)
-                                     .orElse(null));
-        getTrackingStrategy().claimSegment(
-                new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID,
-                                     null, batch ->
-                        result.complete(new ClaimSegmentResult(read.getRequestId(), batch.getPosition(),
-                                                                     batch.getSegment()))), positionStore);
-        return result;
+        Read read = readRequest(trackerId, lastIndex, config);
+        return getTrackingStrategy().claimSegment(
+                        new WebSocketTracker(read, messageType, LOCAL_CLIENT_ID, null))
+                .thenApply(claim -> new ClaimSegmentResult(read.getRequestId(), claim.getPosition(),
+                                                           claim.getSegment()));
+    }
+
+    private Read readRequest(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+        return new Read(messageType, config.getName(), trackerId, config.getMaxFetchSize(),
+                        config.effectiveMaxFetchBytes(), config.getMaxWaitDuration().toMillis(),
+                        config.getTypeFilter(),
+                        config.filterMessageTarget(), config.ignoreSegment(),
+                        config.singleTracker(), config.clientControlledIndex(),
+                        lastIndex == null ? -1L : lastIndex,
+                        Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis).orElse(null));
     }
 
     @Override

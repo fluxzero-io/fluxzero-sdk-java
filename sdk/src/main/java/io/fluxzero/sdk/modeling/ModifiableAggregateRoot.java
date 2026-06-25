@@ -18,9 +18,11 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -114,19 +117,20 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     }
 
     public static <T> Entity<T> load(
-            Object aggregateId, Supplier<Entity<T>> loader, boolean commitInBatch, EventPublication eventPublication,
-            EventPublicationStrategy publicationStrategy, AggregateEventRouting eventRouting, boolean eventSourced,
+            Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
+            EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
+            AggregateEventRouting eventRouting, boolean eventSourced,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
         return ModifiableAggregateRoot.<T>getIfActive(aggregateId).orElseGet(
-                () -> new ModifiableAggregateRoot<>(loader.get(), commitInBatch, eventPublication, publicationStrategy,
+                () -> new ModifiableAggregateRoot<>(loader.get(), commitPolicy, eventPublication, publicationStrategy,
                                                     eventRouting, eventSourced, entityHelper, serializer,
                                                     dispatchInterceptor, commitHandler));
     }
 
     private Entity<T> lastCommitted;
     private Entity<T> lastStable;
-    private final boolean commitInBatch;
+    private final AggregateCommitPolicy commitPolicy;
 
     private final EventPublication aggregateEventPublication;
     private final EventPublicationStrategy aggregatePublicationStrategy;
@@ -136,13 +140,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final CommitHandler commitHandler;
+    private final boolean awaitAfterHandlerCommitsBeforeResults;
 
     private final AtomicBoolean waitingForHandlerEnd = new AtomicBoolean(), waitingForBatchEnd = new AtomicBoolean();
     private final List<AppliedEvent> applied = new ArrayList<>(), uncommitted = new ArrayList<>();
+    private final List<CompletableFuture<Void>> pendingBatchCompletions = new ArrayList<>();
     private final List<UnaryOperator<Entity<T>>> queued = new ArrayList<>();
     private volatile boolean updating, committing, commitPending;
 
-    protected ModifiableAggregateRoot(Entity<T> delegate, boolean commitInBatch,
+    protected ModifiableAggregateRoot(Entity<T> delegate, AggregateCommitPolicy commitPolicy,
                                       EventPublication eventPublication, EventPublicationStrategy publicationStrategy,
                                       AggregateEventRouting eventRouting, boolean eventSourced,
                                       EntityHelper entityHelper, Serializer serializer,
@@ -151,7 +157,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.entityHelper = entityHelper;
         this.lastCommitted = delegate;
         this.lastStable = delegate;
-        this.commitInBatch = commitInBatch;
+        this.commitPolicy = commitPolicy;
         this.aggregateEventPublication = eventPublication;
         this.aggregatePublicationStrategy = publicationStrategy;
         this.aggregateEventRouting = eventRouting == AggregateEventRouting.DEFAULT
@@ -160,6 +166,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.serializer = serializer;
         this.dispatchInterceptor = dispatchInterceptor;
         this.commitHandler = commitHandler;
+        this.awaitAfterHandlerCommitsBeforeResults = ApplicationProperties.getBooleanProperty(
+                AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, true);
     }
 
     @Override
@@ -320,18 +328,32 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             delegate = lastStable;
         }
         applied.clear();
-        if (!commitInBatch) {
+        if (commitPolicy.commitAfterBatch()) {
+            awaitBatchCompletion();
+        } else {
             commit();
-            activeAggregates.get().remove(id().toString(), this);
-        } else if (waitingForBatchEnd.compareAndSet(false, true)) {
-            DeserializingMessage.whenBatchCompletes(this::whenBatchCompletes);
+            if (commitPolicy.awaitAfterBatch()) {
+                awaitBatchCompletion();
+            } else {
+                removeActiveAggregate();
+            }
         }
     }
 
     protected void whenBatchCompletes(Throwable error) {
         waitingForBatchEnd.set(false);
-        commit();
-        activeAggregates.get().remove(id().toString(), this);
+        if (commitPolicy.commitAfterBatch()) {
+            commit();
+        }
+        if (!awaitPendingBatchCompletionsAndRemoveActive()) {
+            removeActiveAggregate();
+        }
+    }
+
+    private void awaitBatchCompletion() {
+        if (waitingForBatchEnd.compareAndSet(false, true)) {
+            DeserializingMessage.whenBatchCompletes(this::whenBatchCompletes);
+        }
     }
 
     @Override
@@ -350,7 +372,23 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             uncommitted.clear();
             var before = lastCommitted;
             lastCommitted = lastStable;
-            commitHandler.handle(lastStable, events, before);
+            CompletableFuture<Void> completion = commitHandler.handle(lastStable, events, before);
+            if (commitPolicy.async()) {
+                if (!commitPolicy.commitAfterBatch() && commitPolicy.awaitAfterBatch()
+                    && DeserializingMessage.getCurrent() != null) {
+                    pendingBatchCompletions.add(completion);
+                    if (awaitAfterHandlerCommitsBeforeResults) {
+                        Invocation.awaitBeforeResultPublication(completion);
+                    }
+                    awaitBatchCompletion();
+                } else if (AsyncCompletionScope.isActive()) {
+                    AsyncCompletionScope.register(completion);
+                } else {
+                    completion.join();
+                }
+            } else {
+                completion.join();
+            }
         } finally {
             committing = false;
         }
@@ -358,6 +396,29 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             commit();
         }
         return this;
+    }
+
+    private boolean awaitPendingBatchCompletionsAndRemoveActive() {
+        if (pendingBatchCompletions.isEmpty()) {
+            return false;
+        }
+        List<CompletableFuture<Void>> completions = new ArrayList<>(pendingBatchCompletions);
+        pendingBatchCompletions.clear();
+        CompletableFuture<Void> completion = CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new));
+        if (AsyncCompletionScope.isActive()) {
+            AsyncCompletionScope.register(completion, this::removeActiveAggregate);
+        } else {
+            try {
+                completion.join();
+            } finally {
+                removeActiveAggregate();
+            }
+        }
+        return true;
+    }
+
+    private void removeActiveAggregate() {
+        activeAggregates.get().remove(id().toString(), this);
     }
 
     @Override
@@ -373,7 +434,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @FunctionalInterface
     public interface CommitHandler {
-        void handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
+        /**
+         * Commits the aggregate state and any unpublished events.
+         *
+         * @param model        aggregate state after the change
+         * @param unpublished  events that must be committed
+         * @param beforeUpdate aggregate state before the change
+         * @return future that completes when all commit work has finished
+         */
+        CompletableFuture<Void> handle(Entity<?> model, List<AppliedEvent> unpublished, Entity<?> beforeUpdate);
     }
 
 }

@@ -166,7 +166,8 @@ public class JsonUtils {
                 .enable(ACCEPT_SINGLE_VALUE_AS_ARRAY)
                 .disable(STRIP_TRAILING_BIGDECIMAL_ZEROES)
                 .enable(USE_BIG_DECIMAL_FOR_FLOATS)
-                .serializationInclusion(JsonInclude.Include.NON_NULL)
+                .defaultPropertyInclusion(
+                        JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL))
                 .findAndAddModules();
     }
 

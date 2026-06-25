@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.caching;
+package io.fluxzero.common.caching;
 
 import io.fluxzero.common.Registration;
 import lombok.NonNull;

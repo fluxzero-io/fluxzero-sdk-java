@@ -1,0 +1,251 @@
+---
+title: Message scheduling
+description: Message scheduling
+slug: docs/guides/messaging/message-scheduling
+sidebar:
+   order: 80
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
+
+Here's an example that schedules a termination event 30 days after an account is closed:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+class UserLifecycleHandler {
+    @HandleEvent
+    void handle(AccountClosed event) {
+        Fluxzero.schedule(
+                new TerminateAccount(event.getUserId()),
+                "AccountClosed-" + event.getUserId(),
+                Duration.ofDays(30)
+        );
+    }
+
+    @HandleEvent
+    void handle(AccountReopened event) {
+        Fluxzero.cancelSchedule("AccountClosed-" + event.getUserId());
+    }
+
+    @HandleSchedule
+    void handle(TerminateAccount schedule) {
+        // Perform termination
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+class UserLifecycleHandler {
+
+    @HandleEvent
+    fun handle(event: AccountClosed) {
+        Fluxzero.schedule(
+            TerminateAccount(event.userId),
+            "AccountClosed-${event.userId}",
+            Duration.ofDays(30)
+        )
+    }
+
+    @HandleEvent
+    fun handle(event: AccountReopened) {
+        Fluxzero.cancelSchedule("AccountClosed-${event.userId}")
+    }
+
+    @HandleSchedule
+    fun handle(schedule: TerminateAccount) {
+        // Perform termination
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Scheduling commands
+
+You can also schedule commands directly using `scheduleCommand(...)`.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+class UserLifecycleHandler {
+    @HandleEvent
+    void handle(AccountClosed event) {
+        Fluxzero.scheduleCommand(
+                new TerminateAccount(event.getUserId()),
+                "AccountClosed-" + event.getUserId(),
+                Duration.ofDays(30));
+    }
+
+    @HandleEvent
+    void handle(AccountReopened event) {
+        Fluxzero.cancelSchedule("AccountClosed-" + event.getUserId());
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+class UserLifecycleHandler {
+
+    @HandleEvent
+    fun handle(event: AccountClosed) {
+        Fluxzero.scheduleCommand(
+            TerminateAccount(event.userId),
+            "AccountClosed-${event.userId}",
+            Duration.ofDays(30)
+        )
+    }
+
+    @HandleEvent
+    fun handle(event: AccountReopened) {
+        Fluxzero.cancelSchedule("AccountClosed-${event.userId}")
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Periodic scheduling
+
+Fluxzero supports recurring message schedules via the `@Periodic` annotation. This makes it easy to run background tasks on a fixed interval or cron schedule.
+
+You can apply `@Periodic` to a schedule payload or a `@HandleSchedule` method.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Periodic(delay = 5, timeUnit = TimeUnit.MINUTES)
+public record RefreshData(String index) {
+}
+```
+
+```java
+@Periodic(cron = "0 0 * * MON", timeZone = "Europe/Amsterdam")
+@HandleSchedule
+void weeklySync(PollData schedule) {
+    ...
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Periodic(delay = 5, timeUnit = TimeUnit.MINUTES)
+data class RefreshData(val index: String)
+```
+
+```kotlin
+@Periodic(cron = "0 0 * * MON", timeZone = "Europe/Amsterdam")
+@HandleSchedule
+fun weeklySync(schedule: PollData) {
+    ...
+}
+```
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+  Cron expressions use UTC by default. Use the <code>timeZone</code> parameter to run tasks in your local time zone.
+</Aside>
+
+### Initial autostart timing
+
+`initialDelay` defaults to `-1`, which means no explicit initial delay was configured. Compatibility defaults treat that
+implicit value as `0`, so an auto-started periodic schedule starts immediately. New defaults can be selected with:
+
+```properties
+fluxzero.defaults.version=2026.05.21
+# equivalent explicit setting:
+fluxzero.scheduling.periodic.useDefaultInitialDelay=true
+```
+
+With this behavior, fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match.
+For example, `@Periodic(delay = 60_000)` first runs after 60 seconds, while
+`@Periodic(cron = "*/5 * * * *")` first runs at the next five-minute boundary. Set `initialDelay = 0` when the first
+run should be immediate.
+
+---
+
+## Behavior and advanced options
+
+- `@Periodic` only applies to scheduled messages (used with `@HandleSchedule`)
+- The schedule **automatically reschedules** itself after every execution unless cancelled
+- You can:
+  - Return `void` or `null` to use the same delay next time
+  - Return a `Duration` or `Instant` to customize the next deadline
+  - Return a new `Schedule` payload to completely redefine the next cycle
+- On error:
+  - The default is to continue (`continueOnError = true`)
+  - Use `delayAfterError` to delay retries after failure
+  - Throw `CancelPeriodic` to stop the schedule completely
+- Use `@Periodic(autoStart = false)` to prevent the schedule from activating on startup
+- The schedule ID defaults to the payload class name but can be customized using `scheduleId`
+
+---
+
+## Example: polling with error fallback
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Periodic(delay = 60, timeUnit = TimeUnit.MINUTES, delayAfterError = 10)
+@HandleSchedule
+void pollExternalService(PollTask pollTask) {
+    try {
+        externalService.fetchData();
+    } catch (Exception e) {
+        log.warn("Polling failed, will retry in 10 minutes", e);
+        throw e;
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@Periodic(delay = 60, timeUnit = TimeUnit.MINUTES, delayAfterError = 10)
+@HandleSchedule
+fun pollExternalService(task: PollTask) {
+    try {
+        externalService.fetchData()
+    } catch (e: Exception) {
+        log.warn("Polling failed, will retry in 10 minutes", e)
+        throw e
+    }
+}
+```
+
+</TabItem>
+</Tabs>
+
+In this example:
+
+- The task runs every hour
+- If it fails, it retries after 10 minutes
+- If it succeeds, it returns to the hourly schedule
+
+<Aside type="tip">
+  Schedules are fully auditable, correlated to the original event, and can be canceled or monitored like any other message. You can use them for cleanup, retries, reminders, or long-lived workflows.
+</Aside>

@@ -1,0 +1,475 @@
+---
+title: Nested entities
+slug: docs/guides/modeling-and-persistence/nested-entities
+description: Modeling and updating nested entities within aggregates
+sidebar:
+   order: 190
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows aggregates to contain nested entities — for example, users with authorizations or orders with line
+items. These nested entities can be added, updated, or removed using the same `@Apply` pattern used for root aggregates.
+
+To define a nested structure, annotate the collection or field with `@Member`:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Aggregate
+    @Builder(toBuilder = true)
+    public record UserAccount(@EntityId UserId userId,
+                              UserProfile profile,
+                              boolean accountClosed,
+                              @Member List<Authorization> authorizations) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Aggregate
+    @Builder(toBuilder = true)
+    data class UserAccount(
+        @EntityId val userId: UserId,
+        val profile: UserProfile,
+        val accountClosed: Boolean,
+        @Member val authorizations: List<Authorization>
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+Child entities must define their own `@EntityId`:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record Authorization(@EntityId AuthorizationId authorizationId,
+                                Grant grant) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class Authorization(
+        @EntityId val authorizationId: AuthorizationId,
+        val grant: Grant
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Adding a child entity
+
+To add a nested entity like `Authorization`, simply return a new instance from the `@Apply` method:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record AuthorizeUser(AuthorizationId authorizationId,
+                                Grant grant) {
+
+        @Apply
+        Authorization apply() {
+            return new Authorization(authorizationId, grant);
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class AuthorizeUser(val authorizationId: AuthorizationId,
+                             val grant: Grant) {
+
+        @Apply
+        fun apply(): Authorization {
+            return Authorization(authorizationId, grant)
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+The `UserAccount` aggregate is automatically updated to include this new child entity.
+
+## Removing a child entity
+
+To remove a nested entity, return `null` from the `@Apply` method:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record RevokeAuthorization(AuthorizationId authorizationId) {
+
+        @AssertLegal
+        void assertExists(@Nullable Authorization authorization) {
+            if (authorization == null) {
+                throw new IllegalCommandException("Authorization not found");
+            }
+        }
+
+        @Apply
+        Authorization apply(Authorization authorization) {
+            return null;
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class RevokeAuthorization(val authorizationId: AuthorizationId) {
+
+        @AssertLegal
+        fun assertExists(authorization: Authorization?) {
+            if (authorization == null) {
+                throw IllegalCommandException("Authorization not found")
+            }
+        }
+
+        @Apply
+        fun apply(authorization: Authorization): Authorization? {
+            return null
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+When a child entity is added, updated, or removed using an `@Apply` method, Fluxzero will:
+
+- Automatically locate the parent aggregate
+- Apply the update to the child entity
+- And return a new instance of the parent (if it's immutable), with the updated child state included
+
+Java records are rebuilt through their canonical constructor, so `@Member` record components do not need `@With`. Kotlin data classes are rebuilt through copy semantics. Custom immutable classes can still use explicit withers or builders.
+</Aside>
+
+---
+
+## Loading entities and aggregates
+
+Fluxzero supports a flexible and powerful approach to loading aggregates and their internal entities using
+`Fluxzero.loadAggregateFor(...)` and `Fluxzero.loadEntity(...)`.
+
+### loadEntity
+
+Use this method to load a specific entity **without needing to know the aggregate root** it belongs to. This allows APIs
+to remain focused and concise—for example:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record CompleteTask(TaskId taskId) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class CompleteTask(val taskId: TaskId)
+    ```
+  </TabItem>
+</Tabs>
+
+With Fluxzero, you can handle this using:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Fluxzero.loadEntity(taskId).assertAndApply(new CompleteTask(taskId));
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    Fluxzero.loadEntity(taskId).assertAndApply(CompleteTask(taskId))
+    ```
+  </TabItem>
+</Tabs>
+
+Even if the `Task` is deeply nested within a `Project` or other parent aggregate, this method works because of the
+**entity relationship tracking** automatically maintained by Fluxzero.
+
+Additional behavior:
+
+- If multiple entities match the given ID, the one with the most recently added relationship is used.
+- The entire aggregate containing the entity is loaded, ensuring consistency.
+- The returned `Entity<T>` provides methods like `assertAndApply(...)` or `apply(...)`, and includes a reference to the
+  enclosing aggregate root.
+
+<Aside type="note">
+This enables true location transparency for commands and queries: you don’t need to know or pass along the full aggregate path.
+</Aside>
+
+### loadAggregateFor
+
+Use this method to retrieve the **aggregate root** that currently contains the specified entity ID.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Entity<MyAggregate> aggregate = Fluxzero
+            .loadAggregateFor("some-entity-id");
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val aggregate: Entity<MyAggregate> = Fluxzero
+        .loadAggregateFor("some-entity-id")
+    ```
+  </TabItem>
+</Tabs>
+
+Behavior:
+
+- If the ID matches a child entity, the enclosing aggregate is returned.
+- If the ID refers to an aggregate root, that root is returned directly.
+- If no aggregate exists, an empty aggregate of type `Object` is returned. This enables bootstrapping a new one by
+  applying events.
+
+<Aside type="note">
+Use `loadAggregateFor(entityId, Class<T>)` when you need type safety or to avoid relying on inference.
+</Aside>
+
+## Finding all aggregates for an entity
+
+In some scenarios, an entity may be referenced by multiple aggregates—for example, when using shared reference
+data (e.g. a `Currency`, `Role`, or `Label`). If such an entity is updated, you might want to update *all* aggregates
+that reference it.
+
+To retrieve all aggregates that currently include a given entity ID:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Map<String, Class<?>> aggregates = Fluxzero.get()
+            .aggregateRepository()
+            .getAggregatesFor(myEntityId);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val aggregates: Map<String, Class<*>> = Fluxzero.get()
+        .aggregateRepository()
+        .getAggregatesFor(myEntityId)
+    ```
+  </TabItem>
+</Tabs>
+
+This returns a map of aggregate IDs and their types.
+
+<Aside type="caution">
+This pattern should only be used if you know the number of associated aggregates will remain small and bounded.
+If many aggregates accumulate over time, this lookup can grow unbounded and lead to performance issues.
+</Aside>
+
+When used responsibly, this enables patterns like:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    // Rerender or update every Project referencing a shared Tag
+    for(Map.Entry<String, Class<?>> entry : Fluxzero.get()
+                    .aggregateRepository().getAggregatesFor(tagId).entrySet()) {
+            Fluxzero.loadAggregate(entry.getKey(), entry.getValue())
+            .apply(new RefreshTag(tagId));
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    // Rerender or update every Project referencing a shared Tag
+    for ((id, type) in Fluxzero.get()
+            .aggregateRepository().getAggregatesFor(tagId)) {
+        Fluxzero.loadAggregate(id, type)
+            .apply(RefreshTag(tagId))
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Alternative entity identifiers
+
+Fluxzero supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
+when:
+
+- The entity needs to be looked up using a secondary identifier (e.g. an email address or external ID)
+- An entity wants to reference another entity without identifier collisions
+
+### Lookup via aliases
+
+Aliases are used when:
+
+- Loading an aggregate or entity using `Fluxzero.loadAggregateFor(alias)` or `Fluxzero.loadEntity(alias)`.
+- Calling `Entity#getEntity(Object id)` on a parent entity.
+
+<Aside type="note">
+If multiple entities share the same alias, behavior is undefined — avoid alias collisions unless intentional.
+</Aside>
+
+### Supported targets
+
+You can place `@Alias` on:
+
+- Fields (e.g., `@Alias String externalId`)
+- Property methods (e.g., `@Alias String legacyId()`)
+
+If the property is a collection, all non-null elements are treated as aliases. If the value is `null` or an empty
+collection, it is ignored.
+
+### Prefix and postfix
+
+To avoid clashes between IDs in different domains, use the optional `prefix` and `postfix` parameters:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Alias(prefix = "email:")
+    String email;
+
+    @Alias(postfix = "@external")
+    String externalId;
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Alias(prefix = "email:")
+    val email: String
+
+    @Alias(postfix = "@external")
+    val externalId: String
+    ```
+  </TabItem>
+</Tabs>
+
+This ensures that `email@example.com` is stored as `email:email@example.com`, and `12345` becomes `12345@external`.
+
+### Example
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public record UserAccount(@EntityId String userId,
+                              @Alias(prefix = "email:") String emailAddress) {
+
+        @Alias
+        List<String> oldIds;
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    data class UserAccount(
+        @EntityId val userId: String,
+        @Alias(prefix = "email:") val emailAddress: String,
+        @Alias val oldIds: List<String>
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+Now the `UserAccount` entity can be looked up using:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Entity<UserAccount> entity = Fluxzero
+            .loadEntity("email:foo@example.com");
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val entity: Entity<UserAccount> = Fluxzero
+        .loadEntity("email:foo@example.com")
+    ```
+  </TabItem>
+</Tabs>
+
+or
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Entity<UserAccount> entity = Fluxzero
+            .loadEntity("1234"); // one of the oldIds
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val entity: Entity<UserAccount> = Fluxzero
+        .loadEntity("1234") // one of the oldIds
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+### Strongly typed @Alias identifiers
+
+While `@Alias` can be applied to any field or property, it's often more convenient and robust to use it on a
+strongly-typed identifier that extends `Id<T>`:
+
+- `Id<T>` supports prefixing, case-insensitive matching, and type-safe deserialization.
+- The `@Alias` annotation recognizes the repository ID computed by the `Id<T>` implementation.
+- You don’t need to repeat the prefix in `@Alias`—it's already encoded in the `Id`.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public class Email extends Id<UserAccount> {
+        public Email(String email) {
+            super(email, "email:");
+        }
+    }
+
+    @Alias
+    Email email;
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    class Email(email: String) : Id<UserAccount>(email, "email:")
+
+    @Alias
+    lateinit var email: Email
+    ```
+  </TabItem>
+</Tabs>
+
+This allows you to load the entity by its alias:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Entity<UserAccount> account = Fluxzero
+            .loadEntity(new Email("john@example.com"));
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val account: Entity<UserAccount> = Fluxzero
+        .loadEntity(Email("john@example.com"))
+    ```
+  </TabItem>
+</Tabs>
+
+This makes aliasing more explicit and reusable — particularly useful in larger applications.
+
+## Routing behavior
+
+Flux automatically routes child-targeted updates like `AuthorizeUser` and `RevokeAuthorization` to the correct nested
+entity using the `@EntityId`. You don’t need to write custom matching logic — the routing works transparently as long
+as:
+
+- The root aggregate is loaded (e.g. using `loadAggregate(userId)`), and
+- The update contains enough identifying information to locate the nested entity
+
+## Summary
+
+This model leads to extremely clean domain logic:
+
+- No need to manipulate collections in the aggregate
+- No need for boilerplate logic to find, update, or remove children
+- Nested updates stay localized to the child entity itself

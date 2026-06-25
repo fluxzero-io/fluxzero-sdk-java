@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public abstract class AbstractUserProvider implements UserProvider {
     /**
      * Default key used in {@link Metadata} to store {@link User} objects.
      */
-    public static String DEFAULT_USER_KEY = "$user";
+    public static final String DEFAULT_USER_KEY = "$user";
 
 
     private final String metadataKey;

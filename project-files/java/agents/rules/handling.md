@@ -291,12 +291,17 @@ the [Retroactive Updates](#retroactive-updates) section.
 
 [//]: # (@formatter:off)
 ```java
-@HandleDocument(OrderDocument.class)
+@HandleDocument
 void onOrderDocument(OrderDocument document) {
     // Handle document-related changes
 }
 ```
 [//]: # (@formatter:on)
+
+When no argument is supplied, Fluxzero infers the collection from the first handler parameter. If the parameter type is
+annotated with `@Searchable(collection = "...")`, that collection is used; otherwise the type's simple class name is
+used. Use `@HandleDocument(documentClass = OrderDocument.class)` when the document type cannot be inferred from the
+first parameter, and `@HandleDocument("orders")` when binding directly to a collection name.
 
 <a name="handleerror"></a>
 
@@ -643,6 +648,8 @@ Routing safety notes:
   defaults).
 - This means static serving ignores `/api/...` by default, so API handlers under `/api` will not clash with static
   fallback routes.
+- Clean URLs are enabled by default: extensionless requests try the exact path, `<path>.html`,
+  `<path>/index.html`, and then the configured fallback file. Set `cleanUrls = false` to disable this behavior.
 - Recommended convention: keep HTTP APIs under `/api` and reserve non-`/api` paths for SPA/static routes.
 - If you use a different API prefix, set `ignorePaths` explicitly.
 - In Fluxzero Cloud, you can still expose a separate API host through proxy mapping (for example

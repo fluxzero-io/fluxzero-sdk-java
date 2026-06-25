@@ -40,12 +40,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
+import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
@@ -97,6 +100,7 @@ public class DefaultRequestHandler implements RequestHandler {
     private final Map<Integer, ResponseCallback> callbacks = new ConcurrentHashMap<>();
     private final AtomicInteger nextId = new AtomicInteger();
     private final AtomicBoolean started = new AtomicBoolean();
+    private final ScheduledThreadPoolExecutor timeoutExecutor = timeoutExecutor();
     private volatile Registration registration;
 
     private final Function<String, RequestHandler> handlerSupplier = memoize(this::supplyRequestHandler);
@@ -197,6 +201,7 @@ public class DefaultRequestHandler implements RequestHandler {
         if (timeout == null) {
             timeout = this.timeout;
         }
+        ScheduledFuture<?> timeoutTask = null;
         if (intermediateCallback == null) {
             List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
             intermediateCallback = intermediates::add;
@@ -217,12 +222,21 @@ public class DefaultRequestHandler implements RequestHandler {
         } else {
             request.setMetadata(metadata.with(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis()));
             Duration effectiveTimeout = timeout;
-            CompletableFuture.delayedExecutor(effectiveTimeout.toMillis(), MILLISECONDS).execute(() ->
-                    rawResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
-                            "message", request.getData().getType(), request.getMessageId(), requestId,
-                            resultType.name(), effectiveTimeout)));
+            String requestDataType = request.getData().getType();
+            String messageId = request.getMessageId();
+            String resultTypeName = resultType.name();
+            timeoutTask = timeoutExecutor.schedule(
+                    () -> rawResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
+                            "message", requestDataType, messageId, requestId, resultTypeName, effectiveTimeout)),
+                    effectiveTimeout.toMillis(), MILLISECONDS);
         }
-        result.whenComplete((m, e) -> callbacks.remove(requestId));
+        ScheduledFuture<?> finalTimeoutTask = timeoutTask;
+        result.whenComplete((m, e) -> {
+            callbacks.remove(requestId);
+            if (finalTimeoutTask != null) {
+                finalTimeoutTask.cancel(false);
+            }
+        });
         callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
         request.setRequestId(requestId);
         request.setSource(client.id());
@@ -271,10 +285,28 @@ public class DefaultRequestHandler implements RequestHandler {
     public void close() {
         waitForResults(Duration.ofSeconds(2),
                        callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+        completePendingRequests(new IllegalStateException("Request handler has closed"));
         if (registration != null) {
             registration.cancel();
         }
+        timeoutExecutor.shutdownNow();
         responseExecutor.shutdown();
+    }
+
+    private void completePendingRequests(Throwable error) {
+        callbacks.forEach((requestId, callback) -> {
+            if (callbacks.remove(requestId, callback)) {
+                callback.completeExceptionally(error);
+            }
+        });
+    }
+
+    private ScheduledThreadPoolExecutor timeoutExecutor() {
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(
+                1, newPlatformThreadFactory("request-timeout"));
+        executor.setRemoveOnCancelPolicy(true);
+        executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        return executor;
     }
 
     protected static class ResponseCallback {
@@ -314,4 +346,5 @@ public class DefaultRequestHandler implements RequestHandler {
             }
         }
     }
+
 }

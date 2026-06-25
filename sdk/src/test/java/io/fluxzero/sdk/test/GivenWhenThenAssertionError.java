@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -52,6 +53,7 @@ public class GivenWhenThenAssertionError extends AssertionFailedError {
     private static final String VERBOSE_ASSERTIONS_PROPERTY = "fluxzero.maven.enabled";
     private static final ThreadLocal<Supplier<String>> traceSupplier = new ThreadLocal<>();
     private static final ThreadLocal<String> javaCommandOverride = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> verboseAssertionsOverride = new ThreadLocal<>();
 
     /**
      * Shared JSON object writer used to serialize expected and actual values for comparison.
@@ -135,6 +137,14 @@ public class GivenWhenThenAssertionError extends AssertionFailedError {
         javaCommandOverride.set(javaCommand);
     }
 
+    static void useVerboseAssertions(Boolean enabled) {
+        if (enabled == null) {
+            verboseAssertionsOverride.remove();
+            return;
+        }
+        verboseAssertionsOverride.set(enabled);
+    }
+
     private static String appendTrace(String message) {
         if (message.contains("Test trace:")) {
             return message;
@@ -182,7 +192,12 @@ public class GivenWhenThenAssertionError extends AssertionFailedError {
     }
 
     private static boolean shouldRenderComparisonInMessage() {
-        return Boolean.getBoolean(VERBOSE_ASSERTIONS_PROPERTY) && isMavenSurefireRun();
+        return verboseAssertionsEnabled() && isMavenSurefireRun();
+    }
+
+    private static boolean verboseAssertionsEnabled() {
+        Boolean override = verboseAssertionsOverride.get();
+        return override == null ? Boolean.getBoolean(VERBOSE_ASSERTIONS_PROPERTY) : override;
     }
 
     private static boolean shouldSuppressTraceInComparisonMessage() {

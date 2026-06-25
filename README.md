@@ -548,7 +548,7 @@ You can tune the behavior using additional attributes on the @Consumer annotatio
 
 ```java
 
-@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100)
+@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100, maxFetchBytes = 104_857_600)
 class MyHandler {
     @HandleCommand
     void handle(SomeCommand command) {
@@ -559,16 +559,25 @@ class MyHandler {
 
 - threads = 2: Two threads per application instance will fetch commands.
 - maxFetchSize = 100: Up to 100 messages fetched per request, helping apply backpressure.
+- maxFetchBytes = 104_857_600: Up to 100 MiB of serialized payload bytes fetched per request. Set `0` to disable the
+  byte limit. Omit it, or set `-1`, to inherit the global default.
 
 Each thread runs a **tracker**. If you deploy the app multiple times, Flux automatically load-balances messages across
 all available trackers.
 
+You can set the global default with:
+
+```properties
+fluxzero.tracking.maxFetchBytes=104857600
+```
+
 ### Default Consumer Settings
 
-| Setting      | Default Value |
-|--------------|---------------|
-| threads      | 1             |
-| maxFetchSize | 1024          |
+| Setting       | Default Value             |
+|---------------|---------------------------|
+| threads       | 1                         |
+| maxFetchSize  | 1024                      |
+| maxFetchBytes | -1 (inherits 104857600 bytes / 100 MiB) |
 
 These defaults are sufficient for most scenarios. You can always override them for improved performance or control.
 
@@ -2443,6 +2452,7 @@ This will serve all files under `/static` (from the classpath or file system) un
 
 - Supports both **file system** and **classpath** resources
 - Optional **fallback file** (e.g. for single-page apps)
+- Clean URLs for statically exported routes
 - Automatic `Cache-Control` headers
 - Compression via Brotli and GZIP (if precompressed variants exist)
 
@@ -2453,6 +2463,7 @@ This will serve all files under `/static` (from the classpath or file system) un
         value = "/assets",
         resourcePath = "/public",
         fallbackFile = "index.html",
+        cleanUrls = true,
         immutableCandidateExtensions = {"js", "css", "svg"},
         maxAgeSeconds = 86400
 )
@@ -2463,6 +2474,8 @@ This will serve all files under `/static` (from the classpath or file system) un
 - `value`: Web path(s) where static content is served. Relative paths are prefixed by `@Path` values.
 - `resourcePath`: The resource root (either on the file system or classpath).
 - `fallbackFile`: A file to serve when the requested path doesn’t exist (e.g. `index.html`). Set to `""` to disable.
+- `cleanUrls`: Whether extensionless paths first try `<path>.html` and `<path>/index.html` before the fallback. Set to
+  `false` to disable.
 - `immutableCandidateExtensions`: Extensions that are eligible for aggressive caching if fingerprinted (e.g.
   `main.123abc.js`).
 - `maxAgeSeconds`: Default cache duration for non-immutable resources.
@@ -2477,6 +2490,8 @@ public class WebFrontend { ...
 ```
 
 This will serve files under `/app/**` and fallback to `index.html` for unknown paths—ideal for single-page apps.
+Requests without a file extension also support statically exported clean URLs: `/app/onboarding` tries the exact path,
+then `/app/onboarding.html`, then `/app/onboarding/index.html`, and only then the configured fallback.
 
 > 📁 Files in `/static` on the classpath (e.g. under `resources/static/`) or `/static` on disk will be served.
 
@@ -4488,9 +4503,9 @@ UserAccount upgrade(UserAccount user) {
 
 You can subscribe to a document collection using any of the following styles:
 
-- `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation
+- `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
+- `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
 - `@HandleDocument("myCollection")` — binds directly to the named collection
-- `@HandleDocument` — infers the collection from the **first parameter** of the handler method
 
 ---
 

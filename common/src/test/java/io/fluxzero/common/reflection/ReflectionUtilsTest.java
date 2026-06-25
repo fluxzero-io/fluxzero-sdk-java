@@ -118,6 +118,24 @@ class ReflectionUtilsTest {
             assertFalse(hasProperty("unknown1/unknown2", someObject));
             assertTrue(readProperty("unknownGetter", someObject).isEmpty());
         }
+
+        @Test
+        void testParameterizedMethodIsNotAProperty() {
+            ParameterizedProperty object = new ParameterizedProperty();
+
+            assertFalse(hasProperty("builderProfileId", object));
+            assertTrue(readProperty("builderProfileId", object).isEmpty());
+            assertFalse(ReflectionUtils.getPropertyPathMetadata(
+                    ParameterizedProperty.class, "builderProfileId").exists());
+        }
+
+        @Test
+        void testZeroArgumentAccessorWinsOverParameterizedOverload() {
+            OverloadedProperty object = new OverloadedProperty();
+
+            assertTrue(hasProperty("value", object));
+            assertEquals("zero-arg", readProperty("value", object).orElseThrow());
+        }
     }
 
     @Nested
@@ -492,6 +510,28 @@ class ReflectionUtilsTest {
         }
 
         void nullableElement(List<@TypeUseAnnotations.Nullable String> values) {
+        }
+    }
+
+    private record Sender(String userId) {
+    }
+
+    private interface BuilderProfileUpdate {
+        default String builderProfileId(Sender sender) {
+            return sender.userId();
+        }
+    }
+
+    private static class ParameterizedProperty implements BuilderProfileUpdate {
+    }
+
+    private static class OverloadedProperty {
+        String value(String ignored) {
+            throw new AssertionError("Parameterized overload must not be used as a property accessor");
+        }
+
+        String value() {
+            return "zero-arg";
         }
     }
 

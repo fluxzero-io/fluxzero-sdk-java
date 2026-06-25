@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -38,6 +39,7 @@ class JettyWebsocketSession implements ServerWebsocketSession {
     private final Map<String, Object> userProperties;
     private final AtomicBoolean open = new AtomicBoolean(true);
     private final Object sendInitiationLock = new Object();
+    private CompletableFuture<Void> sendTail = CompletableFuture.completedFuture(null);
 
     JettyWebsocketSession(Session jettySession, JettyWebsocketHandshake handshake) {
         this.jettySession = jettySession;
@@ -74,14 +76,24 @@ class JettyWebsocketSession implements ServerWebsocketSession {
 
     @Override
     public void sendBinary(ByteBuffer data) throws IOException {
+        await(sendBinaryAsync(data));
+    }
+
+    @Override
+    public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data) {
+        return sendBinaryAsync(data, 0);
+    }
+
+    @Override
+    public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
         if (!isOpen()) {
-            throw new ClosedChannelException();
+            return CompletableFuture.failedFuture(new ClosedChannelException());
         }
-        Callback.Completable callback = new Callback.Completable();
-        synchronized (sendInitiationLock) {
-            jettySession.sendBinary(copyBuffer(data), callback);
+        ByteBuffer message = data.slice();
+        if (maxFragmentBytes <= 0 || message.remaining() <= maxFragmentBytes) {
+            return sendFrame(callback -> jettySession.sendBinary(message, callback));
         }
-        await(callback);
+        return sendBinaryFragments(message, maxFragmentBytes);
     }
 
     @Override
@@ -89,11 +101,8 @@ class JettyWebsocketSession implements ServerWebsocketSession {
         if (!isOpen()) {
             throw new ClosedChannelException();
         }
-        Callback.Completable callback = new Callback.Completable();
-        synchronized (sendInitiationLock) {
-            jettySession.sendPing(copyBuffer(applicationData), callback);
-        }
-        await(callback);
+        ByteBuffer message = applicationData.slice();
+        await(sendFrame(callback -> jettySession.sendPing(message, callback)));
     }
 
     @Override
@@ -104,11 +113,7 @@ class JettyWebsocketSession implements ServerWebsocketSession {
     @Override
     public void close(WebsocketCloseReason closeReason) throws IOException {
         if (open.compareAndSet(true, false)) {
-            Callback.Completable callback = new Callback.Completable();
-            synchronized (sendInitiationLock) {
-                jettySession.close(closeReason.code(), closeReason.reason(), callback);
-            }
-            await(callback);
+            await(sendFrame(callback -> jettySession.close(closeReason.code(), closeReason.reason(), callback)));
         }
     }
 
@@ -122,14 +127,54 @@ class JettyWebsocketSession implements ServerWebsocketSession {
         open.set(false);
     }
 
-    private static ByteBuffer copyBuffer(ByteBuffer buffer) {
-        ByteBuffer copy = buffer.slice();
-        byte[] bytes = new byte[copy.remaining()];
-        copy.get(bytes);
-        return ByteBuffer.wrap(bytes);
+    private CompletableFuture<Void> sendFrame(FrameSender sender) {
+        synchronized (sendInitiationLock) {
+            CompletableFuture<Void> result = sendTail.handle((ignored, error) -> null)
+                    .thenCompose(ignored -> {
+                        Callback.Completable callback = new Callback.Completable();
+                        try {
+                            sender.send(callback);
+                            return callback;
+                        } catch (Throwable e) {
+                            return CompletableFuture.failedFuture(e);
+                        }
+                    });
+            sendTail = result;
+            return result;
+        }
     }
 
-    private static void await(Callback.Completable callback) throws IOException {
+    private CompletableFuture<Void> sendBinaryFragments(ByteBuffer data, int maxFragmentBytes) {
+        synchronized (sendInitiationLock) {
+            CompletableFuture<Void> result = sendTail.handle((ignored, error) -> null);
+            ByteBuffer remaining = data.slice();
+            while (remaining.hasRemaining()) {
+                ByteBuffer fragment = nextFragment(remaining, maxFragmentBytes);
+                boolean last = !remaining.hasRemaining();
+                result = result.thenCompose(ignored -> {
+                    Callback.Completable callback = new Callback.Completable();
+                    try {
+                        jettySession.sendPartialBinary(fragment, last, callback);
+                        return callback;
+                    } catch (Throwable e) {
+                        return CompletableFuture.failedFuture(e);
+                    }
+                });
+            }
+            sendTail = result;
+            return result;
+        }
+    }
+
+    private static ByteBuffer nextFragment(ByteBuffer source, int maxFragmentBytes) {
+        int length = Math.min(source.remaining(), maxFragmentBytes);
+        ByteBuffer fragment = source.slice();
+        fragment.limit(length);
+        source.position(source.position() + length);
+        return fragment;
+    }
+
+    private static void await(CompletableFuture<Void> callback) throws IOException {
         try {
             callback.get(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -140,5 +185,10 @@ class JettyWebsocketSession implements ServerWebsocketSession {
         } catch (TimeoutException e) {
             throw new IOException("Timed out while sending websocket frame", e);
         }
+    }
+
+    @FunctionalInterface
+    private interface FrameSender {
+        void send(Callback.Completable callback) throws Exception;
     }
 }

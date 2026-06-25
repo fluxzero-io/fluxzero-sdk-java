@@ -1,0 +1,164 @@
+---
+title: Application properties
+slug: docs/guides/configuration/application-properties
+sidebar:
+   order: 280
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero provides a static utility, `ApplicationProperties`, for resolving configuration values across
+environments, tests, and production. It supports:
+
+- Layered resolution from environment variables, system properties, and `.properties` files
+- Placeholder substitution (e.g. `${my.env}`)
+- Encrypted values with automatic decryption
+- Typed access: `getBooleanProperty`, `getIntegerProperty`, etc.
+
+---
+
+## Property resolution order
+
+Properties are resolved in the following order of precedence:
+
+1. `EnvironmentVariablesSource` – e.g. `export MY_SETTING=value`
+2. `SystemPropertiesSource` – e.g. `-Dmy.setting=value`
+3. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
+4. `ApplicationPropertiesSource` – base fallback (`application.properties`)
+5. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+
+To specify the environment (`dev`, `prod`, etc.), define:
+
+```bash
+export ENVIRONMENT=dev
+```
+
+This allows `application-dev.properties` to override base properties.
+
+---
+
+## Example usage
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    String name = ApplicationProperties.getProperty("app.name", "DefaultApp");
+    boolean enabled = ApplicationProperties.getBooleanProperty("feature.toggle", true);
+    int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val name = ApplicationProperties.getProperty("app.name", "DefaultApp")
+    val enabled = ApplicationProperties.getBooleanProperty("feature.toggle", true)
+    val maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100)
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Versioned defaults
+
+`fluxzero.defaults.version` lets new applications opt into newer SDK defaults while existing applications keep
+compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
+earlier versions, and each behavior can still be overridden with its dedicated property.
+
+| Defaults version | Equivalent property | What changes |
+| --- | --- | --- |
+| `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
+| `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+
+For example:
+
+```properties
+fluxzero.defaults.version=2026.05.21
+```
+
+This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
+explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
+`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
+and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+
+---
+
+## Encrypted values
+
+Fluxzero supports secure storage of secrets using its built-in encryption utility. To use encryption:
+
+1. **Generate a new key** with:
+
+   ```java
+   String key = DefaultEncryption.generateNewEncryptionKey();
+   System.out.println(key);
+   // => ChaCha20|KJh832h1f7shDFb...  -> Save and use as ENCRYPTION_KEY
+   ```
+
+2. **Set the encryption key** via an environment variable or system property:
+
+   ```bash
+   export ENCRYPTION_KEY=ChaCha20|KJh832h1f7shDFb...
+   ```
+
+3. **Encrypt values** at build/deploy time:
+
+   ```java
+   String encrypted = ApplicationProperties.encryptValue("secret-google-key");
+   System.out.println(encrypted);
+   // => encrypted|ChaCha20|mm8yeY8TXtNpdrwO:REdej56zvFXc:b7oQdmnpQpUzagKtma9JLQ==
+   ```
+
+4. **Add encrypted values to your config**:
+
+   ```properties
+   google.apikey=encrypted|ChaCha20|mm8yeY8TXtNpdrwO:REdej56zvFXc:b7oQdmnpQpUzagKtma9JLQ==
+   ```
+
+5. **Resolve them normally in code**:
+
+   ```java
+   String apiKey = ApplicationProperties.getProperty("google.apikey");
+   // -> "secret-google-key"
+   ```
+
+Decryption is transparent. Fluxzero detects encrypted values and decrypts them automatically.
+
+<Aside type="tip">
+On Fluxzero Cloud, a random encryption key is provisioned automatically per cluster and made available as an environment variable. You can override this key in the Fluxzero Cloud dashboard if needed. Always store keys in your secret manager — never in source control.
+</Aside>
+
+---
+
+## In tests
+
+Properties can be defined in your `test/resources/application.properties` or overridden via system properties:
+
+```bash
+-Dmy.test.override=true
+```
+
+Or dynamically inject mock values:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    TestFixture.create(MyHandler.class)
+        .withProperty("my.test.value", "stub")
+        .whenCommand("/users/create-job.json")
+        .expectSchedules(ScheduledJob.class);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    TestFixture.create(MyHandler::class.java)
+        .withProperty("my.test.value", "stub")
+        .whenCommand("/users/create-job.json")
+        .expectSchedules(ScheduledJob::class.java)
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+This is especially useful in integration or fixture-based tests.
+</Aside>

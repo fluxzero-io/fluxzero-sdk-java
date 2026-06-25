@@ -27,6 +27,9 @@ import io.fluxzero.common.application.SystemPropertiesSource;
 import io.fluxzero.common.encryption.Encryption;
 import io.fluxzero.sdk.Fluxzero;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -65,6 +68,8 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+    private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
+
     /**
      * Selects the versioned Fluxzero default behavior profile for applications that do not configure each default
      * explicitly.
@@ -92,9 +97,78 @@ public class ApplicationProperties {
      *         deadline: fixed-delay schedules first run after {@code delay}, and cron schedules first run at the next
      *         cron match. Use {@code initialDelay = 0} for an immediate first run.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.05.25}</td>
+     *         <td>{@code fluxzero.cache.mode = adaptive}</td>
+     *         <td>The default aggregate cache uses a count-bounded hard-reference cache. Applications can keep the old
+     *         behavior with {@code fluxzero.cache.mode = softRef}. Tracking caches are not changed by this defaults
+     *         version and require an explicit {@code fluxzero.tracking.cache.mode} setting.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.06.09}</td>
+     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}</td>
+     *         <td>Aggregates using the default commit policy start their commits after each handler, keep active
+     *         thread-local aggregates visible until batch completion, and wait for all started commits together at the
+     *         end of the current message batch. Existing applications can keep the legacy behavior with
+     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.06.20}</td>
+     *         <td>{@code fluxzero.tracking.defaultHandlingMode.webrequest = async}</td>
+     *         <td>Web request handlers assigned through default consumers are invoked on worker threads by default.
+     *         Existing applications can keep synchronous handling with
+     *         {@code fluxzero.tracking.defaultHandlingMode.webrequest = sync} or by configuring the web request default
+     *         consumer with {@code handlingMode = SYNC}.</td>
+     *     </tr>
      * </table>
+     * <p>
+     * Memory-aware cache pressure can be tuned with
+     * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},
+     * {@code fluxzero.cache.memoryPressure.gcTimeThresholdPercent}, and
+     * {@code fluxzero.cache.memoryPressure.trimRatioPercent}. The amount evicted in a single pass is also capped by
+     * {@code fluxzero.cache.memoryPressure.maxTrimWeight}.
      */
     public static final String DEFAULTS_VERSION_PROPERTY = "fluxzero.defaults.version";
+
+    /**
+     * Returns the active Fluxzero defaults version, or {@code null} when compatibility defaults are used.
+     */
+    public static LocalDate getDefaultsVersion() {
+        return getDefaultsVersion(getPropertySource());
+    }
+
+    /**
+     * Returns the Fluxzero defaults version from the given source, or {@code null} when compatibility defaults are used.
+     *
+     * @throws IllegalArgumentException if {@link #DEFAULTS_VERSION_PROPERTY} is not in {@code yyyy.MM.dd} format
+     */
+    public static LocalDate getDefaultsVersion(PropertySource propertySource) {
+        String value = propertySource.get(DEFAULTS_VERSION_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim(), DEFAULTS_VERSION_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Property `%s` must use format `yyyy.MM.dd`, but found `%s`"
+                                                       .formatted(DEFAULTS_VERSION_PROPERTY, value), e);
+        }
+    }
+
+    /**
+     * Returns whether the active defaults version opts into behavior introduced on or before the given date.
+     */
+    public static boolean defaultsVersionAtLeast(LocalDate version) {
+        return defaultsVersionAtLeast(getPropertySource(), version);
+    }
+
+    /**
+     * Returns whether the given source opts into behavior introduced on or before the given date.
+     */
+    public static boolean defaultsVersionAtLeast(PropertySource propertySource, LocalDate version) {
+        LocalDate defaultsVersion = getDefaultsVersion(propertySource);
+        return defaultsVersion != null && !defaultsVersion.isBefore(version);
+    }
 
     /**
      * Returns the raw string property for the given key, or {@code null} if not found.

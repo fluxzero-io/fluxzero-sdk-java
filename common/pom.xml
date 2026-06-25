@@ -49,6 +49,10 @@
             <optional>true</optional>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-cbor</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.msgpack</groupId>
             <artifactId>msgpack-core</artifactId>
             <version>0.9.12</version>
@@ -57,6 +61,11 @@
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>1.5.7-11</version>
         </dependency>
 
         <!--logging API used by Lombok @Slf4j and common logging hooks-->

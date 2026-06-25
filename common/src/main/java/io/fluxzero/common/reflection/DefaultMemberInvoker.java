@@ -168,6 +168,9 @@ public class DefaultMemberInvoker implements MemberInvoker {
         }
         try {
             var lookup = privateLookupIn(member.getDeclaringClass(), DefaultMemberInvoker.lookup);
+            if (!lookup.hasFullPrivilegeAccess()) {
+                return null;
+            }
             MethodHandle realMethodHandle = getMethodHandle(member, lookup);
             MethodType factoryType =
                     methodType(Class.forName(DefaultMemberInvoker.class.getName()

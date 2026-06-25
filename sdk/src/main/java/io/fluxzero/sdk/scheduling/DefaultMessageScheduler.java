@@ -94,7 +94,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
         if (serializedMessage == null) {
             return CompletableFuture.completedFuture(null);
         }
-        dispatchInterceptor.monitorDispatch(message, SCHEDULE, null, client.namespace());
+        dispatchInterceptor.monitorDispatch(message, SCHEDULE, null, client.namespace(), false);
         Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
         Schedule scheduledMessage = message;
         return getSchedulingClient().schedule(guarantee, new SerializedSchedule(message.getScheduleId(),

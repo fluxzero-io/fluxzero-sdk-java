@@ -21,6 +21,7 @@ import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -64,6 +65,7 @@ import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -71,6 +73,7 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -86,6 +89,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.proxy.NamespaceSelector.FLUXZERO_NAMESPACE_HEADER;
 import static io.fluxzero.proxy.NamespaceSelector.JWKS_URL_PROPERTY;
+import static io.fluxzero.proxy.NamespaceSelector.NAMESPACE_HEADER_MODE_PROPERTY;
 import static java.lang.String.format;
 import static java.net.http.HttpRequest.newBuilder;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -123,6 +127,36 @@ class ProxyServerTest {
                             newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
                                     .build(), BodyHandlers.ofString()).body())
                     .expectResult("Healthy");
+        }
+
+        @Test
+        void responsesDoNotExposeServerVersion() {
+            testFixture.whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
+                                    .build(), BodyHandlers.ofString()))
+                    .verifyResult(response -> assertHeaderAbsent(response.headers(), "Server"));
+        }
+
+        @Test
+        void jettyGeneratedErrorResponsesDoNotExposeServerVersion() throws Exception {
+            String response;
+            try (Socket socket = new Socket("localhost", proxyPort)) {
+                socket.setSoTimeout(3000);
+                OutputStream output = socket.getOutputStream();
+                output.write(("GET /proxy/health HTTP/1.1\r\n"
+                              + "Host: localhost\r\n"
+                              + "X-Oversized: %s\r\n"
+                              + "Connection: close\r\n"
+                              + "\r\n").formatted("x".repeat(ProxyServer.DEFAULT_MAX_HEADER_SIZE + 1))
+                        .getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            }
+
+            assertTrue(response.startsWith("HTTP/1.1 431"), () -> "Expected oversized headers to be rejected, got: "
+                                                                   + response);
+            assertRawHeaderAbsent(response, "Server");
+            assertRawHeaderAbsent(response, "X-Powered-By");
         }
 
         @Test
@@ -208,6 +242,81 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY)
+        void benchmarkTraceHeadersRequireStartupOptInAndTraceHeader() {
+            String previousValue = System.getProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY);
+            ProxyServer disabledProxyServer = null;
+            ProxyServer enabledProxyServer = null;
+            try {
+                System.clearProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY);
+                disabledProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int disabledPort = disabledProxyServer.getPort();
+
+                System.setProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, "true");
+                enabledProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int enabledPort = enabledProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                            @HandleGet("/benchmark-trace")
+                            String response() {
+                                return "benchmark";
+                            }
+                        })
+                        .whenApplying(fc -> {
+                            var disabledWithTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", disabledPort)))
+                                            .GET()
+                                            .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
+                                            .build(), BodyHandlers.ofString());
+                            var enabledWithoutTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            .GET().build(), BodyHandlers.ofString());
+                            var enabledWithTrace = httpClient.send(
+                                    newBuilder(URI.create(format(
+                                            "http://localhost:%s/benchmark-trace", enabledPort)))
+                                            .GET()
+                                            .header(ProxyRequestHandler.BENCHMARK_TRACE_ID_HEADER, "trace-1")
+                                            .build(), BodyHandlers.ofString());
+                            return List.of(disabledWithTrace, enabledWithoutTrace, enabledWithTrace);
+                        })
+                        .verifyResult(responses -> {
+                            assertEquals(200, responses.getFirst().statusCode());
+                            assertEquals("benchmark", responses.getFirst().body());
+                            assertNoBenchmarkTraceHeaders(responses.getFirst().headers());
+
+                            assertEquals(200, responses.get(1).statusCode());
+                            assertEquals("benchmark", responses.get(1).body());
+                            assertNoBenchmarkTraceHeaders(responses.get(1).headers());
+
+                            assertEquals(200, responses.get(2).statusCode());
+                            assertEquals("benchmark", responses.get(2).body());
+                            assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER);
+                            Instant received = assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER);
+                            Instant sendStart = assertBenchmarkInstantHeader(
+                                    responses.get(2).headers(),
+                                    ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER);
+                            assertFalse(received.isAfter(sendStart));
+                        });
+            } finally {
+                if (enabledProxyServer != null) {
+                    enabledProxyServer.cancel();
+                }
+                if (disabledProxyServer != null) {
+                    disabledProxyServer.cancel();
+                }
+                restoreProperty(ProxyRequestHandler.BENCHMARK_TRACE_HEADERS_ENABLED_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
         void setCookieResponseHeadersRemainSeparate() {
             testFixture.registerHandlers(new Object() {
                         @HandleGet("/cookies")
@@ -266,6 +375,10 @@ class ProxyServerTest {
                                     .header("Trailer", "Expires")
                                     .header("Transfer-Encoding", "chunked")
                                     .header("Upgrade", "websocket")
+                                    .header("Server", "backend/1.2.3")
+                                    .header("X-Powered-By", "runtime")
+                                    .header("X-AspNet-Version", "4.0.30319")
+                                    .header("X-AspNetMvc-Version", "5.2")
                                     .header("X-Keep", "yes")
                                     .payload("ok")
                                     .build();
@@ -284,6 +397,10 @@ class ProxyServerTest {
                         assertTrue(response.headers().firstValue("Connection").isEmpty());
                         assertTrue(response.headers().firstValue("Transfer-Encoding").isEmpty());
                         assertTrue(response.headers().firstValue("Upgrade").isEmpty());
+                        assertHeaderAbsent(response.headers(), "Server");
+                        assertHeaderAbsent(response.headers(), "X-Powered-By");
+                        assertHeaderAbsent(response.headers(), "X-AspNet-Version");
+                        assertHeaderAbsent(response.headers(), "X-AspNetMvc-Version");
                     });
         }
 
@@ -534,6 +651,63 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY)
+        void maxInFlightWebRequestsCanOptionallyRejectExcessRequests() throws Exception {
+            String previousValue = System.getProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY);
+            ProxyServer configuredProxyServer = null;
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            AtomicInteger invocations = new AtomicInteger();
+            try {
+                assertEquals(0, ProxyServer.DEFAULT_MAX_IN_FLIGHT_WEB_REQUESTS);
+                System.setProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY, "1");
+                configuredProxyServer = ProxyServer.startHttpProxyOnly(
+                        0, new ProxyRequestHandler(testFixture.getFluxzero().client()));
+                int configuredPort = configuredProxyServer.getPort();
+
+                testFixture.registerHandlers(new Object() {
+                    @HandleGet("/in-flight")
+                    String handle() throws Exception {
+                        invocations.incrementAndGet();
+                        entered.countDown();
+                        assertTrue(release.await(5, TimeUnit.SECONDS), "Timed out waiting to release held request");
+                        return "ok";
+                    }
+                });
+
+                var first = httpClient.sendAsync(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+                assertTrue(entered.await(5, TimeUnit.SECONDS), "Expected first request to reach the runtime handler");
+
+                var rejected = httpClient.send(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+
+                assertEquals(503, rejected.statusCode());
+                assertEquals("Too many in-flight proxy requests", rejected.body());
+                assertEquals(1, invocations.get());
+
+                release.countDown();
+                assertEquals(200, first.get(5, TimeUnit.SECONDS).statusCode());
+
+                var acceptedAfterRelease = httpClient.send(
+                        newBuilder(URI.create(format("http://localhost:%s/in-flight", configuredPort)))
+                                .GET().build(), BodyHandlers.ofString());
+
+                assertEquals(200, acceptedAfterRelease.statusCode());
+                assertEquals("ok", acceptedAfterRelease.body());
+                assertEquals(2, invocations.get());
+            } finally {
+                release.countDown();
+                if (configuredProxyServer != null) {
+                    configuredProxyServer.cancel();
+                }
+                restoreProperty(ProxyServer.MAX_IN_FLIGHT_WEB_REQUESTS_PROPERTY, previousValue);
+            }
+        }
+
+        @Test
         @ResourceLock(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY)
         void idleTimeoutCanBeConfigured() {
             String previousValue = System.getProperty(ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY);
@@ -578,6 +752,20 @@ class ProxyServerTest {
                 restoreProperty(ProxyServer.MAX_THREADS_PROPERTY, previousMaxThreads);
                 restoreProperty(ProxyServer.MIN_THREADS_PROPERTY, previousMinThreads);
                 restoreProperty(ProxyServer.USE_VIRTUAL_THREADS_PROPERTY, previousUseVirtualThreads);
+            }
+        }
+
+        @Test
+        @ResourceLock(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY)
+        void websocketCompressionAlgorithmsCanBeConfigured() {
+            String previousValue = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
+            try {
+                System.setProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, "LZ4,NONE");
+
+                assertEquals(List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.NONE),
+                             ProxyServer.getConfiguredCompressionAlgorithms().orElseThrow());
+            } finally {
+                restoreProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, previousValue);
             }
         }
 
@@ -1105,24 +1293,101 @@ class ProxyServerTest {
         }
 
         @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        @ResourceLock(JWKS_URL_PROPERTY)
+        void signedModeRejectsUnsignedNamespaceHeader() {
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "signed");
+
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(401, response.statusCode());
+                            assertEquals("Namespace headers should be signed", response.body());
+                        });
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
+        }
+
+        @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        void disabledModeRejectsNamespaceHeader() {
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "disabled");
+
+                testFixture.whenApplying(fc -> httpClient.send(
+                                newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, "test").build(),
+                                BodyHandlers.ofString()))
+                        .verifyResult(response -> {
+                            assertEquals(401, response.statusCode());
+                            assertEquals("Namespace header is disabled", response.body());
+                        });
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
+        }
+
+        @Test
+        @ResourceLock(NAMESPACE_HEADER_MODE_PROPERTY)
+        @ResourceLock(JWKS_URL_PROPERTY)
         void getNamespacedWithJwt() {
             var pair = TestJwtUtil.create("test", "test_kid");
             String jwt = pair.getKey();
             String jwksResponse = pair.getValue();
+            String previousMode = System.getProperty(NAMESPACE_HEADER_MODE_PROPERTY);
+            try {
+                System.setProperty(NAMESPACE_HEADER_MODE_PROPERTY, "signed");
+                withJwksServer(jwksResponse, url ->
+                        testFixture
+                                .registerHandlers(new NamespacedHandler())
+                                .whenApplying(fc -> httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString()).body())
+                                .expectResult("Hello test")
+                                .andThen()
+                                .whenApplying(fc -> httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString()).body())
+                                .expectResult("Hello test"));
+            } finally {
+                restoreProperty(NAMESPACE_HEADER_MODE_PROPERTY, previousMode);
+            }
+
+        }
+
+        @Test
+        @ResourceLock(JWKS_URL_PROPERTY)
+        void signedNamespaceHeaderIsRevalidatedForRepeatedValues() {
+            Instant expiresAt = Instant.now().plusSeconds(2);
+            var pair = TestJwtUtil.create("test", "expiring_kid", expiresAt);
+            String jwt = pair.getKey();
+            String jwksResponse = pair.getValue();
             withJwksServer(jwksResponse, url ->
-                    testFixture
-                            .registerHandlers(new NamespacedHandler())
-                            .whenApplying(fc -> httpClient.send(
-                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                    BodyHandlers.ofString()).body())
-                            .expectResult("Hello test")
-                            .andThen()
-                            .whenApplying(fc -> httpClient.send(
-                                    newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
-                                    BodyHandlers.ofString()).body())
-                            .expectResult("Hello test"));
+                    testFixture.registerHandlers(new NamespacedHandler())
+                            .whenApplying(fc -> {
+                                var accepted = httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString());
+                                assertEquals(200, accepted.statusCode());
+                                assertEquals("Hello test", accepted.body());
 
+                                long waitMillis = Math.max(0L,
+                                                           expiresAt.plusSeconds(1).toEpochMilli()
+                                                           - Instant.now().toEpochMilli());
+                                Thread.sleep(waitMillis);
 
+                                return httpClient.send(
+                                        newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
+                                        BodyHandlers.ofString());
+                            })
+                            .verifyResult(rejected -> {
+                                assertEquals(401, rejected.statusCode());
+                                assertEquals("JWT expired", rejected.body());
+                            }));
         }
 
         @SneakyThrows
@@ -1731,8 +1996,8 @@ class ProxyServerTest {
 
         @Override
         protected void completeResponse(io.fluxzero.common.api.SerializedMessage response, Throwable error,
-                                        WebRequest webRequest, JettyExchange exchange) {
-            super.completeResponse(response, error, webRequest, exchange);
+                                        ProxyResponseContext responseContext) {
+            super.completeResponse(response, error, responseContext);
             if (error != null) {
                 responseFailure.countDown();
             }
@@ -1757,6 +2022,31 @@ class ProxyServerTest {
         byte[] bytes = new byte[copy.remaining()];
         copy.get(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    private static void assertNoBenchmarkTraceHeaders(HttpHeaders headers) {
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_RUNTIME_WEBRESPONSE_INDEX_HEADER).isEmpty());
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_WEBRESPONSE_RECEIVED_HEADER).isEmpty());
+        assertTrue(headers.firstValue(ProxyRequestHandler.BENCHMARK_PROXY_HTTP_RESPONSE_SEND_START_HEADER).isEmpty());
+    }
+
+    private static void assertHeaderAbsent(HttpHeaders headers, String name) {
+        assertTrue(headers.map().keySet().stream().noneMatch(name::equalsIgnoreCase),
+                   () -> "Expected response header to be absent: " + name);
+    }
+
+    private static void assertRawHeaderAbsent(String response, String name) {
+        String headerBlock = response.split("\\R\\R", 2)[0];
+        boolean present = headerBlock.lines()
+                .skip(1)
+                .map(line -> line.split(":", 2)[0].trim())
+                .anyMatch(name::equalsIgnoreCase);
+        assertFalse(present, () -> "Expected raw response header to be absent: " + name + "\n" + headerBlock);
+    }
+
+    private static Instant assertBenchmarkInstantHeader(HttpHeaders headers, String name) {
+        return Instant.parse(headers.firstValue(name)
+                                     .orElseThrow(() -> new AssertionError("Missing benchmark header " + name)));
     }
 
     private static void restoreProperty(String name, String value) {

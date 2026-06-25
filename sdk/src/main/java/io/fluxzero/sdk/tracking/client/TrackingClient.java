@@ -26,6 +26,8 @@ import lombok.SneakyThrows;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
+
 /**
  * Low-level client interface for tracking and consuming messages from a message log.
  * <p>
@@ -83,6 +85,21 @@ public interface TrackingClient extends AutoCloseable {
     List<SerializedMessage> readFromIndex(long minIndex, int maxSize);
 
     /**
+     * Fetches messages directly from the message log while limiting both message count and serialized payload bytes.
+     * <p>
+     * If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make
+     * progress. A {@code maxBytes} value of {@code 0} disables the byte limit.
+     *
+     * @param minIndex the starting index (inclusive)
+     * @param maxSize  the maximum number of messages to retrieve
+     * @param maxBytes the maximum number of serialized payload bytes to retrieve
+     * @return a list of serialized messages starting at the given index
+     */
+    default List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
+        return limitByCumulativeWeight(readFromIndex(minIndex, maxSize), maxBytes, SerializedMessage::getBytes);
+    }
+
+    /**
      * Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} up to the provided max size.
      * <p>
      * Implementations may override this to perform a bounded server-side range read. The default implementation keeps
@@ -97,6 +114,22 @@ public interface TrackingClient extends AutoCloseable {
         return readFromIndex(minIndexInclusive, maxSize).stream()
                 .filter(message -> message.getIndex() != null && message.getIndex() < maxIndexExclusive)
                 .toList();
+    }
+
+    /**
+     * Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} while limiting both message count
+     * and serialized payload bytes.
+     *
+     * @param minIndexInclusive the starting index (inclusive)
+     * @param maxIndexExclusive the maximum index (exclusive)
+     * @param maxSize           the maximum number of messages to retrieve
+     * @param maxBytes          the maximum number of serialized payload bytes to retrieve
+     * @return a list of serialized messages in the requested range
+     */
+    default List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,
+                                              long maxBytes) {
+        return limitByCumulativeWeight(readRange(minIndexInclusive, maxIndexExclusive, maxSize), maxBytes,
+                                       SerializedMessage::getBytes);
     }
 
     /**

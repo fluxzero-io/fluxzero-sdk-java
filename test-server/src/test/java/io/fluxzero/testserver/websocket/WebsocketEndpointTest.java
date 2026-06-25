@@ -15,12 +15,13 @@
 
 package io.fluxzero.testserver.websocket;
 
-import io.fluxzero.common.api.ConnectEvent;
 import io.fluxzero.common.api.Command;
+import io.fluxzero.common.api.ConnectEvent;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.VoidResult;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +46,7 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -85,6 +87,24 @@ class WebsocketEndpointTest {
                 Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
 
         assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithmForTest(session));
+    }
+
+    @Test
+    void selectedTransportFormatDefaultsToJson() {
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
+
+        assertEquals(WebSocketTransportFormat.JSON, new TestEndpoint().getTransportFormatForTest(session));
+    }
+
+    @Test
+    void selectedTransportFormatComesFromHandshakeUserProperty() {
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
+                WebsocketDeploymentUtils.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                WebSocketTransportFormat.CBOR)));
+
+        assertEquals(WebSocketTransportFormat.CBOR, new TestEndpoint().getTransportFormatForTest(session));
     }
 
     @Test
@@ -156,6 +176,22 @@ class WebsocketEndpointTest {
         RequestResult result = endpoint.results("session-1").getFirst();
         assertVoidResult(command, result);
         assertEquals(requestReceivedTimestamp, result.getRequestReceivedTimestamp());
+        closeEndpoint(endpoint, session);
+    }
+
+    @Test
+    void cancelledAsyncResultSendsNoResponse() {
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run);
+        ServerWebsocketSession session = session("session-1");
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        result.cancel(false);
+        TestCommand command = new TestCommand(result, STORED);
+
+        endpoint.onOpen(session);
+        endpoint.dispatch(session, command);
+
+        assertEquals(1, endpoint.invocations());
+        assertTrue(endpoint.results("session-1").isEmpty());
         closeEndpoint(endpoint, session);
     }
 
@@ -243,6 +279,43 @@ class WebsocketEndpointTest {
         }
     }
 
+    @Test
+    void transportSendFailureClosesSession() throws Exception {
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run);
+        FakeSession session = new FakeSession("send-failure");
+        session.failBinarySends(new IOException("No buffer space available"));
+        try {
+            endpoint.onOpen(session);
+
+            assertTimeout(Duration.ofSeconds(2), () -> endpoint.sendResultBatch(session, List.of(new VoidResult(1L))));
+
+            assertTrue(session.awaitClose(1, TimeUnit.SECONDS));
+            assertFalse(session.isOpen());
+        } finally {
+            closeEndpoint(endpoint, session);
+        }
+    }
+
+    @Test
+    void transportSendTimeoutClosesSession() throws Exception {
+        Duration originalSendTimeout = WebsocketEndpoint.webSocketSendTimeout;
+        WebsocketEndpoint.webSocketSendTimeout = Duration.ofMillis(10);
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run);
+        FakeSession session = new FakeSession("send-timeout");
+        session.hangBinarySends();
+        try {
+            endpoint.onOpen(session);
+
+            endpoint.sendResultBatch(session, List.of(new VoidResult(1L)));
+
+            assertTrue(session.awaitClose(1, TimeUnit.SECONDS));
+            assertFalse(session.isOpen());
+        } finally {
+            WebsocketEndpoint.webSocketSendTimeout = originalSendTimeout;
+            closeEndpoint(endpoint, session);
+        }
+    }
+
     private static class TestEndpoint extends WebsocketEndpoint {
         private final AtomicInteger invocations = new AtomicInteger();
         private final Map<String, List<RequestResult>> results = new ConcurrentHashMap<>();
@@ -295,6 +368,10 @@ class WebsocketEndpointTest {
 
         CompressionAlgorithm getCompressionAlgorithmForTest(ServerWebsocketSession session) {
             return getCompressionAlgorithm(session);
+        }
+
+        WebSocketTransportFormat getTransportFormatForTest(ServerWebsocketSession session) {
+            return getTransportFormat(session);
         }
 
         String getClientSdkVersionForTest(ServerWebsocketSession session) {
@@ -390,6 +467,7 @@ class WebsocketEndpointTest {
         private final CountDownLatch pingSent = new CountDownLatch(1);
         private final CountDownLatch closed = new CountDownLatch(1);
         private final Map<String, Object> userProperties;
+        private volatile CompletableFuture<Void> binarySendResult = CompletableFuture.completedFuture(null);
         private volatile boolean open = true;
 
         FakeSession(String sessionId) {
@@ -431,6 +509,11 @@ class WebsocketEndpointTest {
         }
 
         @Override
+        public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
+            return binarySendResult;
+        }
+
+        @Override
         public void sendPing(ByteBuffer applicationData) {
             pingSent.countDown();
         }
@@ -458,6 +541,14 @@ class WebsocketEndpointTest {
 
         boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
             return closed.await(timeout, unit);
+        }
+
+        void failBinarySends(Throwable error) {
+            binarySendResult = CompletableFuture.failedFuture(error);
+        }
+
+        void hangBinarySends() {
+            binarySendResult = new CompletableFuture<>();
         }
     }
 }

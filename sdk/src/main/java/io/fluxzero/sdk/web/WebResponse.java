@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,10 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.LazyInputStream;
+import io.fluxzero.common.ThrowingSupplier;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
-import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
@@ -37,7 +36,6 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
-import org.springframework.util.function.ThrowingSupplier;
 
 import java.beans.ConstructorProperties;
 import java.beans.Transient;
@@ -54,7 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static io.fluxzero.common.api.Data.JSON_FORMAT;
+import static io.fluxzero.common.ObjectUtils.asSupplier;
 import static io.fluxzero.sdk.web.WebUtils.asHeaderMap;
 import static java.util.stream.Collectors.toList;
 
@@ -95,7 +93,7 @@ public class WebResponse extends Message {
     Object decodedPayload = decodePayload();
 
     private WebResponse(Builder builder) {
-        super(builder.payload(), Metadata.of(statusKey, builder.status(), headersKey, builder.headers()));
+        super(builder.payload(), asMetadata(builder.status(), builder.headers()));
         this.status = builder.status();
         this.headers = builder.headers();
     }
@@ -125,13 +123,13 @@ public class WebResponse extends Message {
 
     public static WebResponse ok(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                  Map<String, String> headers) {
-        return ok(new LazyInputStream(inputStreamSupplier), headers);
+        return ok(new LazyInputStream(asSupplier(inputStreamSupplier::get)), headers);
     }
 
     public static WebResponse partial(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                       Map<String, String> headers) {
-        return builder().status(206).singleValuedHeaders(headers).payload(new LazyInputStream(inputStreamSupplier))
-                .build();
+        return builder().status(206).singleValuedHeaders(headers)
+                .payload(new LazyInputStream(asSupplier(inputStreamSupplier::get))).build();
     }
 
     public static WebResponse notModified(Map<String, String> headers) {
@@ -162,7 +160,8 @@ public class WebResponse extends Message {
      * @return a Metadata object containing the status code and headers
      */
     public static Metadata asMetadata(int statusCode, Map<String, List<String>> headers) {
-        return Metadata.of(statusKey, statusCode, headersKey, headers);
+        Metadata metadata = Metadata.of(statusKey, statusCode);
+        return headers == null || headers.isEmpty() ? metadata : metadata.with(headersKey, headers);
     }
 
     @Override
@@ -354,7 +353,7 @@ public class WebResponse extends Message {
     Object decodePayload() {
         Object result = getEncodedPayload();
         if (result instanceof byte[] bytes && Objects.equals(getHeaders("Content-Encoding"), gzipEncoding)) {
-            return CompressionUtils.decompress(bytes, CompressionAlgorithm.GZIP);
+            return CompressionAlgorithm.GZIP.decompress(bytes);
         }
         return result;
     }

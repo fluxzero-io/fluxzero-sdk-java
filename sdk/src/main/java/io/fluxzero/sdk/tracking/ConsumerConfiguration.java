@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
@@ -25,6 +26,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.Singular;
 import lombok.Value;
@@ -35,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -79,6 +82,49 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * Assigns unconfigured handlers to the shared default application consumer for their message type.
      */
     public static final String DEFAULT_APP_CONSUMER_MODE = "defaultAppConsumer";
+
+    /**
+     * Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default
+     * with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
+     */
+    public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
+
+    /**
+     * App-wide default handler execution mode used when a consumer and its message-type default consumer both use
+     * {@link ConsumerHandlingMode#DEFAULT}.
+     */
+    public static final String DEFAULT_HANDLING_MODE_PROPERTY = "fluxzero.tracking.defaultHandlingMode";
+
+    /**
+     * Prefix for message-type specific default handler execution mode properties.
+     * <p>
+     * For example, {@code fluxzero.tracking.defaultHandlingMode.webrequest = async} changes only web request default
+     * consumers while {@link #DEFAULT_HANDLING_MODE_PROPERTY} still applies app-wide.
+     */
+    public static final String DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX =
+            DEFAULT_HANDLING_MODE_PROPERTY + ".";
+
+    /**
+     * Default serialized payload byte limit per tracking fetch.
+     */
+    public static final long DEFAULT_MAX_FETCH_BYTES = 100L * 1024L * 1024L;
+
+    /**
+     * Sentinel value for consumers that inherit the configured default max fetch byte limit. This value is resolved
+     * before read requests are sent.
+     */
+    public static final long USE_DEFAULT_MAX_FETCH_BYTES = -1L;
+
+    /**
+     * Returns the property key for a message-type specific default handler execution mode.
+     *
+     * @param messageType message type to configure
+     * @return property key using the lowercase message type name
+     */
+    public static String defaultHandlingModeProperty(MessageType messageType) {
+        return DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX
+               + messageType.name().toLowerCase(Locale.ROOT);
+    }
 
     /**
      * Unique name for the consumer. Used for tracking and identifying its state.
@@ -126,6 +172,27 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      */
     @Default
     int maxFetchSize = 1024;
+
+    /**
+     * Maximum serialized payload bytes to fetch per poll from the message log.
+     * <p>
+     * The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,
+     * otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is
+     * larger than this limit, it may still be returned alone so tracking can make progress.
+     */
+    @Default
+    long maxFetchBytes = USE_DEFAULT_MAX_FETCH_BYTES;
+
+    /**
+     * Effective byte limit used for read requests.
+     */
+    @Getter(lazy = true)
+    @Accessors(fluent = true)
+    @EqualsAndHashCode.Exclude
+    long effectiveMaxFetchBytes = requireNonNegativeMaxFetchBytes(
+            maxFetchBytes == USE_DEFAULT_MAX_FETCH_BYTES
+                    ? ApplicationProperties.getLongProperty(MAX_FETCH_BYTES_PROPERTY, DEFAULT_MAX_FETCH_BYTES)
+                    : maxFetchBytes);
 
     /**
      * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
@@ -216,6 +283,42 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     boolean storePositionManually = false;
 
     /**
+     * If true, asynchronous handler results are awaited before the consumer completes the current batch.
+     * <p>
+     * When false, asynchronous results are still published when they complete, but the consumer can store its position
+     * and fetch the next batch without waiting for those futures. This is the historical default and is useful for
+     * high-throughput request handlers where each request has its own response correlation and batch-level ordering is
+     * not needed.
+     */
+    @Default
+    @Accessors(fluent = true)
+    boolean awaitAsyncResults = false;
+
+    /**
+     * If true, futures returned by fire-and-forget dispatches started during this consumer's batch processing are
+     * awaited before the consumer stores its position.
+     * <p>
+     * This lets handlers use {@code sendAndForget(..., Guarantee.STORED)} without explicitly joining the returned
+     * future just to ensure the dispatch has reached its guarantee before the tracker commits progress. Disable this
+     * for consumers that intentionally let fire-and-forget dispatches complete independently from batch commits.
+     * Failures while awaiting are handled by this consumer's error handler like other batch processing failures.
+     */
+    @Default
+    @Accessors(fluent = true)
+    boolean awaitSendAndForgetFutures = true;
+
+    /**
+     * Controls whether handlers assigned to this consumer execute in the tracker thread or on a worker thread.
+     * <p>
+     * {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer's resolved mode. If that is also
+     * default, Fluxzero falls back to {@link #defaultHandlingModeProperty(MessageType)},
+     * {@link #DEFAULT_HANDLING_MODE_PROPERTY}, and versioned SDK defaults.
+     */
+    @Default
+    @NonNull
+    ConsumerHandlingMode handlingMode = ConsumerHandlingMode.DEFAULT;
+
+    /**
      * Optional minimum index to start processing messages from.
      */
     Long minIndex;
@@ -300,6 +403,15 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .build();
     }
 
+    private static long requireNonNegativeMaxFetchBytes(long value) {
+        if (value < 0L) {
+            throw new IllegalArgumentException(
+                    "`maxFetchBytes` must be greater than or equal to 0 after resolving `%s`, but found `%s`."
+                            .formatted(MAX_FETCH_BYTES_PROPERTY, value));
+        }
+        return value;
+    }
+
     /**
      * Returns a copy with consumer-specific interceptors ordered by {@link io.fluxzero.sdk.common.Order}.
      */
@@ -378,6 +490,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .flowRegulator(asInstance(consumer.flowRegulator()))
                 .threads(consumer.threads())
                 .maxFetchSize(consumer.maxFetchSize())
+                .maxFetchBytes(consumer.maxFetchBytes())
                 .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
@@ -389,6 +502,9 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .ignoreSegment(consumer.ignoreSegment())
                 .clientControlledIndex(consumer.clientControlledIndex())
                 .storePositionManually(consumer.storePositionManually())
+                .awaitAsyncResults(consumer.awaitAsyncResults())
+                .awaitSendAndForgetFutures(consumer.awaitSendAndForgetFutures())
+                .handlingMode(consumer.handlingMode())
                 .singleTracker(consumer.singleTracker())
                 .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())
                 .maxIndexExclusive(consumer.maxIndexExclusive() < 0 ? null : consumer.maxIndexExclusive())

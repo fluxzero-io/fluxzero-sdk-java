@@ -1,0 +1,259 @@
+---
+title: Testing web endpoints
+description: Testing web endpoints
+slug: docs/guides/messaging/testing-web-endpoints
+sidebar:
+  order: 140
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Fluxzero allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
+can be tested like any other command, query, or event.
+
+Here’s a complete test for a POST /games handler that accepts a JSON request and publishes a command:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void registerGame() {
+    testFixture
+        .whenPost("/games", "/game/game-details.json")  // Simulates POST with payload
+        .expectResult(GameId.class)                     // Asserts a result is returned
+        .expectEvents(RegisterGame.class);              // Asserts the applied update was published as an event
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun registerGame() {
+    testFixture
+        .whenPost("/games", "/game/game-details.json")
+        .expectResult(GameId::class.java)
+        .expectEvents(RegisterGame::class.java)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The corresponding handler is:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandlePost("/games")
+CompletableFuture<GameId> addGame(GameDetails details) {
+    return Fluxzero.sendCommand(new RegisterGame(details));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandlePost("/games")
+fun addGame(details: GameDetails): CompletableFuture<GameId> {
+    return Fluxzero.sendCommand(RegisterGame(details))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+As always, the `.json` file is automatically loaded from the classpath, allowing you to cleanly separate test data:
+
+📄 `/game/game-details.json`
+
+```json
+{
+  "title": "Legend of the Skylands",
+  "description": "An epic singleplayer adventure with puzzles and secrets.",
+  "releaseDate": "2025-11-12T00:00:00Z",
+  "tags": [
+    "adventure",
+    "puzzle",
+    "singleplayer"
+  ]
+}
+```
+
+---
+
+## Example: querying with GET
+
+You can test GET endpoints just as easily. This example first registers a game via POST /games, then fetches the list
+of all games via GET /games and checks the result:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void getGames() {
+    testFixture
+        .givenPost("/games", "/game/game-details.json")   // Precondition: register a game
+        .whenGet("/games")                                // Perform GET request
+        .<List<Game>>expectResult(r -> r.size() == 1)     // Assert one game is returned
+        .expectWebResponse(r -> r.getStatus() == 200);    // Assert the status of the response
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun getGames() {
+    testFixture
+        .givenPost("/games", "/game/game-details.json")
+        .whenGet("/games")
+        .expectResult<List<Game>> { it.size == 1 }
+        .expectWebResponse { it.status == 200 }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+In Java, the explicit `.<List<Game>>` cast is needed because `whenGet(...)` alone does not expose a concrete generic
+result type to the fixture.
+
+This corresponds to the following handler method:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleGet
+@Path("/games")
+CompletableFuture<List<Game>> getGames(@QueryParam String term) {
+    return Fluxzero.query(new FindGames(term));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleGet
+@Path("/games")
+fun getGames(@QueryParam term: String): CompletableFuture<List<Game>> {
+    return Fluxzero.query(FindGames(term))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Testing error responses and exceptions
+
+Fluxzero allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
+the exception type as well as inspecting the resulting HTTP status or body.
+
+Here’s a test that triggers a 403 Forbidden error via IllegalCommandException:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void postReturnsError() {
+    testFixture
+        .whenPost("/error", "body")                              // Simulate POST request
+        .expectExceptionalResult(IllegalCommandException.class)  // Assert thrown exception
+        .expectWebResponse(r -> r.getStatus() == 403);           // Assert HTTP 403 response
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun postReturnsError() {
+    testFixture
+        .whenPost("/error", "body")
+        .expectExceptionalResult(IllegalCommandException::class.java)
+        .expectWebResponse { it.status == 403 }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The corresponding handler might look like:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandlePost("/error")
+void postForError(String body) {
+    throw new IllegalCommandException("error: " + body);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandlePost("/error")
+fun postForError(body: String) {
+    throw IllegalCommandException("error: $body")
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+You can assert both exception types and the associated HTTP status code returned in the WebResponse.
+</Aside>
+
+---
+
+## Path parameter substitution in tests
+
+Fluxzero supports placeholder substitution in endpoint paths based on results from earlier steps.
+
+- The result of the **first `when...()` step** is saved after `.andThen()` is called.
+- Later paths like `/games/{gameId}/buy` will have `{gameId}` filled using the `.toString()` value of the previous result.
+- All results are tracked in order and substituted by position, not type.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+testFixture.whenPost("/games", "/game/game-details.json") // returns gameId
+    .andThen()
+    .whenPost("/games/{gameId}/buy") // uses gameId, returns orderId
+    .andThen()
+    .whenPost("/games/{gameId}/refund/{orderId}"); // uses both
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+testFixture.whenPost("/games", "/game/game-details.json") // returns gameId
+    .andThen()
+    .whenPost("/games/{gameId}/buy") // uses gameId, returns orderId
+    .andThen()
+    .whenPost("/games/{gameId}/refund/{orderId}") // uses both
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+Substitution uses result order only—not types or variable names—making it ideal for chaining multi-step flows.
+</Aside>

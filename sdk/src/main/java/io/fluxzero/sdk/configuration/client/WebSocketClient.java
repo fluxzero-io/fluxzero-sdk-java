@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
+import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
@@ -40,7 +42,6 @@ import lombok.Value;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,9 +49,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
+import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.gatewayUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.keyValueUrl;
@@ -58,6 +61,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.schedulingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static java.util.stream.Collectors.toMap;
 
 /**
@@ -172,6 +176,8 @@ public class WebSocketClient extends AbstractClient {
     @Value
     @Builder(toBuilder = true)
     public static class ClientConfig {
+        static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
+        static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
 
         /**
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property
@@ -208,8 +214,38 @@ public class WebSocketClient extends AbstractClient {
          * algorithm first. Should not be empty.
          */
         @Default
-        List<CompressionAlgorithm> supportedCompressionAlgorithms = Stream.concat(
-                Stream.of(LZ4), EnumSet.complementOf(EnumSet.of(LZ4)).stream()).toList();
+        List<CompressionAlgorithm> supportedCompressionAlgorithms = List.of(ZSTD, LZ4);
+
+        /**
+         * Ordered list of websocket transport formats the client supports, with the preferred format first.
+         * <p>
+         * {@link WebSocketTransportFormat#CBOR} keeps {@code byte[]} payloads as native binary values.
+         * {@link WebSocketTransportFormat#JSON} remains the compatibility fallback for older runtimes.
+         */
+        @Default
+        List<WebSocketTransportFormat> supportedTransportFormats = List.of(CBOR, JSON);
+
+        /**
+         * Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.
+         * Defaults to {@code FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES}, or 16 MiB when unset.
+         */
+        @Default
+        int maxInFlightWebSocketBytes = getIntegerProperty(MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY,
+                                                           DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
+
+        /**
+         * Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with
+         * native WebSocket continuation frames while preserving per-session ordering.
+         */
+        @Default
+        int maxWebSocketFragmentBytes = WebsocketSession.DEFAULT_MAX_BINARY_FRAGMENT_BYTES;
+
+        /**
+         * Maximum time a websocket send operation may remain incomplete before the session is considered broken.
+         * A non-positive value disables send timeouts.
+         */
+        @Default
+        Duration webSocketSendTimeout = Duration.ofSeconds(30);
 
         /**
          * Returns the most preferred compression algorithm supported by the client.

@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
@@ -40,7 +41,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.TestUtils.assertEqualMessages;
@@ -48,6 +48,7 @@ import static io.fluxzero.common.api.tracking.Position.newPosition;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -65,14 +66,11 @@ class DefaultTrackingStrategyTest {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
                 .withBatches(List.of(message(1L, 1, "accepted")))) {
-            PositionStore positionStore = mockPositionStore();
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            subject.getBatch(tracker("consumer", "tracker", received::add), positionStore);
+            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker")).join();
 
-            assertEquals(1, received.size());
-            assertEqualMessages(List.of(subject.batchesServed.getFirst()), received.getFirst().getMessages());
-            assertEquals(1L, received.getFirst().getLastIndex());
-            assertTrue(received.getFirst().isCaughtUp());
+            assertEqualMessages(List.of(subject.batchesServed.getFirst()), batch.getMessages());
+            assertEquals(1L, batch.getLastIndex());
+            assertTrue(batch.isCaughtUp());
         }
     }
 
@@ -82,22 +80,16 @@ class DefaultTrackingStrategyTest {
         SerializedMessage fetched = message(2L, 1, "accepted");
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
                 .withBatches(List.of(), List.of(fetched))) {
-            PositionStore positionStore = mockPositionStore();
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            CountDownLatch handled = new CountDownLatch(1);
-            subject.getBatch(tracker("consumer", "tracker", batch -> {
-                received.add(batch);
-                handled.countDown();
-            }), positionStore);
-            assertTrue(received.isEmpty());
+            CompletableFuture<MessageBatch> result = subject.getBatch(tracker("consumer", "tracker"));
+            assertFalse(result.isDone());
 
             subject.onUpdate(List.of(message(2L, 1, "update")));
 
-            assertTrue(handled.await(5, TimeUnit.SECONDS));
+            MessageBatch batch = result.get(5, TimeUnit.SECONDS);
             scheduler.awaitIdle();
 
             assertEquals(2, subject.batchCalls.get());
-            assertEqualMessages(List.of(fetched), received.getFirst().getMessages());
+            assertEqualMessages(List.of(fetched), batch.getMessages());
         }
     }
 
@@ -107,21 +99,16 @@ class DefaultTrackingStrategyTest {
         SerializedMessage fetched = message(2L, 1, "accepted");
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
                 .withBatches(List.of(), List.of(fetched))) {
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            CountDownLatch handled = new CountDownLatch(1);
-            subject.getBatch(tracker("consumer", "tracker", batch -> {
-                received.add(batch);
-                handled.countDown();
-            }), mockPositionStore());
-            assertTrue(received.isEmpty());
+            CompletableFuture<MessageBatch> result = subject.getBatch(tracker("consumer", "tracker"));
+            assertFalse(result.isDone());
 
             subject.onUpdate(List.of());
 
-            assertTrue(handled.await(5, TimeUnit.SECONDS));
+            MessageBatch batch = result.get(5, TimeUnit.SECONDS);
             scheduler.awaitIdle();
 
             assertEquals(2, subject.batchCalls.get());
-            assertEqualMessages(List.of(fetched), received.getFirst().getMessages());
+            assertEqualMessages(List.of(fetched), batch.getMessages());
         }
     }
 
@@ -135,8 +122,7 @@ class DefaultTrackingStrategyTest {
                 .withBatches(List.of(), List.of(), List.of())
                 .blockOnCall(2, firstFollowUpStarted, releaseFirstFollowUp)
                 .signalOnCall(3, coalescedFollowUpStarted)) {
-            subject.getBatch(tracker("consumer", "tracker", batch -> {
-            }), mockPositionStore());
+            subject.getBatch(tracker("consumer", "tracker"));
 
             subject.onUpdate(List.of(message(1L, 1, "update")));
             assertTrue(firstFollowUpStarted.await(5, TimeUnit.SECONDS));
@@ -156,16 +142,15 @@ class DefaultTrackingStrategyTest {
     void sendsEmptyBatchWhenWaitDeadlineExpires() {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            subject.getBatch(tracker("consumer", "tracker", received::add), mockPositionStore());
-            assertTrue(received.isEmpty());
+            CompletableFuture<MessageBatch> result = subject.getBatch(tracker("consumer", "tracker"));
+            assertFalse(result.isDone());
 
             scheduler.runNextScheduledTask();
 
-            assertEquals(1, received.size());
-            assertTrue(received.getFirst().isEmpty());
-            assertTrue(received.getFirst().isCaughtUp());
-            assertArrayEquals(new int[]{0, MAX_SEGMENT}, received.getFirst().getSegment());
+            MessageBatch batch = result.join();
+            assertTrue(batch.isEmpty());
+            assertTrue(batch.isCaughtUp());
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, batch.getSegment());
         }
     }
 
@@ -173,15 +158,13 @@ class DefaultTrackingStrategyTest {
     void sendsEmptyBatchImmediatelyWhenReadHasZeroMaxTimeout() {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            subject.getBatch(tracker("consumer", "tracker", received::add)
-                                     .withDeadline(System.currentTimeMillis() + 6000L)
-                                     .withMaxTimeout(0L), mockPositionStore());
+            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker")
+                                                          .withDeadline(System.currentTimeMillis() + 6000L)
+                                                          .withMaxTimeout(0L)).join();
 
-            assertEquals(1, received.size());
-            assertTrue(received.getFirst().isEmpty());
-            assertTrue(received.getFirst().isCaughtUp());
-            assertArrayEquals(new int[]{0, MAX_SEGMENT}, received.getFirst().getSegment());
+            assertTrue(batch.isEmpty());
+            assertTrue(batch.isCaughtUp());
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, batch.getSegment());
             assertEquals(0, scheduler.scheduledTaskCount());
         }
     }
@@ -189,24 +172,19 @@ class DefaultTrackingStrategyTest {
     @Test
     void sendsEmptyClaimImmediatelyWhenZeroMaxTimeoutAndNoSegmentIsAvailable() {
         TestScheduler scheduler = new TestScheduler();
-        TestStrategy subject = new TestStrategy(mockSource(), scheduler);
         PositionStore positionStore = mockPositionStore();
-        List<MessageBatch> firstBatches = new CopyOnWriteArrayList<>();
-        List<MessageBatch> secondBatches = new CopyOnWriteArrayList<>();
-        TestTracker first = tracker("consumer", "first", firstBatches::add);
-        TestTracker second = tracker("consumer", "second", secondBatches::add)
+        TestStrategy subject = new TestStrategy(mockSource(), scheduler, positionStore);
+        TestTracker first = tracker("consumer", "first");
+        TestTracker second = tracker("consumer", "second")
                 .withDeadline(System.currentTimeMillis() + 6000L)
                 .withMaxTimeout(0L);
         try(subject) {
-            subject.claimSegment(first, positionStore);
-            assertArrayEquals(new int[]{0, MAX_SEGMENT}, firstBatches.getFirst().getSegment());
+            ClaimResult firstClaim = subject.claimSegment(first).join();
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, firstClaim.getSegment());
 
-            subject.claimSegment(second, positionStore);
+            ClaimResult secondClaim = subject.claimSegment(second).join();
 
-            assertEquals(1, secondBatches.size());
-            assertTrue(secondBatches.getFirst().isEmpty());
-            assertTrue(secondBatches.getFirst().isCaughtUp());
-            assertArrayEquals(new int[]{0, 0}, secondBatches.getFirst().getSegment());
+            assertArrayEquals(new int[]{0, 0}, secondClaim.getSegment());
             assertEquals(0, scheduler.scheduledTaskCount());
         }
     }
@@ -216,13 +194,12 @@ class DefaultTrackingStrategyTest {
         TestScheduler scheduler = new TestScheduler();
         long freshIndex = System.currentTimeMillis() << 16;
         PositionStore positionStore = mockPositionStore();
-        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler, positionStore)
                 .withBatches(List.of(message(freshIndex, 1, "ignored")), List.of())) {
-            List<MessageBatch> received = new CopyOnWriteArrayList<>();
-            subject.getBatch(tracker("consumer", "tracker", received::add)
-                                     .withTypeFilter("accepted"::equals), positionStore);
+            CompletableFuture<MessageBatch> result = subject.getBatch(
+                    tracker("consumer", "tracker").withTypeFilter("accepted"::equals));
 
-            assertTrue(received.isEmpty());
+            assertFalse(result.isDone());
             verify(positionStore).storePosition(eq("consumer"),
                                                 argThat(segment -> segment[0] == 0 && segment[1] == MAX_SEGMENT),
                                                 eq(freshIndex));
@@ -230,25 +207,74 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void limitsReturnedBatchByPayloadBytes() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "accepted", 4),
+                                     message(2L, 1, "accepted", 4),
+                                     message(3L, 1, "accepted", 4)))) {
+            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker").withMaxBytes(8L)).join();
+
+            assertEquals(List.of(1L, 2L),
+                         batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(8L, batch.getBytes());
+            assertEquals(2L, batch.getLastIndex());
+            assertFalse(batch.isCaughtUp());
+        }
+    }
+
+    @Test
+    void appliesPayloadByteLimitAfterStoreSideFilteringWithoutSkippingNextMatch() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "ignored", 32),
+                                     message(2L, 1, "accepted", 4),
+                                     message(3L, 1, "accepted", 4),
+                                     message(4L, 1, "accepted", 4)))) {
+            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker")
+                                                          .withMaxBytes(8L)
+                                                          .withTypeFilter("accepted"::equals)).join();
+
+            assertEquals(List.of(2L, 3L),
+                         batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(3L, batch.getLastIndex());
+            assertFalse(batch.isCaughtUp());
+        }
+    }
+
+    @Test
+    void returnsOversizedFirstMessageWhenPayloadByteLimitIsSmaller() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "accepted", 12),
+                                     message(2L, 1, "accepted", 4)))) {
+            MessageBatch batch = subject.getBatch(tracker("consumer", "tracker").withMaxBytes(8L)).join();
+
+            assertEquals(List.of(1L),
+                         batch.getMessages().stream().map(SerializedMessage::getIndex).toList());
+            assertEquals(12L, batch.getBytes());
+            assertEquals(1L, batch.getLastIndex());
+            assertFalse(batch.isCaughtUp());
+        }
+    }
+
+    @Test
     void wakesWaitingClaimWhenClusterChanges() {
         TestScheduler scheduler = new TestScheduler();
-        TestStrategy subject = new TestStrategy(mockSource(), scheduler);
         PositionStore positionStore = mockPositionStore();
-        List<MessageBatch> firstBatches = new CopyOnWriteArrayList<>();
-        List<MessageBatch> secondBatches = new CopyOnWriteArrayList<>();
-        TestTracker first = tracker("consumer", "first", firstBatches::add);
-        TestTracker second = tracker("consumer", "second", secondBatches::add);
+        TestStrategy subject = new TestStrategy(mockSource(), scheduler, positionStore);
+        TestTracker first = tracker("consumer", "first");
+        TestTracker second = tracker("consumer", "second");
         try(subject) {
-            subject.claimSegment(first, positionStore);
-            assertArrayEquals(new int[]{0, MAX_SEGMENT}, firstBatches.getFirst().getSegment());
+            ClaimResult firstClaim = subject.claimSegment(first).join();
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, firstClaim.getSegment());
 
-            subject.claimSegment(second, positionStore);
-            assertTrue(secondBatches.isEmpty());
+            CompletableFuture<ClaimResult> secondClaim = subject.claimSegment(second);
+            assertFalse(secondClaim.isDone());
 
             subject.disconnectTrackers(first::equals, false);
 
-            assertEquals(1, secondBatches.size());
-            assertArrayEquals(new int[]{0, MAX_SEGMENT}, secondBatches.getFirst().getSegment());
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, secondClaim.join().getSegment());
         }
     }
 
@@ -256,16 +282,91 @@ class DefaultTrackingStrategyTest {
     void sendsFinalEmptyBatchWhenDisconnectingWaitingTracker() {
         TestScheduler scheduler = new TestScheduler();
         TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of());
-        List<MessageBatch> received = new CopyOnWriteArrayList<>();
-        TestTracker tracker = tracker("consumer", "tracker", received::add);
+        TestTracker tracker = tracker("consumer", "tracker");
         try(subject) {
-            subject.getBatch(tracker, mockPositionStore());
+            CompletableFuture<MessageBatch> result = subject.getBatch(tracker);
             Set<Tracker> removed = subject.disconnectTrackers(tracker::equals, true);
 
+            MessageBatch batch = result.join();
             assertEquals(Set.of(tracker), removed);
-            assertEquals(1, received.size());
-            assertTrue(received.getFirst().isEmpty());
-            assertArrayEquals(new int[]{0, 0}, received.getFirst().getSegment());
+            assertTrue(batch.isEmpty());
+            assertArrayEquals(new int[]{0, 0}, batch.getSegment());
+        }
+    }
+
+    @Test
+    void sendsFinalEmptyBatchWhenDisconnectingInFlightTrackerBeforeItWaits() throws Exception {
+        TestScheduler scheduler = new TestScheduler();
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseBatch = new CountDownLatch(1);
+        try (BlockingBatchStrategy subject = new BlockingBatchStrategy(mockSource(), scheduler, batchStarted,
+                                                                       releaseBatch)) {
+            TestTracker tracker = tracker("consumer", "tracker");
+
+            CompletableFuture<CompletableFuture<MessageBatch>> inFlight =
+                    CompletableFuture.supplyAsync(() -> subject.getBatch(tracker));
+            assertTrue(batchStarted.await(5, TimeUnit.SECONDS));
+
+            subject.disconnectTrackers(tracker::equals, true);
+
+            releaseBatch.countDown();
+            MessageBatch batch = inFlight.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
+
+            assertTrue(batch.isEmpty());
+            assertArrayEquals(new int[]{0, 0}, batch.getSegment());
+        }
+    }
+
+    @Test
+    void finalDisconnectWinsWhenInFlightTrackerFindsMessagesAfterDisconnect() throws Exception {
+        TestScheduler scheduler = new TestScheduler();
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseBatch = new CountDownLatch(1);
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
+                .withBatches(List.of(message(1L, 1, "accepted")))
+                .blockOnCall(1, batchStarted, releaseBatch)) {
+            TestTracker tracker = tracker("consumer", "tracker");
+
+            CompletableFuture<CompletableFuture<MessageBatch>> inFlight =
+                    CompletableFuture.supplyAsync(() -> subject.getBatch(tracker));
+            assertTrue(batchStarted.await(5, TimeUnit.SECONDS));
+
+            subject.disconnectTrackers(tracker::equals, true);
+
+            releaseBatch.countDown();
+            MessageBatch batch = inFlight.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
+
+            assertTrue(batch.isEmpty());
+            assertArrayEquals(new int[]{0, 0}, batch.getSegment());
+        }
+    }
+
+    @Test
+    void replacedInFlightTrackerDoesNotDisconnectReplacement() throws Exception {
+        TestScheduler scheduler = new TestScheduler();
+        CountDownLatch firstClaimStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstClaim = new CountDownLatch(1);
+        try (TestStrategy subject = new BlockingClaimStrategy(mockSource(), scheduler, firstClaimStarted,
+                                                              releaseFirstClaim)
+                .withBatches(List.of())) {
+            TestTracker tracker = tracker("consumer", "tracker");
+
+            CompletableFuture<CompletableFuture<MessageBatch>> first =
+                    CompletableFuture.supplyAsync(() -> subject.getBatch(tracker));
+            assertTrue(firstClaimStarted.await(5, TimeUnit.SECONDS));
+
+            CompletableFuture<MessageBatch> replacement = subject.getBatch(tracker);
+            assertFalse(replacement.isDone());
+
+            releaseFirstClaim.countDown();
+            MessageBatch staleBatch = first.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
+            assertArrayEquals(new int[]{0, 0}, staleBatch.getSegment());
+
+            scheduler.runNextScheduledTask();
+
+            MessageBatch replacementBatch = replacement.get(5, TimeUnit.SECONDS);
+            assertTrue(replacementBatch.isEmpty());
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, replacementBatch.getSegment());
         }
     }
 
@@ -276,12 +377,11 @@ class DefaultTrackingStrategyTest {
         CountDownLatch releaseBatch = new CountDownLatch(1);
         try (BlockingBatchStrategy subject = new BlockingBatchStrategy(mockSource(), scheduler, batchStarted,
                                                                        releaseBatch)) {
-            TestTracker stale = tracker("consumer", "stale", batch -> {
-            }).withDeadline(System.currentTimeMillis() + 50);
+            TestTracker stale = tracker("consumer", "stale").withDeadline(System.currentTimeMillis() + 50);
 
             // Start a long-running read so we can disconnect the tracker while getBatch() is still in flight.
-            CompletableFuture<Void> inFlight = CompletableFuture.runAsync(
-                    () -> subject.getBatch(stale, mockPositionStore()));
+            CompletableFuture<CompletableFuture<MessageBatch>> inFlight =
+                    CompletableFuture.supplyAsync(() -> subject.getBatch(stale));
             assertTrue(batchStarted.await(5, TimeUnit.SECONDS));
 
             // Disconnect the tracker, but the in-flight read may still complete later.
@@ -293,8 +393,8 @@ class DefaultTrackingStrategyTest {
             // The stale tracker must not re-enter the cluster through waitForUpdate() and then become active again.
             scheduler.runNextScheduledTask();
 
-            int[] replacementSegment = subject.claimSegment(tracker("consumer", "replacement", batch -> {
-            }));
+            int[] replacementSegment = subject.claimSegment(tracker("consumer", "replacement"))
+                    .join().getSegment();
             // After the disconnect, the replacement tracker should own the full segment
             assertArrayEquals(new int[]{0, MAX_SEGMENT}, replacementSegment);
         }
@@ -326,8 +426,14 @@ class DefaultTrackingStrategyTest {
         return result;
     }
 
-    private static TestTracker tracker(String consumer, String trackerId, Consumer<MessageBatch> consumerHandler) {
-        return new TestTracker(consumer, trackerId, consumerHandler, s -> true, 1024,
+    private static SerializedMessage message(long index, int segment, String type, int bytes) {
+        SerializedMessage result = message(index, segment, type);
+        result.setData(new Data<>(new byte[bytes], type, 0, "application/octet-stream"));
+        return result;
+    }
+
+    private static TestTracker tracker(String consumer, String trackerId) {
+        return new TestTracker(consumer, trackerId, s -> true, 1024, 0L,
                                System.currentTimeMillis() + 6000, 6000, 0L);
     }
 
@@ -351,7 +457,11 @@ class DefaultTrackingStrategyTest {
         private CountDownLatch signalledCallStarted = new CountDownLatch(0);
 
         TestStrategy(MessageStore source, TaskScheduler scheduler) {
-            super(source, scheduler);
+            this(source, scheduler, mockPositionStore());
+        }
+
+        TestStrategy(MessageStore source, TaskScheduler scheduler, PositionStore positionStore) {
+            super(source, positionStore, scheduler);
         }
 
         @SafeVarargs
@@ -374,7 +484,8 @@ class DefaultTrackingStrategyTest {
         }
 
         @Override
-        protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
+        protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                              Predicate<? super SerializedMessage> filter) {
             int call = batchCalls.incrementAndGet();
             if (call == blockedCall) {
                 blockedCallStarted.countDown();
@@ -385,7 +496,7 @@ class DefaultTrackingStrategyTest {
             }
             List<SerializedMessage> batch = Optional.ofNullable(batches.poll()).orElse(List.of());
             batchesServed.addAll(batch);
-            return batch;
+            return MessageStoreBatch.scan(batch, batchSize, maxBytes, filter);
         }
 
         @Override
@@ -399,20 +510,44 @@ class DefaultTrackingStrategyTest {
 
         BlockingBatchStrategy(MessageStore source, TaskScheduler scheduler, CountDownLatch batchStarted,
                               CountDownLatch releaseBatch) {
-            super(source, scheduler);
+            super(source, mockPositionStore(), scheduler);
             this.batchStarted = batchStarted;
             this.releaseBatch = releaseBatch;
         }
 
         @Override
-        protected List<SerializedMessage> getBatch(int[] segment, Position position, int batchSize) {
+        protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                              Predicate<? super SerializedMessage> filter) {
             batchStarted.countDown();
             await(releaseBatch);
-            return List.of();
+            return MessageStoreBatch.scan(List.of(), batchSize, maxBytes, filter);
         }
 
         @Override
         protected void purgeCeasedTrackers(Duration delay) {
+        }
+    }
+
+    private static class BlockingClaimStrategy extends TestStrategy {
+        private final CountDownLatch firstClaimStarted;
+        private final CountDownLatch releaseFirstClaim;
+        private final AtomicInteger claimCalls = new AtomicInteger();
+
+        BlockingClaimStrategy(MessageStore source, TaskScheduler scheduler, CountDownLatch firstClaimStarted,
+                              CountDownLatch releaseFirstClaim) {
+            super(source, scheduler);
+            this.firstClaimStarted = firstClaimStarted;
+            this.releaseFirstClaim = releaseFirstClaim;
+        }
+
+        @Override
+        protected int[] claimSegmentRange(Tracker tracker) {
+            int[] result = super.claimSegmentRange(tracker);
+            if (claimCalls.incrementAndGet() == 1) {
+                firstClaimStarted.countDown();
+                await(releaseFirstClaim);
+            }
+            return result;
         }
     }
 
@@ -474,38 +609,42 @@ class DefaultTrackingStrategyTest {
     private static class TestTracker implements Tracker {
         private final String consumerName;
         private final String trackerId;
-        private final Consumer<MessageBatch> consumerHandler;
         private final Predicate<String> typeFilter;
         private final int maxSize;
+        private final long maxBytes;
         private final long deadline;
         private final long maxTimeout;
         private final Long lastTrackerIndex;
 
-        TestTracker(String consumerName, String trackerId, Consumer<MessageBatch> consumerHandler,
-                    Predicate<String> typeFilter, int maxSize, long deadline, long maxTimeout,
-                    Long lastTrackerIndex) {
+        TestTracker(String consumerName, String trackerId, Predicate<String> typeFilter, int maxSize, long maxBytes,
+                    long deadline, long maxTimeout, Long lastTrackerIndex) {
             this.consumerName = consumerName;
             this.trackerId = trackerId;
-            this.consumerHandler = consumerHandler;
             this.typeFilter = typeFilter;
             this.maxSize = maxSize;
+            this.maxBytes = maxBytes;
             this.deadline = deadline;
             this.maxTimeout = maxTimeout;
             this.lastTrackerIndex = lastTrackerIndex;
         }
 
         TestTracker withTypeFilter(Predicate<String> typeFilter) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
         TestTracker withDeadline(long deadline) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
         TestTracker withMaxTimeout(long maxTimeout) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, typeFilter, maxSize, maxBytes, deadline,
+                                   maxTimeout, lastTrackerIndex);
+        }
+
+        TestTracker withMaxBytes(long maxBytes) {
+            return new TestTracker(consumerName, trackerId, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 
@@ -532,6 +671,11 @@ class DefaultTrackingStrategyTest {
         @Override
         public int getMaxSize() {
             return maxSize;
+        }
+
+        @Override
+        public long getMaxBytes() {
+            return maxBytes;
         }
 
         @Override
@@ -565,13 +709,8 @@ class DefaultTrackingStrategyTest {
         }
 
         @Override
-        public void send(MessageBatch batch) {
-            consumerHandler.accept(batch);
-        }
-
-        @Override
         public Tracker withLastTrackerIndex(Long lastTrackerIndex) {
-            return new TestTracker(consumerName, trackerId, consumerHandler, typeFilter, maxSize, deadline,
+            return new TestTracker(consumerName, trackerId, typeFilter, maxSize, maxBytes, deadline,
                                    maxTimeout, lastTrackerIndex);
         }
 

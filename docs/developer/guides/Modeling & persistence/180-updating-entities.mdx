@@ -1,0 +1,347 @@
+---
+title: Updating entities
+slug: docs/guides/modeling-and-persistence/updating-entities
+sidebar:
+  order: 180
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Fluxzero models domain state with entities that evolve by applying controlled updates. A group of related entities is
+called an **aggregate** (like an order and its line items). An aggregate is treated as a single unit for data changes.
+
+Entities in an aggregate share a common root. The root is used as the entry point when updates are applied, ensuring that the
+aggregate’s consistency rules are preserved.
+
+## Defining the aggregate
+
+To define the root of an aggregate, annotate it with `@Aggregate`:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Aggregate
+@Builder(toBuilder = true)
+public record UserAccount(@EntityId UserId userId,
+                          UserProfile profile,
+                          boolean accountClosed) {
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Aggregate
+@Builder(toBuilder = true)
+data class UserAccount(
+    @EntityId val userId: UserId,
+    val profile: UserProfile,
+    val accountClosed: Boolean
+)
+```
+
+  </TabItem>
+</Tabs>
+
+This class models an aggregate with fields like `profile` and `accountClosed`.
+
+An **aggregate** is a root entity that groups its state together with any nested child entities (declared via `@Member`).
+ Like all entities, it defines its identity through a unique field annotated with `@EntityId`.
+
+You’ll usually load an aggregate with `Fluxzero.loadAggregate(...)`.
+
+<Aside type="tip">
+Use strongly typed ID classes for better safety and traceability.
+</Aside>
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+class UserId extends Id<UserAccount> {
+    public UserId(String value) {
+        super(value, "user-");
+    }
+}
+
+@Aggregate
+public record UserAccount(@EntityId UserId userId) {
+}
+```
+
+```java
+Entity<UserAccount> user = Fluxzero.loadAggregate(new UserId("1234"));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+class UserId(value: String) : Id<UserAccount>(value, "user-")
+
+@Aggregate
+data class UserAccount(@EntityId val userId: UserId)
+
+val user = Fluxzero.loadAggregate(UserId("1234"))
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Applying updates to entities
+
+Once an aggregate is loaded it can be updated. Here’s a basic example of a command handler applying a `CreateUser` update:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public class UserCommandHandler {
+    @HandleCommand
+    void handle(CreateUser update) {
+        Fluxzero.loadAggregate(update.getUserId()).assertAndApply(update);
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+class UserCommandHandler {
+    @HandleCommand
+    fun handle(update: CreateUser) {
+        Fluxzero.loadAggregate(update.userId).assertAndApply(update)
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This loads the `UserAccount` entity by ID and applies the `CreateUser` payload after validation.
+
+### Entity updates
+
+Here’s an example of two commands that update users (modelled as `UserAccount`) — one to create a user and another to update their profile:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record CreateUser(UserId userId,
+                         UserProfile profile) {
+
+    @AssertLegal
+    void assertNotExists(UserAccount current) {
+        throw new IllegalCommandException("Account already exists");
+    }
+
+    @Apply
+    UserAccount apply() {
+        return new UserAccount(userId, profile, false);
+    }
+}
+```
+
+```java
+public record UpdateProfile(UserId userId,
+                            UserProfile profile) {
+
+    @AssertLegal
+    void assertExists(@Nullable UserAccount current) {
+        if (current == null) {
+            throw new IllegalCommandException("Account not found");
+        }
+    }
+
+    @AssertLegal
+    void assertAccountNotClosed(UserAccount current) {
+        if (current.isAccountClosed()) {
+            throw new IllegalCommandException("Account is closed");
+        }
+    }
+
+    @Apply
+    UserAccount apply(UserAccount current) {
+        return current.toBuilder().profile(profile).build();
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="note">
+Handler method parameters like `UserAccount current` are injected automatically. Use `@Nullable` to indicate optional injection.
+</Aside>
+
+---
+
+## Intercepting and transforming updates
+
+Use `@InterceptApply` to modify or suppress updates *before* validation and application.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@InterceptApply
+Object ignoreNoChange(UserAccount current) {
+    if (current.getProfile().equals(profile)) {
+        return null; // no-op
+    }
+    return this;
+}
+```
+
+```java
+@InterceptApply
+UpdateProfile downgradeCommand(CreateUser command, UserAccount current) {
+    return new UpdateProfile(command.getUserId(), command.getProfile());
+}
+```
+
+```java
+@InterceptApply
+List<CreateTask> expandBulk(BulkCreateTasks bulk) {
+    return bulk.getTasks();
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+Flux recursively applies interceptors until no further transformation is needed.
+</Aside>
+
+---
+
+## Invocation order
+
+Update lifecycle steps:
+
+1. Intercept using `@InterceptApply`
+2. Assert preconditions using `@AssertLegal`
+3. Apply state using `@Apply`
+
+### Return types for interceptors:
+
+| Return value                 | Effect                                 |
+|-----------------------------|----------------------------------------|
+| `null` or `void`            | Suppress update                        |
+| `this`                      | No change                              |
+| New update object           | Rewrite the update                     |
+| Collection / Stream / Optional | Emit multiple updates              |
+
+<Aside type="tip">
+You can avoid storing unchanged updates by setting `eventPublication = IF_MODIFIED` on the aggregate or apply method.
+</Aside>
+
+---
+
+## Summary
+
+| Annotation        | Purpose                                        | Phase        |
+|-------------------|------------------------------------------------|--------------|
+| `@InterceptApply` | Rewrite, suppress, or expand updates           | Pre-check    |
+| `@AssertLegal`    | Validate preconditions                         | Validation   |
+| `@Apply`          | Apply state transformation                     | Execution    |
+
+<Aside type="note">
+  You may notice we don’t define a separate event class here (like <code>UserCreated</code>).
+  In Fluxzero, the same payload often serves as both the command and the published event.
+
+  This has a few advantages:
+  - <strong>No duplication</strong>: you don’t maintain two almost-identical classes.
+  - <strong>Accuracy</strong>: the event log stores exactly what was applied.
+  - <strong>Less drift</strong>: command and event logic stay in sync.
+
+  If you need to enrich or transform the event before publication, you can still do so in <code>@InterceptApply</code>.
+</Aside>
+
+---
+
+## Why keep logic in the updates?
+
+While it’s possible to implement domain logic in entities, it's usually best to keep validation and transformation logic inside update classes (typically commands).
+
+**Advantages of update-based logic:**
+
+- Each update owns its behavior
+- Entities remain focused on holding state
+- Features are easier to isolate and remove
+- Tests are simpler and more targeted
+
+---
+
+## Alternative: logic in the entity
+
+It’s possible to put validation and logic inside the aggregate itself — but this often leads to bloat:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Aggregate
+@Builder(toBuilder = true)
+public record UserAccount(@EntityId UserId userId,
+                          UserProfile profile,
+                          boolean accountClosed) {
+
+    @AssertLegal
+    static void assertNotExists(CreateUser update, @Nullable UserAccount user) {
+        if (user != null) {
+            throw new IllegalCommandException("Account already exists");
+        }
+    }
+
+    @Apply
+    static UserAccount create(CreateUser update) {
+        return new UserAccount(update.getUserId(), update.getProfile(), false);
+    }
+
+    @AssertLegal
+    static void assertExists(UpdateProfile update, @Nullable UserAccount user) {
+        if (user == null) {
+            throw new IllegalCommandException("Account does not exist");
+        }
+    }
+
+    @AssertLegal
+    void assertAccountNotClosed(UpdateProfile update) {
+        if (accountClosed) {
+            throw new IllegalCommandException("Account is closed");
+        }
+    }
+
+    @Apply
+    UserAccount update(UpdateProfile update) {
+        return toBuilder().profile(update.getProfile()).build();
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="caution">
+Embedding all behavior into the aggregate increases coupling and reduces testability. Avoid unless needed.
+</Aside>
+
+---
+
+## Mixing strategies
+
+Fluxzero supports mixing both styles:
+
+- Use @AssertLegal on the update (command)
+- Use @Apply on the entity
+- Or vice versa
+
+That said, keeping logic in the update tends to result in simpler, more testable, and easier-to-maintain code.

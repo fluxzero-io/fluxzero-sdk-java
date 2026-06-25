@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.common;
@@ -22,7 +23,9 @@ import lombok.SneakyThrows;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -81,14 +84,23 @@ public class TestUtils {
         if (propertyKeysAndValues.length %2 != 0) {
             throw new IllegalArgumentException("Expected pairs of keys and values");
         }
+        Map<String, String> previousValues = new HashMap<>();
         try {
             for (int i = 0; i < propertyKeysAndValues.length; i += 2) {
+                if (!previousValues.containsKey(propertyKeysAndValues[i])) {
+                    previousValues.put(propertyKeysAndValues[i], System.getProperty(propertyKeysAndValues[i]));
+                }
                 System.setProperty(propertyKeysAndValues[i], propertyKeysAndValues[i + 1]);
             }
             return callable.call();
         } finally {
             for (int i = 0; i < propertyKeysAndValues.length; i += 2) {
-                System.clearProperty(propertyKeysAndValues[i]);
+                String previousValue = previousValues.get(propertyKeysAndValues[i]);
+                if (previousValue == null) {
+                    System.clearProperty(propertyKeysAndValues[i]);
+                } else {
+                    System.setProperty(propertyKeysAndValues[i], previousValue);
+                }
             }
         }
     }

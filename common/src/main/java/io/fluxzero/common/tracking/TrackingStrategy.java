@@ -14,8 +14,11 @@
 
 package io.fluxzero.common.tracking;
 
+import io.fluxzero.common.api.tracking.MessageBatch;
+
 import java.io.Closeable;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
 /**
@@ -49,14 +52,14 @@ public interface TrackingStrategy extends Closeable {
      * This method is typically invoked by the {@link Tracker} when it is ready to handle more messages. Depending on
      * the strategy, this method may:
      * <ul>
-     *     <li>Fetch messages directly from a {@link MessageStore} and deliver them to the tracker (e.g. for log tailing), or</li>
-     *     <li>Suspend the tracker until messages become available</li>
+     *     <li>Fetch messages directly from a {@link MessageStore} and complete the result (e.g. for log tailing), or</li>
+     *     <li>Suspend the result until messages become available</li>
      * </ul>
      *
-     * @param tracker       the tracker requesting a batch
-     * @param positionStore to fetch or update tracking positions
+     * @param tracker the tracker requesting a batch
+     * @return future completed with the requested batch
      */
-    void getBatch(Tracker tracker, PositionStore positionStore);
+    CompletableFuture<MessageBatch> getBatch(Tracker tracker);
 
     /**
      * Claims one or more message segments for the given tracker.
@@ -64,10 +67,10 @@ public interface TrackingStrategy extends Closeable {
      * This method is invoked when segment-based partitioning is enabled. It ensures that each segment is only claimed
      * by a single tracker at a time and may release conflicting claims if necessary.
      *
-     * @param tracker       the tracker attempting to claim a segment
-     * @param positionStore to fetch tracking positions
+     * @param tracker the tracker attempting to claim a segment
+     * @return future completed with the claimed segment and current position
      */
-    void claimSegment(Tracker tracker, PositionStore positionStore);
+    CompletableFuture<ClaimResult> claimSegment(Tracker tracker);
 
     /**
      * Disconnects trackers that match the provided filter.

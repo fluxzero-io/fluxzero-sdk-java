@@ -95,6 +95,15 @@ public @interface Consumer {
     int maxFetchSize() default 1024;
 
     /**
+     * Maximum serialized payload bytes to fetch in a batch.
+     * <p>
+     * The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits
+     * {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise
+     * {@link ConsumerConfiguration#DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit.
+     */
+    long maxFetchBytes() default ConsumerConfiguration.USE_DEFAULT_MAX_FETCH_BYTES;
+
+    /**
      * Maximum time to wait before fetching a new batch, when none are available. See {@link #durationUnit()} for the
      * time unit. Default is {@code 60} (seconds).
      */
@@ -236,6 +245,33 @@ public @interface Consumer {
      * stored.
      */
     boolean storePositionManually() default false;
+
+    /**
+     * If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.
+     * <p>
+     * The default is {@code false}, matching the historical fire-and-forget behavior: asynchronous results are
+     * published when they complete, while the tracker can continue with the next batch.
+     */
+    boolean awaitAsyncResults() default false;
+
+    /**
+     * If {@code true}, futures returned by fire-and-forget dispatches started during this consumer's batch processing
+     * must complete before the consumer stores its position.
+     * <p>
+     * The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee
+     * before tracker progress is committed without each handler explicitly waiting on the returned future.
+     * Failures while awaiting are handled by this consumer's error handler like other batch processing failures.
+     */
+    boolean awaitSendAndForgetFutures() default true;
+
+    /**
+     * Controls whether handlers assigned to this consumer are invoked in the tracker thread or offloaded to a worker
+     * thread.
+     * <p>
+     * {@link ConsumerHandlingMode#DEFAULT} inherits the message-type default consumer, app-wide default, or versioned
+     * SDK defaults. Existing applications without a defaults version continue to resolve to synchronous handling.
+     */
+    ConsumerHandlingMode handlingMode() default ConsumerHandlingMode.DEFAULT;
 
     /**
      * Determines whether handlers assigned to this consumer are excluded from other consumers.

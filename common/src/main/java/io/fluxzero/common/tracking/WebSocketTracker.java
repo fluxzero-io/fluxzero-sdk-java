@@ -15,15 +15,14 @@
 package io.fluxzero.common.tracking;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.With;
 import lombok.experimental.Accessors;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -31,7 +30,7 @@ import java.util.regex.Pattern;
 import static io.fluxzero.common.ObjectUtils.memoize;
 
 @Getter
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class WebSocketTracker implements Tracker {
     private static final Function<String, Predicate<String>> typeFilterCache = memoize(
             s -> s == null ? __ -> true : Pattern.compile(s).asMatchPredicate());
@@ -45,6 +44,7 @@ public class WebSocketTracker implements Tracker {
     private final long deadline;
     private final Long purgeDelay;
     private final int maxSize;
+    private final long maxBytes;
     private final Predicate<String> typeFilter;
     private final boolean filterMessageTarget;
     @Accessors(fluent = true)
@@ -56,10 +56,7 @@ public class WebSocketTracker implements Tracker {
     @Accessors(fluent = true)
     private final long maxTimeout;
 
-    private final Consumer<MessageBatch> handler;
-
-    public WebSocketTracker(Read read, MessageType messageType, String clientId,
-                            String sessionId, Consumer<MessageBatch> handler) {
+    public WebSocketTracker(Read read, MessageType messageType, String clientId, String sessionId) {
         this.consumerName = read.getConsumer();
         this.messageType = messageType;
         this.clientId = clientId;
@@ -70,17 +67,12 @@ public class WebSocketTracker implements Tracker {
         this.deadline = System.currentTimeMillis() + read.getMaxTimeout();
         this.purgeDelay = read.getPurgeTimeout();
         this.maxSize = read.getMaxSize();
+        this.maxBytes = read.getMaxBytes();
         this.typeFilter = typeFilterCache.apply(read.getTypeFilter());
         this.filterMessageTarget = read.isFilterMessageTarget();
         this.ignoreSegment = read.isIgnoreSegment() || messageType == MessageType.NOTIFICATION;
         this.clientControlledIndex = read.isClientControlledIndex() || messageType == MessageType.NOTIFICATION;
         this.singleTracker = read.isSingleTracker();
-        this.handler = handler;
-    }
-
-    @Override
-    public void send(MessageBatch batch) {
-        handler.accept(batch);
     }
 
     @Override

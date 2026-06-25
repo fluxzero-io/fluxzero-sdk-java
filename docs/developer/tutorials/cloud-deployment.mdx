@@ -1,0 +1,179 @@
+---
+title: Deploying to Fluxzero Cloud
+description: Explanation on how to deploy your Fluxzero project to Fluxzero Cloud.
+sidebar:
+   order: 40
+---
+
+import { Image } from 'astro:assets';
+import {Aside, TabItem, Tabs, Steps} from '@astrojs/starlight/components';
+
+import cloudDashboard from '~/assets/cloud/dashboard-eb.png';
+
+# Fluxzero Cloud
+
+Fluxzero Cloud is the easiest way to run your Fluxzero applications in production. It handles hosting, scaling, observability, and deployments so you can stay focused on building features—not operating infrastructure.
+
+> ⚠️ Fluxzero Cloud is currently in private beta. [Request access](/contact) if you’d like to be part of the early adopters.
+
+If you’ve just completed the Todo App tutorial, you’re ready to deploy to Cloud. The starter project already includes a GitHub Actions workflow, so deployment requires only a few small setup steps.
+
+---
+
+## Deploy using GitHub
+
+To create a cluster and deploy your app, all you need is a Fluxzero API key, a GitHub Actions workflow, and a Dockerfile.
+
+<Steps>
+
+1. Sign in to the Fluxzero Cloud dashboard and create an organization if you haven’t already. Every deployment belongs to an organization.
+
+2. Go to **API Keys** inside your organization and generate a new key. Download the key—GitHub Actions needs it to authenticate.
+
+3. Open your GitHub repository → **Settings → Secrets and variables → Actions**. Create a secret named `FLUXZERO_API_KEY` and paste the full key contents.
+
+4. Ensure your project has a `Dockerfile`. Most Fluxzero apps can use something like:
+
+    ```docker
+    FROM eclipse-temurin:25-jre-alpine
+
+    COPY target/app.jar /
+
+    CMD java -jar /app.jar
+    ```
+
+5. Below is a complete GitHub Actions workflow that builds your app, pushes it to Fluxzero’s container registry, and deploys it to your chosen cluster.
+
+    <Aside type="note">Starter projects created via the Fluxzero CLI already include a GitHub deployment workflow. You can use it as-is or customize it.</Aside>
+
+    ```yaml
+    name: Deploy to Fluxzero Cloud
+
+    on:
+      workflow_dispatch:
+        inputs:
+          cluster-name:
+            description: "Cluster name"
+            required: true
+            default: "Test"
+          application-name:
+            description: "Application name"
+            required: true
+            default: "Sample"
+          image-name:
+            description: "Docker image name"
+            required: true
+            default: "sample"
+
+    jobs:
+      maven-build:
+        name: Build
+        runs-on: ubuntu-latest
+
+        permissions:
+          contents: read
+
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v5
+
+          - name: Setup Java
+            uses: actions/setup-java@v5
+            with:
+              distribution: 'temurin'
+              java-version: '25'
+              cache: 'maven'
+
+          - name: Build with Maven
+            run: mvn -B -T1C package
+
+          - name: Generate Fluxzero JWT
+            id: jwt
+            uses: fluxzero-io/fluxzero-jwt-action@v1
+            with:
+              api-key: ${{ secrets.FLUXZERO_API_KEY }}
+
+          - name: Log in to Fluxzero Container Registry
+            uses: docker/login-action@v3
+            with:
+              registry: registry.fluxzero.io
+              username: ${{ steps.jwt.outputs.userId }}
+              password: ${{ steps.jwt.outputs.token }}
+
+          - name: Extract metadata
+            id: metadata
+            uses: docker/metadata-action@v5
+            with:
+              images: |
+                registry.fluxzero.io/${{ github.event.inputs.image-name }}
+
+          - name: Build and push Docker image
+            uses: docker/build-push-action@v6
+            with:
+              context: .
+              push: true
+              tags: ${{ steps.metadata.outputs.tags }}
+              labels: ${{ steps.metadata.outputs.labels }}
+
+          - name: Deploy to Fluxzero cluster
+            uses: fluxzero-io/fluxzero-deploy-action@v1
+            with:
+              cluster-name: ${{ github.event.inputs.cluster-name }}
+              application-name: ${{ github.event.inputs.application-name }}
+              image-name: ${{ github.event.inputs.image-name }}
+              version: ${{ steps.metadata.outputs.version }}
+              token: ${{ steps.jwt.outputs.token }}
+    ```
+
+    <Aside type="note">
+        You can also deploy via API using the JWT generated during the workflow—useful for Bitbucket, GitLab, or any CI system. An equivalent pipeline works the same way: build → authenticate → push → deploy.
+    </Aside>
+
+</Steps>
+
+---
+
+## Dashboard Preview
+
+Here’s what a typical production cluster looks like in the Cloud dashboard:
+
+<Image src={cloudDashboard} alt="Fluxzero Cloud Dashboard" style="border-radius: 1.5rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);"/>
+
+The dashboard already supports:
+
+- ✅ Organization & cluster management
+- ✅ App deployments and versioning
+- ✅ Secrets and environment variables
+- ✅ Logs, schedules, and web request inspection
+- ✅ Usage metrics and message activity insights
+- ✅ Multi-tenant routing and domain config
+- ✅ User access control and invoicing
+- ✅ Data backups and restores
+
+---
+
+## Accessing your apps
+
+After deployment, your cluster immediately begins serving traffic.
+Each cluster has a default endpoint available at:
+```
+https://api.<cluster-id>.fluxzero.io
+```
+You can configure custom domains from the dashboard.
+
+---
+
+## What’s Coming Next
+
+While many features are already live in the private beta, here’s a quick look at what’s on the way:
+
+- Configure endpoints, routing, and tenants directly from the dashboard
+- Roll back deployments with a single click
+- Auto-scale trackers and applications
+- Common admin queries and commands
+
+These features will roll out soon—your cluster will support them automatically once available.
+
+---
+
+If you have questions or ideas, feel free to [reach out](/contact).

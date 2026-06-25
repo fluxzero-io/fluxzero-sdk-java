@@ -25,6 +25,7 @@ import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.DefaultMemoization;
@@ -42,7 +43,6 @@ import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.HandlerRepository;
-import io.fluxzero.sdk.persisting.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.NamedCache;
@@ -73,6 +73,7 @@ import io.fluxzero.sdk.scheduling.ScheduledCommandHandler;
 import io.fluxzero.sdk.scheduling.SchedulingInterceptor;
 import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
 import io.fluxzero.sdk.tracking.DefaultTracking;
 import io.fluxzero.sdk.tracking.Tracking;
 import io.fluxzero.sdk.tracking.TrackingException;
@@ -124,6 +125,7 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -158,6 +160,9 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.DEFAULT;
+import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
 import static java.lang.Runtime.getRuntime;
 import static java.lang.String.format;
 import static java.util.Arrays.stream;
@@ -260,6 +265,8 @@ public class DefaultFluxzero implements Fluxzero {
     @Accessors(fluent = true)
     public static class Builder implements FluxzeroBuilder {
         private static final String MAX_PUBLICATION_DEPTH_PROPERTY = "fluxzero.maxPublicationDepth";
+        private static final int RELATIONSHIPS_CACHE_MAX_SIZE = 100_000;
+        private static final LocalDate WEBREQUEST_ASYNC_HANDLING_DEFAULTS_VERSION = LocalDate.of(2026, 6, 20);
 
         private Serializer serializer = new JacksonSerializer();
         private Serializer snapshotSerializer = serializer;
@@ -270,6 +277,8 @@ public class DefaultFluxzero implements Fluxzero {
                 stream(MessageType.values()).collect(toMap(identity(), this::getDefaultConsumerConfiguration));
         private final Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> new ArrayList<>()));
+        private Map<MessageType, ConsumerConfiguration> resolvedDefaultConsumerConfigurations;
+        private Map<MessageType, List<ConsumerConfiguration>> resolvedCustomConsumerConfigurations;
         private final List<ParameterResolver<? super DeserializingMessage>> registeredParameterResolvers =
                 new ArrayList<>();
         private List<ParameterResolver<? super DeserializingMessage>> parameterResolvers = List.of();
@@ -291,8 +300,9 @@ public class DefaultFluxzero implements Fluxzero {
                 "FluxzeroTaskScheduler", clock,
                 newWorkerPool("FluxzeroTaskScheduler-worker", 8));
         private ForwardingWebConsumer forwardingWebConsumer;
-        private Cache cache = new DefaultCache();
-        private Cache relationshipsCache = new DefaultCache(100_000);
+        private Cache cache;
+        private boolean cacheConfigured;
+        private Cache relationshipsCache;
         private ResponseMapper defaultResponseMapper = new DefaultResponseMapper();
         private WebResponseMapper webResponseMapper = new DefaultWebResponseMapper();
         private boolean disableErrorReporting;
@@ -307,13 +317,13 @@ public class DefaultFluxzero implements Fluxzero {
         private boolean disableCacheEvictionMetrics;
         private boolean disableWebResponseCompression;
         private boolean disableAdhocDispatchInterceptor;
-        private int maxPublicationDepth = DefaultPropertySource.getInstance()
-                .getInteger(MAX_PUBLICATION_DEPTH_PROPERTY, RecursivePublicationGuard.DEFAULT_MAX_DEPTH);
+        private Integer maxPublicationDepth;
         private boolean makeApplicationInstance;
         private boolean disableKeepalive;
         private UserProvider userProvider = UserProvider.defaultUserProvider;
         private IdentityProvider identityProvider = IdentityProvider.defaultIdentityProvider;
         private PropertySource propertySource = DefaultPropertySource.getInstance();
+        private ConsumerHandlingMode defaultConsumerHandlingMode = DEFAULT;
         private HostMetricsConfiguration hostMetricsConfiguration;
 
         @Override
@@ -369,6 +379,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder replacePropertySource(UnaryOperator<PropertySource> replacer) {
             propertySource = replacer.apply(propertySource);
+            resetResolvedConsumerConfigurations();
             return this;
         }
 
@@ -378,7 +389,42 @@ public class DefaultFluxzero implements Fluxzero {
             ConsumerConfiguration defaultConfiguration = defaultConsumerConfigurations.get(messageType);
             ConsumerConfiguration updatedConfiguration = updateFunction.apply(defaultConfiguration);
             defaultConsumerConfigurations.put(messageType, updatedConfiguration);
+            resetResolvedConsumerConfigurations();
             return this;
+        }
+
+        @Override
+        public FluxzeroBuilder configureDefaultConsumerHandlingMode(@NonNull ConsumerHandlingMode handlingMode) {
+            return configureDefaultConsumerHandlingMode(handlingMode, new MessageType[0]);
+        }
+
+        @Override
+        public FluxzeroBuilder configureDefaultConsumerHandlingMode(
+                @NonNull ConsumerHandlingMode handlingMode, MessageType... messageTypes) {
+            if (messageTypes == null || messageTypes.length == 0) {
+                this.defaultConsumerHandlingMode = handlingMode;
+            } else {
+                for (MessageType messageType : messageTypes) {
+                    Objects.requireNonNull(messageType, "messageType");
+                    configureDefaultConsumer(messageType, c -> c.toBuilder().handlingMode(handlingMode).build());
+                }
+            }
+            resetResolvedConsumerConfigurations();
+            return this;
+        }
+
+        @Override
+        public Map<MessageType, ConsumerConfiguration> defaultConsumerConfigurations() {
+            return resolvedDefaultConsumerConfigurations == null
+                    ? defaultConsumerConfigurations
+                    : resolvedDefaultConsumerConfigurations;
+        }
+
+        @Override
+        public Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations() {
+            return resolvedCustomConsumerConfigurations == null
+                    ? customConsumerConfigurations
+                    : resolvedCustomConsumerConfigurations;
         }
 
         @Override
@@ -396,7 +442,13 @@ public class DefaultFluxzero implements Fluxzero {
                 }
                 configurations.add(configuration);
             }
+            resetResolvedConsumerConfigurations();
             return this;
+        }
+
+        private void resetResolvedConsumerConfigurations() {
+            resolvedDefaultConsumerConfigurations = null;
+            resolvedCustomConsumerConfigurations = null;
         }
 
         @Override
@@ -462,6 +514,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public FluxzeroBuilder replaceCache(@NonNull Cache cache) {
             this.cache = cache;
+            this.cacheConfigured = true;
             return this;
         }
 
@@ -494,24 +547,25 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache) {
-            this.cache = new SelectiveCache(cache, SelectiveCache.aggregateSelector(aggregateType), this.cache);
+            this.cache = new SelectiveCache(cache, SelectiveCache.aggregateSelector(aggregateType), initialCache());
+            this.cacheConfigured = true;
             return this;
         }
 
         @Override
         public FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction) {
-            relationshipsCache = replaceFunction.apply(relationshipsCache);
+            relationshipsCache = replaceFunction.apply(initialRelationshipsCache());
             return this;
         }
 
         @Override
         public Cache cache() {
-            return cache;
+            return initialCache();
         }
 
         @Override
         public Cache relationshipsCache() {
-            return relationshipsCache;
+            return initialRelationshipsCache();
         }
 
         @Override
@@ -606,6 +660,14 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public int maxPublicationDepth() {
+            return maxPublicationDepth == null
+                    ? propertySource.getInteger(
+                            MAX_PUBLICATION_DEPTH_PROPERTY, RecursivePublicationGuard.DEFAULT_MAX_DEPTH)
+                    : maxPublicationDepth;
+        }
+
+        @Override
         public FluxzeroBuilder makeApplicationInstance(boolean makeApplicationInstance) {
             this.makeApplicationInstance = makeApplicationInstance;
             return this;
@@ -628,21 +690,39 @@ public class DefaultFluxzero implements Fluxzero {
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }
-            Cache cache = this.cache.isEmpty() ? this.cache : this.cache.rebuild();
-            Cache relationshipsCache = this.relationshipsCache.isEmpty() ? this.relationshipsCache : this.relationshipsCache.rebuild();
+            Cache configuredCache = resolveCache();
+            Cache cache = configuredCache.isEmpty() ? configuredCache : configuredCache.rebuild();
+            Cache configuredRelationshipsCache = initialRelationshipsCache();
+            Cache relationshipsCache = configuredRelationshipsCache.isEmpty()
+                    ? configuredRelationshipsCache : configuredRelationshipsCache.rebuild();
             Map<MessageType, DispatchInterceptor> dispatchChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> DispatchInterceptor.noOp));
             Map<MessageType, HandlerDecorator> handlerChains =
                     Arrays.stream(MessageType.values()).collect(toMap(identity(), m -> HandlerDecorator.noOp));
-            Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
-                    this.customConsumerConfigurations.entrySet().stream()
-                            .collect(toMap(Entry::getKey, e -> new ArrayList<>(e.getValue())));
-            Map<MessageType, List<ConsumerConfiguration>> defaultConsumerConfigurations =
+            ConsumerHandlingMode appDefaultHandlingMode = resolvedAppDefaultConsumerHandlingMode();
+            Map<MessageType, ConsumerConfiguration> resolvedDefaultConsumerTemplates =
                     this.defaultConsumerConfigurations.entrySet().stream().collect(toMap(
+                            Entry::getKey,
+                            e -> resolveDefaultConsumerHandlingMode(e.getKey(), e.getValue(),
+                                                                    appDefaultHandlingMode)));
+            Map<MessageType, List<ConsumerConfiguration>> customConsumerConfigurations =
+                    this.customConsumerConfigurations.entrySet().stream().collect(toMap(
+                            Entry::getKey,
+                            e -> new ArrayList<>(e.getValue().stream()
+                                                         .map(config -> resolveConsumerHandlingMode(
+                                                                 config,
+                                                                 resolvedDefaultConsumerTemplates.get(e.getKey())
+                                                                         .getHandlingMode()))
+                                                         .toList())));
+            Map<MessageType, List<ConsumerConfiguration>> defaultConsumerConfigurations =
+                    resolvedDefaultConsumerTemplates.entrySet().stream().collect(toMap(
                             Entry::getKey,
                             e -> List.of(e.getValue().toBuilder()
                                                   .name(String.format("%s_%s", client.name(), e.getValue().getName()))
                                                   .build())));
+            resolvedDefaultConsumerConfigurations = Map.copyOf(resolvedDefaultConsumerTemplates);
+            resolvedCustomConsumerConfigurations = customConsumerConfigurations.entrySet().stream().collect(toMap(
+                    Entry::getKey, e -> List.copyOf(e.getValue())));
             Map<MessageType, List<BatchInterceptor>> internalBatchInterceptors = new HashMap<>();
 
             KeyValueStore keyValueStore = new DefaultKeyValueStore(client.getKeyValueClient(), serializer);
@@ -759,9 +839,10 @@ public class DefaultFluxzero implements Fluxzero {
                                                                              (t, i) -> adhocInterceptor.andThen(i)));
             }
 
-            if (maxPublicationDepth >= 0) {
+            int resolvedMaxPublicationDepth = maxPublicationDepth();
+            if (resolvedMaxPublicationDepth >= 0) {
                 RecursivePublicationGuard recursivePublicationGuard =
-                        new RecursivePublicationGuard(maxPublicationDepth);
+                        new RecursivePublicationGuard(resolvedMaxPublicationDepth);
                 Stream.of(COMMAND, EVENT, QUERY, WEBREQUEST, CUSTOM).forEach(
                         messageType -> dispatchChains.computeIfPresent(
                                 messageType, (t, i) -> i.andThen(recursivePublicationGuard)));
@@ -982,6 +1063,27 @@ public class DefaultFluxzero implements Fluxzero {
             return fluxzero;
         }
 
+        private Cache resolveCache() {
+            if (cacheConfigured) {
+                return cache;
+            }
+            return initialCache();
+        }
+
+        private Cache initialCache() {
+            if (cache == null) {
+                cache = new DefaultCache(propertySource);
+            }
+            return cache;
+        }
+
+        private Cache initialRelationshipsCache() {
+            if (relationshipsCache == null) {
+                relationshipsCache = new DefaultCache(propertySource, RELATIONSHIPS_CACHE_MAX_SIZE);
+            }
+            return relationshipsCache;
+        }
+
         protected Fluxzero doBuild(Map<MessageType, ? extends Tracking> trackingSupplier,
                                    Function<String, ? extends GenericGateway> customGatewaySupplier,
                                    CommandGateway commandGateway, QueryGateway queryGateway,
@@ -1013,6 +1115,52 @@ public class DefaultFluxzero implements Fluxzero {
                     .ignoreSegment(messageType == NOTIFICATION)
                     .clientControlledIndex(messageType == NOTIFICATION)
                     .build();
+        }
+
+        private ConsumerHandlingMode resolvedAppDefaultConsumerHandlingMode() {
+            if (defaultConsumerHandlingMode != DEFAULT) {
+                return defaultConsumerHandlingMode;
+            }
+            String configuredMode = propertySource.get(ConsumerConfiguration.DEFAULT_HANDLING_MODE_PROPERTY);
+            return configuredMode == null || configuredMode.isBlank()
+                    ? DEFAULT
+                    : ConsumerHandlingMode.parse(configuredMode);
+        }
+
+        private ConsumerConfiguration resolveDefaultConsumerHandlingMode(
+                MessageType messageType, ConsumerConfiguration configuration, ConsumerHandlingMode appDefaultMode) {
+            ConsumerHandlingMode messageTypeDefaultMode = configuredDefaultConsumerHandlingMode(messageType);
+            ConsumerHandlingMode fallbackMode = messageTypeDefaultMode != DEFAULT ? messageTypeDefaultMode
+                    : appDefaultMode != DEFAULT ? appDefaultMode
+                    : sdkDefaultConsumerHandlingMode(messageType);
+            return resolveConsumerHandlingMode(configuration, fallbackMode);
+        }
+
+        private ConsumerHandlingMode configuredDefaultConsumerHandlingMode(MessageType messageType) {
+            String configuredMode = propertySource.get(ConsumerConfiguration.defaultHandlingModeProperty(messageType));
+            if (configuredMode == null || configuredMode.isBlank()) {
+                configuredMode = propertySource.get(
+                        ConsumerConfiguration.DEFAULT_HANDLING_MODE_BY_MESSAGE_TYPE_PROPERTY_PREFIX
+                        + messageType.name());
+            }
+            return configuredMode == null || configuredMode.isBlank()
+                    ? DEFAULT
+                    : ConsumerHandlingMode.parse(configuredMode);
+        }
+
+        private ConsumerHandlingMode sdkDefaultConsumerHandlingMode(MessageType messageType) {
+            if (messageType == WEBREQUEST && ApplicationProperties.defaultsVersionAtLeast(
+                    propertySource, WEBREQUEST_ASYNC_HANDLING_DEFAULTS_VERSION)) {
+                return ASYNC;
+            }
+            return SYNC;
+        }
+
+        private static ConsumerConfiguration resolveConsumerHandlingMode(
+                ConsumerConfiguration configuration, ConsumerHandlingMode fallbackMode) {
+            return configuration.getHandlingMode() == DEFAULT
+                    ? configuration.toBuilder().handlingMode(fallbackMode).build()
+                    : configuration;
         }
 
         protected GenericGateway createRequestGateway(Client client, MessageType messageType,

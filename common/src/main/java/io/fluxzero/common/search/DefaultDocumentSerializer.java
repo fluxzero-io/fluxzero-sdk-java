@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.fluxzero.common.search;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.search.Document.Entry;
 import io.fluxzero.common.search.Document.Path;
-import io.fluxzero.common.serialization.compression.CompressionUtils;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import lombok.SneakyThrows;
 import org.msgpack.core.MessageBufferPacker;
 import org.msgpack.core.MessagePack;
@@ -30,9 +30,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static io.fluxzero.common.serialization.compression.CompressionUtils.compress;
-import static io.fluxzero.common.serialization.compression.CompressionUtils.decompress;
 
 /**
  * Default serializer for {@link Document} instances in the Fluxzero Runtime.
@@ -52,8 +49,8 @@ import static io.fluxzero.common.serialization.compression.CompressionUtils.deco
  * </ul>
  *
  * <p>
- * Compression is applied to the final byte output using {@link CompressionUtils} and marked with the format {@code document}
- * via {@link Data#DOCUMENT_FORMAT}.
+ * Compression is applied to the final byte output using {@link CompressionAlgorithm#LZ4} and marked with the format
+ * {@code document} via {@link Data#DOCUMENT_FORMAT}.
  *
  * @see Document
  * @see Data
@@ -86,7 +83,9 @@ public enum DefaultDocumentSerializer {
                     packer.packString(key.getValue());
                 }
             }
-            return new Data<>(compress(packer.toByteArray()), document.getType(), document.getRevision(), Data.DOCUMENT_FORMAT);
+            return new Data<>(
+                    CompressionAlgorithm.LZ4.compress(packer.toByteArray()),
+                    document.getType(), document.getRevision(), Data.DOCUMENT_FORMAT);
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not serialize document", e);
         }
@@ -104,7 +103,8 @@ public enum DefaultDocumentSerializer {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
-        try (MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(decompress(document.getValue()))) {
+        try (MessageUnpacker unpacker =
+                     MessagePack.newDefaultUnpacker(CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);

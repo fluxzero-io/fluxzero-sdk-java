@@ -31,6 +31,8 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -63,9 +65,17 @@ import static io.fluxzero.common.reflection.ReflectionUtils.isNullable;
 public class EntityParameterResolver implements PreparedParameterResolver<Object> {
 
     private final boolean checkCompatibility;
+    private static final Object NO_ENTITY = new Object();
 
     public EntityParameterResolver() {
         this(true);
+    }
+
+    /**
+     * Marker for handler-selection contexts where an {@link Entity} parameter should only be matched from message
+     * metadata. Actual entity loading is deferred until an invoker is created for a concrete handler instance.
+     */
+    public interface DeferredMessageEntityResolution {
     }
 
     @Override
@@ -106,11 +116,20 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object input) {
+        if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
+            return canMatchFromMessageMetadata(parameter, message);
+        }
         return matches(parameter, getMatchingEntity(input, parameter));
     }
 
     @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object input) {
+        if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
+            if (canMatchFromMessageMetadata(parameter, message)) {
+                return ignored -> null;
+            }
+            return null;
+        }
         Entity<?> entity = getMatchingEntity(input, parameter);
         if (!matches(parameter, entity)) {
             return null;
@@ -142,17 +161,14 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                 if (!isCompatibleAggregateParameter(parameter, type)) {
                     return null;
                 }
-                return Fluxzero.getOptionally()
-                        .map(fc -> loadAggregate(aggregateId, type))
-                        .filter(e -> isAssignable(parameter, e))
-                        .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
-                        .orElse(null);
+                Entity<?> entity = loadAggregate(input, aggregateId, type);
+                return entity != null && isAssignable(parameter, entity)
+                       && (entity.isPresent() || entity.sequenceNumber() > -1L) ? entity : null;
             }
             if (type != null && (Entity.class.isAssignableFrom(parameter.getType())
                                  || parameter.getType().isAssignableFrom(type))) {
                 return message.computeRoutingKey()
-                        .flatMap(possibleEntityId -> Fluxzero.getOptionally()
-                                .map(fc -> Fluxzero.loadEntity(possibleEntityId)))
+                        .map(possibleEntityId -> loadEntity(input, possibleEntityId))
                         .filter(e -> isAssignable(parameter, e))
                         .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
                         .orElse(null);
@@ -162,8 +178,39 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
+    Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
         return Fluxzero.loadAggregate(aggregateId, (Class) aggregateType);
+    }
+
+    private Entity<?> loadAggregate(Object input, String aggregateId, Class<?> aggregateType) {
+        return cachedEntity(input, new EntityCacheKey("aggregate", aggregateId, aggregateType),
+                            () -> Fluxzero.getOptionally()
+                                    .map(fc -> loadAggregate(aggregateId, aggregateType)).orElse(null));
+    }
+
+    private Entity<?> loadEntity(Object input, String entityId) {
+        return cachedEntity(input, new EntityCacheKey("entity", entityId, null),
+                            () -> Fluxzero.getOptionally()
+                                    .map(fc -> Fluxzero.loadEntity(entityId)).orElse(null));
+    }
+
+    private Entity<?> cachedEntity(Object input, EntityCacheKey key, Supplier<Entity<?>> loader) {
+        if (input instanceof DeserializingMessage message && DeserializingMessage.getCurrent() == message) {
+            return message.computeContextIfAbsent(EntityResolutionCache.class, ignored -> new EntityResolutionCache())
+                    .get(key, loader);
+        }
+        return loader.get();
+    }
+
+    private boolean canMatchFromMessageMetadata(Parameter parameter, HasMessage message) {
+        Class<?> aggregateType = Entity.getAggregateType(message);
+        String aggregateId = Entity.getAggregateId(message);
+        if (aggregateId != null) {
+            return isCompatibleAggregateParameter(parameter, aggregateType);
+        }
+        return aggregateType != null && (Entity.class.isAssignableFrom(parameter.getType())
+                                         || parameter.getType().isAssignableFrom(aggregateType))
+               && message.computeRoutingKey().isPresent();
     }
 
     private boolean isCompatibleAggregateParameter(Parameter parameter, Class<?> aggregateType) {
@@ -256,5 +303,20 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     @Override
     public boolean determinesSpecificity() {
         return true;
+    }
+
+    private record EntityCacheKey(String source, String id, Class<?> type) {
+    }
+
+    private static class EntityResolutionCache {
+        private final Map<EntityCacheKey, Object> entities = new ConcurrentHashMap<>();
+
+        Entity<?> get(EntityCacheKey key, Supplier<Entity<?>> loader) {
+            Object result = entities.computeIfAbsent(key, ignored -> {
+                Entity<?> entity = loader.get();
+                return entity == null ? NO_ENTITY : entity;
+            });
+            return result == NO_ENTITY ? null : (Entity<?>) result;
+        }
     }
 }

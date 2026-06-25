@@ -20,6 +20,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -37,6 +38,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.SCHEDULE;
@@ -149,6 +151,19 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         long maximumIndex = maxIndexFromMillis(clock.millis());
         return scheduleIdsByIndex.tailMap(Optional.ofNullable(minIndex).orElse(-1L), inclusive).keySet().stream()
                 .filter(aLong -> aLong <= maximumIndex).map(this::getMessage).limit(maxSize).toList();
+    }
+
+    @Override
+    public synchronized MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                                    Predicate<? super SerializedMessage> filter) {
+        long maximumIndex = maxIndexFromMillis(clock.millis());
+        Iterable<SerializedMessage> messages = () -> scheduleIdsByIndex
+                .tailMap(Optional.ofNullable(minIndex).orElse(-1L), inclusive)
+                .keySet().stream()
+                .filter(index -> index <= maximumIndex)
+                .map(this::getMessage)
+                .iterator();
+        return MessageStoreBatch.scan(messages, maxSize, maxBytes, filter);
     }
 
     public synchronized void setClock(@NonNull Clock clock) {

@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,7 +81,7 @@ public class StaticFileHandler implements Closeable {
         return webPaths.stream()
                 .map(webPath -> new StaticFileHandler(
                         webPath, serveStatic.resourcePath(), serveStatic.fallbackFile(), ignorePaths,
-                        immutableFileExtensions, serveStatic.maxAgeSeconds())).toList();
+                        immutableFileExtensions, serveStatic.maxAgeSeconds(), serveStatic.cleanUrls())).toList();
     }
 
     public static boolean isHandler(Class<?> targetClass) {
@@ -99,6 +100,7 @@ public class StaticFileHandler implements Closeable {
     private final Set<String> ignorePaths;
     private final Set<String> immutableCandidateExtensions;
     private final long maxAgeSeconds;
+    private final boolean cleanUrls;
 
     public StaticFileHandler() {
         this("static");
@@ -123,15 +125,29 @@ public class StaticFileHandler implements Closeable {
 
     public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
                              Set<String> ignorePaths, Set<String> immutableCandidateExtensions, long maxAgeSeconds) {
+        this(webRoot, resourceBasePath, fallbackFile, ignorePaths, immutableCandidateExtensions, maxAgeSeconds, true);
+    }
+
+    public StaticFileHandler(String webRoot, String resourceBasePath, @Nullable String fallbackFile,
+                             Set<String> ignorePaths, Set<String> immutableCandidateExtensions, long maxAgeSeconds,
+                             boolean cleanUrls) {
         this(webRoot, Optional.ofNullable(getFileSystemUri(resourceBasePath)).map(Paths::get).orElse(null),
              getResourceBaseUri(resourceBasePath), fallbackFile, ignorePaths, immutableCandidateExtensions,
-             maxAgeSeconds);
+             maxAgeSeconds, cleanUrls);
     }
 
     public StaticFileHandler(@NonNull String webRoot, @Nullable Path fsBaseDirectory, @Nullable URI resourceBaseUri,
                              @Nullable String fallbackFile, Set<String> ignorePaths,
                              Set<String> immutableCandidateExtensions,
                              long maxAgeSeconds) {
+        this(webRoot, fsBaseDirectory, resourceBaseUri, fallbackFile, ignorePaths, immutableCandidateExtensions,
+             maxAgeSeconds, true);
+    }
+
+    public StaticFileHandler(@NonNull String webRoot, @Nullable Path fsBaseDirectory, @Nullable URI resourceBaseUri,
+                             @Nullable String fallbackFile, Set<String> ignorePaths,
+                             Set<String> immutableCandidateExtensions,
+                             long maxAgeSeconds, boolean cleanUrls) {
         if (fallbackFile != null) {
             if (fallbackFile.isBlank()) {
                 fallbackFile = null;
@@ -153,6 +169,7 @@ public class StaticFileHandler implements Closeable {
         this.ignorePaths = ignorePaths;
         this.immutableCandidateExtensions = immutableCandidateExtensions;
         this.maxAgeSeconds = maxAgeSeconds;
+        this.cleanUrls = cleanUrls;
     }
 
     @HandleGet({"/{filePath:.+}*", "", "/"})
@@ -264,18 +281,33 @@ public class StaticFileHandler implements Closeable {
     }
 
     private Path resolveSecurePath(String requestedPath) {
-        if (requestedPath == null || requestedPath.isBlank()
-            || requestedPath.contains("..") || requestedPath.contains("~") || requestedPath.contains("\\")) {
-            if (fallbackFile != null) {
-                return resolveSecurePath(fallbackFile);
-            }
-            return null;
+        if (isUnsafeRequestedPath(requestedPath)) {
+            return resolveFallbackPath(requestedPath);
         }
 
+        for (String candidatePath : getCandidatePaths(requestedPath, cleanUrls)) {
+            Path resolvedPath = resolveExistingPath(candidatePath);
+            if (resolvedPath != null) {
+                return resolvedPath;
+            }
+        }
+
+        // Try fallback file if configured
+        return resolveFallbackPath(requestedPath);
+    }
+
+    private static boolean isUnsafeRequestedPath(String requestedPath) {
+        if (requestedPath == null || requestedPath.isBlank() || requestedPath.contains("\\")) {
+            return true;
+        }
+        return Arrays.stream(requestedPath.split("/")).anyMatch(".."::equals);
+    }
+
+    private Path resolveExistingPath(String requestedPath) {
         // 1. Try file system first
         if (fsBaseDirectory != null) {
             Path fsPath = fsBaseDirectory.resolve(requestedPath).normalize();
-            if (Files.exists(fsPath) && fsPath.startsWith(fsBaseDirectory)) {
+            if (isExistingFile(fsPath) && fsPath.startsWith(fsBaseDirectory)) {
                 return fsPath;
             }
         }
@@ -295,7 +327,7 @@ public class StaticFileHandler implements Closeable {
                     if (resourceUrl != null) {
                         try {
                             resourcePath = Paths.get(resourceUrl.toURI());
-                            if (Files.exists(resourcePath)) {
+                            if (isExistingFile(resourcePath)) {
                                 return resourcePath;
                             }
                         } catch (Exception e) {
@@ -314,13 +346,13 @@ public class StaticFileHandler implements Closeable {
                         }
                     });
                     resourcePath = fs.provider().getPath(resourceUri);
-                    if (Files.exists(resourcePath)) {
+                    if (isExistingFile(resourcePath)) {
                         return resourcePath;
                     }
                 } else {
                     // Normal file URL or fallback
                     resourcePath = Paths.get(resourceUri);
-                    if (Files.exists(resourcePath)) {
+                    if (isExistingFile(resourcePath)) {
                         return resourcePath;
                     }
                 }
@@ -330,11 +362,40 @@ public class StaticFileHandler implements Closeable {
             }
         }
 
-        // 3. Try fallback file if configured
-        if (fallbackFile != null && !Objects.equals(requestedPath, fallbackFile)) {
-            return resolveSecurePath(fallbackFile);
-        }
+        return null;
+    }
 
+    private static List<String> getCandidatePaths(String requestedPath, boolean cleanUrls) {
+        List<String> candidatePaths = new ArrayList<>();
+        candidatePaths.add(requestedPath);
+        if (cleanUrls && !hasFileExtension(requestedPath)) {
+            String cleanPath = stripTrailingSlash(requestedPath);
+            if (!cleanPath.isBlank()) {
+                candidatePaths.add(cleanPath + ".html");
+                candidatePaths.add(cleanPath + "/index.html");
+            }
+        }
+        return candidatePaths;
+    }
+
+    private static String stripTrailingSlash(String path) {
+        return path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+    }
+
+    private static boolean hasFileExtension(String path) {
+        int lastSlash = path.lastIndexOf('/');
+        int lastDot = path.lastIndexOf('.');
+        return lastDot > lastSlash && lastDot < path.length() - 1;
+    }
+
+    private static boolean isExistingFile(Path path) {
+        return Files.exists(path) && Files.isRegularFile(path);
+    }
+
+    private Path resolveFallbackPath(String requestedPath) {
+        if (fallbackFile != null && !Objects.equals(requestedPath, fallbackFile)) {
+            return resolveExistingPath(fallbackFile);
+        }
         return null;
     }
 

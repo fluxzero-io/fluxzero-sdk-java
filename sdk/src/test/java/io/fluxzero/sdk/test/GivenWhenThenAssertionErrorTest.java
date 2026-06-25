@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.test;
@@ -159,20 +160,11 @@ class GivenWhenThenAssertionErrorTest {
     }
 
     private static void withMavenProperty(String value, Runnable action) {
-        String previous = System.getProperty("fluxzero.maven.enabled");
         try {
-            if (value == null) {
-                System.clearProperty("fluxzero.maven.enabled");
-            } else {
-                System.setProperty("fluxzero.maven.enabled", value);
-            }
+            GivenWhenThenAssertionError.useVerboseAssertions(value == null ? false : Boolean.valueOf(value));
             action.run();
         } finally {
-            if (previous == null) {
-                System.clearProperty("fluxzero.maven.enabled");
-            } else {
-                System.setProperty("fluxzero.maven.enabled", previous);
-            }
+            GivenWhenThenAssertionError.useVerboseAssertions(null);
         }
     }
 

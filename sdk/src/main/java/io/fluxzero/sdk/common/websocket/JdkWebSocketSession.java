@@ -10,6 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
 package io.fluxzero.sdk.common.websocket;
@@ -31,6 +32,8 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
 
@@ -50,6 +53,7 @@ class JdkWebSocketSession implements WebsocketSession {
      * CompletableFuture to complete. Slow network completion should not make the monitor itself a throughput bottleneck.
      */
     private final Object sendInitiationLock = new Object();
+    private CompletableFuture<Void> sendTail = CompletableFuture.completedFuture(null);
     private volatile ByteArrayOutputStream binaryMessage = new ByteArrayOutputStream();
     private volatile WebSocket webSocket;
 
@@ -108,10 +112,24 @@ class JdkWebSocketSession implements WebsocketSession {
 
     @Override
     public void sendBinary(ByteBuffer data) throws IOException {
+        await(sendBinaryAsync(data), 0);
+    }
+
+    @Override
+    public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data) {
+        return sendBinaryAsync(data, 0);
+    }
+
+    @Override
+    public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
         if (!isOpen()) {
-            throw new ClosedChannelException();
+            return CompletableFuture.failedFuture(new ClosedChannelException());
         }
-        await(sendBinary(copyBuffer(data), true), 0);
+        ByteBuffer message = data.slice();
+        if (maxFragmentBytes <= 0 || message.remaining() <= maxFragmentBytes) {
+            return sendBinary(message, true);
+        }
+        return sendBinaryFragments(message, maxFragmentBytes);
     }
 
     @Override
@@ -119,7 +137,7 @@ class JdkWebSocketSession implements WebsocketSession {
         if (!isOpen()) {
             throw new ClosedChannelException();
         }
-        await(sendPingFrame(copyBuffer(applicationData)), 0);
+        await(sendPingFrame(applicationData.slice()), 0);
     }
 
     @Override
@@ -153,28 +171,75 @@ class JdkWebSocketSession implements WebsocketSession {
         notifyClose(closeReason);
     }
 
-    private CompletableFuture<WebSocket> sendClose(WebSocket webSocket, WebsocketCloseReason closeReason) {
-        synchronized (sendInitiationLock) {
-            return webSocket.sendClose(closeReason.code(), closeReason.reason());
+    void abortConnecting() {
+        closeNotified.set(true);
+        open.set(false);
+        WebSocket webSocket = this.webSocket;
+        if (webSocket != null) {
+            webSocket.abort();
         }
+        connector.removeOpenSession(this);
+        openFuture.completeExceptionally(new ClosedChannelException());
+    }
+
+    private CompletableFuture<WebSocket> sendClose(WebSocket webSocket, WebsocketCloseReason closeReason) {
+        return sendFrame(() -> webSocket.sendClose(closeReason.code(), closeReason.reason()))
+                .thenApply(ignored -> webSocket);
     }
 
     private CompletableFuture<Void> sendBinary(ByteBuffer data, boolean last) {
+        return sendFrame(() -> requireWebSocket().sendBinary(data, last));
+    }
+
+    private CompletableFuture<Void> sendBinaryFragments(ByteBuffer data, int maxFragmentBytes) {
         synchronized (sendInitiationLock) {
-            return requireWebSocket().sendBinary(data, last).thenApply(ignored -> null);
+            CompletableFuture<Void> result = sendTail.handle((ignored, error) -> null);
+            ByteBuffer remaining = data.slice();
+            while (remaining.hasRemaining()) {
+                ByteBuffer fragment = nextFragment(remaining, maxFragmentBytes);
+                boolean last = !remaining.hasRemaining();
+                result = result.thenCompose(ignored -> {
+                    try {
+                        return requireWebSocket().sendBinary(fragment, last).thenApply(frame -> null);
+                    } catch (Throwable e) {
+                        return CompletableFuture.failedFuture(e);
+                    }
+                });
+            }
+            sendTail = result;
+            return result;
         }
     }
 
     private CompletableFuture<Void> sendPingFrame(ByteBuffer data) {
-        synchronized (sendInitiationLock) {
-            return requireWebSocket().sendPing(data).thenApply(ignored -> null);
-        }
+        return sendFrame(() -> requireWebSocket().sendPing(data));
     }
 
     private CompletableFuture<Void> sendPong(ByteBuffer data) {
+        return sendFrame(() -> requireWebSocket().sendPong(data));
+    }
+
+    private CompletableFuture<Void> sendFrame(Supplier<CompletableFuture<?>> sender) {
         synchronized (sendInitiationLock) {
-            return requireWebSocket().sendPong(data).thenApply(ignored -> null);
+            CompletableFuture<Void> result = sendTail.handle((ignored, error) -> null)
+                    .thenCompose(ignored -> {
+                        try {
+                            return sender.get().thenApply(frame -> null);
+                        } catch (Throwable e) {
+                            return CompletableFuture.failedFuture(e);
+                        }
+                    });
+            sendTail = result;
+            return result;
         }
+    }
+
+    private static ByteBuffer nextFragment(ByteBuffer source, int maxFragmentBytes) {
+        int length = Math.min(source.remaining(), maxFragmentBytes);
+        ByteBuffer fragment = source.slice();
+        fragment.limit(length);
+        source.position(source.position() + length);
+        return fragment;
     }
 
     private WebSocket requireWebSocket() {
@@ -183,6 +248,10 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private void notifyOpen(WebSocket webSocket) {
+        if (closeNotified.get()) {
+            webSocket.abort();
+            return;
+        }
         this.webSocket = webSocket;
         open.set(true);
         connector.addOpenSession(this);
@@ -228,9 +297,17 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private void handleBinary(ByteBuffer message, boolean last) {
+        handleBinary(message, last, null);
+    }
+
+    private void handleBinary(ByteBuffer message, boolean last, WebsocketEndpoint.ReceiveTiming receiveTiming) {
         byte[] bytes = appendBinary(message, last);
         if (bytes != null) {
-            endpoint.onMessage(bytes, this);
+            if (receiveTiming == null) {
+                endpoint.onMessage(bytes, this);
+            } else {
+                endpoint.onMessage(bytes, this, receiveTiming);
+            }
         }
     }
 
@@ -239,8 +316,11 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     private byte[] appendBinary(ByteBuffer message, boolean last) {
-        byte[] fragment = copyBytes(message);
         synchronized (binaryMessageLock) {
+            if (last && binaryMessage.size() == 0) {
+                return copyBytes(message);
+            }
+            byte[] fragment = copyBytes(message);
             try {
                 binaryMessage.write(fragment);
             } catch (IOException e) {
@@ -277,6 +357,9 @@ class JdkWebSocketSession implements WebsocketSession {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while sending websocket frame", e);
         } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException ioException) {
+                throw ioException;
+            }
             throw new IOException("Failed to send websocket frame", e.getCause());
         } catch (TimeoutException e) {
             throw new IOException("Timed out while sending websocket frame", e);
@@ -289,6 +372,25 @@ class JdkWebSocketSession implements WebsocketSession {
             callbackExecutor.execute(() -> {
                 try {
                     task.run();
+                    result.complete(null);
+                } catch (Throwable e) {
+                    result.completeExceptionally(e);
+                    throw e;
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            result.completeExceptionally(e);
+            notifyError(e);
+        }
+        return result;
+    }
+
+    private CompletableFuture<Void> dispatchCallback(LongConsumer task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            callbackExecutor.execute(() -> {
+                try {
+                    task.accept(System.currentTimeMillis());
                     result.complete(null);
                 } catch (Throwable e) {
                     result.completeExceptionally(e);
@@ -314,15 +416,29 @@ class JdkWebSocketSession implements WebsocketSession {
     private class Listener implements WebSocket.Listener {
         @Override
         public void onOpen(WebSocket webSocket) {
-            dispatchCallback(() -> notifyOpen(webSocket))
-                    .exceptionally(e -> {
-                        handleOpenDispatchFailure(webSocket, e);
-                        return null;
-                    });
+            try {
+                notifyOpen(webSocket);
+            } catch (Throwable e) {
+                handleOpenDispatchFailure(webSocket, e);
+            }
         }
 
         @Override
         public CompletableFuture<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
+            if (endpoint.captureReceiveTiming()) {
+                long frameReceivedTimestamp = System.currentTimeMillis();
+                long frameDispatchQueuedTimestamp = System.currentTimeMillis();
+                return dispatchCallback(frameDispatchStartedTimestamp -> {
+                    try {
+                        handleBinary(data, last, new WebsocketEndpoint.ReceiveTiming(
+                                frameReceivedTimestamp, frameDispatchQueuedTimestamp, frameDispatchStartedTimestamp));
+                    } catch (Throwable e) {
+                        notifyError(e);
+                    } finally {
+                        requestNext(webSocket);
+                    }
+                });
+            }
             return dispatchCallback(() -> {
                 try {
                     handleBinary(data, last);

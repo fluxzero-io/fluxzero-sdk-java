@@ -16,12 +16,12 @@ package io.fluxzero.sdk.tracking.metrics;
 
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.RuntimeLifecycleEvent;
-import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import org.junit.jupiter.api.Test;
 
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STARTED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class RuntimeLifecycleEventTest {
 
@@ -38,19 +38,7 @@ class RuntimeLifecycleEventTest {
     }
 
     @Test
-    void eventDeserializesThroughJsonTypeDiscriminator() {
-        JsonType result = JsonUtils.fromJson(
-                """
-                        {
-                          "@type": "runtimeLifecycleEvent",
-                          "phase": "STARTED",
-                          "runtime": "FluxzeroTestServer",
-                          "runtimeVersion": "1.2.3",
-                          "port": 8888,
-                          "timestamp": 123
-                        }
-                        """, JsonType.class);
-
-        assertEquals(new RuntimeLifecycleEvent(STARTED, "FluxzeroTestServer", "1.2.3", 8888, 123L), result);
+    void eventIsPlainMetricsPayload() {
+        assertFalse(JsonType.class.isAssignableFrom(RuntimeLifecycleEvent.class));
     }
 }

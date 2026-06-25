@@ -14,7 +14,6 @@
 
 package io.fluxzero.common.tracking;
 
-import io.fluxzero.common.api.tracking.MessageBatch;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Builder.Default;
@@ -23,7 +22,6 @@ import lombok.With;
 import lombok.experimental.Accessors;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 
 @Value
 @AllArgsConstructor
@@ -32,17 +30,12 @@ public class SimpleTracker implements Tracker {
     String consumerName;
     @Default
     int maxSize = 1024;
-    Consumer<MessageBatch> handler;
     @Accessors(fluent = true)
     long maxTimeout = 6000;
     long deadline = System.currentTimeMillis() + maxTimeout;
     @With
     @Default
     Long lastTrackerIndex = 0L;
-
-    public SimpleTracker(String consumerName, int maxSize, Consumer<MessageBatch> handler) {
-        this(consumerName, maxSize, handler, 0L);
-    }
 
     @Override
     public boolean ignoreSegment() {
@@ -67,11 +60,6 @@ public class SimpleTracker implements Tracker {
     @Override
     public Long getPurgeDelay() {
         return null;
-    }
-
-    @Override
-    public void send(MessageBatch batch) {
-        handler.accept(batch);
     }
 
     @Override

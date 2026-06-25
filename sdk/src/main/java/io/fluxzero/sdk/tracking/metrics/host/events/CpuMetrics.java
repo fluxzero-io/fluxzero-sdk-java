@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.metrics.host.events;
 
-import io.fluxzero.common.api.JsonType;
 import lombok.Builder;
 import lombok.Value;
 
@@ -24,7 +23,7 @@ import lombok.Value;
  */
 @Value
 @Builder
-public class CpuMetrics implements JsonType {
+public class CpuMetrics {
 
     /**
      * The CPU usage of this JVM process as a value between 0.0 and 1.0.

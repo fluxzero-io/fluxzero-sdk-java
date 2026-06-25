@@ -30,12 +30,18 @@ A **Consumer** is a logical group of message handlers that process messages from
 Annotate your handler class or `package-info.java` with `@Consumer` to define processing behavior:
 
 - **threads**: The number of concurrent trackers (threads) assigned to this consumer.
+- **maxFetchBytes**: The serialized payload byte limit per fetch. The default is 104857600 bytes (100 MiB); set
+  `fluxzero.tracking.maxFetchBytes` to change the global default, omit the value or set `maxFetchBytes = -1` to inherit
+  it, or set `maxFetchBytes = 0` to disable the byte limit for a specific consumer.
 - **singleTracker = true**: Ensures strict global ordering by assigning all segments to a single thread.
 - **ignoreSegment = true**: Used for custom sharding or global processing where segment-based ordering is not required.
     - **Client-side filtering**: Combine this with `@RoutingKey("propertyX")` on the handler method to perform filtering
       based on the message's routing key or metadata.
     - **Stateful Sagas**: For `@Stateful` handlers, the saga's ID is used automatically for load balancing and
       filtering; `@RoutingKey` is not required.
+- **awaitSendAndForgetFutures = true**: Default behavior. Fire-and-forget sends started during batch processing are
+  awaited before the consumer stores its position; disable this when those sends may complete independently. Failures
+  while awaiting are handled by the consumer's `errorHandler`.
 
 > Multiple handlers can share the same `@Consumer(name=...)`. This means they will share the same tracker
 > threads and be processed in strict order if they share segments.
@@ -176,7 +182,7 @@ adding an **Upcaster**), you may need to rebuild your document collection.
 
 @Consumer(name = "rebuild-orders-v2", minIndex = 0)
 public class OrderRebuilder {
-    @HandleDocument(OrderDocument.class)
+    @HandleDocument
     OrderDocument onOrder(OrderDocument doc) {
         // Returning the document triggers an update in the store
         return doc;

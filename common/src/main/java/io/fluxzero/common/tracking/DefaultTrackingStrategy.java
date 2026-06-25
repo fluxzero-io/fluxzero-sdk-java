@@ -31,9 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
@@ -61,9 +63,11 @@ import static java.util.Optional.ofNullable;
 public class DefaultTrackingStrategy implements TrackingStrategy {
 
     private final MessageStore source;
+    private final PositionStore positionStore;
     private final TaskScheduler scheduler;
     private final int segments;
     private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Tracker, TrackerRequest<?>> openRequests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
     private final AtomicBoolean updateNotificationPending = new AtomicBoolean();
     private final AtomicBoolean updateNotificationRunning = new AtomicBoolean();
@@ -73,18 +77,20 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     private volatile boolean stopped;
 
-    public DefaultTrackingStrategy(MessageStore source) {
-        this(source, new InMemoryTaskScheduler(
+    public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore) {
+        this(source, positionStore, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
                 newWorkerPool("tracking-worker-%s".formatted(source), 8)));
     }
 
-    public DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler) {
-        this(source, scheduler, MAX_SEGMENT);
+    public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler) {
+        this(source, positionStore, scheduler, MAX_SEGMENT);
     }
 
-    protected DefaultTrackingStrategy(MessageStore source, TaskScheduler scheduler, int segments) {
+    protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
+                                      int segments) {
         this.source = source;
+        this.positionStore = positionStore;
         this.scheduler = scheduler;
         this.segments = segments;
         sourceRegistration = source.registerMonitor(this::onUpdate);
@@ -92,33 +98,47 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     @Override
-    public void getBatch(Tracker tracker, PositionStore positionStore) {
+    public CompletableFuture<MessageBatch> getBatch(Tracker tracker) {
+        TrackerRequest<MessageBatch> request = openRequest(tracker, Function.identity());
+        getBatch(tracker, request);
+        return request.future();
+    }
+
+    protected void getBatch(Tracker tracker, TrackerRequest<MessageBatch> request) {
         TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
-        int[] newSegment = claimSegment(tracker);
+        if (request.isDone()) {
+            return;
+        }
+        int[] newSegment = claimSegmentRange(tracker);
+        if (request.isDone()) {
+            disconnectClosedRequest(tracker, request);
+            return;
+        }
         try {
             if (newSegment[0] == newSegment[1]) {
                 waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                                positionStore);
+                                request);
                 return;
             }
             int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
 
             long updateVersion = updateNotificationVersion.get();
-            List<SerializedMessage> unfiltered, filtered;
+            MessageStoreBatch batch;
             Position position;
             do {
-                position = position(tracker, positionStore, newSegment);
-                unfiltered = getBatch(newSegment, position, batchSize);
-                filtered = filter(unfiltered, newSegment, position, tracker);
+                position = position(tracker, newSegment);
+                batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
+                                  filterPredicate(newSegment, position, tracker));
 
-                if (!unfiltered.isEmpty() && filtered.isEmpty()) {
-                    long batchIndex = unfiltered.getLast().getIndex();
+                if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
+                    long batchIndex = batch.lastScannedIndex();
 
                     if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxTimeout())) {
                         //if the index is old, send back an empty batch.
                         // Prevents rushing through potentially billions of messages
-                        MessageBatch emptyBatch = new MessageBatch(newSegment, filtered, batchIndex, position, false);
-                        tracker.send(emptyBatch);
+                        MessageBatch emptyBatch =
+                                new MessageBatch(newSegment, batch.messages(), batchIndex, position, false);
+                        completeRequest(tracker, request, emptyBatch);
                         return;
                     } else {
                         //update stored position and tracker, otherwise client may stay endlessly waiting
@@ -126,27 +146,29 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                         tracker = tracker.withLastTrackerIndex(batchIndex);
                     }
                 }
-            } while (!unfiltered.isEmpty() && filtered.isEmpty() && !tracker.hasMissedDeadline());
+            } while (batch.scannedSize() > 0 && batch.messages().isEmpty() && !tracker.hasMissedDeadline());
 
-            if (filtered.isEmpty()) {
+            if (batch.messages().isEmpty()) {
                 MessageBatch messageBatch =
-                        new MessageBatch(newSegment, filtered, getLastIndex(unfiltered), position, true);
-                waitForMessages(tracker, messageBatch, positionStore);
+                        new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
+                waitForMessages(tracker, messageBatch, request);
                 if (updateVersion < updateNotificationVersion.get()) {
                     var task = waitingTrackers.get(tracker);
-                    if (task != null && task.tracker == tracker) {
+                    if (task != null && task.tracker == tracker && task.request == request) {
                         task.run();
                     }
                 }
             } else {
-                MessageBatch messageBatch = new MessageBatch(newSegment, filtered, getLastIndex(unfiltered), position,
-                                                             unfiltered.size() < batchSize);
-                tracker.send(messageBatch);
+                MessageBatch messageBatch = new MessageBatch(
+                        newSegment, batch.messages(),
+                        batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex(), position,
+                        !batch.byteLimited() && batch.scannedSize() < batchSize);
+                completeRequest(tracker, request, messageBatch);
             }
         } catch (Throwable e) {
             log.error("Failed to get a batch for tracker {}", tracker, e);
             waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), false),
-                            positionStore);
+                            request);
         } finally {
             if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
                 onClusterUpdate(oldCluster);
@@ -155,14 +177,28 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     @Override
-    public void claimSegment(Tracker tracker, PositionStore positionStore) {
-        int[] newSegment = claimSegment(tracker);
+    public CompletableFuture<ClaimResult> claimSegment(Tracker tracker) {
+        TrackerRequest<ClaimResult> request = openRequest(
+                tracker, batch -> new ClaimResult(batch.getPosition(), batch.getSegment()));
+        claimSegment(tracker, request);
+        return request.future();
+    }
+
+    protected void claimSegment(Tracker tracker, TrackerRequest<ClaimResult> request) {
+        if (request.isDone()) {
+            return;
+        }
+        int[] newSegment = claimSegmentRange(tracker);
+        if (request.isDone()) {
+            disconnectClosedRequest(tracker, request);
+            return;
+        }
         if (newSegment[0] == newSegment[1]) {
             waitForUpdate(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                          () -> claimSegment(tracker, positionStore));
+                          () -> claimSegment(tracker, request), request);
         } else {
-            tracker.send(new MessageBatch(newSegment, emptyList(), null,
-                                          position(tracker, positionStore, newSegment), true));
+            completeRequest(tracker, request, new MessageBatch(newSegment, emptyList(), null,
+                                                               position(tracker, newSegment), true));
         }
     }
 
@@ -170,13 +206,31 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         return source.getBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize);
     }
 
-    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, PositionStore positionStore) {
-        waitForUpdate(tracker, emptyBatch, () -> getBatch(tracker, positionStore));
+    protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                          Predicate<? super SerializedMessage> filter) {
+        return source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes,
+                                filter);
+    }
+
+    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch) {
+        waitForMessages(tracker, emptyBatch, currentOrOpenRequest(tracker));
+    }
+
+    protected void waitForMessages(Tracker tracker, MessageBatch emptyBatch, TrackerRequest<MessageBatch> request) {
+        waitForUpdate(tracker, emptyBatch, () -> getBatch(tracker, request), request);
     }
 
     protected void waitForUpdate(Tracker tracker, MessageBatch emptyBatch, Runnable followUp) {
+        waitForUpdate(tracker, emptyBatch, followUp, currentOrOpenRequest(tracker));
+    }
+
+    protected void waitForUpdate(Tracker tracker, MessageBatch emptyBatch, Runnable followUp,
+                                 TrackerRequest<?> request) {
+        if (request.isDone()) {
+            return;
+        }
         if (tracker.hasMissedDeadline()) {
-            tracker.send(emptyBatch);
+            completeRequest(tracker, request, emptyBatch);
             return;
         }
         var trackerCluster = clusters.computeIfPresent(tracker.getConsumerName(),
@@ -184,26 +238,28 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
         if (trackerCluster == null || !trackerCluster.contains(tracker)) {
             // this tracker has already been removed from the cluster
+            cancelRequest(tracker, request);
             return;
         }
 
         Registration scheduleToken = scheduler.schedule(tracker.getDeadline(), () -> {
-            if (removeWaitingTracker(tracker) != null) {
+            if (removeWaitingTracker(tracker) != null && !request.isDone()) {
                 clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
                         ? cluster.withActiveTracker(tracker) : cluster);
-                tracker.send(emptyBatch);
+                completeRequest(tracker, request, emptyBatch);
             }
         });
         WaitingTracker existing = waitingTrackers.put(
-                tracker, new WaitingTracker(tracker, scheduleToken, followUp, updateNotificationVersion.get()));
+                tracker, new WaitingTracker(tracker, request, scheduleToken, followUp,
+                                            updateNotificationVersion.get()));
         if (existing != null) {
             log.warn("Tracker replaced another waiting tracker. This should normally not happen. New tracker: {}",
                      tracker);
-            existing.tracker.send(emptyBatch);
+            completeRequest(existing.tracker, existing.request, emptyBatch);
         }
     }
 
-    protected Position position(Tracker tracker, PositionStore positionStore, int[] segment) {
+    protected Position position(Tracker tracker, int[] segment) {
         if (tracker.clientControlledIndex()) {
             return new Position(segment, ofNullable(tracker.getLastTrackerIndex())
                     .orElseGet(() -> indexFromMillis(currentTimeMillis() - 1000L)));
@@ -224,10 +280,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     protected List<SerializedMessage> filter(List<SerializedMessage> messages, int[] segmentRange,
                                              Position position, Tracker tracker) {
         List<SerializedMessage> result = null;
+        Predicate<SerializedMessage> predicate = filterPredicate(segmentRange, position, tracker);
         for (int i = 0; i < messages.size(); i++) {
-            SerializedMessage message = ensureMessageSegment(messages.get(i));
-            if (tracker.canHandle(message, segmentRange)
-                && (tracker.ignoreSegment() || position.isNewMessage(message))) {
+            SerializedMessage message = messages.get(i);
+            if (predicate.test(message)) {
                 if (result == null) {
                     result = new ArrayList<>(messages.size() - i);
                 }
@@ -235,6 +291,14 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             }
         }
         return result == null ? emptyList() : result;
+    }
+
+    protected Predicate<SerializedMessage> filterPredicate(int[] segmentRange, Position position, Tracker tracker) {
+        return message -> {
+            SerializedMessage segmentedMessage = ensureMessageSegment(message);
+            return tracker.canHandle(segmentedMessage, segmentRange)
+                   && (tracker.ignoreSegment() || position.isNewMessage(segmentedMessage));
+        };
     }
 
     protected SerializedMessage ensureMessageSegment(SerializedMessage message) {
@@ -248,7 +312,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 .map(cluster -> cluster.getTrackers().size() * maxSize).orElse(maxSize);
     }
 
-    protected int[] claimSegment(Tracker tracker) {
+    protected int[] claimSegmentRange(Tracker tracker) {
         TrackerCluster cluster = clusters.compute(tracker.getConsumerName(), (p, c) -> ofNullable(c)
                 .orElseGet(() -> new TrackerCluster(segments)).withActiveTracker(tracker));
         return cluster.getSegment(tracker);
@@ -278,37 +342,27 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         Set<Tracker> removed = new HashSet<>();
         Set<Tracker> removedAndWaiting = new HashSet<>();
         Set<TrackerCluster> updatedClusters = new HashSet<>();
-        try {
-            waitingTrackers.forEach((tracker, waitingTracker) -> {
-                if ((predicate.test(tracker) || predicate.test(waitingTracker.tracker))
-                    && waitingTrackers.remove(tracker, waitingTracker)) {
-                    removedAndWaiting.add(waitingTracker.tracker);
-                }
-            });
-            clusters.replaceAll((key, cluster) -> {
-                var updatedCluster = cluster.purgeTrackers(predicate);
-                if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
-                    updatedClusters.add(updatedCluster);
-                }
-                var removedTrackers = new HashSet<>(cluster.getTrackers());
-                removedTrackers.removeAll(updatedCluster.getTrackers());
-                removed.addAll(removedTrackers);
-                return updatedCluster;
-            });
-            clusters.values().removeIf(TrackerCluster::isEmpty);
-            updatedClusters.forEach(this::onClusterUpdate);
-            return removed;
-        } finally {
-            if (sendFinalEmptyBatch) {
-                removedAndWaiting.forEach(tracker -> {
-                    try {
-                        tracker.send(new MessageBatch(new int[]{0, 0}, emptyList(), null, newPosition(), true));
-                    } catch (Exception e) {
-                        log.error("Failed to send final empty batch to disconnecting tracker: {}", predicate, e);
-                    }
-                });
+        closeOpenRequests(predicate, sendFinalEmptyBatch);
+        waitingTrackers.forEach((tracker, waitingTracker) -> {
+            if ((predicate.test(tracker) || predicate.test(waitingTracker.tracker))
+                && waitingTrackers.remove(tracker, waitingTracker)) {
+                removedAndWaiting.add(waitingTracker.tracker);
             }
-        }
+        });
+        clusters.replaceAll((key, cluster) -> {
+            var updatedCluster = cluster.purgeTrackers(predicate);
+            if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
+                updatedClusters.add(updatedCluster);
+            }
+            var removedTrackers = new HashSet<>(cluster.getTrackers());
+            removedTrackers.removeAll(updatedCluster.getTrackers());
+            removed.addAll(removedTrackers);
+            return updatedCluster;
+        });
+        clusters.values().removeIf(TrackerCluster::isEmpty);
+        updatedClusters.forEach(this::onClusterUpdate);
+        closeOpenRequests(t -> removed.contains(t) || removedAndWaiting.contains(t), sendFinalEmptyBatch);
+        return removed;
     }
 
     protected void purgeCeasedTrackers(Duration delay) {
@@ -369,6 +423,62 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
+    private TrackerRequest<MessageBatch> currentOrOpenRequest(Tracker tracker) {
+        TrackerRequest<?> request = openRequests.get(tracker);
+        return request == null ? openRequest(tracker, Function.identity()) : (TrackerRequest<MessageBatch>) request;
+    }
+
+    private <T> TrackerRequest<T> openRequest(Tracker tracker, Function<MessageBatch, T> mapper) {
+        TrackerRequest<T> result = new TrackerRequest<>(mapper);
+        TrackerRequest<?> existing = openRequests.put(tracker, result);
+        if (existing != null) {
+            existing.markReplaced();
+            completeRequest(tracker, existing, finalEmptyBatch());
+        }
+        return result;
+    }
+
+    private void disconnectClosedRequest(Tracker tracker, TrackerRequest<?> request) {
+        if (!request.isReplaced()) {
+            disconnectTrackers(tracker::equals, false);
+        }
+    }
+
+    private boolean completeRequest(Tracker tracker, TrackerRequest<?> result, MessageBatch batch) {
+        boolean completed = result.complete(batch);
+        if (completed) {
+            openRequests.remove(tracker, result);
+        }
+        return completed;
+    }
+
+    private void cancelRequest(Tracker tracker, TrackerRequest<?> result) {
+        result.cancel();
+        openRequests.remove(tracker, result);
+    }
+
+    private void closeOpenRequests(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch) {
+        MessageBatch finalBatch = finalEmptyBatch();
+        openRequests.forEach((tracker, result) -> {
+            if (predicate.test(tracker)) {
+                try {
+                    if (sendFinalEmptyBatch) {
+                        completeRequest(tracker, result, finalBatch);
+                    } else {
+                        cancelRequest(tracker, result);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to close disconnecting tracker request: {}", tracker, e);
+                }
+            }
+        });
+    }
+
+    private static MessageBatch finalEmptyBatch() {
+        return new MessageBatch(new int[]{0, 0}, emptyList(), null, newPosition(), true);
+    }
+
     private static long indexFromMillis(long millisSinceEpoch) {
         return millisSinceEpoch << 16;
     }
@@ -381,9 +491,44 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         source.close();
     }
 
+    protected static class TrackerRequest<T> {
+        private final CompletableFuture<T> result = new CompletableFuture<>();
+        private final Function<MessageBatch, T> mapper;
+        private volatile boolean replaced;
+
+        protected TrackerRequest(Function<MessageBatch, T> mapper) {
+            this.mapper = mapper;
+        }
+
+        protected CompletableFuture<T> future() {
+            return result;
+        }
+
+        protected boolean isDone() {
+            return result.isDone();
+        }
+
+        protected boolean isReplaced() {
+            return replaced;
+        }
+
+        private void markReplaced() {
+            replaced = true;
+        }
+
+        private boolean complete(MessageBatch batch) {
+            return result.complete(mapper.apply(batch));
+        }
+
+        private void cancel() {
+            result.cancel(false);
+        }
+    }
+
     @AllArgsConstructor
     protected class WaitingTracker implements Runnable {
         private final Tracker tracker;
+        private final TrackerRequest<?> request;
         private final Registration scheduleToken;
         private final Runnable followUp;
         private final long waitingFromUpdateNotificationVersion;
@@ -392,7 +537,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         public void run() {
             try {
                 scheduleToken.cancel();
-                if (waitingTrackers.remove(tracker, this)) {
+                if (waitingTrackers.remove(tracker, this) && !request.isDone()) {
                     followUp.run();
                 }
             } catch (Throwable e) {

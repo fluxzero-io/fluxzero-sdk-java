@@ -24,6 +24,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
+import jakarta.annotation.Nullable;
 
 import java.beans.Transient;
 import java.time.Instant;
@@ -151,6 +152,7 @@ public interface Entity<T> {
      * @param message the message containing metadata from which the aggregate type is retrieved
      * @return the aggregate type as a {@code Class<?>}, or {@code null} if the metadata key is not present
      */
+    @Nullable
     static Class<?> getAggregateType(HasMetadata message) {
         return Optional.ofNullable(message.getMetadata().get(AGGREGATE_TYPE_METADATA_KEY))
                 .map(c -> ReflectionUtils.classForName(c, null)).orElse(null);
@@ -586,7 +588,8 @@ public interface Entity<T> {
 
     /**
      * Retrieves an entity based on the provided entity ID. The entity can be matched either by its primary ID or by any
-     * of its aliases.
+     * of its aliases. If an alias matches another entity's primary ID, the entity that owns the alias property is
+     * returned.
      *
      * @param entityId the ID or alias of the entity to search for; if null, an empty {@code Optional} is returned
      * @param <C>      the type parameter representing the content or payload of the entity
@@ -599,9 +602,14 @@ public interface Entity<T> {
             return Optional.empty();
         }
         String entityIdString = entityId.toString();
-        return allEntities().filter(
-                e -> e.id() != null && (e.id().toString().equals(entityIdString) || e.aliases().stream().anyMatch(
-                        a -> a != null && a.toString().equals(entityIdString)))).findFirst().map(e -> (Entity<C>) e);
+        List<Entity<?>> entities = allEntities().toList();
+        return entities.stream()
+                .filter(e -> e.aliases().stream().anyMatch(a -> a != null && a.toString().equals(entityIdString)))
+                .findFirst()
+                .or(() -> entities.stream()
+                        .filter(e -> e.id() != null && e.id().toString().equals(entityIdString))
+                        .findFirst())
+                .map(e -> (Entity<C>) e);
     }
 
     /**

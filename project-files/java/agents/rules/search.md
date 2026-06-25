@@ -17,6 +17,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
     - [Temporal Filters (since, inLast)](#temporal-filters)
     - [Logical Grouping (All, Any, Not)](#logical-grouping)
 - [Pagination & Sorting](#pagination-sorting)
+- [Async Search Operations](#async-search)
 - [Consistency & The Window](#consistency)
 - [Document Retention](#retention)
 - [Facet Statistics](#facet-stats)
@@ -170,15 +171,53 @@ Fluxzero supports efficient pagination and sorting.
 
 ---
 
+<a name="async-search"></a>
+
+## Async Search Operations
+
+When a handler can return a `CompletableFuture`, prefer the async search methods instead of blocking on synchronous
+search calls. Return the future directly; do not call `.join()` inside the handler unless the handler truly needs the
+value before doing more work.
+
+- **fetchAsync(int)** / **fetchAsync(int, Class<T>)**: Asynchronous equivalent of `fetch(...)`.
+- **countAsync()**: Asynchronous equivalent of `count()`.
+- **aggregateAsync(fields...)**: Asynchronous equivalent of `aggregate(...)`.
+- **groupBy(paths...).aggregateAsync(fields...)**: Asynchronous grouped aggregation.
+- **facetStatsAsync()**: Asynchronous equivalent of `facetStats()`.
+
+[//]: # (@formatter:off)
+```java
+@HandleQuery
+CompletableFuture<List<Project>> handle(SearchProjects query) {
+    return Fluxzero.search(Project.class)
+        .lookAhead(query.term(), "name")
+        .fetchAsync(50, Project.class);
+}
+
+@HandleQuery
+CompletableFuture<List<FacetStats>> handle(ProjectFacetQuery query) {
+    return Fluxzero.search(Project.class)
+        .match("ACTIVE", "status")
+        .facetStatsAsync();
+}
+```
+[//]: # (@formatter:on)
+
+---
+
 <a name="consistency"></a>
 
 ## Consistency & The Window
 
 Fluxzero search is **eventually consistent**.
 
-- **The Consistency Window**: When you send a command, the aggregate state is updated immediately (consistent), but the search index update happens asynchronously. There is usually a few-millisecond delay before the document is searchable.
-- **Guarantee**: `sendCommandAndWait` ensures the command was handled, but does NOT guarantee the search index is
-  up-to-date. Agents MUST NOT assume immediate search consistency after command handling.
+- **The Consistency Window**: When you send a command, aggregate state is updated first and indexing may follow
+  asynchronously. For direct searchable aggregate updates, handler results now wait for asynchronous after-handler
+  aggregate commits by default, so `sendCommandAndWait` followed by a query often sees the updated aggregate/search
+  document.
+- **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
+  effect, such as in an event handler or projection handler. In that case, wait for the projection's own completion
+  signal or return the needed state from the command handler.
 - **UI Tip**: For immediate feedback, return the new state directly from the command handler or use WebSockets to notify the UI when the projection is ready.
 
 ---

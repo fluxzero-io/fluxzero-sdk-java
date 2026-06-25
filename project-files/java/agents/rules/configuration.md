@@ -163,6 +163,9 @@ Use advanced toggles conservatively:
 
 - Disabling correlation/metrics/protection can affect diagnostics, observability, or security assumptions.
 - Prefer default behavior unless the user explicitly asks for a different operational profile.
+- `fluxzero.tracking.maxFetchBytes` changes the default serialized payload byte limit per consumer fetch. Use bytes,
+  for example `104857600` for 100 MiB; omit a consumer's `maxFetchBytes` or set it to `-1` to inherit that default,
+  and set it to `0` only when an unbounded fetch is intentional.
 
 ---
 

@@ -1,0 +1,175 @@
+---
+title: User-based content filtering
+slug: docs/guides/data-control-and-serialization/user-based-content-filtering
+sidebar:
+   order: 260
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
+
+Fluxzero provides a flexible way to redact or tailor object content per user using the `@FilterContent`
+annotation.
+
+This enables domain models or documents to define exactly what is visible to different users, based on roles, ownership,
+or context.
+
+---
+
+## Basic example
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @FilterContent
+    Order filter(User user) {
+        return user.hasRole(Role.admin) ? this : new Order(maskSensitiveFieldsOnly());
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @FilterContent
+    fun filter(user: User): Order {
+        return if (user.hasRole(Role.admin)) this else Order(maskSensitiveFieldsOnly())
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+To invoke filtering:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Order filtered = Fluxzero.filterContent(order, currentUser);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val filtered: Order = Fluxzero.filterContent(order, currentUser)
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Recursive filtering
+
+Filtering applies recursively to fields and nested objects.
+If a nested item is a list, map, or complex structure, it will also be filtered using its own `@FilterContent` method if present.
+
+If a nested object returns `null` from filtering:
+
+- It is removed from a list
+- It is excluded from a map
+
+---
+
+## Root context injection
+
+Filtering methods can optionally accept both:
+
+- The current `User`
+- The root object being filtered
+
+This is useful for making decisions based on global context.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @FilterContent
+    LineItem filter(User user, Order root) {
+        return root.isOwner(user) ? this : null;
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @FilterContent
+    fun filter(user: User, root: Order): LineItem? {
+        return if (root.isOwner(user)) this else null
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Manual filtering
+
+Developers can explicitly apply filtering by calling `Fluxzero.filterContent(object, user)` when they want precise control over when and how filtering occurs.
+
+This is useful when you want to:
+- Filter only part of a response
+- Aggregate or transform data before filtering
+- Perform filtering outside of handler contexts
+
+For example, you may want to manually filter a document before returning it from a method:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    public Optional<Order> getFilteredOrder(User user, OrderId orderId) {
+        Optional<Order> order = Fluxzero.getDocument(orderId, "orders");
+        return Fluxzero.filterContent(order, user);
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    fun getFilteredOrder(user: User, orderId: OrderId): Order? {
+        val order = Fluxzero.getDocument(orderId, "orders")
+        return Fluxzero.filterContent(order, user)
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Automatic filtering
+
+Filtering can be triggered automatically for request results when `@FilterContent` is also applied to the handler method, its class, or its package (or parent package).
+
+This eliminates the need to call `Fluxzero.filterContent(...)` manually in many cases.
+
+- **Method level:** filters results of a specific handler method
+- **Type level:** filters results of all handler methods in a class
+- **Package level:** filters results of all handler methods in a package or subpackage
+
+For example, you can annotate a query handler so that all results it returns are automatically filtered based on the current user.
+
+<Tabs>
+  <TabItem label="Java">
+```java
+    public record GetOrder(OrderId orderId) implements Request<Order> {
+        @HandleQuery
+        @FilterContent
+        public Optional<Order> handle() {
+            return Fluxzero.getDocument(orderId, "orders");
+        }
+    }
+```
+  </TabItem>
+  <TabItem label="Kotlin">
+```kotlin
+    data class GetOrder(val orderId: OrderId) : Request<Order?> {
+        @HandleQuery
+        @FilterContent
+        fun handle(): Order? {
+            return Fluxzero.getDocument(orderId, "orders")
+        }
+    }
+```
+  </TabItem>
+</Tabs>
+
+Explicit filtering remains available for finer-grained control.
+
+---
+
+<Aside type="tip">
+Apply filtering just before exposing data to end users (for example in API responses or UI views).
+This ensures your models remain complete internally while still protecting or tailoring output safely.
+</Aside>

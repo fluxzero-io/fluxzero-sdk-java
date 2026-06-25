@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.persisting.caching;
 
+import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.caching.CacheEviction;
 import lombok.Value;
 
 /**

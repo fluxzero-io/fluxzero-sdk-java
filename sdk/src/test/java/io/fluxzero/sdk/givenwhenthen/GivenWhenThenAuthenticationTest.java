@@ -209,11 +209,11 @@ public class GivenWhenThenAuthenticationTest {
     }
 
     @Test
-    void testWebRequestWithoutUserDoesNotUseActiveUserDuringInvocation() {
+    void testWebRequestWithoutUserUsesActiveUserDuringInvocation() {
         TestFixture.create(DefaultFluxzero.builder().registerUserProvider(new ActiveOnlyUserProvider()),
                            new CurrentUserEndpoint())
                 .whenPost("/current-user", "payload")
-                .expectWebResponse(r -> r.getStatus() == 200 && "none".equals(r.getPayload()));
+                .expectWebResponse(r -> r.getStatus() == 200 && "true/true".equals(r.getPayload()));
     }
 
     @Test
@@ -315,9 +315,10 @@ public class GivenWhenThenAuthenticationTest {
 
     private static class CurrentUserEndpoint {
         @HandlePost("/current-user")
-        String currentUser(String ignored) {
+        String currentUser(String ignored, User injectedUser) {
             User user = User.getCurrent();
-            return user == null ? "none" : user.getName();
+            return (user != null && user.hasRole("active")) + "/"
+                   + (injectedUser != null && injectedUser.hasRole("active"));
         }
     }
 

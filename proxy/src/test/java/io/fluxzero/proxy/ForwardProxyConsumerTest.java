@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
-import io.fluxzero.common.serialization.compression.CompressionUtils;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.web.WebRequest;
@@ -61,7 +60,8 @@ class ForwardProxyConsumerTest {
     @SneakyThrows
     void setUp() {
         registration = new ForwardProxyConsumer(
-                testFixture.getFluxzero().client(), CONSUMER_NAME, IndexUtils.indexForCurrentTime(), true).start();
+                testFixture.getFluxzero().client(), CONSUMER_NAME, IndexUtils.indexForCurrentTime(), true, true)
+                .start();
         HttpServer server = HttpServer.create(
                 new InetSocketAddress("localhost", 0), 0);
         serverContext = server.createContext("/");
@@ -120,7 +120,7 @@ class ForwardProxyConsumerTest {
         serverContext.setHandler(exchange -> {
             try (OutputStream outputStream = exchange.getResponseBody()) {
                 exchange.getResponseHeaders().add("Content-Encoding", "gzip");
-                byte[] compressed = CompressionUtils.compress("test".getBytes(), CompressionAlgorithm.GZIP);
+                byte[] compressed = CompressionAlgorithm.GZIP.compress("test".getBytes());
                 exchange.sendResponseHeaders(200, compressed.length);
                 outputStream.write(compressed);
                 outputStream.flush();

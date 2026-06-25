@@ -69,8 +69,7 @@ public class DecryptingPropertySource implements PropertySource {
      * @param delegate the property source to wrap and decrypt values from
      */
     public DecryptingPropertySource(PropertySource delegate) {
-        this(delegate, DefaultPropertySource.getInstance().get(
-                "ENCRYPTION_KEY", DefaultPropertySource.getInstance().get("encryption_key")));
+        this(delegate, resolveEncryptionKey(delegate));
     }
 
     /**
@@ -121,5 +120,11 @@ public class DecryptingPropertySource implements PropertySource {
     public String get(String name) {
         String value = delegate.get(name);
         return value == null ? null : decryptionCache.apply(value);
+    }
+
+    private static String resolveEncryptionKey(PropertySource delegate) {
+        return delegate.get("ENCRYPTION_KEY", delegate.get(
+                "encryption_key", DefaultPropertySource.getInstance().get(
+                        "ENCRYPTION_KEY", DefaultPropertySource.getInstance().get("encryption_key"))));
     }
 }

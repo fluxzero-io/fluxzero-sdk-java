@@ -28,9 +28,12 @@ import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.test.TestFixture;
@@ -40,6 +43,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Executable;
+import java.lang.reflect.Parameter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,8 +55,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StatefulHandlerTest {
 
@@ -1408,32 +1414,96 @@ public class StatefulHandlerTest {
                     .payments().stream().map(ListCountingPayment::captureCount).toList());
         }
 
+        @Test
+        void entityParameterIsNotResolvedBeforeStatefulRepositoryMatch() {
+            CountingEntityParameterResolver resolver = new CountingEntityParameterResolver();
+
+            statefulHandler(EntityInjectedCustomer.class, new CountingRepository(),
+                            new PayloadParameterResolver(), resolver)
+                    .getInvoker(message(
+                            new EntityInjectedCustomerChanged("missing-customer"),
+                            Metadata.of(Entity.AGGREGATE_ID_METADATA_KEY, "aggregate-1",
+                                        Entity.AGGREGATE_TYPE_METADATA_KEY,
+                                        EntityInjectedAggregate.class.getName())));
+
+            assertEquals(0, resolver.resolutionCount);
+        }
+
+        @Test
+        void entityAssociationParameterIsResolvedBeforeStatefulRepositoryMatch() {
+            FixedEntityParameterResolver resolver =
+                    new FixedEntityParameterResolver(new Foo("customer-1"));
+            AssociationLookupRepository repository =
+                    new AssociationLookupRepository(() -> resolver.resolutionCount);
+            repository.add("customer-1", new EntityAssociationCustomer("customer-1"));
+
+            statefulHandler(EntityAssociationCustomer.class, repository,
+                            new PayloadParameterResolver(), resolver)
+                    .getInvoker(message(
+                            new EntityAssociationChanged(),
+                            Metadata.of(Entity.AGGREGATE_ID_METADATA_KEY, "foo-1",
+                                        Entity.AGGREGATE_TYPE_METADATA_KEY, Foo.class.getName())))
+                    .orElseThrow();
+
+            assertTrue(repository.resolvedBeforeLookup);
+            assertEquals(Map.of("customer-1", "customerId"), repository.lastAssociations);
+        }
+
+        @Test
+        void entityValueAssociationParameterIsResolvedBeforeStatefulRepositoryMatch() {
+            FixedEntityParameterResolver resolver =
+                    new FixedEntityParameterResolver(new Foo("customer-1"));
+            AssociationLookupRepository repository =
+                    new AssociationLookupRepository(() -> resolver.resolutionCount);
+            repository.add("customer-1", new EntityValueAssociationCustomer("customer-1"));
+
+            statefulHandler(EntityValueAssociationCustomer.class, repository,
+                            new PayloadParameterResolver(), resolver)
+                    .getInvoker(message(
+                            new EntityAssociationChanged(),
+                            Metadata.of(Entity.AGGREGATE_ID_METADATA_KEY, "foo-1",
+                                        Entity.AGGREGATE_TYPE_METADATA_KEY, Foo.class.getName())))
+                    .orElseThrow();
+
+            assertTrue(repository.resolvedBeforeLookup);
+            assertEquals(Map.of("customer-1", "customerId"), repository.lastAssociations);
+        }
+
         private StatefulHandler statefulHandler(Class<?> targetClass, HandlerRepository repository) {
-            List<ParameterResolver<? super DeserializingMessage>> resolvers =
-                    List.of(new PayloadParameterResolver());
+            return statefulHandler(targetClass, repository, new PayloadParameterResolver());
+        }
+
+        @SafeVarargs
+        private StatefulHandler statefulHandler(Class<?> targetClass, HandlerRepository repository,
+                                                ParameterResolver<? super DeserializingMessage>... resolvers) {
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers = List.of(resolvers);
             Function<Executable, ? extends java.lang.annotation.Annotation> annotationProvider =
                     e -> ReflectionUtils.getMethodAnnotation(e, HandleEvent.class).orElse(null);
             BiFunction<Class<?>, List<ParameterResolver<? super DeserializingMessage>>,
                     HandlerMatcher<Object, DeserializingMessage>> matcherFactory =
-                    (type, parameterResolvers) -> HandlerInspector.inspect(
+                    (type, methodParameterResolvers) -> HandlerInspector.inspect(
                             type,
-                            parameterResolvers,
+                            methodParameterResolvers,
                             HandlerConfiguration.<DeserializingMessage>builder()
                                     .methodAnnotation(HandleEvent.class)
                                     .messageFilter(new PayloadFilter())
                                     .build());
             return new StatefulHandler(
                     targetClass,
-                    matcherFactory.apply(targetClass, resolvers),
+                    matcherFactory.apply(targetClass, parameterResolvers),
                     repository,
-                    resolvers,
+                    parameterResolvers,
                     annotationProvider,
                     matcherFactory,
                     new JacksonSerializer());
         }
 
         private DeserializingMessage message(Object payload) {
-            return new DeserializingMessage(new Message(payload), MessageType.EVENT, new JacksonSerializer());
+            return message(payload, Metadata.empty());
+        }
+
+        private DeserializingMessage message(Object payload, Metadata metadata) {
+            return new DeserializingMessage(new Message(payload, metadata), MessageType.EVENT, new JacksonSerializer());
         }
 
         @Stateful
@@ -1479,10 +1549,95 @@ public class StatefulHandlerTest {
         record CountingPaymentCaptured(String paymentId) {
         }
 
+        @Stateful
+        record EntityInjectedCustomer(@EntityId @Association String customerId) {
+            @HandleEvent
+            EntityInjectedCustomer handle(EntityInjectedCustomerChanged event, Entity<EntityInjectedAggregate> entity) {
+                return this;
+            }
+        }
+
+        record EntityInjectedCustomerChanged(String customerId) {
+        }
+
+        record EntityInjectedAggregate(String value) {
+        }
+
+        @Stateful
+        record EntityAssociationCustomer(@EntityId @Association String customerId) {
+            @HandleEvent
+            EntityAssociationCustomer handle(
+                    EntityAssociationChanged event,
+                    @Association(value = "get/customerId", path = "customerId") Entity<Foo> foo) {
+                return this;
+            }
+        }
+
+        @Stateful
+        record EntityValueAssociationCustomer(@EntityId @Association String customerId) {
+            @HandleEvent
+            EntityValueAssociationCustomer handle(
+                    EntityAssociationChanged event,
+                    @Association(value = "customerId", path = "customerId") Foo foo) {
+                return this;
+            }
+        }
+
+        record EntityAssociationChanged() {
+        }
+
+        record Foo(String customerId) {
+        }
+
+        class CountingEntityParameterResolver extends EntityParameterResolver {
+            private int resolutionCount;
+
+            @Override
+            protected Entity<?> getMatchingEntity(Object input, Parameter parameter) {
+                resolutionCount++;
+                return super.getMatchingEntity(input, parameter);
+            }
+        }
+
+        class FixedEntityParameterResolver extends EntityParameterResolver {
+            private final Entity<?> entity;
+            private int resolutionCount;
+
+            FixedEntityParameterResolver(Foo value) {
+                entity = ImmutableEntity.<Foo>builder()
+                        .id("foo-1")
+                        .type(Foo.class)
+                        .value(value)
+                        .build();
+            }
+
+            @Override
+            protected Entity<?> getMatchingEntity(Object input, Parameter parameter) {
+                resolutionCount++;
+                return entity;
+            }
+        }
+
+        class AssociationLookupRepository extends CountingRepository {
+            private final IntSupplier resolutionCount;
+            private boolean resolvedBeforeLookup;
+
+            AssociationLookupRepository(IntSupplier resolutionCount) {
+                this.resolutionCount = resolutionCount;
+            }
+
+            @Override
+            public Collection<? extends Entry<?>> findByAssociation(Map<Object, String> associations) {
+                resolvedBeforeLookup = resolutionCount.getAsInt() > 0;
+                return super.findByAssociation(associations);
+            }
+        }
+
         class CountingRepository implements HandlerRepository {
             private final Map<String, Object> values = new LinkedHashMap<>();
             private int putCount;
             private int deleteCount;
+            Map<Object, String> lastAssociations;
 
             CountingRepository add(String id, Object value) {
                 values.put(id, value);
@@ -1500,6 +1655,7 @@ public class StatefulHandlerTest {
 
             @Override
             public Collection<? extends Entry<?>> findByAssociation(Map<Object, String> associations) {
+                lastAssociations = Map.copyOf(associations);
                 return associations.isEmpty() ? List.of() : entries();
             }
 
