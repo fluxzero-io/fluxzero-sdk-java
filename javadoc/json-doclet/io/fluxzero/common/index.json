@@ -200,6 +200,11 @@
     "qualifiedName" : "io.fluxzero.common.ThrowingRunnable",
     "kind" : "interface"
   }, {
+    "file" : "ThrowingSupplier.json",
+    "name" : "ThrowingSupplier",
+    "qualifiedName" : "io.fluxzero.common.ThrowingSupplier",
+    "kind" : "interface"
+  }, {
     "file" : "TimeboxedExecutor.json",
     "name" : "TimeboxedExecutor",
     "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor",

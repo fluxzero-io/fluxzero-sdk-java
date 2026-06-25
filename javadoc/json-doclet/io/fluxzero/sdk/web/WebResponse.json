@@ -500,8 +500,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "payload",
-      "type" : "java.lang.Object",
+      "name" : "inputStreamSupplier",
+      "type" : "io.fluxzero.common.ThrowingSupplier<? extends java.io.InputStream>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -521,8 +521,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "inputStreamSupplier",
-      "type" : "org.springframework.util.function.ThrowingSupplier<? extends java.io.InputStream>",
+      "name" : "payload",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -543,7 +543,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "inputStreamSupplier",
-      "type" : "org.springframework.util.function.ThrowingSupplier<? extends java.io.InputStream>",
+      "type" : "io.fluxzero.common.ThrowingSupplier<? extends java.io.InputStream>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
