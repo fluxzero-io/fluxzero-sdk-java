@@ -39,6 +39,8 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.execution.ExecutionMode;
+import io.fluxzero.sdk.execution.OnDemandExecution;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
@@ -67,6 +69,11 @@ import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
+import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentRegistry;
+import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
+import io.fluxzero.sdk.registry.ComponentRegistryGenerator;
+import io.fluxzero.sdk.registry.ComponentRegistryJson;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.scheduling.ScheduledCommandHandler;
@@ -124,6 +131,8 @@ import lombok.NonNull;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -132,11 +141,14 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -201,6 +213,8 @@ public class DefaultFluxzero implements Fluxzero {
     private final TaskScheduler taskScheduler;
     private final FluxzeroConfiguration configuration;
     private final Client client;
+    private final Collection<ComponentRegistry> componentRegistries;
+    private final Path componentRegistryBlueprintOutput;
     private final ThrowingRunnable shutdownHandler;
 
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -236,6 +250,49 @@ public class DefaultFluxzero implements Fluxzero {
     public Registration beforeShutdown(Runnable task) {
         cleanupTasks.add(task);
         return () -> cleanupTasks.remove(task);
+    }
+
+    @Override
+    public ComponentRegistry componentRegistry() {
+        return ComponentRegistry.merge(componentRegistries);
+    }
+
+    @Override
+    public Registration registerComponentRegistry(@NonNull ComponentRegistry registry) {
+        componentRegistries.add(registry);
+        writeComponentRegistryBlueprint();
+        return () -> {
+            componentRegistries.remove(registry);
+            writeComponentRegistryBlueprint();
+        };
+    }
+
+    private void writeComponentRegistryBlueprint() {
+        if (componentRegistryBlueprintOutput == null) {
+            return;
+        }
+        try {
+            ComponentRegistryBlueprint.from(componentRegistry()).writeMarkdown(componentRegistryBlueprintOutput);
+        } catch (Exception e) {
+            log.warn("Failed to write Fluxzero component registry blueprint to {}",
+                     componentRegistryBlueprintOutput, e);
+        }
+    }
+
+    @Override
+    public Registration registerHandlers(@NonNull List<?> handlers) {
+        ComponentRegistry handlerRegistry = componentRegistry(handlers);
+        Registration registration = Fluxzero.super.registerHandlers(handlers);
+        return handlerRegistry.isEmpty() ? registration : registration.merge(registerComponentRegistry(handlerRegistry));
+    }
+
+    private static ComponentRegistry componentRegistry(List<?> handlers) {
+        List<Class<?>> componentTypes = handlers.stream()
+                .filter(Objects::nonNull)
+                .map(handler -> handler instanceof Class<?> type ? type : handler.getClass())
+                .distinct()
+                .toList();
+        return componentTypes.isEmpty() ? ComponentRegistry.empty() : new ClasspathComponentScanner().scan(componentTypes);
     }
 
     @Override
@@ -289,6 +346,8 @@ public class DefaultFluxzero implements Fluxzero {
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> List.of()));
         private final Map<MessageType, List<HandlerDecorator>> handlerDecorators =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> List.of()));
+        private Map<MessageType, HandlerDecorator> effectiveHandlerDecorators =
+                stream(MessageType.values()).collect(toMap(identity(), messageType -> HandlerDecorator.noOp));
         private final Map<MessageType, List<BatchInterceptor>> batchInterceptors =
                 stream(MessageType.values()).collect(toMap(identity(), messageType -> List.of()));
         private final DelegatingClock clock = new DelegatingClock();
@@ -325,6 +384,7 @@ public class DefaultFluxzero implements Fluxzero {
         private PropertySource propertySource = DefaultPropertySource.getInstance();
         private ConsumerHandlingMode defaultConsumerHandlingMode = DEFAULT;
         private HostMetricsConfiguration hostMetricsConfiguration;
+        private final List<ExecutionMode> executionModes = new ArrayList<>();
 
         @Override
         public Builder replaceSerializer(@NonNull Serializer serializer) {
@@ -686,10 +746,18 @@ public class DefaultFluxzero implements Fluxzero {
         }
 
         @Override
+        public Builder executionMode(@NonNull ExecutionMode executionMode) {
+            this.executionModes.add(executionMode);
+            return this;
+        }
+
+        @Override
         public Fluxzero build(@NonNull Client client) {
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }
+            List<ExecutionMode> resolvedExecutionModes = resolvedExecutionModes();
+            applySourceInfrastructure(resolvedExecutionModes);
             Cache configuredCache = resolveCache();
             Cache cache = configuredCache.isEmpty() ? configuredCache : configuredCache.rebuild();
             Cache configuredRelationshipsCache = initialRelationshipsCache();
@@ -930,6 +998,7 @@ public class DefaultFluxzero implements Fluxzero {
                 Arrays.stream(MessageType.values())
                         .forEach(type -> handlerChains.compute(type, (t, i) -> interceptor.andThen(i)));
             }
+            this.effectiveHandlerDecorators = Map.copyOf(handlerChains);
 
             ResultGateway resultGateway = new DefaultResultGateway(client,
                                                                    serializer, dispatchChains.get(RESULT),
@@ -1032,6 +1101,13 @@ public class DefaultFluxzero implements Fluxzero {
                 Fluxzero.applicationInstance.set(fluxzero);
             }
 
+            if (!resolvedExecutionModes.isEmpty()) {
+                Registration executionModeRegistration = resolvedExecutionModes.stream()
+                        .map(executionMode -> executionMode.registerWith(fluxzero))
+                        .reduce(Registration::merge).orElse(Registration.noOp());
+                fluxzero.beforeShutdown(executionModeRegistration::cancel);
+            }
+
             Optional.ofNullable(forwardingWebConsumer).ifPresent(c -> c.start(fluxzero));
 
             if (!disableScheduledCommandHandler) {
@@ -1058,6 +1134,10 @@ public class DefaultFluxzero implements Fluxzero {
                             }
                         });
                 fluxzero.beforeShutdown(thread::interrupt);
+            }
+
+            if (fluxzero instanceof DefaultFluxzero defaultFluxzero) {
+                defaultFluxzero.writeComponentRegistryBlueprint();
             }
 
             return fluxzero;
@@ -1106,7 +1186,131 @@ public class DefaultFluxzero implements Fluxzero {
                                        messageScheduler, userProvider, cache, serializer,
                                        correlationDataProvider,
                                        identityProvider, propertySource,
-                                       clock, taskScheduler, this, client, shutdownHandler);
+                                       clock, taskScheduler, this, client, generatedComponentRegistries(),
+                                       registryBlueprintOutput(), shutdownHandler);
+        }
+
+        private CopyOnWriteArrayList<ComponentRegistry> generatedComponentRegistries() {
+            return new CopyOnWriteArrayList<>(ComponentRegistryJson.load());
+        }
+
+        private List<ExecutionMode> resolvedExecutionModes() {
+            if (!executionModes.isEmpty()) {
+                return List.copyOf(executionModes);
+            }
+            List<ComponentRegistry> generated = ComponentRegistryJson.load().stream()
+                    .filter(registry -> registry.sourceRoot() != null)
+                    .toList();
+            Map<Path, ComponentRegistry> registriesByRoot = new LinkedHashMap<>();
+            generated.stream()
+                    .filter(registry -> !registry.isEmpty())
+                    .forEach(registry -> registriesByRoot.putIfAbsent(normalized(registry.sourceRoot()), registry));
+            Set<Path> sourceRoots = new LinkedHashSet<>(registriesByRoot.keySet());
+            generated.forEach(registry -> sourceRoots.add(normalized(registry.sourceRoot())));
+            addConventionalSourceRoot(sourceRoots, ComponentRegistryGenerator.DEFAULT_SOURCE_ROOT);
+            addConventionalSourceRoot(sourceRoots, ComponentRegistryGenerator.DEFAULT_TEST_SOURCE_ROOT);
+            Map<Path, ExecutionMode> result = new LinkedHashMap<>();
+            sourceRoots.forEach(sourceRoot -> addConventionalOnDemandExecution(
+                    result, sourceRoot, registriesByRoot.get(normalized(sourceRoot)), sourceRoots));
+            return List.copyOf(result.values());
+        }
+
+        private static void addConventionalSourceRoot(Set<Path> sourceRoots, Path sourceRoot) {
+            if (Files.isDirectory(sourceRoot)) {
+                sourceRoots.add(normalized(sourceRoot));
+            }
+        }
+
+        private void addConventionalOnDemandExecution(
+                Map<Path, ExecutionMode> result, Path sourceRoot, ComponentRegistry registry, Set<Path> sourceRoots) {
+            if (sourceRoot == null || !Files.isDirectory(sourceRoot)) {
+                return;
+            }
+            OnDemandExecution.Builder builder = OnDemandExecution.builder().sourceRoot(sourceRoot);
+            builder.scanSourceWhenRegistryMissing(!propertySource.getBoolean(
+                    OnDemandExecution.REGISTRY_REQUIRED_PROPERTY));
+            builder.checkSourceChangesOnInvocation(propertySource.getBoolean(
+                    OnDemandExecution.CHECK_SOURCE_CHANGES_PROPERTY, true));
+            sourceRoots.stream()
+                    .filter(extraSourceRoot -> !Objects.equals(extraSourceRoot, normalized(sourceRoot)))
+                    .filter(Files::isDirectory)
+                    .forEach(builder::addSourcepath);
+            if (registry != null) {
+                builder.registry(registry);
+            }
+            result.putIfAbsent(normalized(sourceRoot), builder.build());
+        }
+
+        private static Path normalized(Path sourceRoot) {
+            return sourceRoot.toAbsolutePath().normalize();
+        }
+
+        private void applySourceInfrastructure(List<ExecutionMode> executionModes) {
+            executionModes.stream()
+                    .filter(OnDemandExecution.class::isInstance)
+                    .map(OnDemandExecution.class::cast)
+                    .flatMap(executionMode -> executionMode.instantiateInfrastructureComponents(this).stream())
+                    .sorted(Comparator.comparingInt(ClientUtils::orderOf))
+                    .forEach(this::applySourceInfrastructure);
+        }
+
+        @SuppressWarnings("unchecked")
+        private void applySourceInfrastructure(Object component) {
+            if (component instanceof DispatchInterceptor interceptor) {
+                addDispatchInterceptor(interceptor);
+            }
+            if (component instanceof HandlerInterceptor interceptor) {
+                addHandlerInterceptor(interceptor);
+            } else if (component instanceof HandlerDecorator decorator) {
+                addHandlerDecorator(decorator);
+            }
+            if (component instanceof BatchInterceptor interceptor) {
+                addBatchInterceptor(interceptor);
+            }
+            if (component instanceof WebResponseMapper mapper) {
+                replaceWebResponseMapper(mapper);
+            } else if (component instanceof ResponseMapper mapper) {
+                replaceDefaultResponseMapper(mapper);
+            }
+            if (component instanceof Validator validator) {
+                replaceValidator(ignored -> validator);
+            }
+            if (component instanceof ParameterResolver<?> resolver) {
+                addParameterResolver((ParameterResolver<? super DeserializingMessage>) resolver);
+            }
+            if (component instanceof Serializer serializer) {
+                replaceSerializer(serializer);
+            }
+            if (component instanceof DocumentSerializer documentSerializer) {
+                replaceDocumentSerializer(documentSerializer);
+            }
+            if (component instanceof CorrelationDataProvider provider) {
+                replaceCorrelationDataProvider(ignored -> provider);
+            }
+            if (component instanceof IdentityProvider provider) {
+                replaceIdentityProvider(ignored -> provider);
+            }
+            if (component instanceof UserProvider provider) {
+                registerUserProvider(provider);
+            }
+            if (component instanceof Cache sourceCache) {
+                replaceCache(sourceCache);
+            }
+            if (component instanceof TaskScheduler scheduler) {
+                replaceTaskScheduler(ignored -> scheduler);
+            }
+            if (component instanceof PropertySource source) {
+                addPropertySource(source);
+            }
+        }
+
+        private Path registryBlueprintOutput() {
+            String configured = propertySource.get(ComponentRegistryBlueprint.BLUEPRINT_PROPERTY);
+            if (configured == null || configured.isBlank()) {
+                configured = System.getenv(ComponentRegistryBlueprint.BLUEPRINT_ENV);
+            }
+            return configured == null || configured.isBlank()
+                    ? null : Path.of(propertySource.substituteProperties(configured));
         }
 
         protected ConsumerConfiguration getDefaultConsumerConfiguration(MessageType messageType) {
@@ -1201,7 +1405,8 @@ public class DefaultFluxzero implements Fluxzero {
             return result;
         }
 
-        protected MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator(
+        @Override
+        public MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator(
                 MessageType messageType) {
             if (messageType == WEBREQUEST && !disableWebParameterValidation) {
                 return (message, target, executable, arguments) ->

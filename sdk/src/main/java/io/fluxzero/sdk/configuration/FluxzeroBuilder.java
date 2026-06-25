@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.execution.ExecutionMode;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -55,6 +56,19 @@ import java.util.function.UnaryOperator;
  * integrations.
  */
 public interface FluxzeroBuilder extends FluxzeroConfiguration {
+
+    /**
+     * Adds a local execution mode that materializes application logic after the Fluxzero instance has been built.
+     * <p>
+     * Applications usually do not need to call this method directly. Source components under
+     * {@code src/main/fluxzero} and test components under {@code src/test/fluxzero} are picked up by convention and
+     * run on demand, while classes under {@code src/main/java} and {@code src/test/java} keep the normal
+     * classpath-based behavior. This hook remains available for non-standard source roots, benchmarks, and advanced
+     * integrations.
+     */
+    default FluxzeroBuilder executionMode(ExecutionMode executionMode) {
+        throw new UnsupportedOperationException("This FluxzeroBuilder does not support execution modes");
+    }
 
     /**
      * Update the default consumer configuration for the specified message type.

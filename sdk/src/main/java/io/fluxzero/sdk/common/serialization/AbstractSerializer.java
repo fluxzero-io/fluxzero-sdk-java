@@ -48,6 +48,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -92,6 +93,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
     @Getter
     private final String format;
     private final Map<String, String> typeCasters = new ConcurrentHashMap<>();
+    private final List<Function<String, Optional<Class<?>>>> typeResolvers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructs a new serializer with the provided caster candidates and converter.
@@ -229,7 +231,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
                     if (!Objects.equals(format, s.data().getFormat())) {
                         return (Stream) deserializeOtherFormat(s);
                     }
-                    if (!isKnownType(s.data().getType())) {
+                    Optional<Class<?>> resolvedType = resolveType(s.data().getType());
+                    if (resolvedType.isEmpty() && !isKnownType(s.data().getType())) {
                         if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
                             throw new DeserializationException(
                                     format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
@@ -240,17 +243,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
                         }
                         return (Stream) deserializeUnknownType(s);
                     }
-                    return Stream.<DeserializingObject<byte[], S>>of(
-                            new DeserializingObject(s, (Function<Type, Object>) type -> {
-                                try {
-                                    return Object.class.equals(type)
-                                            ? doDeserialize(s.data(), s.data().getType())
-                                            : doDeserialize(s.data(), asString(type));
-                                } catch (Exception e) {
-                                    throw new DeserializationException("Could not deserialize a " + s.data().getType(),
-                                                                       e);
-                                }
-                            }));
+                    return Stream.<DeserializingObject<byte[], S>>of(deserializingObject(s, resolvedType));
                 });
     }
 
@@ -288,7 +281,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
         if (!Objects.equals(format, s.data().getFormat())) {
             return deserializeOtherFormat(s).findAny().orElse(null);
         }
-        if (!isKnownType(s.data().getType())) {
+        Optional<Class<?>> resolvedType = resolveType(s.data().getType());
+        if (resolvedType.isEmpty() && !isKnownType(s.data().getType())) {
             if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
                 throw new DeserializationException(
                         format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
@@ -299,16 +293,24 @@ public abstract class AbstractSerializer<I> implements Serializer {
             }
             return deserializeUnknownType(s).findAny().orElse(null);
         }
-        SerializedObject<byte[]> serializedObject = s;
+        return deserializingObject(s, resolvedType);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <S extends SerializedObject<byte[]>> DeserializingObject<byte[], S> deserializingObject(
+            S serializedObject, Optional<Class<?>> resolvedType) {
         return new DeserializingObject(serializedObject, (Function<Type, Object>) requestedType -> {
             try {
+                if (Object.class.equals(requestedType) && resolvedType.isPresent()) {
+                    return doDeserialize(serializedObject.data(), resolvedType.get());
+                }
                 return Object.class.equals(requestedType)
                         ? doDeserialize(serializedObject.data(), serializedObject.data().getType())
-                        : doDeserialize(serializedObject.data(), asString(requestedType));
+                        : doDeserialize(serializedObject.data(), requestedType);
             } catch (Exception e) {
                 throw new DeserializationException("Could not deserialize a " + serializedObject.data().getType(), e);
             }
-        });
+        }, ignored -> resolvedType.orElse(null));
     }
 
     /**
@@ -361,6 +363,16 @@ public abstract class AbstractSerializer<I> implements Serializer {
     @Override
     public Registration registerDowncasters(Object... casterCandidates) {
         return downcasterChain.registerCasterCandidates(casterCandidates);
+    }
+
+    /**
+     * Registers a resolver for type names that can be materialized outside the normal application classpath.
+     */
+    @Override
+    public Registration registerTypeResolver(Function<String, Optional<Class<?>>> typeResolver) {
+        Objects.requireNonNull(typeResolver, "typeResolver");
+        typeResolvers.add(typeResolver);
+        return () -> typeResolvers.remove(typeResolver);
     }
 
     /**
@@ -429,6 +441,26 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * Converts a deserialized object to the desired target type. May delegate to a type mapping library.
      */
     protected abstract <V> V doConvert(Object value, Type type);
+
+    /**
+     * Deserializes data into the supplied Java type.
+     */
+    protected Object doDeserialize(Data<?> data, Type type) throws Exception {
+        return doDeserialize(data, asString(type));
+    }
+
+    private Optional<Class<?>> resolveType(String type) {
+        if (type == null || typeResolvers.isEmpty()) {
+            return Optional.empty();
+        }
+        for (Function<String, Optional<Class<?>>> typeResolver : typeResolvers) {
+            Optional<Class<?>> resolved = typeResolver.apply(type);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        return Optional.empty();
+    }
 
     /**
      * Checks whether a given serialized type is recognized on the classpath.

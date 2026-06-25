@@ -63,6 +63,7 @@ import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.WebRequestGateway;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
+import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.scheduling.Periodic;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -1240,6 +1241,25 @@ public interface Fluxzero extends AutoCloseable {
     private Registration registerScheduleLocalHandler(Object handler) {
         return messageScheduler() instanceof HasLocalHandlers localHandlers
                 ? localHandlers.registerHandler(handler) : Registration.noOp();
+    }
+
+    /**
+     * Returns the indexed application component model known by this Fluxzero instance.
+     * <p>
+     * Normal handler registration, execution modes, and tooling can contribute metadata to this model. The registry is
+     * descriptive: it does not by itself register executable handlers.
+     */
+    default ComponentRegistry componentRegistry() {
+        return ComponentRegistry.empty();
+    }
+
+    /**
+     * Adds component metadata to this Fluxzero instance's application model.
+     * <p>
+     * The returned registration removes the metadata contribution again when cancelled.
+     */
+    default Registration registerComponentRegistry(ComponentRegistry registry) {
+        return Registration.noOp();
     }
 
     /**

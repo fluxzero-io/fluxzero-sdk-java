@@ -260,6 +260,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 = target instanceof Class<?>
                   ? new DefaultHandler<>(targetClass, targetSupplier, createHandlerMatcher(target, config))
                   : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
+        handler = RegistryFilteringHandler.wrap(handler, messageType);
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {

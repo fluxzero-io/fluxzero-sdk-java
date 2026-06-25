@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.fluxzero.common.ObjectUtils.call;
 import static io.fluxzero.common.ObjectUtils.memoize;
 
 /**
@@ -69,7 +70,7 @@ public abstract class ParameterRegistry {
         String packageName = type.getPackage().getName();
         String simpleClassName = type.getCanonicalName().replace(packageName + ".", "").replace(".", "_") + "_params";
         String fullClassName = packageName + "." + simpleClassName;
-        return ReflectionUtils.asInstance(ReflectionUtils.classForName(fullClassName));
+        return ReflectionUtils.asInstance(call(() -> type.getClassLoader().loadClass(fullClassName)));
     });
 
     @Getter(AccessLevel.PRIVATE)

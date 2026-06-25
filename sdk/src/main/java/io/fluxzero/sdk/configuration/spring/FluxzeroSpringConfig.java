@@ -35,6 +35,8 @@ import io.fluxzero.sdk.publishing.EventGateway;
 import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.publishing.QueryGateway;
 import io.fluxzero.sdk.publishing.ResultGateway;
+import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentRegistry;
 import io.fluxzero.sdk.scheduling.MessageScheduler;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.web.WebResponseMapper;
@@ -157,6 +159,7 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
                 .map(bean -> bean instanceof FluxzeroPrototype prototype ? prototype.getType() : bean).toList();
         handlerRegistration.updateAndGet(r -> r == null ?
                 handlerRegistry.map(hr -> hr.registerHandlers(potentialHandlers))
+                        .map(registration -> registration.merge(registerComponentRegistry(fluxzero, potentialHandlers)))
                         .orElseGet(() -> fluxzero.registerHandlers(potentialHandlers)) : r);
         if (Thread.getDefaultUncaughtExceptionHandler() == null) {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> log.error("Uncaught exception", e));
@@ -164,6 +167,15 @@ public class FluxzeroSpringConfig implements BeanPostProcessor {
         if (event.getApplicationContext() instanceof GenericApplicationContext) {
             ((GenericApplicationContext) event.getApplicationContext()).start();
         }
+    }
+
+    private static Registration registerComponentRegistry(Fluxzero fluxzero, List<Object> potentialHandlers) {
+        List<Class<?>> componentTypes = potentialHandlers.stream()
+                .map(handler -> handler instanceof Class<?> type ? type : handler.getClass())
+                .distinct()
+                .toList();
+        ComponentRegistry registry = new ClasspathComponentScanner().scan(componentTypes);
+        return registry.isEmpty() ? Registration.noOp() : fluxzero.registerComponentRegistry(registry);
     }
 
     /**

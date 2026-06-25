@@ -69,7 +69,7 @@ import java.lang.annotation.Target;
  * object TypeRegistryMarker
  * }</pre>
  */
-@Retention(RetentionPolicy.CLASS)
+@Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.PACKAGE, ElementType.TYPE})
 @Inherited
 public @interface RegisterType {

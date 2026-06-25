@@ -12,6 +12,7 @@ you can fine-tune your application using properties, environment variables, or p
 - [Client Configuration](#client-configuration)
     - [In-Memory (LocalClient)](#local-client)
     - [Connecting to Runtime (WebSocketClient)](#websocket-client)
+- [On-demand Source Logic](#on-demand-source-logic)
 - [Spring Integration](#spring-integration)
 - [Security & Encryption](#security-encryption)
 
@@ -166,6 +167,39 @@ Use advanced toggles conservatively:
 - `fluxzero.tracking.maxFetchBytes` changes the default serialized payload byte limit per consumer fetch. Use bytes,
   for example `104857600` for 100 MiB; omit a consumer's `maxFetchBytes` or set it to `-1` to inherit that default,
   and set it to `0` only when an unbounded fetch is intentional.
+
+---
+
+<a name="on-demand-source-logic"></a>
+
+## On-demand Source Logic
+
+Fluxzero apps may keep handler classes in `src/main/fluxzero` and run them with
+`ExecutionMode.onDemand(...)`. These files are ordinary Java source, but they are intentionally outside the normal
+`src/main/java` compile path for production builds. Payloads, models, and shared application types should still live on
+the regular application classpath.
+
+When you modify `src/main/fluxzero`, check whether the project expects a build-time registry artifact:
+
+```text
+target/classes/META-INF/fluxzero/component-registry.json
+```
+
+Generate or refresh it with:
+
+```bash
+java -cp "$APP_CLASSPATH" io.fluxzero.sdk.registry.ComponentRegistryGenerator \
+  --source-root src/main/fluxzero \
+  --output target/classes/META-INF/fluxzero/component-registry.json \
+  --blueprint target/fluxzero-blueprint.md
+```
+
+The generator only scans source text. It does not compile handlers or run annotation processors. At runtime,
+`OnDemandExecution` prefers the generated registry and only falls back to runtime source scanning when configured to do
+so. Production-style setups may use `.scanSourceWhenRegistryMissing(false)` to require the build artifact.
+
+For agent-facing summaries, prefer the generated Markdown blueprint (`target/fluxzero-blueprint.md`) when present. It
+contains Mermaid graphs and tables for packages, components, consumers, routes, web paths, and registered-type metadata.
 
 ---
 

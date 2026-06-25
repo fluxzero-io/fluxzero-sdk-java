@@ -215,6 +215,9 @@ Follow this layout unless instructed otherwise:
 - Endpoints: `...<domain>.<Something>Endpoint`
 - Tests: mirror the domain structure under `src/test/java`
 - JSON test resources: flat files grouped per domain (`/home/create-home.json`, etc.)
+- On-demand source handlers: keep handler source in `src/main/fluxzero` when the project uses
+  `ExecutionMode.onDemand(...)`; keep payloads and models in `src/main/java` and refresh the generated component
+  registry/blueprint after handler changes.
 
 Here's the layout of a sample app called `fluxchess`:
 

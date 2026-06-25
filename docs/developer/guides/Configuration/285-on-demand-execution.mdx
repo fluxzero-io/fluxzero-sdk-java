@@ -1,0 +1,173 @@
+---
+title: On-demand execution
+slug: docs/guides/configuration/on-demand-execution
+sidebar:
+   order: 285
+---
+
+On-demand execution is an incubating Fluxzero SDK mode for local Java applications. It lets you keep Fluxzero handlers as
+ordinary Java classes while placing them under `src/main/fluxzero`, where they are indexed into the component registry
+and compiled only when a matching message is invoked.
+
+This is not a different handler model. After a source unit is compiled, Fluxzero still builds a normal handler through
+the SDK handler factory, so interceptors, validation, web parameter processing, result handling, and error handling keep
+the same semantics as compiled classpath handlers.
+
+## Basic usage
+
+```java
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.execution.ExecutionMode;
+
+import java.nio.file.Path;
+
+var fluxzero = DefaultFluxzero.builder()
+        .executionMode(ExecutionMode.onDemand(Path.of("src/main/fluxzero")))
+        .build(LocalClient.newInstance());
+```
+
+The default source root is `src/main/fluxzero` when using the on-demand builder directly:
+
+```java
+var execution = ExecutionMode.onDemand()
+        .release(21)
+        .build();
+```
+
+Loaded source units are not evicted by TTL by default. On-demand execution loads later; it does not unload active logic
+behind your back. If you want memory-sensitive idle eviction in local development, opt in explicitly:
+
+```java
+var execution = ExecutionMode.onDemand()
+        .cacheTtl(Duration.ofMinutes(10))
+        .build();
+```
+
+For production-style runs that should only use a build-time registry artifact and never fall back to runtime source
+scanning:
+
+```java
+var execution = ExecutionMode.onDemand()
+        .sourceRoot(Path.of("src/main/fluxzero"))
+        .scanSourceWhenRegistryMissing(false)
+        .checkSourceChangesOnInvocation(false)
+        .build();
+```
+
+`checkSourceChangesOnInvocation(false)` keeps loaded source units stable for warm throughput. Source changes then take
+effect after the unit is unloaded, the execution mode is re-registered, or the process restarts.
+
+## What happens at startup
+
+Startup stays registry-only for on-demand sources. Fluxzero first looks for generated component registry artifacts on the
+application classpath at `META-INF/fluxzero/component-registry.json`. When a matching artifact exists, no source scan is
+needed at registration time.
+
+If no matching generated registry is available and source scanning is enabled, Fluxzero falls back to scanning the source
+root:
+
+- Java source files are tokenized and indexed into the component registry.
+- `package-info.java` metadata is applied from ancestor packages down to lower packages.
+- Handler annotations, route metadata, consumers, registered-type declarations, local/tracked semantics, and web route
+  metadata are recorded as source metadata.
+- `javac` is not run for on-demand handler sources at registration time.
+- No handler class is loaded until a matching message is handled.
+
+When the first matching message arrives, Fluxzero compiles that source unit with the JDK compiler, loads it through an
+isolated classloader, creates the normal SDK handler, and delegates invocation to it. Source changes invalidate the unit
+by source hash, so a later invocation can hot-recompile the changed handler without recompiling unrelated handlers.
+
+## Build-time registry generation
+
+For `src/main/fluxzero`, use the source generator to create the same registry model before packaging or running the app:
+
+```bash
+java -cp "$APP_CLASSPATH" io.fluxzero.sdk.registry.ComponentRegistryGenerator \
+  --source-root src/main/fluxzero \
+  --output target/classes/META-INF/fluxzero/component-registry.json \
+  --blueprint target/fluxzero-blueprint.md
+```
+
+The generator is dependency-free beyond the SDK classpath. It scans source text only, so it does not compile handlers,
+load classes, or run annotation processors. It can be called from Maven, another build tool, an IDE run configuration, or
+an agent workflow.
+
+Useful options:
+
+- `--source-root <path>`: defaults to `src/main/fluxzero`
+- `--output <path>`: defaults to `target/classes/META-INF/fluxzero/component-registry.json`
+- `--blueprint <path>`: optional Markdown/Mermaid blueprint output
+- `--strict`: fail when the source root is missing
+
+Generated registries are preferred by `OnDemandExecution`. Runtime source scanning is still useful during experiments,
+but production-like runs should generate the registry during the build and disable scan fallback if deterministic startup
+is required.
+
+## Component registry
+
+The component registry is the application model discovered by Fluxzero. It is shared by normal classpath registration,
+Spring registration, and on-demand execution:
+
+```java
+var registry = fluxzero.componentRegistry();
+```
+
+You can inspect routes directly:
+
+```java
+var commandRoutes = registry.routes(MessageType.COMMAND);
+var component = registry.findComponent("com.example.billing.BillingHandler");
+```
+
+The registry is incubating public API. It is intended for diagnostics, tooling, documentation, and future runtime
+capability negotiation. It should not be treated as a replacement for Fluxzero's runtime dispatch rules.
+
+## Blueprint output
+
+For local diagnostics or agent workflows, render the application model as Markdown:
+
+```java
+import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
+
+ComponentRegistryBlueprint.from(fluxzero.componentRegistry())
+        .writeMarkdown(Path.of("target/fluxzero-blueprint.md"));
+```
+
+The blueprint contains:
+
+- summary counts for packages, components, routes, consumers, web routes, and registered types
+- Markdown tables for packages, components, handler routes, consumers, and type registrations
+- a Mermaid graph showing component-to-route relationships
+- a Mermaid consumer graph showing which handlers and routes belong to each consumer
+
+The blueprint is a pure export of the registry. It does not compile source files, load handler classes, or run annotation
+processors.
+
+At runtime, automatic blueprint writing is opt-in only. Set `fluxzero.registry.blueprint=target/fluxzero-blueprint.md`
+or `FLUXZERO_REGISTRY_BLUEPRINT=target/fluxzero-blueprint.md` when you want Fluxzero to write the active registry model
+after startup.
+
+## IDE source roots
+
+Normal Maven builds do not compile `src/main/fluxzero`. That is intentional: the production build path keeps these files
+outside the regular `javac` source set so on-demand execution can decide when to compile them.
+
+For IDE navigation, the SDK build includes an opt-in Maven profile:
+
+```bash
+./mvnw -Pfluxzero-ide-sources test-compile
+```
+
+The `fluxzero-ide-sources` profile adds `${project.basedir}/src/main/fluxzero` as a Maven source root for IDE import and
+local tooling. Keep the profile off for normal production builds if you want those handlers to remain on-demand-only.
+
+## Current boundaries
+
+On-demand execution V1 is trusted local development machinery, not a security sandbox. Payload and model classes should
+be on the application classpath. Handler source additions or removals require re-registering the execution mode; source
+changes to already indexed handlers can be recompiled on demand.
+
+Per-handler lazy compilation currently runs only the request validation and web parameter annotation processors. The type
+registry and OpenAPI processors are intentionally left out of per-handler compilation; `@RegisterType` is represented as
+registry metadata instead.

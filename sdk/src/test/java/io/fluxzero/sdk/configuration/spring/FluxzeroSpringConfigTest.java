@@ -17,6 +17,7 @@ package io.fluxzero.sdk.configuration.spring;
 
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
@@ -94,6 +95,13 @@ public class FluxzeroSpringConfigTest {
     void testHandleCommand() {
         String result = fluxzero.commandGateway().sendAndWait("command");
         assertEquals("upcasted result", result);
+    }
+
+    @Test
+    void springAutoRegistrationContributesComponentRegistry() {
+        var component = fluxzero.componentRegistry().findComponent(SomeHandler.class).orElseThrow();
+        assertTrue(component.routes(MessageType.COMMAND).stream()
+                           .anyMatch(route -> route.payloadTypeNames().contains(String.class.getCanonicalName())));
     }
 
     @Test

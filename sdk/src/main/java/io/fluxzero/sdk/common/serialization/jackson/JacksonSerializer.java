@@ -158,6 +158,19 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
         };
     }
 
+    @Override
+    protected Object doDeserialize(Data<?> data, Type type) throws Exception {
+        JavaType javaType = objectMapper.getTypeFactory().constructType(type);
+        return switch (data.getValue()) {
+            case JsonNode v -> objectMapper.convertValue(v, javaType);
+            case byte[] v -> objectMapper.readValue(v, javaType);
+            case String v -> objectMapper.readValue(v, javaType);
+            case null -> null;
+            default ->
+                    throw new IllegalArgumentException("Incompatible data value type: " + data.getValue().getClass());
+        };
+    }
+
     /**
      * Converts the given object into a {@link JsonNode} for use in revision downcasting.
      */

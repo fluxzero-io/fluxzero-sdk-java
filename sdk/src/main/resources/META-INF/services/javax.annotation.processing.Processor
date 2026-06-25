@@ -1,3 +1,4 @@
 io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor
 io.fluxzero.sdk.web.OpenApiProcessor
 io.fluxzero.sdk.web.WebParameterProcessor
+io.fluxzero.sdk.registry.ComponentRegistryProcessor

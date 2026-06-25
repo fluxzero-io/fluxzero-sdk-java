@@ -39,7 +39,7 @@ import java.util.function.Function;
  * @param <T> The raw data type of the serialized object (e.g., String or byte[])
  * @param <S> The specific {@link SerializedObject} type used to represent the serialized payload
  */
-@ToString(exclude = {"payload", "objectFunction"})
+@ToString(exclude = {"payload", "payloadClassResolver", "objectFunction"})
 public class DeserializingObject<T, S extends SerializedObject<T>> {
     /**
      * Returns the underlying {@link SerializedObject}.
@@ -47,6 +47,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     @Getter
     private final S serializedObject;
     private final Function<Type, Object> payload;
+    private final Function<String, Class<?>> payloadClassResolver;
     private volatile MemoizingFunction<Type, Object> objectFunction;
 
     /**
@@ -74,8 +75,19 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
      * @param payload          A function to deserialize the object when needed
      */
     public DeserializingObject(S serializedObject, Function<Type, Object> payload) {
+        this(serializedObject, payload, null);
+    }
+
+    /**
+     * Creates a new {@code DeserializingObject} with an optional payload class resolver.
+     * <p>
+     * The resolver is consulted by {@link #getPayloadClass()} before falling back to the default classpath lookup.
+     */
+    public DeserializingObject(S serializedObject, Function<Type, Object> payload,
+                               Function<String, Class<?>> payloadClassResolver) {
         this.serializedObject = serializedObject;
         this.payload = payload;
+        this.payloadClassResolver = payloadClassResolver;
         if (payload instanceof MemoizingFunction<?, ?> memoizingFunction) {
             @SuppressWarnings("unchecked")
             MemoizingFunction<Type, Object> typed = (MemoizingFunction<Type, Object>) memoizingFunction;
@@ -135,6 +147,12 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     @SuppressWarnings("unused")
     public Class<?> getPayloadClass() {
         String type = getType();
+        if (type != null && payloadClassResolver != null) {
+            Class<?> resolved = payloadClassResolver.apply(type);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
         return type == null ? null : ReflectionUtils.classForName(type);
     }
 

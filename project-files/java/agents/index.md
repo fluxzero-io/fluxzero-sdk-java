@@ -5,6 +5,11 @@
 These files are the **absolute source of truth** for this project. The Guidelines manual contains a 
 **Task Decision Tree** to help you find specific implementation details in the other manuals as you need them.
 
+If the project contains `src/main/fluxzero`, treat it as Fluxzero on-demand source logic. Do not move those handlers into
+`src/main/java` unless explicitly asked. After changing those source handlers, make sure the build-time component
+registry is regenerated when the project uses one:
+`META-INF/fluxzero/component-registry.json`, usually written under `target/classes`.
+
 ## Recommended Reading Strategy
 
 1. **[Guidelines](rules/guidelines.md)**: **Read this first.** It covers the philosophy, core principles, and how to use

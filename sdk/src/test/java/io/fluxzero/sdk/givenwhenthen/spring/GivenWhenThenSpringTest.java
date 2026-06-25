@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.givenwhenthen.spring;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
@@ -93,6 +94,14 @@ class GivenWhenThenSpringTest {
     @Test
     void testRecordCommand() {
         testFixture.whenCommand(new RecordCommand()).expectResult("success");
+    }
+
+    @Test
+    void springHandlerRegistryContributesComponentRegistry() {
+        var component = testFixture.getFluxzero().componentRegistry()
+                .findComponent(RecordCommandHandler.class).orElseThrow();
+        assertTrue(component.routes(MessageType.COMMAND).stream()
+                           .anyMatch(route -> route.payloadTypeNames().contains(RecordCommand.class.getName())));
     }
 
     @Test

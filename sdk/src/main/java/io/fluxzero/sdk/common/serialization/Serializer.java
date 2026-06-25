@@ -23,6 +23,7 @@ import io.fluxzero.common.api.SerializedObject;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -295,6 +296,20 @@ public interface Serializer extends ContentFilter {
      */
     default Registration registerCasters(Object... casterCandidates) {
         return registerUpcasters(casterCandidates).merge(registerDowncasters(casterCandidates));
+    }
+
+    /**
+     * Registers a resolver for payload type names that are not available through the serializer's normal classpath.
+     * <p>
+     * Resolvers are consulted after revision/type upcasting has produced the effective serialized type. They are
+     * intended for execution modes that can materialize classes lazily from an application model or source registry.
+     * Custom serializers may ignore this hook when they do not support external type materialization.
+     *
+     * @param typeResolver resolver from fully qualified serialized type name to a loadable class
+     * @return registration that removes the resolver
+     */
+    default Registration registerTypeResolver(Function<String, Optional<Class<?>>> typeResolver) {
+        return Registration.noOp();
     }
 
     /**

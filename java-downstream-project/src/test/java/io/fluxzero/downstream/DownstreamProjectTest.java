@@ -17,13 +17,20 @@ package io.fluxzero.downstream;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
+import io.fluxzero.sdk.registry.ClasspathComponentScanner;
+import io.fluxzero.sdk.registry.ComponentRegistry;
+import io.fluxzero.sdk.registry.ComponentRegistryBlueprint;
+import io.fluxzero.sdk.registry.ComponentRegistryJson;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
 import io.fluxzero.testserver.TestServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,6 +59,28 @@ class DownstreamProjectTest {
         assertEquals("Downstream Project API", openApi.path("info").path("title").asText());
         assertEquals("getDownstreamCommand",
                      openApi.path("paths").path("/downstream/{id}").path("get").path("operationId").asText());
+
+        var componentRegistry = ComponentRegistry.merge(
+                ComponentRegistryJson.load(DownstreamProjectTest.class.getClassLoader()));
+        assertTrue(componentRegistry.components().stream()
+                           .anyMatch(component -> component.fullClassName().contains(
+                                   "OnDemandComparisonBenchmark$NormalBenchmarkHandler")));
+    }
+
+    @Test
+    void componentRegistryBlueprintCanBeGeneratedByDownstreamApps(@TempDir Path tempDir) throws IOException {
+        var registry = new ClasspathComponentScanner().scan(DownstreamHandler.class, DownstreamEndpoint.class)
+                .normalized();
+        Path output = tempDir.resolve("fluxzero-blueprint.md");
+
+        ComponentRegistryBlueprint.from(registry).writeMarkdown(output);
+
+        String markdown = Files.readString(output);
+        assertTrue(markdown.contains("```mermaid"));
+        assertTrue(markdown.contains("| DownstreamHandler | io.fluxzero.downstream |"));
+        assertTrue(markdown.contains("| DownstreamEndpoint | io.fluxzero.downstream |"));
+        assertTrue(markdown.contains("COMMAND"));
+        assertTrue(markdown.contains("WEBREQUEST"));
     }
 
     private static String readResource(String name) throws IOException {

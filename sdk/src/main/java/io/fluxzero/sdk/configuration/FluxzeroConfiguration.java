@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.IdentityProvider;
@@ -110,6 +111,23 @@ public interface FluxzeroConfiguration {
 
     /** Ordered handler decorators grouped per message type. */
     Map<MessageType, List<HandlerDecorator>> handlerDecorators();
+
+    /**
+     * Effective handler decorators grouped per message type, including SDK built-ins and configured decorators.
+     */
+    default Map<MessageType, HandlerDecorator> effectiveHandlerDecorators() {
+        return handlerDecorators().entrySet().stream().collect(java.util.stream.Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().stream().reduce(HandlerDecorator::andThen)
+                        .orElse(HandlerDecorator.noOp)));
+    }
+
+    /**
+     * Effective method invocation validator for the supplied message type.
+     */
+    default MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator(MessageType messageType) {
+        return MethodInvocationValidator.noOp();
+    }
 
     /** Ordered batch interceptors grouped per message type. */
     Map<MessageType, List<BatchInterceptor>> batchInterceptors();
