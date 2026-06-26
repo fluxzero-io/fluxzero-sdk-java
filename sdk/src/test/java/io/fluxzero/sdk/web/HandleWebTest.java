@@ -1427,6 +1427,15 @@ public class HandleWebTest {
         }
 
         @Test
+        void serveFromExplodedClasspathResourceUri() throws Exception {
+            URI resourceBaseUri = Optional.ofNullable(getClass().getResource("/web/static/"))
+                    .orElseThrow().toURI();
+            assertEquals("file", resourceBaseUri.getScheme());
+            TestFixture.create(new ExplodedClasspathStaticHandler(resourceBaseUri)).whenGet("/exploded")
+                    .expectWebResult(testContents("<!DOCTYPE html>"));
+        }
+
+        @Test
         void serveFromJarResourceUri() throws Exception {
             java.nio.file.Path jar = Files.createTempFile("fluxzero-static-handler", ".jar");
             jar.toFile().deleteOnExit();
@@ -1478,6 +1487,12 @@ public class HandleWebTest {
                 super("/file", Paths.get(FileUtils.getFile(
                         FileSystemHandler.class, "/web/static/index.html")).toAbsolutePath().toString()
                         .replace("/index.html", ""), "index.html");
+            }
+        }
+
+        static class ExplodedClasspathStaticHandler extends StaticFileHandler {
+            ExplodedClasspathStaticHandler(URI resourceBaseUri) {
+                super("/exploded", null, resourceBaseUri, "index.html", Set.of(), Set.of("html"), 86400L);
             }
         }
 
