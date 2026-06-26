@@ -64,7 +64,7 @@
         </dependency>
         <dependency>
             <groupId>io.fluxzero</groupId>
-            <artifactId>sdk</artifactId>
+            <artifactId>sdk-jvm</artifactId>
             <type>test-jar</type>
             <classifier>tests</classifier>
             <scope>test</scope>
@@ -169,7 +169,7 @@
                                 </annotationProcessorPath>
                                 <annotationProcessorPath>
                                     <groupId>io.fluxzero</groupId>
-                                    <artifactId>sdk</artifactId>
+                                    <artifactId>sdk-jvm</artifactId>
                                 </annotationProcessorPath>
                             </annotationProcessorPaths>
                         </configuration>

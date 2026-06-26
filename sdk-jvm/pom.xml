@@ -11,6 +11,7 @@
   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
+  ~
   -->
 
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -23,72 +24,83 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>common</artifactId>
+    <artifactId>sdk-jvm</artifactId>
 
     <name>${project.groupId}:${project.artifactId}</name>
-    <description>Library with common components for Fluxzero.</description>
+    <description>JVM runtime implementation for the Fluxzero Java SDK.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <dependencies>
+        <!--fluxzero browser-safe sdk contracts-->
         <dependency>
             <groupId>io.fluxzero</groupId>
-            <artifactId>common-api</artifactId>
+            <artifactId>sdk-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <!--serialization-->
+        <!--fluxzero common-->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
+            <groupId>io.fluxzero</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <!--nullable annotations used by public SDK APIs-->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jdk8</artifactId>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
         </dependency>
+
+        <!--spring-->
         <dependency>
-            <groupId>com.fasterxml.jackson.module</groupId>
-            <artifactId>jackson-module-kotlin</artifactId>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.dataformat</groupId>
-            <artifactId>jackson-dataformat-cbor</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.msgpack</groupId>
-            <artifactId>msgpack-core</artifactId>
-            <version>0.9.12</version>
-        </dependency>
-        <dependency>
-            <groupId>at.yawk.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-            <version>1.11.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <version>1.5.7-11</version>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
         </dependency>
 
-        <!--logging API used by Lombok @Slf4j and common logging hooks-->
+        <!--optional hamcrest matchers-->
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-library</artifactId>
+            <version>3.0</version>
+            <scope>test</scope>
+            <optional>true</optional>
         </dependency>
 
-        <!--for their reflection utils-->
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.20.0</version>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+            <resource>
+                <directory>src/main/version</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -99,6 +111,15 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                         </path>
+                        <path>
+                            <groupId>io.fluxzero</groupId>
+                            <artifactId>common</artifactId>
+                            <version>${project.version}</version>
+                        </path>
+                        <path>
+                            <groupId>ch.qos.logback</groupId>
+                            <artifactId>logback-classic</artifactId>
+                        </path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
@@ -108,7 +129,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>io.fluxzero.common</Automatic-Module-Name>
+                            <Automatic-Module-Name>io.fluxzero.sdk</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>
@@ -119,13 +140,18 @@
                         </goals>
                         <configuration>
                             <includes>
-                                <include>**/*Utils.*</include>
+                                <include>**/test/**</include>
+                                <include>**/META-INF/**</include>
                             </includes>
+                            <excludes>
+                                <exclude>**/fluxzero.properties</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
 
 </project>

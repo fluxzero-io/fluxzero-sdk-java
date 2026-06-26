@@ -25,7 +25,11 @@
     <version>0-SNAPSHOT</version>
     <modules>
         <module>fluxzero-bom</module>
+        <module>common-api</module>
         <module>common</module>
+        <module>sdk-api</module>
+        <module>sdk-browser</module>
+        <module>sdk-jvm</module>
         <module>sdk</module>
         <module>test-server</module>
         <module>proxy</module>
@@ -257,7 +261,7 @@
                             </path>
                             <path>
                                 <groupId>io.fluxzero</groupId>
-                                <artifactId>sdk</artifactId>
+                                <artifactId>sdk-jvm</artifactId>
                                 <version>${project.version}</version>
                             </path>
                         </annotationProcessorPaths>

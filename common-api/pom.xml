@@ -23,34 +23,29 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>sdk</artifactId>
+    <artifactId>common-api</artifactId>
 
     <name>${project.groupId}:${project.artifactId}</name>
-    <description>Compatibility artifact for the Fluxzero Java SDK.</description>
+    <description>Browser-safe common Fluxzero API contracts.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
-
-    <dependencies>
-        <dependency>
-            <groupId>io.fluxzero</groupId>
-            <artifactId>sdk-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.fluxzero</groupId>
-            <artifactId>sdk-jvm</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-    </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <proc>none</proc>
+                    <annotationProcessorPaths combine.self="override"/>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>io.fluxzero.sdk</Automatic-Module-Name>
+                            <Automatic-Module-Name>io.fluxzero.common.api.core</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>

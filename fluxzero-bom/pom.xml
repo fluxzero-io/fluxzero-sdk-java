@@ -34,8 +34,35 @@
         <dependencies>
             <dependency>
                 <groupId>io.fluxzero</groupId>
+                <artifactId>common-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fluxzero</groupId>
                 <artifactId>common</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>sdk-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>sdk-browser</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>sdk-jvm</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.fluxzero</groupId>
+                <artifactId>sdk-jvm</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <classifier>tests</classifier>
             </dependency>
             <dependency>
                 <groupId>io.fluxzero</groupId>
