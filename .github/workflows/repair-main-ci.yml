@@ -37,10 +37,11 @@ on:
 permissions:
   actions: read
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
-  group: repair-main-ci-${{ inputs.run_id }}
+  group: repair-main-ci-main
   cancel-in-progress: false
 
 jobs:
@@ -57,6 +58,7 @@ jobs:
       CODEX_MODEL: gpt-5.5
       CODEX_REASONING_EFFORT: high
       CODEX_REPAIR_TIMEOUT: 35m
+      REPAIR_PR_LABEL: autorepair
       FAILED_RUN_ID: ${{ inputs.run_id }}
       FAILED_RUN_URL: ${{ inputs.run_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, inputs.run_id) }}
       FAILED_RUN_HEAD_SHA: ${{ inputs.head_sha || '' }}
@@ -159,8 +161,39 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check required secrets
+      - name: Avoid duplicate repair PR
         if: steps.gate.outputs.skip != 'true'
+        id: duplicate
+        run: |
+          set -euo pipefail
+          branch="codex/repair-main-ci-${FAILED_RUN_SHORT_SHA}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          existing_pr="$(gh pr list --state open --limit 1 --label "$REPAIR_PR_LABEL" \
+            --json number,headRefName,url \
+            --jq '.[] | [.number, .headRefName, .url] | @tsv')"
+
+          if [ -n "$existing_pr" ]; then
+            IFS=$'\t' read -r pr_number pr_branch pr_url <<< "$existing_pr"
+            echo "Existing open repair PR #${pr_number} (${pr_branch}) found: ${pr_url}"
+            echo "Skipping this repair run until that PR is merged or closed."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "existing_number=$pr_number" >> "$GITHUB_OUTPUT"
+            echo "existing_url=$pr_url" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure autorepair label
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          gh label create "$REPAIR_PR_LABEL" \
+            --description "Pull requests created by the main-build autorepair workflow" \
+            --color "0E8A16" \
+            --force
+
+      - name: Check required secrets
+        if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
         run: |
           set -euo pipefail
           if [ -z "${OPENAI_API_KEY:-}" ]; then
@@ -169,21 +202,6 @@ jobs:
           fi
           if [ -z "${REPAIR_GITHUB_TOKEN:-}" ]; then
             echo "::warning::REPAIR_GITHUB_TOKEN is not set. Repair PRs can still be created with GITHUB_TOKEN, but their PR checks may not start automatically."
-          fi
-
-      - name: Avoid duplicate repair PR
-        if: steps.gate.outputs.skip != 'true'
-        id: duplicate
-        run: |
-          set -euo pipefail
-          branch="codex/repair-main-ci-${FAILED_RUN_SHORT_SHA}"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          count="$(gh pr list --state open --head "$branch" --json number --jq 'length')"
-          if [ "$count" != "0" ]; then
-            echo "Existing repair PR found for $branch; skipping."
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare repair branch
@@ -502,5 +520,6 @@ jobs:
             --draft \
             --base main \
             --head "${{ steps.duplicate.outputs.branch }}" \
+            --label "$REPAIR_PR_LABEL" \
             --title "$REPAIR_TITLE" \
             --body-file /tmp/pr-body.md
