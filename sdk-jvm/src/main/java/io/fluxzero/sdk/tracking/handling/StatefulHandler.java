@@ -35,8 +35,8 @@ import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -292,22 +292,25 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
 
     protected boolean alreadyFiltered(HandlerInvoker i) {
         Executable executable = i.getMethod();
-        return JvmComponentMetadataLookup.scanIfScannable(executable.getDeclaringClass())
-                       .map(lookup -> lookup.hasExecutableAnnotation(executable, RoutingKey.class))
+        return ComponentMetadataLookups.lookup(executable.getDeclaringClass())
+                       .map(lookup -> ComponentMetadataLookups.hasExecutableAnnotation(
+                               lookup, executable, RoutingKey.class))
                        .filter(Boolean::booleanValue)
                        .orElse(false)
-               || JvmComponentIntrospector.getInstance().getMethodAnnotation(executable, RoutingKey.class).isPresent();
+               || !ComponentMetadataLookups.generatedOnlyMode()
+                  && JvmComponentIntrospector.getInstance().getMethodAnnotation(executable, RoutingKey.class)
+                          .isPresent();
     }
 
     private static List<AccessibleObject> memberLocations(Class<?> ownerType) {
-        List<AccessibleObject> metadataLocations = JvmComponentMetadataLookup.scanIfScannable(ownerType)
-                .map(lookup -> lookup.annotatedProperties(ownerType, Member.class).stream()
+        Optional<List<AccessibleObject>> metadataLocations = ComponentMetadataLookups.lookup(ownerType)
+                .map(lookup -> ComponentMetadataLookups.annotatedProperties(lookup, ownerType, Member.class).stream()
                         .flatMap(property -> annotatedPropertyLocation(
                                 ownerType, property.name(), Member.class).stream())
-                        .toList())
-                .orElseGet(List::of);
-        if (!metadataLocations.isEmpty()) {
-            return metadataLocations;
+                        .toList());
+        if (metadataLocations.filter(locations -> !locations.isEmpty()).isPresent()
+            || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataLocations.orElseGet(List::of);
         }
         return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class).stream()
                 .map(AccessibleObject.class::cast)
@@ -324,10 +327,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     }
 
     private static Optional<String> entityIdPropertyName(Class<?> type) {
-        return JvmComponentMetadataLookup.scanIfScannable(type)
-                .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
-                        .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)));
+        return ComponentMetadataLookups.lookup(type)
+                .flatMap(lookup -> ComponentMetadataLookups.annotatedPropertyName(lookup, type, EntityId.class))
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty()
+                        : JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
+                                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)));
     }
 
     private static Optional<Object> entityIdValue(Object value) {

@@ -112,6 +112,63 @@ public final class ComponentMetadataLookups {
                 .findFirst();
     }
 
+    /**
+     * Returns whether the supplied metadata annotations contain, or are meta-annotated with, the supplied annotation.
+     */
+    public static boolean hasAnnotation(
+            Iterable<AnnotationDescriptor> annotations, Class<?> annotationType) {
+        Objects.requireNonNull(annotations, "annotations");
+        Objects.requireNonNull(annotationType, "annotationType");
+        for (AnnotationDescriptor annotation : annotations) {
+            if (annotation.isOrHas(annotationType.getSimpleName(), annotationType.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Finds the first property in metadata that carries the supplied annotation.
+     */
+    public static Optional<PropertyDescriptor> annotatedProperty(
+            ComponentMetadataLookup lookup, Class<?> type, Class<?> annotationType) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return lookup.properties(type.getName()).stream()
+                .filter(property -> hasAnnotation(property.annotations(), annotationType))
+                .findFirst();
+    }
+
+    /**
+     * Finds the first property name in metadata that carries the supplied annotation.
+     */
+    public static Optional<String> annotatedPropertyName(
+            ComponentMetadataLookup lookup, Class<?> type, Class<?> annotationType) {
+        return annotatedProperty(lookup, type, annotationType).map(PropertyDescriptor::name);
+    }
+
+    /**
+     * Returns properties in metadata that carry the supplied annotation.
+     */
+    public static List<PropertyDescriptor> annotatedProperties(
+            ComponentMetadataLookup lookup, Class<?> type, Class<?> annotationType) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return lookup.properties(type.getName()).stream()
+                .filter(property -> hasAnnotation(property.annotations(), annotationType))
+                .toList();
+    }
+
+    /**
+     * Returns whether executable metadata carries the supplied annotation.
+     */
+    public static boolean hasExecutableAnnotation(
+            ComponentMetadataLookup lookup, Executable executable, Class<?> annotationType) {
+        return hasAnnotation(executableAnnotations(lookup, executable), annotationType);
+    }
+
     private static Optional<ComponentMetadataLookup> activeRegistryLookup(List<Class<?>> types) {
         return Fluxzero.getOptionally()
                 .map(Fluxzero::componentRegistry)

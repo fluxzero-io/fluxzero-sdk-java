@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -66,6 +67,20 @@ class HandlerAssociationsTest {
         assertEquals("targetId", parameterAssociations.getFirst().getAssociationValue().getPath());
     }
 
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForAssociationAnnotations() throws NoSuchMethodException {
+        GeneratedOnlyMetadataMode.run(() -> {
+            HandlerAssociations associations =
+                    new HandlerAssociations(UnregisteredGeneratedOnlyHandler.class, List.of(), e -> null);
+
+            assertTrue(associations.getAssociationProperties().isEmpty());
+            assertFalse(associations.alwaysAssociate(
+                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("always", SamplePayload.class)));
+            assertTrue(associations.getMethodAssociationProperties(
+                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handle", SamplePayload.class)).isEmpty());
+        });
+    }
+
     static class SampleHandler {
         @Association({"someId", "aliasId"})
         private String someId;
@@ -88,6 +103,21 @@ class HandlerAssociationsTest {
 
         @HandleCommand
         void parameterAssociation(@Association(value = "orderId", path = "targetId") SampleCommand command) {
+        }
+    }
+
+    static class UnregisteredGeneratedOnlyHandler {
+        @Association
+        private String someId;
+
+        @HandleCommand
+        @Association(always = true)
+        void always(SamplePayload payload) {
+        }
+
+        @HandleCommand
+        @Association
+        void handle(SamplePayload payload) {
         }
     }
 

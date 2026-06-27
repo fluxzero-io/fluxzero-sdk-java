@@ -22,6 +22,8 @@ import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ConsumerDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
@@ -467,15 +469,19 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     public static Stream<ConsumerConfiguration> configurations(Collection<Class<?>> handlerClasses) {
         List<Class<?>> types = handlerClasses.stream().distinct().toList();
         List<Class<?>> scannableTypes = types.stream().filter(JvmComponentMetadataLookup::isScannable).toList();
-        JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(scannableTypes);
+        Optional<ComponentMetadataLookup> lookup =
+                ComponentMetadataLookups.lookup(scannableTypes.toArray(Class<?>[]::new));
+        if (lookup.isEmpty()) {
+            return Stream.empty();
+        }
         Stream<ConsumerConfiguration> classConfigurations =
-                scannableTypes.stream().flatMap(type -> classConfigurations(lookup, type));
-        return Stream.concat(classConfigurations, packageMetadata(scannableTypes, lookup)
+                scannableTypes.stream().flatMap(type -> classConfigurations(lookup.get(), type));
+        return Stream.concat(classConfigurations, packageMetadata(scannableTypes, lookup.get())
                 .flatMap(ConsumerConfiguration::packageConfigurations));
     }
 
     private static Stream<PackageDescriptor> packageMetadata(
-            Collection<Class<?>> handlerClasses, JvmComponentMetadataLookup lookup) {
+            Collection<Class<?>> handlerClasses, ComponentMetadataLookup lookup) {
         return handlerClasses.stream()
                 .map(Class::getPackageName)
                 .distinct()
@@ -486,8 +492,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .sorted(Comparator.comparing(PackageDescriptor::packageName).reversed());
     }
 
-    private static Stream<ConsumerConfiguration> classConfigurations(JvmComponentMetadataLookup lookup, Class<?> type) {
-        return consumerDescriptor(lookup.typeAnnotations(type))
+    private static Stream<ConsumerConfiguration> classConfigurations(ComponentMetadataLookup lookup, Class<?> type) {
+        return consumerDescriptor(lookup.typeAnnotations(type.getName()))
                 .map(c -> getConfiguration(c, h -> INTROSPECTOR.typeOf(h).equals(type))).stream();
     }
 

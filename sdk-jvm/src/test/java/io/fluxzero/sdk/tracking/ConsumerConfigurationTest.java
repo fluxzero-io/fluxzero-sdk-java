@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.Order;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -94,6 +95,13 @@ public class ConsumerConfigurationTest {
                 List.of(FlowRegulatedConsumer.class)).findFirst().orElseThrow();
 
         assertEquals(Optional.of(java.time.Duration.ofMillis(5)), config.getFlowRegulator().pauseDuration());
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForConsumerAnnotations() {
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(ConsumerConfiguration.configurations(List.of(UnregisteredGeneratedOnlyConsumer.class))
+                                   .toList().isEmpty()));
     }
 
     @Test
@@ -536,6 +544,10 @@ public class ConsumerConfigurationTest {
 
     @Consumer(name = "flow-regulated", flowRegulator = PositiveFlowRegulator.class)
     static class FlowRegulatedConsumer {
+    }
+
+    @Consumer(name = "generated-only")
+    static class UnregisteredGeneratedOnlyConsumer {
     }
 
     public static class PositiveFlowRegulator implements FlowRegulator {
