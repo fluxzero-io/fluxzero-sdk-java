@@ -1,164 +1,187 @@
-# ReflectionUtils Metadata Abstraction Plan
+# Metadata Runtime Finalization Plan
 
 ## Goal
 
 Keep one functional Fluxzero core.
 
-JVM execution may use reflection as an implementation detail. Browser execution should use generated metadata and
-generated invocation. The core should consume metadata-shaped abstractions instead of calling `ReflectionUtils` or a
-JVM-shaped introspector directly.
+Build/source time produces a Fluxzero application model. The JVM runtime should consume that model for Fluxzero app
+semantics, while reflection remains only a JVM backend implementation detail where Java itself is the platform.
 
-The target architecture is:
+The active phase lists only open work. Completed slices are kept later in this file as historical evidence.
 
-- build/source time produces a Fluxzero application model,
-- JVM runtime and browser runtime consume the same semantic model,
-- JVM and browser differ in metadata/invocation backends, not in Fluxzero behavior,
-- the only real black box left in an app is what handler code does as a side effect.
+## Active Phase: JVM Metadata Runtime Finalization
 
-Legend: `[x]` means implemented and verified for the current target scope. `[ ]` means still open.
+Status: open.
 
-Overall status: [ ] in progress.
+Browser-local execution is parked until this phase is complete. The JVM is the proving ground because it already has
+the broadest SDK behavior and test surface.
 
-Migration rule: move broad layers, not narrow vertical features. Fluxzero should not ask projects to run a
-half-reflection, half-blueprint semantic model.
+### Slice 1: Generated-Only Semantic Lock
 
-## Current Backlog: Generated Metadata Runtime Parity
+Status: [x] implemented.
 
-Status: [ ] open.
+Goal: generated-only JVM mode must not answer Fluxzero app semantics through hidden classpath or reflection fallback.
 
-Context: browser conformance is parked as a breadth exercise until the JVM runtime can prove the same generated app
-model. The browser should not need to prove that Fluxzero was reimplemented; it should only prove that another backend
-can execute the same generated metadata and generated invocation form.
+Remaining work:
 
-Acceptance criteria:
+- [x] Add a generated-only runtime guard around the remaining JVM metadata/introspection backend so app-semantic use of
+  `JvmComponentIntrospector` fails unless it is explicitly allowed.
+- [x] Define the allowed JVM-only backend categories in this file, with examples and owning package areas.
+- [x] Move every newly failing generated-only app-semantic path either to registry metadata/generated invocation or to
+  the allowed JVM-only backend list.
 
-- [ ] `ComponentRegistry` is complete enough for all Fluxzero runtime decisions.
-- [x] JVM runtime has a central generated-only metadata resolver mode.
-- [ ] In generated-only mode, reflection fallback is forbidden for app semantics.
-- [ ] Existing `sdk-jvm` tests run green in generated-only mode, first by thematic clusters and then broadly.
-- [ ] Browser generator uses the same metadata and generated invocation shape after the JVM proves the model.
+Allowed JVM-only backend categories:
 
-Work slices:
+- Metadata producer / generated metadata bridge:
+  `io.fluxzero.sdk.registry.*`, including `ClasspathComponentScanner`, `JvmComponentMetadataLookup`, generated
+  registry loading, and metadata annotation projection.
+- Current JVM executable invocation backend:
+  `io.fluxzero.common.handling.HandlerInspector` and handler/modeling classes that still prepare JVM invocation
+  handles until Slice 3 replaces app-level invocation decisions with generated invocation plans.
+- JVM object/property backend:
+  modeling, repository, document-store, data-protection, content-filtering, web-body, and stateful-handler code that
+  still needs Java object construction or property access while the app semantics come from registry metadata.
+- JVM serialization/type backend:
+  serializer classes that need runtime classes for payload typing, chunked deserialization, Jackson conversion, and
+  caster bridge logic.
+- Jakarta validation provider backend:
+  `io.fluxzero.sdk.tracking.handling.validation.jakarta.*` for constraint validator instantiation, provider metadata,
+  composed constraints, value extractors, and override hierarchy mechanics until Slice 4 draws the final boundary.
+- JVM integration backend:
+  Spring parameter/config integration and small SDK utilities such as caller-scope memoization.
 
-- [x] Slice A: Generated-only metadata resolver mode.
-  - [x] Add an explicit runtime/property switch for generated-only metadata.
-  - [x] Make the central JVM metadata resolver refuse classpath/reflection fallback in that mode.
-  - [x] Add focused tests proving registry-backed lookup still works and reflection-backed fallback is absent.
-- [x] Slice B: Direct JVM scanner-call inventory and guardrail.
-  - [x] Treat direct `JvmComponentMetadataLookup.scan(...)`, `scanIfScannable(...)`, and
-    `new ClasspathComponentScanner().scan(...)` calls in runtime code as backlog debt.
-  - [x] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
-    resolver.
-  - [x] Current known debt: 0 direct runtime scan/fallback sites outside the central metadata lookup backends.
-- [ ] Slice C: Thematic generated-only JVM clusters.
-  - [ ] Handler discovery, filtering, and invocation.
-    - [x] `RegistryFilteringHandler` uses the central metadata resolver and generated-only mode no longer scans
-      handler routes through the JVM classpath fallback.
-    - [x] `DefaultFluxzero` and Spring handler registration route component registry production through the central
-      metadata helper; generated-only mode no longer scans registered handlers through direct classpath fallback.
-  - [ ] Consumer, local/tracked, gateway, and tracking configuration.
-    - [x] `ClientUtils` local handler and self-tracking metadata checks use the central resolver and respect
-      generated-only mode.
-    - [x] `ConsumerConfiguration` uses the central resolver for package/type `@Consumer`; generated-only mode no
-      longer derives consumer configuration from JVM annotation fallback.
-    - [x] `DefaultHandlerFactory` uses metadata-backed type/package `@TrackSelf` resolution; generated-only mode no
-      longer derives self-handling factory behavior through JVM annotation fallback.
-  - [ ] Modeling, aggregates, entities, repositories, and property access.
-    - [x] `DefaultHandlerFactory` uses metadata-backed `@Stateful` resolution for handler discovery and stateful
-      handler creation; generated-only mode no longer derives stateful factory behavior through JVM annotation
-      fallback.
-    - [x] `HandlerAssociations` and `StatefulHandler` use the central resolver for association, member,
-      routing-key, and entity-id metadata; generated-only mode no longer derives those semantics through direct
-      scanner fallback.
-    - [x] Aggregate repository, index operations, and document store entity-id/apply-factory metadata use the central
-      resolver; generated-only mode no longer derives those semantics through direct scanner fallback.
-    - [x] `DefaultHandlerRepository` uses metadata-backed `@Stateful` commit/timestamp policy; generated-only mode no
-      longer derives repository behavior through JVM annotation fallback.
-    - [x] `DefaultEntityHelper` uses metadata-backed `@Aggregate` root policy; generated-only mode no longer derives
-      aggregate commit/search/event policy through JVM annotation fallback.
-    - [x] `ClientUtils.getSearchParameters` uses metadata-backed `@Searchable` projection, including `@Aggregate`
-      meta-annotation attributes; generated-only mode no longer derives search collection/timestamp policy through
-      JVM annotation fallback.
-    - [x] `ModelMetadata` uses metadata-backed member, alias, and annotated-property discovery; generated-only mode no
-      longer derives model property semantics through JVM annotation fallback.
-  - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
-    - [x] Registry annotations preserve nested annotation-valued attributes across source scanning, classpath scanning,
-      annotation processing, JSON round-tripping, and metadata annotation projection.
-    - [x] `ContentFilterInterceptor` uses the central metadata resolver and generated-only mode no longer applies
-      `@FilterContent` through JVM annotation fallback.
-    - [x] `ValidationUtils` uses the central metadata resolver for `@ValidateWith` and auth rules; generated-only
-      mode no longer enforces validation/auth semantics from JVM annotation fallback.
-    - [x] Jakarta bean and executable validation uses registered/generated metadata for element-level constraints,
-      `@Valid`, `@ConvertGroup`, and `@GroupSequence`; generated-only mode no longer derives those validation
-      annotations through JVM element annotation fallback. Type-use validation and constraint-definition internals
-      remain JVM-backend work for a later slice.
-    - [x] `DataProtectionInterceptor` uses the central metadata resolver for `@ProtectData` and
-      `@DropProtectedData`; generated-only mode no longer protects or drops data through JVM annotation fallback.
-    - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns
-      through direct scanner fallback.
-    - [x] Dynamic web `@Path` roots and web parameter binding use metadata-backed property/parameter annotations;
-      generated-only mode no longer derives those web semantics through JVM annotation fallback.
-    - [x] API-doc endpoint discovery, documentation/exclusion/response metadata, web parameter docs, and automatic
-      `@ApiDocInfo` endpoints use registry metadata; generated-only mode no longer derives API-doc semantics from JVM
-      annotation fallback.
-    - [x] OpenAPI document-level `@ApiDocInfo` rendering uses registry metadata; generated-only mode no longer derives
-      document title/version/servers/security/components/extensions through JVM annotation fallback.
-    - [x] OpenAPI schema-level Fluxzero metadata for parameters, fields, record components, and documented accessors
-      uses registry metadata for `@ApiDoc`, `@ApiDocExclude`, and known validation constraints; generated-only mode no
-      longer derives those schema semantics through JVM annotation fallback.
-    - [x] Caster method discovery and `@Upcast`/`@Downcast` cast parameters use executable registry metadata;
-      generated-only mode no longer discovers caster annotations through JVM annotation fallback.
-    - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
-      methods and payload types; generated-only mode no longer derives scheduling semantics through JVM annotation
-      fallback.
-    - [x] `DefaultGenericGateway` and `SocketSession` use metadata-backed `@Timeout` resolution for request payload
-      types; generated-only mode no longer derives timeout semantics through JVM annotation fallback.
-    - [x] `HasMessage` and message routing use metadata-backed `@RoutingKey` type/property resolution; generated-only
-      mode no longer derives publication routing keys through JVM annotation fallback.
-    - [x] `DefaultHandlerFactory` and `SocketEndpointHandler` use metadata-backed `@SocketEndpoint` resolution,
-      including nested `aliveCheck` configuration; generated-only mode no longer discovers socket endpoint semantics
-      through JVM annotation fallback.
-    - [x] `StaticFileHandler` uses metadata-backed type/package `@ServeStatic` resolution; generated-only mode no
-      longer discovers static file handlers through JVM type or package annotation fallback.
-- [ ] Slice D: Generated invocation parity.
-  - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
-    `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.
-  - [x] Add a guardrail that prevents direct `DefaultMemberInvoker` usage from reappearing in `sdk-jvm` runtime code
-    outside the JVM backend.
-  - [x] Make `HandlerConfiguration` resolve handler annotations through an explicit executable annotation resolver.
-  - [x] Add a JVM metadata-backed executable annotation resolver that synthesizes annotation views from
-    `AnnotationDescriptor` and refuses reflection fallback in generated-only mode.
-  - [x] Let the executable annotation resolver return concrete composed annotation views and all matching executable
-    annotations, so meta-annotation lookups keep the same handler-kind semantics as the JVM path.
-  - [x] Prove generated-only handler discovery, disabled handlers, and passive handler metadata through registry
-    metadata.
-  - [x] Route payload `allowedClasses` filtering through the same metadata-backed annotation resolver and prove
-    generated-only behavior with and without registry metadata.
-  - [x] Route `skipExpiredRequests` through the metadata-backed annotation resolver and prove generated-only request
-    expiry behavior.
-  - [x] Route document handler update/delete decoration and entity-parameter handler-kind matching through the
-    metadata-backed annotation resolver.
-  - [x] Route document/custom handler topic discovery through the metadata-backed annotation resolver.
-  - [x] Route method-level `@Trigger`, `@Apply`, and `@AssertLegal` runtime filters through the metadata-backed
-    annotation resolver.
-  - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
-  - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
-    invocation plans are available.
-  - [ ] Keep unavoidable JVM-only reflection behind an explicit backend seam.
-- [ ] Slice E: Browser resumes only after JVM generated-only evidence.
-  - [ ] Browser generator consumes the same metadata/invocation contracts proven by JVM tests.
-  - [ ] Browser-conformance checks backend compatibility, not a copied Fluxzero implementation.
+Done when:
 
-Module shape checkpoint:
+- [x] Generated-only failures point to a missing metadata/invocation area, not to silent reflection drift.
 
-- [ ] Preserve the current customer-facing Java SDK artifact/module shape before customer adoption. The existing SDK
-  should remain the JVM cornerstone; a thin compatibility artifact is not a satisfying long-term answer.
-- [ ] Re-evaluate whether `sdk-jvm` should remain a public cornerstone module or be folded back into the existing
-  SDK artifact before this branch becomes customer-facing.
-- [ ] Keep edge/tooling modules only where they buy clear isolation: `sdk-browser-generator` and
-  `browser-conformance` are acceptable as tooling/test edges; cornerstone modules need a higher bar.
-- [ ] Re-evaluate `common-api` and `sdk-api` after generated-only JVM parity. They are justified only if they remain
-  genuinely browser-safe/shared contracts rather than architecture-for-architecture's-sake.
+Acceptance evidence:
+
+- [x] `JvmComponentIntrospector` enforces the generated-only backend guard on every public method, including cached
+  instances.
+- [x] `ReflectionBoundaryTest` fails new direct `JvmComponentIntrospector` runtime sites unless they are classified by
+  `JvmBackendAccess`.
+- [x] `ComponentMetadataLookupTest` proves unclassified JVM introspection fails in generated-only mode.
+- [x] Broad generated-only thematic suite passed:
+  `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,RegistryFilteringHandlerTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+
+### Slice 2: Runtime Decision Matrix
+
+Goal: every Fluxzero runtime decision that belongs to app semantics has an explicit source in the generated app model.
+
+Remaining work:
+
+- [ ] Add a runtime-decision matrix that maps each app-semantic decision to one of: consumed registry metadata,
+  generated invocation plan, or allowed JVM-only backend implementation.
+- [ ] Cover runtime consumers rather than producers: handler matching, handler filters, parameter binding, validation,
+  data protection, content filtering, routing, casting, scheduling, web/socket/document/custom routes, and registered
+  types.
+- [ ] Add a lightweight maintenance guard for the matrix where practical, so new app-semantic runtime code must declare
+  its metadata source.
+
+Done when:
+
+- [ ] There is no undocumented "Fluxzero magic" left outside the generated model or the allowed JVM-only backend list.
+
+### Slice 3: Generated Invocation Plan
+
+Goal: the JVM runtime can use generated executable plans for app-level invocation decisions.
+
+Remaining work:
+
+- [ ] Add invocation-plan descriptors on top of the existing executable/parameter metadata, including target component,
+  executable id, binding plan, property access plan, and generated codec hooks where needed.
+- [ ] Generate invocation plans from build-time/source-time registry producers.
+- [ ] Make JVM handler invocation prefer generated plans when present.
+- [ ] Make JVM modeling/caster invocation prefer generated plans for `@Apply`, `@AssertLegal`, upcasters, and
+  downcasters.
+- [ ] Keep reflection invocation only behind the explicit JVM backend seam for missing plans or intentionally JVM-only
+  mechanics.
+- [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths.
+
+Done when:
+
+- [ ] Existing JVM behavior is preserved while handler matching, parameter binding, and app-level invocation decisions
+  are driven by generated plans.
+
+### Slice 4: Validation And Policy Gaps
+
+Goal: close the remaining validation and policy areas that still need JVM-specific metadata or explicit boundaries.
+
+Remaining work:
+
+- [ ] Model type-use validation metadata where Fluxzero semantics need it, including collection, optional, generic
+  element, and array paths.
+- [ ] Define the JVM-only Jakarta backend boundary for constraint validator instantiation, `@Constraint` definitions,
+  composed constraints, `ValueExtractor`s, and provider metadata views.
+- [ ] Move those JVM-only validation mechanics behind the backend boundary instead of letting them look like generic app
+  semantic reflection.
+- [ ] Add generated-only tests for the remaining type-use validation and Jakarta backend-boundary cases.
+
+Done when:
+
+- [ ] Generated-only JVM tests prove app-facing validation and policy behavior without undisclosed reflection fallback.
+
+### Slice 5: On-Demand Source Lifecycle
+
+Goal: `src/.../fluxzero` behaves like a live local development source root, not only an index captured at registration.
+
+Remaining work:
+
+- [ ] Refresh or watch source roots so newly added and deleted Java files update the indexed registry without
+  restarting the app.
+- [ ] Diff refreshed registries and safely register or unregister lazy routes at runtime.
+- [ ] Update the active component registry visible to runtime metadata lookup after a refresh.
+- [ ] Invalidate compile-cache entries and close classloaders for removed or replaced source units.
+- [ ] Add tests for added handlers, removed handlers, added payload/model components, removed payload/model components,
+  and source-defined infrastructure changes where runtime replacement is supported.
+
+Done when:
+
+- [ ] A local JVM app can add, edit, and delete on-demand handlers and payload/model components, then see the route/type
+  changes without restarting.
+
+### Slice 6: JVM Adoption Shape And Final Verification
+
+Goal: make the JVM-first model boring to adopt before browser work resumes.
+
+Remaining work:
+
+- [ ] Decide the customer-facing artifact/module shape before adoption. The existing `fluxzero-sdk-java` identity
+  should remain the JVM cornerstone unless there is a concrete migration reason.
+- [ ] Fold, rename, or justify cornerstone modules introduced for the split. Edge/tooling/test modules may stay
+  separate when the boundary is clearly useful.
+- [ ] Run generated-only thematic suites, then the full `sdk-jvm` suite.
+- [ ] Run downstream Java and Kotlin projects with generated registry lifecycle defaults.
+- [ ] Run the on-demand comparison benchmark with old/new paths and add/edit/delete source lifecycle scenarios.
+- [ ] Run full release-style verification after the JVM slices are complete.
+
+Done when:
+
+- [ ] JVM customer projects can adopt the generated-model/source workflow without learning different Fluxzero semantics
+  or a surprising module story.
+
+## Parked Browser Backlog
+
+Status: parked until the active JVM phase is complete.
+
+Browser is still strategically important, but it should consume the same generated app model and invocation shape after
+the JVM has proved them.
+
+Remaining browser work:
+
+- [ ] Publish or package a browser-safe Fluxzero SDK plus browser `LocalClient` artifact that is compiled ahead of
+  customer app code.
+- [ ] Keep browser-local execution scoped to `LocalClient`; do not model this as a connection to a remote Fluxzero
+  runtime.
+- [ ] Productize the existing `teavm-javac` browser-source spike so customer Java production sources compile and
+  execute on the fly in the browser without an external JVM, Maven, javac, TeaVM CLI, or server-side app compile.
+- [ ] Add a JUnit-compatible browser test runner for common Java test semantics, with Fluxzero `TestFixture` available
+  as a normal library/DSL inside those tests.
+- [ ] Define browser-local consumers as local execution contexts, with Web Workers only as an optional backend.
+- [ ] Support browser hot reload for edited, added, and removed source files by recompiling/lowering sources in the
+  browser, diffing the registry, and swapping generated functions safely.
+
+## Completed History
 
 ## Phase 1: Foundation And Registry Parity
 
@@ -233,10 +256,6 @@ Acceptance evidence:
 - [x] Generated registry resources are loadable from a classpath/classloader.
 - [x] Build-time metadata exists without runtime source scanning.
 
-Nearby follow-up, not required for this slice to count as done:
-
-- [ ] Wire the registry artifact into standard CLI/template defaults.
-
 ### Slice 2: Broad Source/ClassPath Parity Harness
 
 Status: [x] implemented as a broad semantic parity harness.
@@ -265,13 +284,12 @@ Acceptance evidence:
   fixture wherever javac can observe the same information.
 - [x] Parity failures point at exact package/component/route/property/executable fields.
 
-Nearby follow-up, not required for this slice to count as done:
-
-- [ ] Add a larger real-app parity corpus beyond the curated registry fixtures.
-
 ## Phase 2: Metadata Runtime Migration
 
-Status: [x] implemented for the current JVM and browser metadata runtime targets.
+Status: historical; final gaps are tracked in the active phase above.
+
+Context: Slices 3 through 6 below describe completed foundation/runtime-migration work from the previous plan. They
+are kept for history and evidence. The stricter final-state work is tracked in the active JVM phase above.
 
 ### Slice 3: Metadata Lookup Facade
 
@@ -377,7 +395,6 @@ Work:
 - [x] Make browser generation consume the same backend shape.
   - [x] `BrowserApplicationGenerator` accepts `ComponentMetadataLookup` directly.
   - [x] Registry-backed lookup remains the dependency-free backend shared by generated/browser-oriented code.
-  - [ ] Full browser runtime parity remains Slice 6.
 
 Done when:
 
@@ -395,7 +412,10 @@ Acceptance evidence:
 
 ### Slice 6: Browser Runtime Parity
 
-Status: [x] implemented for the current browser conformance target.
+Status: [x] implemented for the previous browser conformance target.
+
+Current caveat: this proved the browser path can execute registry-lowered metadata, but it is not the final
+generated-only shared runtime parity target. That stricter target is parked in B1 through B4.
 
 Context: browser execution should be a backend problem, not a copied Fluxzero implementation. The browser can have
 generated invokers, generated codecs, browser stores, and browser-safe IO, but the Fluxzero rules should be shared with

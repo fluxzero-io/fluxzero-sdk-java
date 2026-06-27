@@ -29,6 +29,7 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+import io.fluxzero.sdk.unguarded.UnclassifiedJvmIntrospection;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.SocketEndpoint;
@@ -49,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentMetadataLookupTest {
@@ -138,6 +140,12 @@ class ComponentMetadataLookupTest {
 
         GeneratedOnlyMetadataMode.run(() ->
                 assertTrue(ComponentMetadataLookups.lookup(UnregisteredPlainComponent.class).isEmpty()));
+    }
+
+    @Test
+    void generatedOnlyModeRejectsUnclassifiedJvmIntrospection() {
+        assertThrows(ComponentRegistryException.class, () ->
+                GeneratedOnlyMetadataMode.run(() -> UnclassifiedJvmIntrospection.inspect(this)));
     }
 
     @Test

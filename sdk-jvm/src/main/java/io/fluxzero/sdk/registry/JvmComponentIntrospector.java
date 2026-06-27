@@ -65,13 +65,19 @@ public final class JvmComponentIntrospector implements
      * Returns the shared JVM metadata adapter.
      */
     public static JvmComponentIntrospector getInstance() {
+        guardGeneratedOnlyAccess();
         return INSTANCE;
+    }
+
+    private static void guardGeneratedOnlyAccess() {
+        JvmBackendAccess.assertAllowed();
     }
 
     /**
      * Returns the class represented by the supplied value, or {@code null} when it is not a class-like value.
      */
     public Class<?> ifClass(Object value) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.ifClass(value);
     }
 
@@ -79,6 +85,7 @@ public final class JvmComponentIntrospector implements
      * Returns the runtime class for either a class literal or an instance.
      */
     public Class<?> asClass(Object value) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.asClass(value);
     }
 
@@ -86,6 +93,7 @@ public final class JvmComponentIntrospector implements
      * Returns the supplied instance, or creates one when a class literal is supplied.
      */
     public <T> T asInstance(Object classOrInstance) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.asInstance(classOrInstance);
     }
 
@@ -93,6 +101,7 @@ public final class JvmComponentIntrospector implements
      * Returns cached JVM metadata for a class.
      */
     public TypeMetadata getTypeMetadata(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getTypeMetadata(type);
     }
 
@@ -100,6 +109,7 @@ public final class JvmComponentIntrospector implements
      * Returns all usable methods for a class.
      */
     public List<Method> getAllMethods(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAllMethods(type);
     }
 
@@ -107,6 +117,7 @@ public final class JvmComponentIntrospector implements
      * Returns the default constructor declared by the supplied type, if present.
      */
     public Optional<Constructor<?>> getDefaultConstructor(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getDefaultConstructor(type);
     }
 
@@ -114,6 +125,7 @@ public final class JvmComponentIntrospector implements
      * Returns all interfaces implemented by the supplied type.
      */
     public List<Class<?>> getAllInterfaces(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAllInterfaces(type);
     }
 
@@ -121,6 +133,7 @@ public final class JvmComponentIntrospector implements
      * Converts primitive classes to wrappers and leaves other classes untouched.
      */
     public Class<?> box(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.box(type);
     }
 
@@ -128,6 +141,7 @@ public final class JvmComponentIntrospector implements
      * Resolves a reflective type to a raw class.
      */
     public Class<?> rawClass(Type type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.rawClass(type);
     }
 
@@ -135,6 +149,7 @@ public final class JvmComponentIntrospector implements
      * Returns a method by name when present.
      */
     public Optional<Method> getMethod(Class<?> type, String name) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getMethod(type, name);
     }
 
@@ -142,6 +157,7 @@ public final class JvmComponentIntrospector implements
      * Returns a readable property member by logical property name when present.
      */
     public Optional<AccessibleObject> getProperty(Class<?> type, String propertyName) {
+        guardGeneratedOnlyAccess();
         if (type == null || propertyName == null || propertyName.isBlank()) {
             return Optional.empty();
         }
@@ -156,6 +172,7 @@ public final class JvmComponentIntrospector implements
      */
     public List<? extends AccessibleObject> getAnnotatedProperties(
             Class<?> target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedProperties(target, annotation);
     }
 
@@ -164,6 +181,7 @@ public final class JvmComponentIntrospector implements
      */
     public Optional<? extends AccessibleObject> getAnnotatedProperty(
             Object target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedProperty(target, annotation);
     }
 
@@ -172,6 +190,7 @@ public final class JvmComponentIntrospector implements
      */
     public Optional<MemberInvoker> getAnnotatedPropertyInvoker(
             Class<?> target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedPropertyInvoker(target, annotation);
     }
 
@@ -179,6 +198,7 @@ public final class JvmComponentIntrospector implements
      * Returns the JVM executable invocation backend used by SDK runtime handler configuration.
      */
     public ExecutableInvocationBackend executableInvocationBackend() {
+        guardGeneratedOnlyAccess();
         return executableInvocationBackend;
     }
 
@@ -186,6 +206,7 @@ public final class JvmComponentIntrospector implements
      * Prepares an optimized JVM invocation handle for a method or constructor.
      */
     public ExecutableInvocation prepareInvocation(Executable executable) {
+        guardGeneratedOnlyAccess();
         MemberInvoker invoker = getTypeMetadata(executable.getDeclaringClass())
                 .invoker((Member) executable, true);
         return invoker::invoke;
@@ -195,6 +216,7 @@ public final class JvmComponentIntrospector implements
      * Returns the value of the first annotated property on an instance.
      */
     public Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedPropertyValue(target, annotation);
     }
 
@@ -202,6 +224,7 @@ public final class JvmComponentIntrospector implements
      * Returns values for all properties annotated with the supplied annotation.
      */
     public Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedPropertyValues(target, annotation);
     }
 
@@ -209,6 +232,7 @@ public final class JvmComponentIntrospector implements
      * Returns the property name for the first annotated property.
      */
     public Optional<String> getAnnotatedPropertyName(Object target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedPropertyName(target, annotation);
     }
 
@@ -216,6 +240,7 @@ public final class JvmComponentIntrospector implements
      * Returns annotated methods for a class.
      */
     public List<Method> getAnnotatedMethods(Class<?> target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedMethods(target, annotation);
     }
 
@@ -223,6 +248,7 @@ public final class JvmComponentIntrospector implements
      * Returns annotated methods for an instance.
      */
     public List<Method> getAnnotatedMethods(Object target, Class<? extends Annotation> annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedMethods(target, annotation);
     }
 
@@ -230,6 +256,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether the class has the supplied annotation, including supported meta-annotations.
      */
     public boolean isAnnotationPresent(Class<?> type, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isAnnotationPresent(type, annotationType);
     }
 
@@ -237,6 +264,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether a parameter has the supplied annotation.
      */
     public boolean isAnnotationPresent(Parameter parameter, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isAnnotationPresent(parameter, annotationType);
     }
 
@@ -244,6 +272,7 @@ public final class JvmComponentIntrospector implements
      * Returns a type annotation using JVM annotation semantics.
      */
     public <A extends Annotation> A getTypeAnnotation(Class<?> type, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getTypeAnnotation(type, annotationType);
     }
 
@@ -251,6 +280,7 @@ public final class JvmComponentIntrospector implements
      * Returns all type annotations using JVM annotation semantics.
      */
     public Collection<? extends Annotation> getTypeAnnotations(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getTypeAnnotations(type);
     }
 
@@ -258,6 +288,7 @@ public final class JvmComponentIntrospector implements
      * Returns direct annotations on a JVM annotated element.
      */
     public List<Annotation> getAnnotations(AnnotatedElement element) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotations(element);
     }
 
@@ -265,6 +296,7 @@ public final class JvmComponentIntrospector implements
      * Returns a package annotation using JVM package semantics.
      */
     public <A extends Annotation> Optional<A> getPackageAnnotation(Package p, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAnnotation(p, annotationType);
     }
 
@@ -272,6 +304,7 @@ public final class JvmComponentIntrospector implements
      * Returns package annotations, including ancestors.
      */
     public Collection<? extends Annotation> getPackageAnnotations(Package p) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAnnotations(p);
     }
 
@@ -279,6 +312,7 @@ public final class JvmComponentIntrospector implements
      * Returns package annotations with explicit recursive behavior.
      */
     public Collection<? extends Annotation> getPackageAnnotations(Package p, boolean recursive) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAnnotations(p, recursive);
     }
 
@@ -287,6 +321,7 @@ public final class JvmComponentIntrospector implements
      */
     @Override
     public <T> Optional<T> readProperty(String propertyPath, Object target) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.readProperty(propertyPath, target);
     }
 
@@ -294,6 +329,7 @@ public final class JvmComponentIntrospector implements
      * Returns the first type argument from a parameterized type.
      */
     public <T extends Type> T getFirstTypeArgument(Type genericType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getFirstTypeArgument(genericType);
     }
 
@@ -302,6 +338,7 @@ public final class JvmComponentIntrospector implements
      */
     @Override
     public boolean hasProperty(String propertyPath, Object target) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.hasProperty(propertyPath, target);
     }
 
@@ -309,6 +346,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether an executable has a non-void return type.
      */
     public boolean hasReturnType(Executable executable) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.hasReturnType(executable);
     }
 
@@ -316,6 +354,7 @@ public final class JvmComponentIntrospector implements
      * Reads a field or no-arg method value.
      */
     public Object getValue(AccessibleObject fieldOrMethod, Object target, boolean forceAccess) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getValue(fieldOrMethod, target, forceAccess);
     }
 
@@ -323,6 +362,7 @@ public final class JvmComponentIntrospector implements
      * Reads a field or no-arg method value with forced access.
      */
     public Object getValue(AccessibleObject fieldOrMethod, Object target) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getValue(fieldOrMethod, target);
     }
 
@@ -330,6 +370,7 @@ public final class JvmComponentIntrospector implements
      * Returns the member name for a field or method.
      */
     public String getName(AccessibleObject fieldOrMethod) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getName(fieldOrMethod);
     }
 
@@ -337,6 +378,7 @@ public final class JvmComponentIntrospector implements
      * Returns the logical property name represented by a field or no-arg getter.
      */
     public String getPropertyName(AccessibleObject property) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPropertyName(property);
     }
 
@@ -344,6 +386,7 @@ public final class JvmComponentIntrospector implements
      * Returns the property type represented by a field or method.
      */
     public Class<?> getPropertyType(AccessibleObject fieldOrMethod) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPropertyType(fieldOrMethod);
     }
 
@@ -351,6 +394,7 @@ public final class JvmComponentIntrospector implements
      * Returns the collection element type represented by a field or method.
      */
     public Optional<Class<?>> getCollectionElementType(AccessibleObject fieldOrMethod) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getCollectionElementType(fieldOrMethod);
     }
 
@@ -370,6 +414,7 @@ public final class JvmComponentIntrospector implements
      */
     @Override
     public void writeProperty(String propertyPath, Object target, Object value) {
+        guardGeneratedOnlyAccess();
         ReflectionUtils.writeProperty(propertyPath, target, value);
     }
 
@@ -377,6 +422,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether an annotation is, or is meta-annotated with, the supplied annotation type.
      */
     public boolean isOrHas(Annotation annotation, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isOrHas(annotation, annotationType);
     }
 
@@ -384,6 +430,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether a type is, or is annotated with, the supplied annotation type.
      */
     public boolean isOrHas(Class<?> type, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isOrHas(type, annotationType);
     }
 
@@ -391,6 +438,7 @@ public final class JvmComponentIntrospector implements
      * Returns a field by name when present.
      */
     public Optional<Field> getField(Class<?> owner, String name) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getField(owner, name);
     }
 
@@ -398,6 +446,7 @@ public final class JvmComponentIntrospector implements
      * Returns the first non-JDK caller class.
      */
     public Class<?> getCallerClass() {
+        guardGeneratedOnlyAccess();
         return StackWalker.getInstance(Set.of(StackWalker.Option.RETAIN_CLASS_REFERENCE))
                 .walk(frames -> {
                     Iterator<StackWalker.StackFrame> iterator = frames.skip(1).iterator();
@@ -425,6 +474,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether a parameter is nullable according to JVM/Kotlin annotation semantics.
      */
     public boolean isNullable(Parameter parameter) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isNullable(parameter);
     }
 
@@ -432,6 +482,7 @@ public final class JvmComponentIntrospector implements
      * Returns common ancestors for the supplied runtime values.
      */
     public List<Class<?>> determineCommonAncestors(Collection<?> elements) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.determineCommonAncestors(elements);
     }
 
@@ -439,6 +490,7 @@ public final class JvmComponentIntrospector implements
      * Returns all package ancestors known to the JVM.
      */
     public List<Package> getPackageAndParentPackages(Package p) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAndParentPackages(p);
     }
 
@@ -446,6 +498,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether an executable is static.
      */
     public boolean isStatic(Executable method) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isStatic(method);
     }
 
@@ -453,6 +506,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether a value should be treated as a terminal scalar.
      */
     public boolean isLeafValue(Object value) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isLeafValue(value);
     }
 
@@ -460,6 +514,7 @@ public final class JvmComponentIntrospector implements
      * Resolves a generic supertype from the supplied candidate class.
      */
     public Type getGenericType(Class<?> candidate, Class<?> wantedClass) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getGenericType(candidate, wantedClass);
     }
 
@@ -467,6 +522,7 @@ public final class JvmComponentIntrospector implements
      * Ensures a JVM member is accessible.
      */
     public <T extends AccessibleObject> T ensureAccessible(T member) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.ensureAccessible(member);
     }
 
@@ -474,6 +530,7 @@ public final class JvmComponentIntrospector implements
      * Returns all no-argument annotation attributes.
      */
     public Map<String, Object> getAnnotationAttributes(Annotation annotation) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAttributes(annotation);
     }
 
@@ -481,6 +538,7 @@ public final class JvmComponentIntrospector implements
      * Returns a single annotation attribute value.
      */
     public <T> Optional<T> getAnnotationAttribute(Annotation annotation, String name, Class<T> expectedType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAttribute(annotation, name, expectedType);
     }
 
@@ -488,6 +546,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether an annotation attribute has a non-default value.
      */
     public boolean hasNonDefaultAnnotationAttribute(Annotation annotation, String name) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.hasNonDefaultAnnotationAttribute(annotation, name);
     }
 
@@ -495,6 +554,7 @@ public final class JvmComponentIntrospector implements
      * Returns an annotation from an annotated element, including supported meta-annotations.
      */
     public <A extends Annotation> Optional<A> getAnnotation(AnnotatedElement element, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotation(element, annotationType);
     }
 
@@ -503,6 +563,7 @@ public final class JvmComponentIntrospector implements
      */
     public <T> Optional<T> getAnnotationAs(
             Class<?> target, Class<? extends Annotation> annotationType, Class<T> returnType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAs(target, annotationType, returnType);
     }
 
@@ -511,6 +572,7 @@ public final class JvmComponentIntrospector implements
      */
     public <T> Optional<T> getAnnotationAs(
             AnnotatedElement member, Class<? extends Annotation> annotationType, Class<? extends T> returnType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAs(member, annotationType, returnType);
     }
 
@@ -519,6 +581,7 @@ public final class JvmComponentIntrospector implements
      */
     public <T> Optional<T> getAnnotationAs(
             Annotation annotation, Class<? extends Annotation> targetAnnotation, Class<? extends T> returnType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAs(annotation, targetAnnotation, returnType);
     }
 
@@ -526,6 +589,7 @@ public final class JvmComponentIntrospector implements
      * Converts an annotation instance to another metadata shape.
      */
     public <T> T convertAnnotation(Annotation annotation, Class<? extends T> returnType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.convertAnnotation(annotation, returnType);
     }
 
@@ -533,10 +597,12 @@ public final class JvmComponentIntrospector implements
      * Returns whether a method/parameter has the supplied annotation.
      */
     public boolean has(Class<? extends Annotation> annotationClass, Method method) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.has(annotationClass, method);
     }
 
     public boolean has(Class<? extends Annotation> annotationClass, Parameter parameter) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.has(annotationClass, parameter);
     }
 
@@ -545,6 +611,7 @@ public final class JvmComponentIntrospector implements
      */
     public <A extends Annotation> Optional<A> getMethodAnnotation(
             Executable executable, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getMethodAnnotation(executable, annotationType);
     }
 
@@ -552,6 +619,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether an executable has the supplied annotation.
      */
     public boolean isMethodAnnotationPresent(Executable executable, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isMethodAnnotationPresent(executable, annotationType);
     }
 
@@ -560,6 +628,7 @@ public final class JvmComponentIntrospector implements
      */
     public <A extends Annotation> List<A> getMethodAnnotations(
             Executable executable, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getMethodAnnotations(executable, annotationType);
     }
 
@@ -567,6 +636,7 @@ public final class JvmComponentIntrospector implements
      * Returns the override hierarchy for a method.
      */
     public Stream<Method> getMethodOverrideHierarchy(Method method) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getMethodOverrideHierarchy(method);
     }
 
@@ -574,6 +644,7 @@ public final class JvmComponentIntrospector implements
      * Returns the override hierarchy for a parameter.
      */
     public Stream<Parameter> getParameterOverrideHierarchy(Parameter parameter) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getParameterOverrideHierarchy(parameter);
     }
 
@@ -581,6 +652,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether Kotlin reflection support is present.
      */
     public boolean isKotlinReflectionSupported() {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isKotlinReflectionSupported();
     }
 
@@ -588,6 +660,7 @@ public final class JvmComponentIntrospector implements
      * Returns the JVM class-specificity comparator.
      */
     public Comparator<Class<?>> getClassSpecificityComparator() {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getClassSpecificityComparator();
     }
 
@@ -595,6 +668,7 @@ public final class JvmComponentIntrospector implements
      * Copies fields from one instance to another instance of the same class.
      */
     public <V> V copyFields(V source, V target) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.copyFields(source, target);
     }
 
@@ -602,6 +676,7 @@ public final class JvmComponentIntrospector implements
      * Loads a class by Fluxzero type name or fully-qualified class name.
      */
     public Class<?> classForName(String type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.classForName(type);
     }
 
@@ -609,6 +684,7 @@ public final class JvmComponentIntrospector implements
      * Loads a class by Fluxzero type name or returns the supplied default.
      */
     public Class<?> classForName(String type, Class<?> defaultClass) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.classForName(type, defaultClass);
     }
 
@@ -616,6 +692,7 @@ public final class JvmComponentIntrospector implements
      * Returns whether a type name can be resolved.
      */
     public boolean classExists(String className) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.classExists(className);
     }
 
@@ -623,6 +700,7 @@ public final class JvmComponentIntrospector implements
      * Returns the simple name of a class.
      */
     public String getSimpleName(Class<?> c) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getSimpleName(c);
     }
 
@@ -630,6 +708,7 @@ public final class JvmComponentIntrospector implements
      * Returns the simple name of a package.
      */
     public String getSimpleName(Package p) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getSimpleName(p);
     }
 
@@ -637,6 +716,7 @@ public final class JvmComponentIntrospector implements
      * Returns the simple name of a fully-qualified name.
      */
     public String getSimpleName(String fullyQualifiedName) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getSimpleName(fullyQualifiedName);
     }
 
@@ -644,6 +724,7 @@ public final class JvmComponentIntrospector implements
      * Returns the runtime component type for either a class literal or instance.
      */
     public Class<?> typeOf(Object target) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.asClass(target);
     }
 
@@ -652,6 +733,7 @@ public final class JvmComponentIntrospector implements
      */
     @SuppressWarnings("unchecked")
     public <T> T instantiate(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return (T) ReflectionUtils.asInstance(type);
     }
 
@@ -659,29 +741,34 @@ public final class JvmComponentIntrospector implements
      * Returns the supplied package and all known parent packages.
      */
     public List<Package> packageAndParentPackages(Package p) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAndParentPackages(p);
     }
 
     @Override
     public List<AnnotationDescriptor> typeAnnotations(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getTypeAnnotations(type).stream()
                 .map(JvmComponentIntrospector::annotationDescriptor).toList();
     }
 
     @Override
     public List<AnnotationDescriptor> executableAnnotations(Executable executable) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotations(executable).stream()
                 .map(JvmComponentIntrospector::annotationDescriptor).toList();
     }
 
     @Override
     public List<AnnotationDescriptor> propertyAnnotations(AccessibleObject property) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotations(property).stream()
                 .map(JvmComponentIntrospector::annotationDescriptor).toList();
     }
 
     @Override
     public List<AnnotationDescriptor> packageAnnotations(Class<?> type) {
+        guardGeneratedOnlyAccess();
         return type == null || type.getPackage() == null ? List.of()
                 : ReflectionUtils.getPackageAnnotations(type.getPackage()).stream()
                         .map(JvmComponentIntrospector::annotationDescriptor).toList();
@@ -690,6 +777,7 @@ public final class JvmComponentIntrospector implements
     @Override
     public <A extends Annotation, R> Optional<R> typeAnnotationAs(
             Class<?> type, Class<A> annotationType, Class<R> projectionType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAs(type, annotationType, projectionType);
     }
 
@@ -697,12 +785,14 @@ public final class JvmComponentIntrospector implements
      * Returns the type annotation using JVM annotation semantics.
      */
     public <A extends Annotation> Optional<A> typeAnnotation(Class<?> type, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return Optional.ofNullable(ReflectionUtils.getTypeAnnotation(type, annotationType));
     }
 
     @Override
     public <A extends Annotation, R> Optional<R> packageAnnotationAs(
             Class<?> type, Class<A> annotationType, Class<R> projectionType) {
+        guardGeneratedOnlyAccess();
         return type == null || type.getPackage() == null ? Optional.empty()
                 : ReflectionUtils.getAnnotationAs(type.getPackage(), annotationType, projectionType);
     }
@@ -711,12 +801,14 @@ public final class JvmComponentIntrospector implements
      * Returns the package annotation using JVM package annotation semantics.
      */
     public <A extends Annotation> Optional<A> packageAnnotation(Package p, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPackageAnnotation(p, annotationType);
     }
 
     @Override
     public <A extends Annotation, R> Optional<R> executableAnnotationAs(
             Executable executable, Class<A> annotationType, Class<R> projectionType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotationAs(executable, annotationType, projectionType);
     }
 
@@ -724,12 +816,14 @@ public final class JvmComponentIntrospector implements
      * Returns the executable annotation using JVM annotation semantics, including supported meta-annotations.
      */
     public <A extends Annotation> Optional<A> executableAnnotation(Executable executable, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotation(executable, annotationType);
     }
 
     @Override
     public <A extends Annotation, R> List<R> executableAnnotationsAs(
             Executable executable, Class<A> annotationType, Class<R> projectionType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getMethodAnnotations(executable, annotationType).stream()
                 .flatMap(annotation -> ReflectionUtils.getAnnotationAs(
                         annotation, annotationType, projectionType).stream())
@@ -738,6 +832,7 @@ public final class JvmComponentIntrospector implements
 
     @Override
     public Comparator<Class<?>> typeSpecificityComparator() {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getClassSpecificityComparator();
     }
 
@@ -745,12 +840,14 @@ public final class JvmComponentIntrospector implements
      * Returns whether the executable has the supplied annotation using JVM method annotation semantics.
      */
     public boolean isExecutableAnnotationPresent(Executable executable, Class<? extends Annotation> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.isMethodAnnotationPresent(executable, annotationType);
     }
 
     @Override
     public <A extends Annotation> Optional<AccessibleObject> annotatedProperty(
             Class<?> type, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedProperty(type, annotationType)
                 .map(property -> (AccessibleObject) property);
     }
@@ -758,6 +855,7 @@ public final class JvmComponentIntrospector implements
     @Override
     public <A extends Annotation> List<AccessibleObject> annotatedProperties(
             Class<?> type, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedProperties(type, annotationType).stream()
                 .map(AccessibleObject.class::cast)
                 .toList();
@@ -766,6 +864,7 @@ public final class JvmComponentIntrospector implements
     @Override
     public <A extends Annotation> Optional<String> annotatedPropertyName(
             Class<?> type, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedProperty(type, annotationType)
                 .map(ReflectionUtils::getPropertyName);
     }
@@ -773,31 +872,37 @@ public final class JvmComponentIntrospector implements
     @Override
     public <A extends Annotation> Optional<Object> annotatedPropertyValue(
             Object target, Class<A> annotationType) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getAnnotatedPropertyValue(target, annotationType);
     }
 
     @Override
     public Object propertyValue(AccessibleObject property, Object target, boolean forceAccess) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getValue(property, target, forceAccess);
     }
 
     @Override
     public String propertyName(AccessibleObject property) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPropertyName(property);
     }
 
     @Override
     public Class<?> propertyType(AccessibleObject property) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getPropertyType(property);
     }
 
     @Override
     public Optional<Class<?>> collectionElementType(AccessibleObject property) {
+        guardGeneratedOnlyAccess();
         return ReflectionUtils.getCollectionElementType(property);
     }
 
     @Override
     public Object invoke(Executable executable, Object target, List<?> arguments) {
+        guardGeneratedOnlyAccess();
         if (!(executable instanceof Method) && !(executable instanceof Constructor<?>)) {
             throw new ComponentRegistryException("Unsupported executable: " + executable);
         }
@@ -809,6 +914,7 @@ public final class JvmComponentIntrospector implements
      * Invokes a JVM executable with varargs while keeping invocation behind the platform backend.
      */
     public Object invoke(Executable executable, Object target, Object... arguments) {
+        guardGeneratedOnlyAccess();
         return invoke(executable, target, arguments == null ? List.of() : Arrays.asList(arguments));
     }
 
@@ -817,6 +923,7 @@ public final class JvmComponentIntrospector implements
      */
     @SuppressWarnings("unchecked")
     public <T> T instantiate(Constructor<?> constructor, Object... arguments) {
+        guardGeneratedOnlyAccess();
         return (T) invoke(constructor, null, arguments);
     }
 
