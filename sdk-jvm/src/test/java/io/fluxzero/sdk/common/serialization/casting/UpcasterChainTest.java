@@ -19,6 +19,9 @@ import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.serialization.AbstractConverter;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import lombok.Getter;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +49,33 @@ class UpcasterChainTest {
 
     private static <S extends SerializedObject<String>> Caster<S, S> create(Collection<?> upcasters) {
         return DefaultCasterChain.createUpcaster(upcasters, String.class);
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForCasterMethods() {
+        assertTrue(CastInspector.hasCasterMethods(UnregisteredGeneratedOnlyUpcaster.class));
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            assertFalse(CastInspector.hasCasterMethods(UnregisteredGeneratedOnlyUpcaster.class));
+            assertTrue(CastInspector.getCasters(
+                    Upcast.class, List.of(new UnregisteredGeneratedOnlyUpcaster()), String.class).isEmpty());
+        });
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForCasterMethods() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyUpcaster.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                assertTrue(CastInspector.hasCasterMethods(RegisteredGeneratedOnlyUpcaster.class));
+                assertEquals(1, CastInspector.getCasters(
+                        Upcast.class, List.of(new RegisteredGeneratedOnlyUpcaster()), String.class).size());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Test
@@ -333,6 +363,20 @@ class UpcasterChainTest {
         public String mapPayload(String input) {
             invoked = true;
             return "bar";
+        }
+    }
+
+    private static class UnregisteredGeneratedOnlyUpcaster {
+        @Upcast(type = "generatedOnly", revision = 0)
+        public String upcast(String input) {
+            return input + "!";
+        }
+    }
+
+    private static class RegisteredGeneratedOnlyUpcaster {
+        @Upcast(type = "generatedOnly", revision = 0)
+        public String upcast(String input) {
+            return input + "!";
         }
     }
 

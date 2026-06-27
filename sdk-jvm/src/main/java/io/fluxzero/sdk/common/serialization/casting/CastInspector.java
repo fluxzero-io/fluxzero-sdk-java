@@ -17,8 +17,11 @@ package io.fluxzero.sdk.common.serialization.casting;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -56,8 +59,15 @@ public class CastInspector {
      * @return true if at least one casting method is present, false otherwise
      */
     public static boolean hasCasterMethods(Class<?> type) {
+        Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(type);
+        if (lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return JvmComponentIntrospector.getInstance().getAllMethods(type).stream().anyMatch(
+                    m -> hasCastAnnotation(lookup.orElse(null), m, Upcast.class)
+                         || hasCastAnnotation(lookup.orElse(null), m, Downcast.class));
+        }
         return JvmComponentIntrospector.getInstance().getAllMethods(type).stream().anyMatch(
-                m -> m.getAnnotationsByType(Upcast.class).length > 0 || m.getAnnotationsByType(Downcast.class).length > 0);
+                m -> m.getAnnotationsByType(Upcast.class).length > 0
+                     || m.getAnnotationsByType(Downcast.class).length > 0);
     }
 
     /**
@@ -75,20 +85,88 @@ public class CastInspector {
         List<AnnotatedCaster<T>> result = new ArrayList<>();
         for (Object caster : candidateTargets) {
             var casterInstance = JvmComponentIntrospector.getInstance().asInstance(caster);
+            Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(casterInstance.getClass());
             JvmComponentIntrospector.getInstance().getAllMethods(casterInstance.getClass()).forEach(
-                    m -> createCasters(casterInstance, m, dataType, castAnnotation)
+                    m -> createCasters(casterInstance, m, dataType, castAnnotation, lookup)
                             .forEach(result::add));
         }
         return result;
     }
 
     private static <T> Stream<AnnotatedCaster<T>> createCasters(Object target, Method m, Class<T> dataType,
-                                                                Class<? extends Annotation> castAnnotation) {
+                                                                Class<? extends Annotation> castAnnotation,
+                                                                Optional<ComponentMetadataLookup> lookup) {
+        Optional<List<CastParameters>> metadata = lookup.map(l -> castParametersFromMetadata(l, m, castAnnotation)
+                .toList());
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElseGet(List::of).stream()
+                    .map(params -> createCaster(params, m, target, dataType));
+        }
         return Arrays.stream(m.getAnnotationsByType(castAnnotation))
                 .map(annotation -> JvmComponentIntrospector.getInstance().getAnnotationAs(annotation, Cast.class, CastParameters.class)
                         .map(params -> createCaster(params, m, target, dataType))
                         .orElseThrow(() -> new DeserializationException(
                                 "Caster annotation is missing @Cast metadata: " + annotation.annotationType())));
+    }
+
+    private static boolean hasCastAnnotation(
+            ComponentMetadataLookup lookup, Method method, Class<? extends Annotation> castAnnotation) {
+        if (lookup == null) {
+            return false;
+        }
+        List<AnnotationDescriptor> annotations = ComponentMetadataLookups.executableAnnotations(lookup, method);
+        return annotations.stream().anyMatch(annotation -> annotation.isOrHas(
+                       castAnnotation.getSimpleName(), castAnnotation.getName()))
+               || repeatableAnnotation(castAnnotation)
+                       .map(repeatable -> ComponentMetadataLookups.hasAnnotation(annotations, repeatable))
+                       .orElse(false);
+    }
+
+    private static Stream<CastParameters> castParametersFromMetadata(
+            ComponentMetadataLookup lookup, Method method, Class<? extends Annotation> castAnnotation) {
+        List<AnnotationDescriptor> annotations = ComponentMetadataLookups.executableAnnotations(lookup, method);
+        Stream<CastParameters> direct = annotations.stream()
+                .filter(annotation -> annotation.isOrHas(castAnnotation.getSimpleName(), castAnnotation.getName()))
+                .flatMap(annotation -> castParameters(annotation, castAnnotation).stream());
+        Stream<CastParameters> repeatableParameters = repeatableAnnotation(castAnnotation).stream()
+                .flatMap(repeatableType -> annotations.stream()
+                        .filter(annotation -> annotation.isOrHas(
+                                repeatableType.getSimpleName(), repeatableType.getName())))
+                .flatMap(container -> container.nestedAnnotations("value").stream())
+                .filter(annotation -> annotation.isOrHas(castAnnotation.getSimpleName(), castAnnotation.getName()))
+                .flatMap(annotation -> castParameters(annotation, castAnnotation).stream());
+        return Stream.concat(direct, repeatableParameters);
+    }
+
+    private static Optional<CastParameters> castParameters(
+            AnnotationDescriptor annotation, Class<? extends Annotation> castAnnotation) {
+        Optional<String> type = annotation.firstValue("type");
+        Optional<Integer> revision = annotation.firstValue("revision").map(Integer::parseInt);
+        Optional<Integer> revisionDelta = annotation.find("Cast", Cast.class.getName())
+                .flatMap(cast -> cast.firstValue("revisionDelta"))
+                .map(Integer::parseInt)
+                .or(() -> defaultRevisionDelta(castAnnotation));
+        return type.flatMap(t -> revision.flatMap(r -> revisionDelta.map(d -> new CastParameters(t, r, d))));
+    }
+
+    private static Optional<Integer> defaultRevisionDelta(Class<? extends Annotation> castAnnotation) {
+        if (Upcast.class.equals(castAnnotation)) {
+            return Optional.of(1);
+        }
+        if (Downcast.class.equals(castAnnotation)) {
+            return Optional.of(-1);
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<Class<? extends Annotation>> repeatableAnnotation(Class<? extends Annotation> castAnnotation) {
+        if (Upcast.class.equals(castAnnotation)) {
+            return Optional.of(UpcastRepeatable.class);
+        }
+        if (Downcast.class.equals(castAnnotation)) {
+            return Optional.of(DowncastRepeatable.class);
+        }
+        return Optional.empty();
     }
 
     private static <T> AnnotatedCaster<T> createCaster(CastParameters castParameters, Method method, Object target,

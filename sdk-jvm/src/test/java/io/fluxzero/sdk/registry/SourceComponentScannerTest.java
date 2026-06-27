@@ -53,6 +53,7 @@ class SourceComponentScannerTest {
                 package io.fluxzero.sdk.registry.generated;
 
                 import io.fluxzero.sdk.registry.SourceComponentScannerTest.ExternalCommand;
+                import io.fluxzero.sdk.common.serialization.casting.Upcast;
                 import io.fluxzero.sdk.tracking.Consumer;
                 import io.fluxzero.sdk.tracking.handling.HandleCommand;
                 import io.fluxzero.sdk.tracking.handling.HandleQuery;
@@ -81,6 +82,11 @@ class SourceComponentScannerTest {
                     @HandleGet(value = {"items/{id}", "items"}, autoHead = false, autoOptions = false)
                     public String get(@PathParam String id) {
                         return id;
+                    }
+
+                    @Upcast(type = "legacy.RichLogic", revision = 0)
+                    public String upcast(String value) {
+                        return value;
                     }
                 }
                 """);
@@ -138,6 +144,14 @@ class SourceComponentScannerTest {
         assertTrue(pathParam.isOrHas("WebParam", "io.fluxzero.sdk.web.WebParam"));
         assertEquals(List.of("PATH"), pathParam.find("WebParam", "io.fluxzero.sdk.web.WebParam")
                 .orElseThrow().values("type"));
+
+        AnnotationDescriptor upcast = component.executables().stream()
+                .filter(executable -> executable.name().equals("upcast"))
+                .findFirst().orElseThrow()
+                .annotations().getFirst();
+        assertTrue(upcast.isOrHas("Cast", "io.fluxzero.sdk.common.serialization.casting.Cast"));
+        assertEquals(List.of("1"), upcast.find("Cast", "io.fluxzero.sdk.common.serialization.casting.Cast")
+                .orElseThrow().values("revisionDelta"));
     }
 
     @Test

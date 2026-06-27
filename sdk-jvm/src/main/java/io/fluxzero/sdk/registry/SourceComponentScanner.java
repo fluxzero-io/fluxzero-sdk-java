@@ -158,7 +158,11 @@ public class SourceComponentScanner {
             entry("FormParam", webParam("FORM")),
             entry(KNOWN_ANNOTATIONS.get("FormParam"), webParam("FORM")),
             entry("BodyParam", webParam("BODY")),
-            entry(KNOWN_ANNOTATIONS.get("BodyParam"), webParam("BODY")));
+            entry(KNOWN_ANNOTATIONS.get("BodyParam"), webParam("BODY")),
+            entry("Upcast", castMeta(1)),
+            entry(KNOWN_ANNOTATIONS.get("Upcast"), castMeta(1)),
+            entry("Downcast", castMeta(-1)),
+            entry(KNOWN_ANNOTATIONS.get("Downcast"), castMeta(-1)));
 
     private static final Map<String, String> KNOWN_TYPES = Map.ofEntries(
             entry("Cache", "io.fluxzero.common.caching.Cache"),
@@ -369,6 +373,12 @@ public class SourceComponentScanner {
         return new AnnotationDescriptor(
                 "WebParam", KNOWN_ANNOTATIONS.get("WebParam"),
                 Map.of("type", List.of(source), "value", List.of("")));
+    }
+
+    private static AnnotationDescriptor castMeta(int revisionDelta) {
+        return new AnnotationDescriptor(
+                "Cast", KNOWN_ANNOTATIONS.get("Cast"),
+                Map.of("revisionDelta", List.of(Integer.toString(revisionDelta))));
     }
 
     private Map<String, PackageInfo> packageInfos(List<ParsedSource> sources) {
