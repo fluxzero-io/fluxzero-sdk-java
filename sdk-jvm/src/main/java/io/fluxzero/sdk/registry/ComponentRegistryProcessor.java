@@ -149,6 +149,32 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                   new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of("WS_PONG"), false, false)),
             entry("io.fluxzero.sdk.web.HandleSocketClose",
                   new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of("WS_CLOSE"), false, false)));
+    private static final List<String> HANDLER_NAMES = List.of(
+            "io.fluxzero.sdk.tracking.handling.HandleCommand",
+            "io.fluxzero.sdk.tracking.handling.HandleQuery",
+            "io.fluxzero.sdk.tracking.handling.HandleEvent",
+            "io.fluxzero.sdk.tracking.handling.HandleNotification",
+            "io.fluxzero.sdk.tracking.handling.HandleError",
+            "io.fluxzero.sdk.tracking.handling.HandleMetrics",
+            "io.fluxzero.sdk.tracking.handling.HandleResult",
+            "io.fluxzero.sdk.tracking.handling.HandleCustom",
+            "io.fluxzero.sdk.tracking.handling.HandleDocument",
+            "io.fluxzero.sdk.tracking.handling.HandleSchedule",
+            "io.fluxzero.sdk.web.HandleWebResponse",
+            "io.fluxzero.sdk.web.HandleGet",
+            "io.fluxzero.sdk.web.HandlePost",
+            "io.fluxzero.sdk.web.HandlePut",
+            "io.fluxzero.sdk.web.HandlePatch",
+            "io.fluxzero.sdk.web.HandleDelete",
+            "io.fluxzero.sdk.web.HandleHead",
+            "io.fluxzero.sdk.web.HandleOptions",
+            "io.fluxzero.sdk.web.HandleTrace",
+            "io.fluxzero.sdk.web.HandleSocketHandshake",
+            "io.fluxzero.sdk.web.HandleSocketOpen",
+            "io.fluxzero.sdk.web.HandleSocketMessage",
+            "io.fluxzero.sdk.web.HandleSocketPong",
+            "io.fluxzero.sdk.web.HandleSocketClose",
+            "io.fluxzero.sdk.web.HandleWeb");
 
     private final Map<String, TypeElement> types = new LinkedHashMap<>();
     private final Map<String, PackageElement> packages = new LinkedHashMap<>();
@@ -273,11 +299,13 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         for (int i = 0; i < elements.size(); i++) {
             ExecutableElement executableElement = elements.get(i);
             ExecutableDescriptor executable = executables.get(i);
-            for (AnnotationDescriptor annotation : executable.annotations()) {
-                HandlerSpec spec = HANDLERS.get(annotation.qualifiedName());
-                if (spec == null) {
+            for (AnnotationDescriptor declaredAnnotation : executable.annotations()) {
+                HandlerMatch match = handlerMatch(declaredAnnotation).orElse(null);
+                if (match == null) {
                     continue;
                 }
+                AnnotationDescriptor annotation = match.annotation();
+                HandlerSpec spec = match.spec();
                 LocalHandlerConfig localHandler = localHandlerConfig(executable.annotations())
                         .orElse(typeLocalHandler != null ? typeLocalHandler : packageMetadata.localHandler());
                 boolean selfHandler = isSelfHandler(spec, type, executableElement);
@@ -364,8 +392,9 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         Optional<String> typePath = typePath(type, packageName);
         Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), type.getSimpleName().toString());
         List<String> handlerPaths = annotation.values("value");
-        List<String> methods = annotation.qualifiedName().equals("io.fluxzero.sdk.web.HandleWeb")
-                && !annotation.values("method").isEmpty() ? annotation.values("method") : spec.webMethods();
+        List<String> methods = annotation.isOrHas("HandleWeb", "io.fluxzero.sdk.web.HandleWeb")
+                               && !annotation.values("method").isEmpty()
+                ? annotation.values("method") : spec.webMethods();
         boolean autoHead = annotation.booleanValue("autoHead", spec.defaultAutoHead());
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
         List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
@@ -464,6 +493,10 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     }
 
     private AnnotationDescriptor annotationDescriptor(AnnotationMirror annotation) {
+        return annotationDescriptor(annotation, new LinkedHashSet<>());
+    }
+
+    private AnnotationDescriptor annotationDescriptor(AnnotationMirror annotation, Set<String> visited) {
         Element annotationElement = annotation.getAnnotationType().asElement();
         String qualifiedName = annotationElement instanceof TypeElement type
                 ? type.getQualifiedName().toString() : annotation.getAnnotationType().toString();
@@ -472,7 +505,20 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         processingEnv.getElementUtils().getElementValuesWithDefaults(annotation).entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getSimpleName().toString()))
                 .forEach(entry -> attributes.put(entry.getKey().getSimpleName().toString(), values(entry.getValue())));
-        return new AnnotationDescriptor(simpleName, qualifiedName, attributes);
+        visited.add(qualifiedName);
+        List<AnnotationDescriptor> metaAnnotations = annotationElement.getAnnotationMirrors().stream()
+                .filter(metaAnnotation -> includeMetaAnnotation(metaAnnotation, visited))
+                .map(metaAnnotation -> annotationDescriptor(metaAnnotation, new LinkedHashSet<>(visited)))
+                .toList();
+        return new AnnotationDescriptor(simpleName, qualifiedName, attributes, metaAnnotations);
+    }
+
+    private static boolean includeMetaAnnotation(AnnotationMirror annotation, Set<String> visited) {
+        Element annotationElement = annotation.getAnnotationType().asElement();
+        String qualifiedName = annotationElement instanceof TypeElement type
+                ? type.getQualifiedName().toString() : annotation.getAnnotationType().toString();
+        return !qualifiedName.startsWith("java.lang.annotation.")
+               && !visited.contains(qualifiedName);
     }
 
     private List<String> values(AnnotationValue value) {
@@ -513,7 +559,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     private List<RegisteredTypeDescriptor> registeredTypes(
             List<AnnotationDescriptor> annotations, String defaultRoot, List<String> allTypeNames) {
         return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals(REGISTER_TYPE))
+                .map(annotation -> annotation.find("RegisterType", REGISTER_TYPE))
+                .flatMap(Optional::stream)
                 .map(annotation -> {
                     String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
@@ -538,7 +585,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
 
     private Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals(CONSUMER))
+                .map(annotation -> annotation.find("Consumer", CONSUMER))
+                .flatMap(Optional::stream)
                 .findFirst()
                 .map(annotation -> new ConsumerDescriptor(
                         annotation.firstValue("name").or(() -> annotation.firstValue("value")).orElse(""),
@@ -547,7 +595,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
 
     private Optional<LocalHandlerConfig> localHandlerConfig(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals(LOCAL_HANDLER))
+                .map(annotation -> annotation.find("LocalHandler", LOCAL_HANDLER))
+                .flatMap(Optional::stream)
                 .reduce((first, second) -> second)
                 .map(annotation -> {
                     boolean enabled = annotation.booleanValue("value", true);
@@ -557,7 +606,22 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     }
 
     private static boolean hasTrackSelf(List<AnnotationDescriptor> annotations) {
-        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(TRACK_SELF));
+        return annotations.stream().anyMatch(annotation -> annotation.isOrHas("TrackSelf", TRACK_SELF));
+    }
+
+    private static Optional<HandlerMatch> handlerMatch(AnnotationDescriptor annotation) {
+        for (String name : HANDLER_NAMES) {
+            Optional<AnnotationDescriptor> match = annotation.find(simpleName(name), name);
+            if (match.isPresent()) {
+                return Optional.of(new HandlerMatch(match.get(), HANDLERS.get(name)));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String simpleName(String qualifiedName) {
+        int dot = qualifiedName.lastIndexOf('.');
+        return dot < 0 ? qualifiedName : qualifiedName.substring(dot + 1);
     }
 
     private Set<ComponentCapability> componentCapabilities(TypeElement type, Set<HandlerRoute> routes,
@@ -665,6 +729,9 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     private record HandlerSpec(MessageType messageType, boolean defaultPassive, boolean defaultSkipExpiredRequests,
                                boolean web, List<String> webMethods, boolean defaultAutoHead,
                                boolean defaultAutoOptions) {
+    }
+
+    private record HandlerMatch(AnnotationDescriptor annotation, HandlerSpec spec) {
     }
 
     private record LocalHandlerConfig(boolean enabled, boolean allowExternalMessages) {

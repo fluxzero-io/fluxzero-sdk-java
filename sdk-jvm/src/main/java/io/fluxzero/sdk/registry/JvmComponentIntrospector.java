@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -781,12 +782,30 @@ public final class JvmComponentIntrospector implements
     }
 
     private static AnnotationDescriptor annotationDescriptor(Annotation annotation) {
+        return annotationDescriptor(annotation, new LinkedHashSet<>());
+    }
+
+    private static AnnotationDescriptor annotationDescriptor(
+            Annotation annotation, Set<Class<? extends Annotation>> visited) {
         Map<String, List<String>> attributes = new LinkedHashMap<>();
         Arrays.stream(annotation.annotationType().getDeclaredMethods())
                 .sorted(Comparator.comparing(Method::getName))
                 .forEach(method -> attributes.put(method.getName(), values(invokeAttribute(method, annotation))));
+        visited.add(annotation.annotationType());
+        List<AnnotationDescriptor> metaAnnotations = Arrays.stream(annotation.annotationType().getAnnotations())
+                .filter(metaAnnotation -> includeMetaAnnotation(metaAnnotation, visited))
+                .map(metaAnnotation -> annotationDescriptor(metaAnnotation, new LinkedHashSet<>(visited)))
+                .toList();
         return new AnnotationDescriptor(
-                annotation.annotationType().getSimpleName(), annotation.annotationType().getName(), attributes);
+                annotation.annotationType().getSimpleName(), annotation.annotationType().getName(), attributes,
+                metaAnnotations);
+    }
+
+    private static boolean includeMetaAnnotation(
+            Annotation annotation, Set<Class<? extends Annotation>> visited) {
+        Class<? extends Annotation> annotationType = annotation.annotationType();
+        return !annotationType.getName().startsWith("java.lang.annotation.")
+               && !visited.contains(annotationType);
     }
 
     private static Object invokeAttribute(Method method, Annotation annotation) {

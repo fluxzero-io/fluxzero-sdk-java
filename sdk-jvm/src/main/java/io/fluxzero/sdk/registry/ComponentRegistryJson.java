@@ -194,7 +194,9 @@ public final class ComponentRegistryJson {
     }
 
     private static AnnotationDto toDto(AnnotationDescriptor descriptor) {
-        return new AnnotationDto(descriptor.name(), descriptor.qualifiedName(), descriptor.attributes());
+        return new AnnotationDto(
+                descriptor.name(), descriptor.qualifiedName(), descriptor.attributes(),
+                descriptor.metaAnnotations().stream().map(ComponentRegistryJson::toDto).toList());
     }
 
     private static ExecutableDto toDto(ExecutableDescriptor descriptor) {
@@ -272,7 +274,9 @@ public final class ComponentRegistryJson {
     }
 
     private static AnnotationDescriptor fromDto(AnnotationDto dto) {
-        return new AnnotationDescriptor(dto.name(), dto.qualifiedName(), dto.attributes() == null ? Map.of() : dto.attributes());
+        return new AnnotationDescriptor(
+                dto.name(), dto.qualifiedName(), dto.attributes() == null ? Map.of() : dto.attributes(),
+                list(dto.metaAnnotations()).stream().map(ComponentRegistryJson::fromDto).toList());
     }
 
     private static ExecutableDescriptor fromDto(ExecutableDto dto) {
@@ -356,7 +360,9 @@ public final class ComponentRegistryJson {
             List<String> allowedClassNames, List<WebRouteDto> webRoutes) {
     }
 
-    private record AnnotationDto(String name, String qualifiedName, Map<String, List<String>> attributes) {
+    private record AnnotationDto(
+            String name, String qualifiedName, Map<String, List<String>> attributes,
+            List<AnnotationDto> metaAnnotations) {
     }
 
     private record ExecutableDto(

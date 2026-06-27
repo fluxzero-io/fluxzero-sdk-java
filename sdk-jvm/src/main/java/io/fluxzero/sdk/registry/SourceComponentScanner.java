@@ -48,6 +48,9 @@ public class SourceComponentScanner {
     private static final Pattern IMPORT_PATTERN = Pattern.compile("\\bimport\\s+(?:static\\s+)?([\\w.]+)(\\.\\*)?\\s*;");
     private static final Pattern TYPE_PATTERN = Pattern.compile(
             "\\b(class|record|interface|enum)\\s+(\\w+)\\b");
+    private static final Pattern ANNOTATION_TYPE_PATTERN = Pattern.compile("@\\s*interface\\s+(\\w+)\\b");
+    private static final Set<String> STANDARD_META_ANNOTATIONS = Set.of(
+            "Documented", "Inherited", "Repeatable", "Retention", "Target");
     private static final Set<String> JAVA_LANG_TYPES = Set.of(
             "Boolean", "Byte", "Character", "Class", "Double", "Enum", "Float", "Integer", "Long",
             "Object", "Short", "String", "Throwable", "Void");
@@ -213,6 +216,12 @@ public class SourceComponentScanner {
             entry("HandleSocketMessage", new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of("WS_MESSAGE"), false, false)),
             entry("HandleSocketPong", new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of("WS_PONG"), false, false)),
             entry("HandleSocketClose", new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of("WS_CLOSE"), false, false)));
+    private static final List<String> HANDLER_NAMES = List.of(
+            "HandleCommand", "HandleQuery", "HandleEvent", "HandleNotification", "HandleError", "HandleMetrics",
+            "HandleResult", "HandleCustom", "HandleDocument", "HandleSchedule", "HandleWebResponse",
+            "HandleGet", "HandlePost", "HandlePut", "HandlePatch", "HandleDelete", "HandleHead", "HandleOptions",
+            "HandleTrace", "HandleSocketHandshake", "HandleSocketOpen", "HandleSocketMessage", "HandleSocketPong",
+            "HandleSocketClose", "HandleWeb");
 
     /**
      * Scans the source root and returns indexed component metadata.
@@ -227,6 +236,7 @@ public class SourceComponentScanner {
                     .sorted(Comparator.comparing(Path::toString))
                     .map(this::parse)
                     .toList();
+            sources = enrichMetaAnnotations(sources);
             List<String> allTypeNames = sources.stream()
                     .flatMap(source -> source.types().stream())
                     .map(TypeInfo::fullClassName)
@@ -264,6 +274,79 @@ public class SourceComponentScanner {
         } catch (IOException e) {
             throw new ComponentRegistryException("Failed to read component source: " + sourceFile, e);
         }
+    }
+
+    private List<ParsedSource> enrichMetaAnnotations(List<ParsedSource> sources) {
+        Map<String, List<AnnotationDescriptor>> metaAnnotations = new LinkedHashMap<>();
+        for (ParsedSource source : sources) {
+            for (AnnotationTypeInfo annotationType : source.annotationTypes()) {
+                List<AnnotationDescriptor> annotations = annotationType.annotations().stream()
+                        .filter(SourceComponentScanner::includeSourceMetaAnnotation)
+                        .toList();
+                metaAnnotations.put(annotationType.qualifiedName(), annotations);
+                metaAnnotations.putIfAbsent(annotationType.simpleName(), annotations);
+            }
+        }
+        return sources.stream()
+                .map(source -> enrichSource(source, metaAnnotations))
+                .toList();
+    }
+
+    private static boolean includeSourceMetaAnnotation(AnnotationDescriptor annotation) {
+        return !annotation.qualifiedName().startsWith("java.lang.annotation.")
+               && !STANDARD_META_ANNOTATIONS.contains(annotation.name());
+    }
+
+    private ParsedSource enrichSource(
+            ParsedSource source, Map<String, List<AnnotationDescriptor>> metaAnnotations) {
+        return new ParsedSource(
+                source.sourceFile(), source.packageName(), source.imports(), source.wildcardImports(),
+                enrichAnnotations(source.packageAnnotations(), metaAnnotations, new LinkedHashSet<>()),
+                source.types().stream().map(type -> enrichType(type, metaAnnotations)).toList(),
+                source.annotationTypes().stream()
+                        .map(type -> new AnnotationTypeInfo(
+                                type.simpleName(), type.qualifiedName(),
+                                enrichAnnotations(type.annotations(), metaAnnotations, new LinkedHashSet<>())))
+                        .toList());
+    }
+
+    private TypeInfo enrichType(TypeInfo type, Map<String, List<AnnotationDescriptor>> metaAnnotations) {
+        return new TypeInfo(
+                type.kind(), type.packageName(), type.className(), type.superTypeNames(),
+                enrichAnnotations(type.annotations(), metaAnnotations, new LinkedHashSet<>()),
+                type.properties().stream().map(property -> new PropertyDescriptor(
+                        property.name(), property.typeName(), property.genericTypeName(),
+                        enrichAnnotations(property.annotations(), metaAnnotations, new LinkedHashSet<>()))).toList(),
+                type.executables().stream().map(executable -> new ExecutableDescriptor(
+                        executable.kind(), executable.name(), executable.returnTypeName(),
+                        executable.parameters().stream().map(parameter -> new ParameterDescriptor(
+                                parameter.name(), parameter.typeName(),
+                                enrichAnnotations(parameter.annotations(), metaAnnotations, new LinkedHashSet<>())))
+                                .toList(),
+                        enrichAnnotations(executable.annotations(), metaAnnotations, new LinkedHashSet<>()))).toList());
+    }
+
+    private static List<AnnotationDescriptor> enrichAnnotations(
+            List<AnnotationDescriptor> annotations, Map<String, List<AnnotationDescriptor>> metaAnnotations,
+            Set<String> visiting) {
+        return annotations.stream()
+                .map(annotation -> enrichAnnotation(annotation, metaAnnotations, visiting))
+                .toList();
+    }
+
+    private static AnnotationDescriptor enrichAnnotation(
+            AnnotationDescriptor annotation, Map<String, List<AnnotationDescriptor>> metaAnnotations,
+            Set<String> visiting) {
+        String key = metaAnnotations.containsKey(annotation.qualifiedName())
+                ? annotation.qualifiedName() : annotation.name();
+        if (!visiting.add(key)) {
+            return annotation;
+        }
+        List<AnnotationDescriptor> meta = metaAnnotations.getOrDefault(key, List.of()).stream()
+                .map(metaAnnotation -> enrichAnnotation(metaAnnotation, metaAnnotations, new LinkedHashSet<>(visiting)))
+                .toList();
+        return new AnnotationDescriptor(
+                annotation.name(), annotation.qualifiedName(), annotation.attributes(), meta);
     }
 
     private Map<String, PackageInfo> packageInfos(List<ParsedSource> sources) {
@@ -313,11 +396,13 @@ public class SourceComponentScanner {
         LocalHandlerConfig typeLocalHandler = localHandlerConfig(type.annotations()).orElse(null);
         Set<HandlerRoute> routes = new LinkedHashSet<>();
         for (ExecutableDescriptor executable : type.executables()) {
-            for (AnnotationDescriptor annotation : executable.annotations()) {
-                HandlerSpec spec = HANDLERS.get(annotation.name());
-                if (spec == null) {
+            for (AnnotationDescriptor declaredAnnotation : executable.annotations()) {
+                HandlerMatch match = handlerMatch(declaredAnnotation).orElse(null);
+                if (match == null) {
                     continue;
                 }
+                AnnotationDescriptor annotation = match.annotation();
+                HandlerSpec spec = match.spec();
                 LocalHandlerConfig localHandler = localHandlerConfig(executable.annotations())
                         .orElse(typeLocalHandler != null ? typeLocalHandler
                                 : packageInfo == null ? null : packageInfo.localHandler());
@@ -374,8 +459,26 @@ public class SourceComponentScanner {
                && constructors.stream().noneMatch(constructor -> constructor.parameters().isEmpty());
     }
 
+    private static Optional<HandlerMatch> handlerMatch(AnnotationDescriptor annotation) {
+        for (String name : HANDLER_NAMES) {
+            Optional<AnnotationDescriptor> match = annotation.find(name, KNOWN_ANNOTATIONS.get(name));
+            if (match.isPresent()) {
+                return Optional.of(new HandlerMatch(match.get(), HANDLERS.get(name)));
+            }
+        }
+        return Optional.empty();
+    }
+
     private static boolean hasTrackSelf(List<AnnotationDescriptor> annotations) {
-        return annotations.stream().anyMatch(annotation -> annotation.name().equals("TrackSelf"));
+        return findAnnotation(annotations, "TrackSelf").isPresent();
+    }
+
+    private static Optional<AnnotationDescriptor> findAnnotation(
+            List<AnnotationDescriptor> annotations, String annotationName) {
+        return annotations.stream()
+                .map(annotation -> annotation.find(annotationName, KNOWN_ANNOTATIONS.get(annotationName)))
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,
@@ -385,7 +488,8 @@ public class SourceComponentScanner {
         Optional<String> typePath = WebRoutePaths.pathValue(type.annotations(), simplePackageName(type.packageName()));
         Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), type.className());
         List<String> handlerPaths = annotation.values("value");
-        List<String> methods = annotation.name().equals("HandleWeb") && !annotation.values("method").isEmpty()
+        List<String> methods = annotation.isOrHas("HandleWeb", KNOWN_ANNOTATIONS.get("HandleWeb"))
+                               && !annotation.values("method").isEmpty()
                 ? annotation.values("method") : spec.webMethods();
         boolean autoHead = annotation.booleanValue("autoHead", spec.defaultAutoHead());
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
@@ -454,7 +558,8 @@ public class SourceComponentScanner {
     private static List<RegisteredTypeDescriptor> registeredTypes(
             List<AnnotationDescriptor> annotations, String defaultRoot, List<String> allTypeNames) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("RegisterType"))
+                .map(annotation -> annotation.find("RegisterType", KNOWN_ANNOTATIONS.get("RegisterType")))
+                .flatMap(Optional::stream)
                 .map(annotation -> {
                     String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
@@ -479,7 +584,8 @@ public class SourceComponentScanner {
 
     private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("Consumer"))
+                .map(annotation -> annotation.find("Consumer", KNOWN_ANNOTATIONS.get("Consumer")))
+                .flatMap(Optional::stream)
                 .findFirst()
                 .map(annotation -> new ConsumerDescriptor(
                         annotation.firstValue("name").or(() -> annotation.firstValue("value")).orElse(""),
@@ -488,7 +594,8 @@ public class SourceComponentScanner {
 
     private static Optional<LocalHandlerConfig> localHandlerConfig(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("LocalHandler"))
+                .map(annotation -> annotation.find("LocalHandler", KNOWN_ANNOTATIONS.get("LocalHandler")))
+                .flatMap(Optional::stream)
                 .reduce((first, second) -> second)
                 .map(annotation -> {
                     boolean enabled = annotation.booleanValue("value", true);
@@ -544,7 +651,10 @@ public class SourceComponentScanner {
 
     private record ParsedSource(Path sourceFile, String packageName, Map<String, String> imports,
                                 List<String> wildcardImports, List<AnnotationDescriptor> packageAnnotations,
-                                List<TypeInfo> types) {
+                                List<TypeInfo> types, List<AnnotationTypeInfo> annotationTypes) {
+    }
+
+    private record AnnotationTypeInfo(String simpleName, String qualifiedName, List<AnnotationDescriptor> annotations) {
     }
 
     private record TypeInfo(ComponentKind kind, String packageName, String className, List<String> superTypeNames,
@@ -573,7 +683,7 @@ public class SourceComponentScanner {
         ParsedSource parse() {
             List<AnnotationDescriptor> packageAnnotations = parsePackageAnnotations();
             return new ParsedSource(sourceFile, packageName, imports, wildcardImports,
-                                    packageAnnotations, parseTypes());
+                                    packageAnnotations, parseTypes(), parseAnnotationTypes());
         }
 
         private List<AnnotationDescriptor> parsePackageAnnotations() {
@@ -588,7 +698,8 @@ public class SourceComponentScanner {
             List<TypeInfo> types = new ArrayList<>();
             Matcher matcher = TYPE_PATTERN.matcher(source);
             while (matcher.find()) {
-                if (insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
+                if (matcher.start() > 0 && source.charAt(matcher.start() - 1) == '@'
+                    || insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
                     continue;
                 }
                 ComponentKind kind = ComponentKind.valueOf(matcher.group(1).toUpperCase(Locale.ROOT));
@@ -607,6 +718,21 @@ public class SourceComponentScanner {
                 List<PropertyDescriptor> properties = parseProperties(kind, declarationTail, bodyStart, bodyEnd);
                 List<ExecutableDescriptor> executables = parseExecutables(className, bodyStart, bodyEnd);
                 types.add(new TypeInfo(kind, packageName, className, superTypeNames, annotations, properties, executables));
+            }
+            return types;
+        }
+
+        private List<AnnotationTypeInfo> parseAnnotationTypes() {
+            List<AnnotationTypeInfo> types = new ArrayList<>();
+            Matcher matcher = ANNOTATION_TYPE_PATTERN.matcher(source);
+            while (matcher.find()) {
+                if (insideAnnotation(matcher.start()) || !isTopLevel(matcher.start())) {
+                    continue;
+                }
+                String simpleName = matcher.group(1);
+                List<AnnotationDescriptor> annotations = parseAnnotations(annotationsBefore(matcher.start()));
+                String qualifiedName = packageName.isBlank() ? simpleName : packageName + "." + simpleName;
+                types.add(new AnnotationTypeInfo(simpleName, qualifiedName, annotations));
             }
             return types;
         }
@@ -1180,6 +1306,9 @@ public class SourceComponentScanner {
             }
         }
         return result;
+    }
+
+    private record HandlerMatch(AnnotationDescriptor annotation, HandlerSpec spec) {
     }
 
     private static int topLevelIndexOf(String source, char target) {

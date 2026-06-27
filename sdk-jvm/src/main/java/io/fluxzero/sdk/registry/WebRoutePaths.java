@@ -28,8 +28,8 @@ final class WebRoutePaths {
 
     static Optional<String> pathValue(List<AnnotationDescriptor> annotations, String blankDefault) {
         return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals("io.fluxzero.sdk.web.Path")
-                                      || annotation.name().equals("Path"))
+                .map(annotation -> annotation.find("Path", "io.fluxzero.sdk.web.Path"))
+                .flatMap(Optional::stream)
                 .reduce((first, second) -> second)
                 .flatMap(annotation -> annotation.firstValue("value"))
                 .map(value -> value.isBlank() ? blankDefault : value);

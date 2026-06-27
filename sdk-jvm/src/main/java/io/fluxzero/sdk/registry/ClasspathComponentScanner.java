@@ -122,6 +122,13 @@ public class ClasspathComponentScanner {
             entry(HandleSocketMessage.class, new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of(HttpRequestMethod.WS_MESSAGE), false, false)),
             entry(HandleSocketPong.class, new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of(HttpRequestMethod.WS_PONG), false, false)),
             entry(HandleSocketClose.class, new HandlerSpec(MessageType.WEBREQUEST, false, false, true, List.of(HttpRequestMethod.WS_CLOSE), false, false)));
+    private static final List<Class<? extends Annotation>> HANDLER_TYPES = List.of(
+            HandleCommand.class, HandleQuery.class, HandleEvent.class, HandleNotification.class, HandleError.class,
+            HandleMetrics.class, HandleResult.class, HandleCustom.class, HandleDocument.class, HandleSchedule.class,
+            HandleWebResponse.class, HandleGet.class, HandlePost.class, HandlePut.class, HandlePatch.class,
+            HandleDelete.class, HandleHead.class, HandleOptions.class, HandleTrace.class, HandleSocketHandshake.class,
+            HandleSocketOpen.class, HandleSocketMessage.class, HandleSocketPong.class, HandleSocketClose.class,
+            HandleWeb.class);
 
     /**
      * Scans compiled component classes and returns an indexed component registry.
@@ -268,9 +275,18 @@ public class ClasspathComponentScanner {
         for (Annotation annotation : JvmComponentIntrospector.getInstance().getAnnotations(executable)) {
             if (HANDLERS.containsKey(annotation.annotationType())) {
                 result.add(annotation);
+            } else {
+                handlerAnnotation(annotation).ifPresent(result::add);
             }
         }
         return result;
+    }
+
+    private Optional<Annotation> handlerAnnotation(Annotation annotation) {
+        return HANDLER_TYPES.stream()
+                .filter(type -> annotation.annotationType().isAnnotationPresent(type))
+                .findFirst()
+                .map(type -> annotation.annotationType().getAnnotation(type));
     }
 
     private List<WebRouteDescriptor> webRoutes(Annotation annotation, HandlerSpec spec, Class<?> type,
@@ -338,7 +354,7 @@ public class ClasspathComponentScanner {
 
     private static boolean hasTrackSelf(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .anyMatch(annotation -> annotation.qualifiedName().equals(TrackSelf.class.getName()));
+                .anyMatch(annotation -> annotation.isOrHas("TrackSelf", TrackSelf.class.getName()));
     }
 
     private static Set<ComponentCapability> componentCapabilities(Set<HandlerRoute> routes,
@@ -436,7 +452,8 @@ public class ClasspathComponentScanner {
     private static List<RegisteredTypeDescriptor> registeredTypes(
             List<AnnotationDescriptor> annotations, String defaultRoot, List<String> allTypeNames) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("RegisterType"))
+                .map(annotation -> annotation.find("RegisterType", RegisterType.class.getName()))
+                .flatMap(Optional::stream)
                 .map(annotation -> {
                     String root = annotationRoot(annotation, defaultRoot);
                     List<String> contains = annotation.values("contains");
@@ -461,7 +478,8 @@ public class ClasspathComponentScanner {
 
     private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("Consumer"))
+                .map(annotation -> annotation.find("Consumer", Consumer.class.getName()))
+                .flatMap(Optional::stream)
                 .findFirst()
                 .map(annotation -> new ConsumerDescriptor(
                         annotation.firstValue("name").or(() -> annotation.firstValue("value")).orElse(""),
@@ -470,7 +488,8 @@ public class ClasspathComponentScanner {
 
     private static Optional<LocalHandlerConfig> localHandlerConfig(List<AnnotationDescriptor> annotations) {
         return annotations.stream()
-                .filter(annotation -> annotation.name().equals("LocalHandler"))
+                .map(annotation -> annotation.find("LocalHandler", LocalHandler.class.getName()))
+                .flatMap(Optional::stream)
                 .findFirst()
                 .map(annotation -> {
                     boolean enabled = annotation.booleanValue("value", true);
@@ -504,12 +523,30 @@ public class ClasspathComponentScanner {
     }
 
     private static AnnotationDescriptor annotationDescriptor(Annotation annotation) {
+        return annotationDescriptor(annotation, new LinkedHashSet<>());
+    }
+
+    private static AnnotationDescriptor annotationDescriptor(
+            Annotation annotation, Set<Class<? extends Annotation>> visited) {
         Map<String, List<String>> attributes = new LinkedHashMap<>();
         Arrays.stream(annotation.annotationType().getDeclaredMethods())
                 .sorted(Comparator.comparing(Method::getName))
                 .forEach(method -> attributes.put(method.getName(), values(invoke(method, annotation))));
+        visited.add(annotation.annotationType());
+        List<AnnotationDescriptor> metaAnnotations = Arrays.stream(annotation.annotationType().getAnnotations())
+                .filter(metaAnnotation -> includeMetaAnnotation(metaAnnotation, visited))
+                .map(metaAnnotation -> annotationDescriptor(metaAnnotation, new LinkedHashSet<>(visited)))
+                .toList();
         return new AnnotationDescriptor(
-                annotation.annotationType().getSimpleName(), annotation.annotationType().getName(), attributes);
+                annotation.annotationType().getSimpleName(), annotation.annotationType().getName(), attributes,
+                metaAnnotations);
+    }
+
+    private static boolean includeMetaAnnotation(
+            Annotation annotation, Set<Class<? extends Annotation>> visited) {
+        Class<? extends Annotation> annotationType = annotation.annotationType();
+        return !annotationType.getName().startsWith("java.lang.annotation.")
+               && !visited.contains(annotationType);
     }
 
     private static Object invoke(Method method, Annotation annotation) {

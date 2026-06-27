@@ -23,8 +23,16 @@ import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+import io.fluxzero.sdk.web.HandleWeb;
+import io.fluxzero.sdk.web.HttpRequestMethod;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.Method;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -83,6 +91,21 @@ class ComponentMetadataLookupTest {
                 Deeply.Nested.Component.class.getCanonicalName()).orElseThrow());
     }
 
+    @Test
+    void metadataLookupMatchesMetaAnnotationsWithoutJvmFallback() throws Exception {
+        JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(MetaLookupHandler.class, LookupCommand.class);
+        Method command = MetaLookupHandler.class.getDeclaredMethod("command", LookupCommand.class);
+        Method web = MetaLookupHandler.class.getDeclaredMethod("web");
+
+        assertTrue(lookup.hasExecutableAnnotation(command, RequiresAnyRole.class));
+        assertTrue(lookup.executableAnnotations(command).stream()
+                           .anyMatch(annotation -> annotation.isOrHas(
+                                   "RequiresAnyRole", RequiresAnyRole.class.getName())));
+        assertTrue(lookup.hasExecutableAnnotation(web, HandleWeb.class));
+        assertEquals("HandleWeb", lookup.routes(MetaLookupHandler.class, MessageType.WEBREQUEST)
+                .getFirst().annotation().name());
+    }
+
     @Consumer(name = "lookup")
     @LocalHandler
     static class LookupHandler {
@@ -112,6 +135,30 @@ class ComponentMetadataLookupTest {
         public String idForName(String name) {
             return name;
         }
+    }
+
+    static class MetaLookupHandler {
+        @AdminOnly
+        @HandleCommand
+        void command(LookupCommand command) {
+        }
+
+        @MetaWeb
+        String web() {
+            return "ok";
+        }
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    @RequiresAnyRole("admin")
+    @interface AdminOnly {
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    @HandleWeb(value = "meta", method = HttpRequestMethod.GET)
+    @interface MetaWeb {
     }
 
     static class Deeply {

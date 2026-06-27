@@ -325,6 +325,69 @@ class SourceComponentScannerTest {
     }
 
     @Test
+    void resolvesSourceDeclaredMetaAnnotations(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "MetaAnnotatedLogic", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.common.serialization.RegisterType;
+                import io.fluxzero.sdk.tracking.Consumer;
+                import io.fluxzero.sdk.tracking.handling.HandleCommand;
+                import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+                import io.fluxzero.sdk.web.HandleWeb;
+                import io.fluxzero.sdk.web.Path;
+                import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
+
+                @RequiresAnyRole("admin")
+                @interface AdminOnly {
+                }
+
+                @HandleWeb(value = "items", method = GET, autoHead = false, autoOptions = false)
+                @interface MetaWeb {
+                }
+
+                @Consumer(name = "meta-consumer")
+                @RegisterType(contains = "Meta")
+                @Path("meta-type")
+                public class MetaAnnotatedLogic {
+                    @AdminOnly
+                    @HandleCommand(passive = true, allowedClasses = MetaCommand.class)
+                    public void handle(MetaCommand command) {
+                    }
+
+                    @MetaWeb
+                    public String get() {
+                        return "ok";
+                    }
+                }
+
+                record MetaCommand(String value) {
+                }
+                """);
+
+        ComponentRegistry registry = new SourceComponentScanner().scan(tempDir);
+        ComponentDescriptor component = registry.findComponent(
+                "io.fluxzero.sdk.registry.generated.MetaAnnotatedLogic").orElseThrow();
+        HandlerRoute command = route(component, MessageType.COMMAND);
+        WebRouteDescriptor web = webRoute(component, "get");
+
+        assertTrue(registry.findComponent("io.fluxzero.sdk.registry.generated.MetaWeb").isEmpty());
+        assertEquals("meta-consumer", component.consumerMetadata().orElseThrow().name());
+        assertFalse(component.registeredTypes().isEmpty());
+        assertEquals("HandleCommand", command.annotation().name());
+        assertTrue(command.passive());
+        assertEquals(java.util.Set.of("io.fluxzero.sdk.registry.generated.MetaCommand"), command.allowedClassNames());
+        assertTrue(command.executableMetadata().orElseThrow().annotations().stream()
+                           .anyMatch(annotation -> annotation.isOrHas(
+                                   "RequiresAnyRole",
+                                   "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole")));
+        assertEquals("HandleWeb", route(component, MessageType.WEBREQUEST).annotation().name());
+        assertEquals(List.of("/meta-type/items"), web.paths());
+        assertEquals(List.of("GET"), web.methods());
+        assertFalse(web.autoHead());
+        assertFalse(web.autoOptions());
+    }
+
+    @Test
     void indexesSourcePropertyAndRecordComponentAnnotations(@TempDir Path tempDir) throws Exception {
         writeSource(tempDir, "PropertyPayload", """
                 package io.fluxzero.sdk.registry.generated;

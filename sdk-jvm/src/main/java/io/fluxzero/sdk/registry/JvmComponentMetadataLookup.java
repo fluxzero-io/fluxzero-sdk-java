@@ -274,7 +274,7 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
 
     private static boolean hasAnnotation(
             List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType) {
-        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(annotationType.getName())
-                                                           || annotation.name().equals(annotationType.getSimpleName()));
+        return annotations.stream().anyMatch(annotation -> annotation.isOrHas(
+                annotationType.getSimpleName(), annotationType.getName()));
     }
 }

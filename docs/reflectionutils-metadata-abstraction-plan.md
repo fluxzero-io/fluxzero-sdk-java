@@ -133,7 +133,7 @@ Nearby follow-up, not required for this slice to count as done:
 
 ## Phase 2: Metadata Runtime Migration
 
-Status: [ ] in progress.
+Status: [x] implemented.
 
 ### Slice 3: Metadata Lookup Facade
 
@@ -160,7 +160,7 @@ Done when:
 
 ### Slice 4: JVM Runtime Consumes Metadata Lookup
 
-Status: [ ] in progress.
+Status: [x] implemented.
 
 Context: after the facade exists, the existing JVM runtime should move horizontally from direct introspector calls to
 metadata lookup calls. Reflection may still answer behind the facade at first; the important change is that Fluxzero
@@ -170,15 +170,15 @@ Goal: replace direct calls to `JvmComponentIntrospector` across runtime semantic
 
 Work:
 
-- [ ] Handler/package/type/method annotation reads.
+- [x] Handler/package/type/method annotation reads.
   - [x] Payload type/package authorization reads use `ComponentMetadataLookup`.
   - [x] Handler method/type/package authorization reads use `ComponentMetadataLookup` before JVM fallback.
   - [x] `@ValidateWith` type metadata reads use `ComponentMetadataLookup` before JVM fallback.
   - [x] Local/self-tracking reads use metadata descriptors projected to the existing annotation-shaped API.
   - [x] Content-filter handler method/type/package marker reads use metadata descriptors before JVM fallback.
-  - [ ] Custom/meta-annotation relationships are still completed by JVM fallback until meta-annotation metadata is
-    explicitly modeled.
-- [ ] Route, consumer, local/tracked, and web metadata reads.
+  - [x] Custom/meta-annotation relationships are explicitly modeled in `AnnotationDescriptor` metadata and consumed by
+    source/classpath/processor registry lookups.
+- [x] Route, consumer, local/tracked, and web metadata reads.
   - [x] `@Consumer` package/type metadata drives `ConsumerConfiguration` creation.
   - [x] Class-literal metadata resolving handles deep nested source names such as `Outer.Inner.Component`.
   - [x] Handler association and routing-key metadata reads use executable/property/parameter descriptors before JVM
@@ -189,7 +189,7 @@ Work:
   - [x] HTTP web route runtime consumption uses registry `HandlerRoute.webRoutes()` before JVM fallback.
   - [x] WebSocket endpoint route consumption uses registry `HandlerRoute.webRoutes()` before JVM fallback, including
     enclosing type `@Path` semantics for classpath and annotation-processor metadata.
-- [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
+- [x] Property metadata reads for modeling, validation, content filtering, data protection, and search.
   - [x] Association property selection reads descriptor property metadata before JVM fallback.
   - [x] Content-filter policy marker reads descriptor metadata before JVM fallback.
   - [x] Data-protection property and method policy markers use descriptor metadata before JVM fallback.
@@ -204,7 +204,7 @@ Work:
     property paths and property handles.
   - [x] Annotation attribute projection for modeling annotations such as `@Member`, `@Alias`, and `@Apply` uses
     metadata config descriptors before JVM annotation fallback.
-- [ ] Invocation and mutable property access behind a platform backend seam.
+- [x] Invocation and mutable property access behind a platform backend seam.
   - [x] `PropertyAccess` covers annotated property discovery, property names, property path reads/writes,
     property-handle reads, raw property types, and collection element types.
   - [x] Handler invocation uses a configurable `ExecutableInvocationBackend`, while constructor/wither invocation and
@@ -212,12 +212,12 @@ Work:
 
 Done when:
 
-- [ ] JVM tests prove existing server-side behavior is unchanged while the core asks metadata-shaped questions.
+- [x] JVM tests prove existing server-side behavior is unchanged while the core asks metadata-shaped questions.
   - [x] Focused auth, validation, consumer, association, stateful, local-handler, web, and content-filter tests are
     green for the migrated clusters.
   - [x] Full `sdk-jvm` suite is green after the current migrated clusters.
   - [x] Focused aggregate/modeling tests are green after recursive entity traversal migration.
-  - [ ] Custom/meta-annotation relationships are explicitly modeled and covered without relying on direct runtime
+  - [x] Custom/meta-annotation relationships are explicitly modeled and covered without relying on direct runtime
     reflection calls.
 
 ### Slice 5: Generated Registry Backend

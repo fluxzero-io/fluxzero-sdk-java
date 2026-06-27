@@ -54,6 +54,9 @@ class ComponentRegistryJsonTest {
             assertEquals(1, registries.size());
             assertEquals("io.fluxzero.sdk.registry.json.JsonHandler",
                          registries.getFirst().components().getFirst().fullClassName());
+            assertTrue(registries.getFirst().components().getFirst().routes().getFirst().annotation()
+                               .isOrHas("RequiresAnyRole",
+                                        "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole"));
         }
     }
 
@@ -62,10 +65,14 @@ class ComponentRegistryJsonTest {
                 "Consumer", "io.fluxzero.sdk.tracking.Consumer", Map.of("name", List.of("json-consumer")));
         ConsumerDescriptor consumer = new ConsumerDescriptor(
                 "json-consumer", consumerAnnotation.attributes(), consumerAnnotation);
+        AnnotationDescriptor roleAnnotation = new AnnotationDescriptor(
+                "RequiresAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole",
+                Map.of("value", List.of("admin")));
         AnnotationDescriptor handlerAnnotation = new AnnotationDescriptor(
                 "HandleCommand", "io.fluxzero.sdk.tracking.handling.HandleCommand",
                 Map.of("allowedClasses", List.of("io.fluxzero.sdk.registry.json.JsonCommand"),
-                       "passive", List.of("true")));
+                       "passive", List.of("true")),
+                List.of(roleAnnotation));
         ExecutableDescriptor executable = new ExecutableDescriptor(
                 ExecutableKind.METHOD, "handle", "io.fluxzero.sdk.registry.json.JsonResult",
                 List.of(new ParameterDescriptor(

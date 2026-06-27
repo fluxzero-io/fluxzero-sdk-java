@@ -26,16 +26,23 @@ import java.util.Optional;
  * @param name simple annotation name
  * @param qualifiedName fully qualified annotation name when it can be resolved from source imports
  * @param attributes annotation attributes, with unnamed values stored under {@code value}
+ * @param metaAnnotations annotations present on this annotation type
  */
 public record AnnotationDescriptor(
         String name,
         String qualifiedName,
-        Map<String, List<String>> attributes) {
+        Map<String, List<String>> attributes,
+        List<AnnotationDescriptor> metaAnnotations) {
+
+    public AnnotationDescriptor(String name, String qualifiedName, Map<String, List<String>> attributes) {
+        this(name, qualifiedName, attributes, List.of());
+    }
 
     public AnnotationDescriptor {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         attributes = Map.copyOf(Objects.requireNonNull(attributes, "attributes"));
+        metaAnnotations = List.copyOf(Objects.requireNonNull(metaAnnotations, "metaAnnotations"));
     }
 
     /**
@@ -57,5 +64,30 @@ public record AnnotationDescriptor(
      */
     public boolean booleanValue(String attribute, boolean defaultValue) {
         return firstValue(attribute).map(Boolean::parseBoolean).orElse(defaultValue);
+    }
+
+    /**
+     * Returns whether this annotation is, or is meta-annotated with, the supplied annotation name.
+     */
+    public boolean isOrHas(String annotationName, String qualifiedAnnotationName) {
+        return find(annotationName, qualifiedAnnotationName).isPresent();
+    }
+
+    /**
+     * Finds this annotation or the nearest meta-annotation matching the supplied annotation name.
+     */
+    public Optional<AnnotationDescriptor> find(String annotationName, String qualifiedAnnotationName) {
+        if (matches(annotationName, qualifiedAnnotationName)) {
+            return Optional.of(this);
+        }
+        return metaAnnotations.stream()
+                .map(annotation -> annotation.find(annotationName, qualifiedAnnotationName))
+                .flatMap(Optional::stream)
+                .findFirst();
+    }
+
+    private boolean matches(String annotationName, String qualifiedAnnotationName) {
+        return Objects.equals(name, annotationName)
+               || qualifiedAnnotationName != null && Objects.equals(qualifiedName, qualifiedAnnotationName);
     }
 }
