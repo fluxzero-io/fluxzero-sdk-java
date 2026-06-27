@@ -15,6 +15,9 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +38,30 @@ class ModelMetadataTest {
         assertTrue(apply.disableCompatibilityCheck());
     }
 
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForApplyMetadata() throws Exception {
+        var method = UnregisteredGeneratedOnlyUpdate.class.getDeclaredMethod("apply");
+
+        GeneratedOnlyMetadataMode.run(() -> assertTrue(ModelMetadata.apply(method).isEmpty()));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredApplyMetadata() throws Exception {
+        var method = RegisteredGeneratedOnlyUpdate.class.getDeclaredMethod("apply");
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyUpdate.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                var apply = ModelMetadata.apply(method).orElseThrow();
+
+                assertTrue(apply.disableCompatibilityCheck());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static class MetadataAggregate {
         @Member(idProperty = "customId", wither = "withChildren")
         private MetadataChild children;
@@ -46,6 +73,18 @@ class ModelMetadataTest {
     }
 
     private static class MetadataUpdate {
+        @Apply(disableCompatibilityCheck = true)
+        void apply() {
+        }
+    }
+
+    private static class UnregisteredGeneratedOnlyUpdate {
+        @Apply(disableCompatibilityCheck = true)
+        void apply() {
+        }
+    }
+
+    private static class RegisteredGeneratedOnlyUpdate {
         @Apply(disableCompatibilityCheck = true)
         void apply() {
         }

@@ -109,13 +109,15 @@ public class DefaultEntityHelper implements EntityHelper {
     }
 
     private static HandlerConfiguration<MessageWithEntity> assertLegalHandlerConfiguration() {
+        var annotationResolver = MetadataExecutableAnnotationResolver.create();
         return HandlerConfiguration.<MessageWithEntity>builder().methodAnnotation(AssertLegal.class)
                 .invokeMultipleMethods(true)
                 .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
-                .executableAnnotationResolver(MetadataExecutableAnnotationResolver.create())
+                .executableAnnotationResolver(annotationResolver)
                 .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                 .messageFilter((message, executable, handlerAnnotation, targetClass) ->
-                        JvmComponentIntrospector.getInstance().getAnnotation(executable, AssertLegal.class)
+                        annotationResolver.getAnnotation(executable, AssertLegal.class)
+                                .map(AssertLegal.class::cast)
                                 .map(assertLegal -> assertLegal.afterHandler() == message.isAfterHandler())
                                 .orElse(false))
                 .build();

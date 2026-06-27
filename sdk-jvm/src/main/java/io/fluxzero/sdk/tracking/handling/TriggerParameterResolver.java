@@ -19,13 +19,14 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AllArgsConstructor;
 
@@ -239,6 +240,8 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
             }
         };
 
+        private final MetadataExecutableAnnotationResolver annotationResolver =
+                MetadataExecutableAnnotationResolver.create();
         private final ConcurrentHashMap<Executable, Optional<Trigger>> trigger = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<Executable, Predicate<HasMessage>> triggerFilter = new ConcurrentHashMap<>();
 
@@ -261,7 +264,8 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
             if (cached != null) {
                 return cached;
             }
-            Optional<Trigger> computed = JvmComponentIntrospector.getInstance().getAnnotation(executable, Trigger.class);
+            Optional<Trigger> computed = annotationResolver.getAnnotation(executable, Trigger.class)
+                    .map(Trigger.class::cast);
             Optional<Trigger> existing = trigger.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
         }

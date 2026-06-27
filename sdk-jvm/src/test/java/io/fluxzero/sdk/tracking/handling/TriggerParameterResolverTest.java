@@ -19,10 +19,15 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TriggerParameterResolverTest {
 
@@ -77,6 +82,33 @@ class TriggerParameterResolverTest {
     void triggerAsMethodAnnotation() {
         testFixture.whenCommand(new TriggerOnMethod("some result"))
                 .expectOnlyEvents(new ResultReceived("some result", TriggerOnMethod.class));
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForMethodTrigger() throws Exception {
+        var method = UnregisteredGeneratedOnlyTriggerHandler.class.getDeclaredMethod("handle", String.class);
+        var resolver = new TriggerParameterResolver(null, null);
+
+        GeneratedOnlyMetadataMode.run(() -> assertTrue(resolver.prepare(
+                method, HandleResult.class, UnregisteredGeneratedOnlyTriggerHandler.class)
+                .test(new Message("result"), method, HandleResult.class, UnregisteredGeneratedOnlyTriggerHandler.class)));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredMetadataForMethodTrigger() throws Exception {
+        var method = RegisteredGeneratedOnlyTriggerHandler.class.getDeclaredMethod("handle", String.class);
+        var resolver = new TriggerParameterResolver(null, null);
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyTriggerHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> assertFalse(resolver.prepare(
+                    method, HandleResult.class, RegisteredGeneratedOnlyTriggerHandler.class)
+                    .test(new Message("result"), method, HandleResult.class,
+                          RegisteredGeneratedOnlyTriggerHandler.class)));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Consumer(name = "main")
@@ -140,7 +172,19 @@ class TriggerParameterResolverTest {
         }
     }
 
+    static class UnregisteredGeneratedOnlyTriggerHandler {
+        @HandleResult
+        @Trigger(TriggerAsPayload.class)
+        void handle(String result) {
+        }
+    }
 
+    static class RegisteredGeneratedOnlyTriggerHandler {
+        @HandleResult
+        @Trigger(TriggerAsPayload.class)
+        void handle(String result) {
+        }
+    }
 
     interface HasResult {
         String getResult();

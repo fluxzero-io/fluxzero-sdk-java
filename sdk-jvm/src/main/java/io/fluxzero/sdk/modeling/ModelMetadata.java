@@ -16,22 +16,17 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
-import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
-import io.fluxzero.sdk.registry.ExecutableDescriptor;
-import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.ParameterDescriptor;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.registry.PropertyAccess;
 import io.fluxzero.sdk.registry.PropertyDescriptor;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -144,12 +139,9 @@ final class ModelMetadata {
         if (executable == null) {
             return Optional.empty();
         }
-        return ComponentMetadataLookups.lookup(executable.getDeclaringClass())
-                .flatMap(lookup -> executable(lookup, executable))
-                .flatMap(descriptor -> annotation(descriptor, Apply.class))
-                .map(annotation -> new ApplyConfig(annotation.booleanValue("disableCompatibilityCheck", false)))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(executable, Apply.class)
-                        .map(annotation -> new ApplyConfig(annotation.disableCompatibilityCheck())));
+        return MetadataExecutableAnnotationResolver.create().getAnnotation(executable, Apply.class)
+                .map(Apply.class::cast)
+                .map(annotation -> new ApplyConfig(annotation.disableCompatibilityCheck()));
     }
 
     static boolean hasAnnotatedProperty(Class<?> ownerType, Class<? extends Annotation> annotationType) {
@@ -175,31 +167,6 @@ final class ModelMetadata {
         return declaringClass(property).flatMap(ownerType -> ComponentMetadataLookups.lookup(ownerType)
                 .flatMap(lookup -> lookup.property(ownerType.getName(), PROPERTIES.propertyName(property))
                         .flatMap(descriptor -> annotation(descriptor.annotations(), annotationType))));
-    }
-
-    private static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {
-        ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
-        String name = executable.getName();
-        List<String> parameters = Arrays.stream(executable.getParameterTypes()).map(ModelMetadata::typeName).toList();
-        Optional<ExecutableDescriptor> result = lookup.executable(
-                executable.getDeclaringClass().getName(), kind, name, parameters);
-        if (result.isPresent() || executable instanceof Method) {
-            return result;
-        }
-        return lookup.executables(executable.getDeclaringClass().getName()).stream()
-                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
-                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
-                        .equals(parameters))
-                .findFirst();
-    }
-
-    private static String typeName(Class<?> type) {
-        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
-    }
-
-    private static Optional<AnnotationDescriptor> annotation(
-            ExecutableDescriptor descriptor, Class<? extends Annotation> annotationType) {
-        return annotation(descriptor.annotations(), annotationType);
     }
 
     private static Optional<AnnotationDescriptor> annotation(
