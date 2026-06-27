@@ -18,13 +18,35 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.toMap;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionBoundaryTest {
     private static final Pattern DIRECT_REFLECTION_UTILS = Pattern.compile("\\bReflectionUtils\\b");
     private static final Pattern DIRECT_REFLECTION_ACCESS = Pattern.compile("\\bReflectionAccess\\b");
+    private static final Pattern DIRECT_METADATA_SCAN = Pattern.compile(
+            "\\bJvmComponentMetadataLookup\\s*\\.\\s*(scan|scanIfScannable)\\s*\\("
+            + "|new\\s+ClasspathComponentScanner\\s*\\(\\s*\\)\\s*\\.\\s*scan\\s*\\(");
+    private static final Map<String, Long> KNOWN_DIRECT_METADATA_SCAN_SITES = new TreeMap<>(Map.ofEntries(
+            Map.entry("src/main/java/io/fluxzero/sdk/common/ClientUtils.java", 2L),
+            Map.entry("src/main/java/io/fluxzero/sdk/configuration/DefaultFluxzero.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/configuration/spring/FluxzeroSpringConfig.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/persisting/repository/DefaultAggregateRepository.java", 2L),
+            Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DefaultIndexOperation.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DocumentStore.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/publishing/dataprotection/DataProtectionInterceptor.java", 3L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/ConsumerConfiguration.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/HandlerAssociations.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/RegistryFilteringHandler.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/StatefulHandler.java", 3L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/contentfiltering/ContentFilterInterceptor.java", 1L),
+            Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/validation/ValidationUtils.java", 3L),
+            Map.entry("src/main/java/io/fluxzero/sdk/web/WebUtils.java", 1L)));
 
     @Test
     void sdkJvmMainOnlyUsesReflectionBackendInJvmComponentIntrospector() throws Exception {
@@ -42,6 +64,27 @@ class ReflectionBoundaryTest {
         }
     }
 
+    @Test
+    void directJvmMetadataScannerFallbackSitesAreExplicitDebt() throws Exception {
+        Path sourceRoot = Path.of("src/main/java");
+        if (!Files.isDirectory(sourceRoot)) {
+            return;
+        }
+        try (var files = Files.walk(sourceRoot)) {
+            Map<String, Long> offenders = files.filter(path -> path.toString().endsWith(".java"))
+                    .filter(ReflectionBoundaryTest::isRuntimeMetadataScanDebtCandidate)
+                    .map(path -> Map.entry(path.toString(), directMetadataScanCount(path)))
+                    .filter(entry -> entry.getValue() > 0)
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                   Long::sum, TreeMap::new));
+
+            assertEquals(KNOWN_DIRECT_METADATA_SCAN_SITES, offenders,
+                         "Direct JVM metadata scanner fallbacks changed. New sites must be removed or consciously "
+                         + "added to the generated metadata runtime parity backlog. Removed sites should lower the "
+                         + "known debt count.");
+        }
+    }
+
     private static boolean containsForbiddenReflectionReference(Path path) {
         if (path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "JvmComponentIntrospector.java"))) {
             return false;
@@ -50,6 +93,19 @@ class ReflectionBoundaryTest {
             String source = Files.readString(path);
             return DIRECT_REFLECTION_UTILS.matcher(source).find()
                    || DIRECT_REFLECTION_ACCESS.matcher(source).find();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to inspect " + path, e);
+        }
+    }
+
+    private static boolean isRuntimeMetadataScanDebtCandidate(Path path) {
+        return !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "ComponentMetadataLookups.java"))
+               && !path.endsWith(Path.of("io", "fluxzero", "sdk", "registry", "JvmComponentMetadataLookup.java"));
+    }
+
+    private static long directMetadataScanCount(Path path) {
+        try {
+            return DIRECT_METADATA_SCAN.matcher(Files.readString(path)).results().count();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to inspect " + path, e);
         }

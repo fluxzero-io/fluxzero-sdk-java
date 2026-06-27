@@ -44,11 +44,12 @@ Work slices:
   - [x] Add an explicit runtime/property switch for generated-only metadata.
   - [x] Make the central JVM metadata resolver refuse classpath/reflection fallback in that mode.
   - [x] Add focused tests proving registry-backed lookup still works and reflection-backed fallback is absent.
-- [ ] Slice B: Direct JVM scanner-call inventory and guardrail.
-  - [ ] Treat direct `JvmComponentMetadataLookup.scan(...)`, `scanIfScannable(...)`, and
+- [x] Slice B: Direct JVM scanner-call inventory and guardrail.
+  - [x] Treat direct `JvmComponentMetadataLookup.scan(...)`, `scanIfScannable(...)`, and
     `new ClasspathComponentScanner().scan(...)` calls in runtime code as backlog debt.
-  - [ ] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
+  - [x] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
     resolver.
+  - [x] Current known debt: 22 direct runtime scan/fallback sites outside the central metadata lookup backends.
 - [ ] Slice C: Thematic generated-only JVM clusters.
   - [ ] Handler discovery, filtering, and invocation.
   - [ ] Consumer, local/tracked, gateway, and tracking configuration.
