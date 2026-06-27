@@ -15,10 +15,8 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.reflection.DefaultMemberInvoker;
-import io.fluxzero.common.reflection.MemberInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.Value;
@@ -202,21 +200,20 @@ public class AnnotatedEntityHolder {
                 witherCandidates.filter(m -> Objects.equals(member.wither(), m.getName()));
         Optional<BiFunction<Object, Object, Object>> wither =
                 witherCandidates.findFirst()
-                        .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
-                        .map(m -> (o, h) -> call(() -> m.invoke(o, h)));
+                        .map(method -> (BiFunction<Object, Object, Object>) (o, h) ->
+                                JvmComponentIntrospector.getInstance().invoke(method, o, h));
         return wither
                 .or(() -> computeRecordWither(ownerType, propertyName))
                 .or(() -> computeCopyMethodWither(ownerType, propertyName))
                 .orElseGet(() -> {
                     AtomicBoolean warningIssued = new AtomicBoolean();
-                    MemberInvoker field = JvmComponentIntrospector.getInstance().getField(ownerType, propertyName)
-                            .map(DefaultMemberInvoker::asInvoker).orElse(null);
+                    boolean fieldExists = JvmComponentIntrospector.getInstance().getField(ownerType, propertyName).isPresent();
                     Function<Object, Object> ownerCloner = computeOwnerCloner(ownerType, serializer);
                     return (o, h) -> {
                         if (warningIssued.get()) {
                             return o;
                         }
-                        if (field == null) {
+                        if (!fieldExists) {
                             if (warningIssued.compareAndSet(false, true)) {
                                 log.warn("No update function found for @Member {}. {}",
                                          location, updateFunctionAdvice(ownerType, propertyName));
@@ -224,7 +221,7 @@ public class AnnotatedEntityHolder {
                         } else {
                             try {
                                 o = ownerCloner.apply(o);
-                                field.invoke(o, h);
+                                ModelMetadata.writeProperty(propertyName, o, h);
                             } catch (Exception e) {
                                 if (warningIssued.compareAndSet(false, true)) {
                                     log.warn("Not able to update @Member {}. {}", location,
@@ -242,7 +239,6 @@ public class AnnotatedEntityHolder {
         List<Field> fields = Arrays.stream(ownerType.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
                 .filter(field -> !field.isSynthetic())
-                .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
                 .toList();
         int memberIndex = -1;
         for (int i = 0; i < fields.size(); i++) {
@@ -260,13 +256,12 @@ public class AnnotatedEntityHolder {
                 .filter(method -> ownerType.isAssignableFrom(method.getReturnType()))
                 .filter(method -> matchesCopyParameters(method, fields))
                 .findFirst()
-                .map(method -> JvmComponentIntrospector.getInstance().ensureAccessible(method))
                 .map(method -> (owner, holder) -> call(() -> {
                     Object[] args = new Object[fields.size()];
                     for (int i = 0; i < fields.size(); i++) {
-                        args[i] = i == updateIndex ? holder : fields.get(i).get(owner);
+                        args[i] = i == updateIndex ? holder : ModelMetadata.propertyValue(fields.get(i), owner, true);
                     }
-                    return method.invoke(owner, args);
+                    return JvmComponentIntrospector.getInstance().invoke(method, owner, args);
                 }));
     }
 
@@ -300,7 +295,7 @@ public class AnnotatedEntityHolder {
         Method[] accessors = new Method[components.length];
         for (int i = 0; i < components.length; i++) {
             constructorTypes[i] = components[i].getType();
-            accessors[i] = JvmComponentIntrospector.getInstance().ensureAccessible(components[i].getAccessor());
+            accessors[i] = components[i].getAccessor();
             if (Objects.equals(components[i].getName(), propertyName)) {
                 memberIndex = i;
             }
@@ -310,21 +305,22 @@ public class AnnotatedEntityHolder {
         }
         int updateIndex = memberIndex;
         return call(() -> {
-            var constructor = JvmComponentIntrospector.getInstance().ensureAccessible(ownerType.getDeclaredConstructor(constructorTypes));
+            var constructor = ownerType.getDeclaredConstructor(constructorTypes);
             return Optional.<BiFunction<Object, Object, Object>>of((owner, holder) -> call(() -> {
                 Object[] args = new Object[components.length];
                 for (int i = 0; i < components.length; i++) {
-                    args[i] = i == updateIndex ? holder : accessors[i].invoke(owner);
+                    args[i] = i == updateIndex ? holder : ModelMetadata.propertyValue(accessors[i], owner, true);
                 }
-                return constructor.newInstance(args);
+                return JvmComponentIntrospector.getInstance().instantiate(constructor, args);
             }));
         });
     }
 
     private static Function<Object, Object> computeOwnerCloner(Class<?> ownerType, Serializer serializer) {
         try {
-            var constructor = JvmComponentIntrospector.getInstance().ensureAccessible(ownerType.getDeclaredConstructor());
-            return owner -> JvmComponentIntrospector.getInstance().copyFields(owner, call(constructor::newInstance));
+            var constructor = ownerType.getDeclaredConstructor();
+            return owner -> JvmComponentIntrospector.getInstance()
+                    .copyFields(owner, JvmComponentIntrospector.getInstance().instantiate(constructor));
         } catch (Exception ignored) {
             return serializer::clone;
         }

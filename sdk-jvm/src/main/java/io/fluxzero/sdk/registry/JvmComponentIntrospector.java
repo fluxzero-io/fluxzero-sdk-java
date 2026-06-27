@@ -765,6 +765,21 @@ public final class JvmComponentIntrospector implements
         }
     }
 
+    /**
+     * Invokes a JVM executable with varargs while keeping invocation behind the platform backend.
+     */
+    public Object invoke(Executable executable, Object target, Object... arguments) {
+        return invoke(executable, target, arguments == null ? List.of() : Arrays.asList(arguments));
+    }
+
+    /**
+     * Creates an instance through the JVM executable backend.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T instantiate(Constructor<?> constructor, Object... arguments) {
+        return (T) invoke(constructor, null, arguments);
+    }
+
     private static AnnotationDescriptor annotationDescriptor(Annotation annotation) {
         Map<String, List<String>> attributes = new LinkedHashMap<>();
         Arrays.stream(annotation.annotationType().getDeclaredMethods())

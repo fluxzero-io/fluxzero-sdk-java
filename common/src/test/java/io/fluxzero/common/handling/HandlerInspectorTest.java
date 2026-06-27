@@ -25,6 +25,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Executable;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -145,6 +146,32 @@ class HandlerInspectorTest {
 
         assertNull(handler.getHandlerMethodOrNull("first"));
         assertEquals("first!", handler.getInvoker("first").orElseThrow().invoke());
+    }
+
+    @Test
+    void handlerInvocationUsesConfiguredBackend() {
+        AtomicInteger prepared = new AtomicInteger();
+        AtomicInteger invoked = new AtomicInteger();
+        ExecutableInvocationBackend reflection = ExecutableInvocationBackend.reflection();
+        Handler<Object> handler = HandlerInspector.createHandler(
+                new SingleMethod(), List.of(new PreparedIdentityResolver()),
+                HandlerConfiguration.<Object>builder()
+                        .methodAnnotation(Handle.class)
+                        .messageFilter((message, executable, annotation, targetClass) -> message instanceof String)
+                        .executableInvocationBackend(executable -> {
+                            prepared.incrementAndGet();
+                            ExecutableInvocation delegate = reflection.prepare(executable);
+                            return (target, parameterCount, parameterProvider) -> {
+                                invoked.incrementAndGet();
+                                return delegate.invoke(target, parameterCount, parameterProvider);
+                            };
+                        })
+                        .build());
+
+        assertEquals("first!", handler.getInvoker("first").orElseThrow().invoke());
+        assertEquals("second!", handler.getHandlerMethodOrNull("second").invoke("second"));
+        assertEquals(1, prepared.get());
+        assertEquals(2, invoked.get());
     }
 
     private static class Foo extends Bar implements SomeInterface {

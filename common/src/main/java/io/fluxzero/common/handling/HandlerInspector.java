@@ -15,8 +15,6 @@
 
 package io.fluxzero.common.handling;
 
-import io.fluxzero.common.reflection.DefaultMemberInvoker;
-import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -221,7 +219,7 @@ public class HandlerInspector {
         private final Parameter[] parameters;
         private final int parameterCount;
         private final boolean staticMethod;
-        private final MemberInvoker invoker;
+        private final ExecutableInvocation invoker;
         private final boolean hasReturnType;
         private final Class<?> classForSpecificity;
         private final int lowestSpecificityPriority;
@@ -265,7 +263,7 @@ public class HandlerInspector {
                     .mapToInt(ParameterResolver::specificityPriority).min().orElse(Integer.MAX_VALUE);
             this.priority = getPriority(methodAnnotation);
             this.passive = isPassive(methodAnnotation);
-            this.invoker = DefaultMemberInvoker.asInvoker(this.executable);
+            this.invoker = config.executableInvocationBackend().prepare(this.executable);
         }
 
         @Override

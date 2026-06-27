@@ -207,8 +207,8 @@ Work:
 - [ ] Invocation and mutable property access behind a platform backend seam.
   - [x] `PropertyAccess` covers annotated property discovery, property names, property path reads/writes,
     property-handle reads, raw property types, and collection element types.
-  - [ ] Handler invocation, constructor/wither invocation, and mutable entity reconstruction still use JVM invocation
-    machinery directly.
+  - [x] Handler invocation uses a configurable `ExecutableInvocationBackend`, while constructor/wither invocation and
+    mutable entity reconstruction use the `ExecutableInvoker`/`PropertyAccess` backend seams.
 
 Done when:
 
@@ -217,7 +217,8 @@ Done when:
     green for the migrated clusters.
   - [x] Full `sdk-jvm` suite is green after the current migrated clusters.
   - [x] Focused aggregate/modeling tests are green after recursive entity traversal migration.
-  - [ ] Remaining Slice 4 clusters are migrated and covered without relying on direct runtime reflection calls.
+  - [ ] Custom/meta-annotation relationships are explicitly modeled and covered without relying on direct runtime
+    reflection calls.
 
 ### Slice 5: Generated Registry Backend
 

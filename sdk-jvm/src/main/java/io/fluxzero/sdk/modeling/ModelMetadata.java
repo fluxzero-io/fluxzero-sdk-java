@@ -92,6 +92,10 @@ final class ModelMetadata {
         return PROPERTIES.hasProperty(propertyPath, target);
     }
 
+    static void writeProperty(String propertyPath, Object target, Object value) {
+        PROPERTIES.writeProperty(propertyPath, target, value);
+    }
+
     static Object propertyValue(AccessibleObject property, Object target, boolean forceAccess) {
         return PROPERTIES.propertyValue(property, target, forceAccess);
     }

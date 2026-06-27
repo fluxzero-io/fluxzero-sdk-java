@@ -95,6 +95,12 @@ public class HandlerConfiguration<M> {
     MethodInvocationValidator<? super M> methodInvocationValidator = MethodInvocationValidator.noOp();
 
     /**
+     * Backend used to prepare handler executable invocation.
+     */
+    @Default
+    ExecutableInvocationBackend executableInvocationBackend = ExecutableInvocationBackend.reflection();
+
+    /**
      * Determines whether the given method is eligible to handle messages according to this configuration.
      * <p>
      * This includes both:
