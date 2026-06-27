@@ -37,10 +37,29 @@ public interface ExecutableAnnotationResolver {
             Executable executable, Class<? extends Annotation> annotationType);
 
     /**
+     * Resolves the supplied annotation type for an executable metadata view.
+     */
+    default Optional<? extends Annotation> getAnnotation(
+            ExecutableView executable, Class<? extends Annotation> annotationType) {
+        Optional<Executable> reflectionExecutable = executable.executable();
+        return reflectionExecutable.isPresent()
+                ? getAnnotation(reflectionExecutable.get(), annotationType)
+                : executable.annotation(annotationType);
+    }
+
+    /**
      * Resolves all matching annotations of the supplied type for the executable.
      */
     default List<? extends Annotation> getAnnotations(
             Executable executable, Class<? extends Annotation> annotationType) {
+        return getAnnotation(executable, annotationType).stream().toList();
+    }
+
+    /**
+     * Resolves all matching annotations of the supplied type for an executable metadata view.
+     */
+    default List<? extends Annotation> getAnnotations(
+            ExecutableView executable, Class<? extends Annotation> annotationType) {
         return getAnnotation(executable, annotationType).stream().toList();
     }
 

@@ -19,7 +19,9 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.defaultValidator;
@@ -71,24 +73,25 @@ public class ValidatingInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        boolean validateReturnValue = shouldValidateReturnValue(invoker);
+        Optional<Executable> returnValidationExecutable = returnValidationExecutable(invoker);
         return m -> {
             if (validatePayload) {
                 ValidationUtils.assertValid(m.getPayload(), validator);
             }
             Object result = function.apply(m);
-            if (validateReturnValue && m.getMessageType().isRequest()) {
-                validator.assertValidReturnValue(null, invoker.getMethod(), result);
+            if (returnValidationExecutable.isPresent() && m.getMessageType().isRequest()) {
+                validator.assertValidReturnValue(null, returnValidationExecutable.get(), result);
             }
             return result;
         };
     }
 
-    private boolean shouldValidateReturnValue(HandlerInvoker invoker) {
+    private Optional<Executable> returnValidationExecutable(HandlerInvoker invoker) {
         Annotation methodAnnotation = invoker.getMethodAnnotation();
-        return methodAnnotation != null
-               && !invoker.isPassive()
-               && invoker.expectResult()
-               && validator.hasReturnValueValidation(invoker.getMethod());
+        if (methodAnnotation == null || invoker.isPassive() || !invoker.expectResult()) {
+            return Optional.empty();
+        }
+        return invoker.getExecutableView().executable()
+                .filter(validator::hasReturnValueValidation);
     }
 }

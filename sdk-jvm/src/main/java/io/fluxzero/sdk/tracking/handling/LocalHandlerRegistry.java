@@ -218,7 +218,6 @@ public class LocalHandlerRegistry implements HandlerRegistry {
      * Determines whether a handler allows its message to be sent to the Fluxzero Runtime.
      */
     protected boolean logMessage(HandlerInvoker invoker) {
-        return getLocalHandlerAnnotation(invoker.getTargetClass(), invoker.getMethod())
-                .map(LocalHandler::logMessage).orElse(false);
+        return getLocalHandlerAnnotation(invoker).map(LocalHandler::logMessage).orElse(false);
     }
 }

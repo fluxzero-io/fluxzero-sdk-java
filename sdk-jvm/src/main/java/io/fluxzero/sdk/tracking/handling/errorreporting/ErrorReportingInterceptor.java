@@ -175,8 +175,13 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
     private HandlerErrorPolicy policy(HandlerDescriptor invoker) {
         Class<?> targetClass = invoker.getTargetClass();
         Executable method = invoker.getMethod();
-        if (targetClass == null || method == null) {
+        if (targetClass == null) {
             return HandlerErrorPolicy.reportErrors;
+        }
+        if (method == null) {
+            return new HandlerErrorPolicy(
+                    getLocalHandlerAnnotation(invoker).isPresent(),
+                    !isSelfTracking(targetClass, invoker.getExecutableView()));
         }
         ConcurrentHashMap<Executable, HandlerErrorPolicy> policies = policyCache.get(targetClass);
         HandlerErrorPolicy cached = policies.get(method);

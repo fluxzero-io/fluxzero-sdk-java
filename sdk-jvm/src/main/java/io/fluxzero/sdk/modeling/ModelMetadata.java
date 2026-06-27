@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
@@ -143,6 +144,15 @@ final class ModelMetadata {
     }
 
     static Optional<ApplyConfig> apply(Executable executable) {
+        if (executable == null) {
+            return Optional.empty();
+        }
+        return MetadataExecutableAnnotationResolver.create().getAnnotation(executable, Apply.class)
+                .map(Apply.class::cast)
+                .map(annotation -> new ApplyConfig(annotation.disableCompatibilityCheck()));
+    }
+
+    static Optional<ApplyConfig> apply(ExecutableView executable) {
         if (executable == null) {
             return Optional.empty();
         }

@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling.contentfiltering;
 
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -28,7 +29,6 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Executable;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,7 +48,8 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        var filterContent = metadataCache.get(invoker.getTargetClass()).filterContent(invoker.getMethod()).orElse(null);
+        var filterContent = metadataCache.get(invoker.getTargetClass())
+                .filterContent(invoker.getExecutableView()).orElse(null);
         if (filterContent == null) {
             return function;
         }
@@ -58,15 +59,16 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
     private static final class FilterContentMetadata {
         private final Class<?> targetClass;
         private final Optional<ComponentMetadataLookup> lookup;
-        private final ConcurrentHashMap<Executable, Optional<FilterContent>> filterContent = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Optional<FilterContent>> filterContent = new ConcurrentHashMap<>();
 
         private FilterContentMetadata(Class<?> targetClass) {
             this.targetClass = targetClass;
             this.lookup = ComponentMetadataLookups.lookup(targetClass);
         }
 
-        private Optional<FilterContent> filterContent(Executable executable) {
-            Optional<FilterContent> cached = filterContent.get(executable);
+        private Optional<FilterContent> filterContent(ExecutableView executable) {
+            String executableId = executable.executableId();
+            Optional<FilterContent> cached = filterContent.get(executableId);
             if (cached != null) {
                 return cached;
             }
@@ -77,12 +79,14 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
             Optional<FilterContent> computed = metadata.isPresent() || lookup.isPresent()
                                                || ComponentMetadataLookups.generatedOnlyMode()
                     ? metadata
-                    : JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
+                    : executable.executable()
+                            .flatMap(method -> JvmComponentIntrospector.getInstance()
+                                    .getAnnotation(method, FilterContent.class))
                             .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance()
                                     .getTypeAnnotation(targetClass, FilterContent.class)))
                             .or(() -> JvmComponentIntrospector.getInstance()
                                     .getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
-            Optional<FilterContent> existing = filterContent.putIfAbsent(executable, computed);
+            Optional<FilterContent> existing = filterContent.putIfAbsent(executableId, computed);
             return existing != null ? existing : computed;
         }
 

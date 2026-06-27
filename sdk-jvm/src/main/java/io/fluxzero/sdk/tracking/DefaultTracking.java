@@ -962,7 +962,7 @@ public class DefaultTracking implements Tracking {
             result = unwrapException((Throwable) result);
             if (!(result instanceof FunctionalException)) {
                 result = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
-                        h.getMethod().toString(), message.toString(), (Throwable) result), (Throwable) result);
+                        handlerDescription(h), message.toString(), (Throwable) result), (Throwable) result);
             }
         }
         SerializedMessage request = message.getSerializedObject();
@@ -972,9 +972,15 @@ public class DefaultTracking implements Tracking {
         } catch (Throwable e) {
             Object response = result;
             config.getErrorHandler().handleError(
-                    e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
+                    e, format("Failed to send result of a %s from handler %s", message, handlerDescription(h)),
                     () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
         }
+    }
+
+    private String handlerDescription(HandlerDescriptor handler) {
+        return handler.getMethod() == null
+                ? "%s#%s".formatted(handler.getExecutableView().targetTypeName(), handler.getExecutableView().name())
+                : handler.getMethod().toString();
     }
 
     protected boolean shouldSendResponse(HandlerDescriptor invoker, DeserializingMessage request,

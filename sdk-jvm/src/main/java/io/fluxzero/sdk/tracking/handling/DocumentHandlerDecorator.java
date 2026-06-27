@@ -23,10 +23,10 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import lombok.AllArgsConstructor;
 
-import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -92,11 +92,10 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
         @Override
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
             return delegate.getInvoker(message)
-                    .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
-                                  && m.getReturnType().isAssignableFrom(message.getPayloadClass())
-                            ? annotationResolver.getAnnotation(i.getMethod(), HandleDocument.class)
+                    .flatMap(i -> !i.isPassive() && returnTypeMatchesPayload(i, message)
+                            ? annotationResolver.getAnnotation(i.getExecutableView(), HandleDocument.class)
                                     .map(HandleDocument.class::cast)
-                                    .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
+                                    .map(annotation -> ClientUtils.getTopic(annotation, i.getExecutableView()))
                                     .map(topic -> (HandlerInvoker) new DocumentHandlerInvoker(i, topic, message))
                                     .or(() -> Optional.of(i)) : Optional.of(i));
         }
@@ -104,6 +103,13 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
         @Override
         public Class<?> getTargetClass() {
             return delegate.getTargetClass();
+        }
+
+        private boolean returnTypeMatchesPayload(HandlerInvoker invoker, DeserializingMessage message) {
+            return message.getPayloadClass() != null
+                   && JvmComponentMetadataLookup.classForMetadataName(invoker.getExecutableView().returnTypeName())
+                           .filter(returnType -> returnType.isAssignableFrom(message.getPayloadClass()))
+                           .isPresent();
         }
 
         protected class DocumentHandlerInvoker extends HandlerInvoker.DelegatingHandlerInvoker {

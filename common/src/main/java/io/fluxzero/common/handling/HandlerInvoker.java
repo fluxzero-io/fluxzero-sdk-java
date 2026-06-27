@@ -200,6 +200,11 @@ public interface HandlerInvoker extends HandlerDescriptor {
         }
 
         @Override
+        public ExecutableView getExecutableView() {
+            return delegate.getExecutableView();
+        }
+
+        @Override
         public <A extends Annotation> A getMethodAnnotation() {
             return delegate.getMethodAnnotation();
         }

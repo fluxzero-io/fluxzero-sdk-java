@@ -89,9 +89,11 @@ public class HandlerMonitor implements HandlerInterceptor {
     protected String formatType(DeserializingMessage message, HandlerInvoker invoker) {
         if (message.getMessageType() == MessageType.WEBREQUEST) {
             try {
-                var webPatterns = getWebPatterns(invoker.getTargetClass(), null, invoker.getMethod());
-                String uriPattern = webPatterns.size() == 1
-                        ? webPatterns.getFirst().getUri() : WebRequest.getUrl(message.getMetadata());
+                String uriPattern = invoker.getExecutableView().executable()
+                        .map(method -> getWebPatterns(invoker.getTargetClass(), null, method))
+                        .filter(webPatterns -> webPatterns.size() == 1)
+                        .map(webPatterns -> webPatterns.getFirst().getUri())
+                        .orElseGet(() -> WebRequest.getUrl(message.getMetadata()));
                 return "%s %s".formatted(WebRequest.getMethod(message.getMetadata()), uriPattern);
             } catch (Exception ignored) {}
         }

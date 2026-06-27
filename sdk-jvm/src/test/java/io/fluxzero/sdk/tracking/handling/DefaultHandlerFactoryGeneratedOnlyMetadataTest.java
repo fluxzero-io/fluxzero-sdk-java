@@ -19,6 +19,7 @@ import io.fluxzero.common.handling.GeneratedExecutableInvocations;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.MethodInvocationValidator;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -30,6 +31,9 @@ import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthenticatedException;
+import io.fluxzero.sdk.tracking.handling.validation.ValidationUtils;
 import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
@@ -90,6 +95,30 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
                 assertNull(invoker.getMethod());
                 assertEquals("handle", invoker.getExecutableView().name());
                 assertEquals("generated", invoker.invoke());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyRegistryMatcherExposesMethodMetadataWithoutJvmExecutable() {
+        try (var ignored = GeneratedExecutableInvocations.register(
+                RegisteredGeneratedOnlyPolicyHandler.class,
+                InvocationPlanDescriptor.executableId(ExecutableKind.METHOD, "handle", List.of()),
+                (target, parameterCount, parameterProvider) -> "generated")) {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyPolicyHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = factory().createHandler(
+                        new RegisteredGeneratedOnlyPolicyHandler(), (c, e) -> true, List.of()).orElseThrow();
+
+                HandlerInvoker invoker = handler.getInvokerOrNull(command());
+                assertNull(invoker.getMethod());
+                assertTrue(ClientUtils.getLocalHandlerAnnotation(invoker).orElseThrow().logMetrics());
+                assertThrows(UnauthenticatedException.class, () -> ValidationUtils.assertAuthorized(
+                        invoker.getTargetClass(), invoker.getExecutableView(), null));
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
@@ -294,6 +323,15 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
 
     private static class RegisteredGeneratedOnlyHandler {
         @HandleCommand
+        String handle() {
+            return "handled";
+        }
+    }
+
+    private static class RegisteredGeneratedOnlyPolicyHandler {
+        @HandleCommand
+        @LocalHandler(logMetrics = true)
+        @RequiresUser
         String handle() {
             return "handled";
         }

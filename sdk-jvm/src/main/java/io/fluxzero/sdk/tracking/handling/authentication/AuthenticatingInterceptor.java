@@ -160,7 +160,7 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                         }
                         User user = getAuthorizingUser(m);
                         try {
-                            return assertAuthorized(i.getTargetClass(), i.getMethod(), user)
+                            return assertAuthorized(i.getTargetClass(), i.getExecutableView(), user)
                                     ? Optional.of(i) : Optional.empty();
                         } catch (Throwable e) {
                             Throwable error = mapAuthorizationFailure(e, m);

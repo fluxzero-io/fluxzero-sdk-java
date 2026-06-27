@@ -94,7 +94,7 @@ Acceptance evidence:
 
 ### Slice 3: Generated Invocation Plan
 
-Status: [ ] partially implemented; still open for remaining resolver/decorator parity.
+Status: [x] implemented.
 
 Goal: the JVM runtime can use generated executable plans for app-level invocation decisions.
 
@@ -120,14 +120,14 @@ Remaining work:
     `JsonPayloadParameterResolver`, and `WebPayloadParameterResolver` onto view overrides where type metadata is
     sufficient.
   - [x] Add a generated matcher that can be built from registry invocation plans without enumerating JVM executables.
-  - [ ] Move built-in SDK resolvers/filters/decorators to override the view APIs where they still inspect
+  - [x] Move built-in SDK resolvers/filters/decorators to override the view APIs where they still inspect
     `Executable`/`Parameter` directly.
-- [ ] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths
+- [x] Add generated-only JVM tests that exercise generated invocation across the main handler/modeling/casting paths
   without relying on `HandlerInspector` reflection-shaped matching/binding.
 
 Done when:
 
-- [ ] Existing JVM behavior is preserved while handler matching, parameter binding, and app-level invocation decisions
+- [x] Existing JVM behavior is preserved while handler matching, parameter binding, and app-level invocation decisions
   are driven by generated plans.
 
 Current evidence:
@@ -148,14 +148,18 @@ Current evidence:
 - [x] Common handling tests prove view-based parameter resolvers can run without the legacy `Parameter` methods.
 - [x] `DefaultHandlerFactoryGeneratedOnlyMetadataTest` proves a registry-backed handler matcher can run in
   generated-only mode with no matching JVM `Executable` exposed to the Fluxzero handler invoker.
+- [x] Method-level metadata consumers now use `ExecutableView` where generated invokers may not expose a JVM
+  executable, including local/tracked decisions, auth policy, data protection, content filtering, document handling,
+  expired-request handling, periodic metadata, handler metrics, and stateful routing-key checks.
+- [x] Generated-only acceptance covers a methodless generated handler invoker with method-level `@LocalHandler` and
+  `@RequiresUser` metadata.
 - [x] Broad generated-only thematic suite passed after this change:
   `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,RegistryFilteringHandlerTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 
-Open architectural boundary:
+Remaining architectural boundary:
 
-- Validation interceptors, web/socket decorators, content filtering, several diagnostics, and some built-in resolvers
-  still expose JVM `Executable` and `Parameter` directly. Full generated matching and parameter binding therefore needs
-  a generated matcher plus resolver/decorator migrations before this slice can be marked complete.
+- Jakarta executable validation still needs an explicit JVM-only provider/backend boundary for return-value and
+  type-use mechanics. That work is tracked in Slice 4.
 
 ### Slice 4: Validation And Policy Gaps
 

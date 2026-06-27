@@ -213,14 +213,14 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private boolean shouldDropProtectedData(HandlerDescriptor invoker) {
-        Optional<Boolean> metadata = ComponentMetadataLookups.lookup(invoker.getMethod().getDeclaringClass())
+        Optional<Boolean> metadata = ComponentMetadataLookups.lookup(invoker.getTargetClass())
                 .map(lookup -> hasAnnotation(
-                        ComponentMetadataLookups.executableAnnotations(lookup, invoker.getMethod()),
+                        ComponentMetadataLookups.executableAnnotations(lookup, invoker.getExecutableView()),
                         DropProtectedData.class));
         if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
             return metadata.orElse(false);
         }
-        return invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
+        return invoker.getExecutableView().annotation(DropProtectedData.class).isPresent();
     }
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {

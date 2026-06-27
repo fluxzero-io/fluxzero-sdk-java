@@ -296,15 +296,13 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     }
 
     protected boolean alreadyFiltered(HandlerInvoker i) {
-        Executable executable = i.getMethod();
-        return ComponentMetadataLookups.lookup(executable.getDeclaringClass())
+        return ComponentMetadataLookups.lookup(i.getTargetClass())
                        .map(lookup -> ComponentMetadataLookups.hasExecutableAnnotation(
-                               lookup, executable, RoutingKey.class))
+                               lookup, i.getExecutableView(), RoutingKey.class))
                        .filter(Boolean::booleanValue)
                        .orElse(false)
                || !ComponentMetadataLookups.generatedOnlyMode()
-                  && JvmComponentIntrospector.getInstance().getMethodAnnotation(executable, RoutingKey.class)
-                          .isPresent();
+                  && i.getExecutableView().annotation(RoutingKey.class).isPresent();
     }
 
     private static List<AccessibleObject> memberLocations(Class<?> ownerType) {

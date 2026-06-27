@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.scheduling;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.ExecutableDescriptor;
@@ -45,6 +46,10 @@ final class PeriodicMetadata {
     }
 
     static Optional<Periodic> executable(Executable executable) {
+        return EXECUTABLE_ANNOTATIONS.getAnnotation(executable, Periodic.class).map(Periodic.class::cast);
+    }
+
+    static Optional<Periodic> executable(ExecutableView executable) {
         return EXECUTABLE_ANNOTATIONS.getAnnotation(executable, Periodic.class).map(Periodic.class::cast);
     }
 

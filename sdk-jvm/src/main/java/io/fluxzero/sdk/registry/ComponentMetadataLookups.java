@@ -15,6 +15,8 @@
 package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.Fluxzero;
 
 import java.lang.annotation.Annotation;
@@ -24,9 +26,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -118,6 +122,16 @@ public final class ComponentMetadataLookups {
      */
     public static List<AnnotationDescriptor> executableAnnotations(
             ComponentMetadataLookup lookup, Executable executable) {
+        return executable(lookup, executable)
+                .map(ExecutableDescriptor::annotations)
+                .orElseGet(List::of);
+    }
+
+    /**
+     * Returns metadata annotations for the supplied executable metadata view.
+     */
+    public static List<AnnotationDescriptor> executableAnnotations(
+            ComponentMetadataLookup lookup, ExecutableView executable) {
         return executable(lookup, executable)
                 .map(ExecutableDescriptor::annotations)
                 .orElseGet(List::of);
@@ -268,6 +282,35 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Finds executable metadata matching the supplied executable metadata view.
+     */
+    public static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, ExecutableView executable) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(executable, "executable");
+        ExecutableKind kind = executable.kind() == ExecutableView.Kind.CONSTRUCTOR
+                ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+        List<String> parameters = executable.parameters().stream()
+                .map(ParameterView::typeName)
+                .toList();
+        for (String targetTypeName : targetTypeNames(executable)) {
+            Optional<ExecutableDescriptor> result = lookup.executable(
+                    targetTypeName, kind, executable.name(), parameters);
+            if (result.isPresent()) {
+                return result;
+            }
+        }
+        if (kind == ExecutableKind.METHOD) {
+            return Optional.empty();
+        }
+        return targetTypeNames(executable).stream()
+                .flatMap(targetTypeName -> lookup.executables(targetTypeName).stream())
+                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
+                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
+                        .equals(parameters))
+                .findFirst();
+    }
+
+    /**
      * Finds invocation plan metadata matching the supplied JVM executable.
      */
     public static Optional<InvocationPlanDescriptor> invocationPlan(
@@ -362,6 +405,14 @@ public final class ComponentMetadataLookups {
         return hasAnnotation(executableAnnotations(lookup, executable), annotationType);
     }
 
+    /**
+     * Returns whether executable metadata carries the supplied annotation.
+     */
+    public static boolean hasExecutableAnnotation(
+            ComponentMetadataLookup lookup, ExecutableView executable, Class<?> annotationType) {
+        return hasAnnotation(executableAnnotations(lookup, executable), annotationType);
+    }
+
     private static Optional<ComponentMetadataLookup> activeRegistryLookup(List<Class<?>> types) {
         return Fluxzero.getOptionally()
                 .map(Fluxzero::componentRegistry)
@@ -424,7 +475,18 @@ public final class ComponentMetadataLookups {
     }
 
     private static boolean containsAll(ComponentRegistry registry, List<Class<?>> types) {
-        return types.stream().allMatch(type -> registry.findComponent(type.getName()).isPresent());
+        return types.stream().allMatch(type -> registry.findComponent(type.getName()).isPresent()
+                                               || registry.findComponent(typeName(type)).isPresent());
+    }
+
+    private static Set<String> targetTypeNames(ExecutableView executable) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        result.add(executable.targetTypeName());
+        executable.targetClass().ifPresent(type -> {
+            result.add(type.getName());
+            result.add(typeName(type));
+        });
+        return result;
     }
 
     private static List<Class<?>> componentTypes(Class<?>... types) {

@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
@@ -411,6 +412,14 @@ public class ValidationUtils {
     }
 
     /**
+     * Checks if the given user is authorized to invoke the given executable metadata view on the given target.
+     */
+    public static boolean assertAuthorized(Class<?> target, ExecutableView executable, @Nullable User user) {
+        return assertAuthorized("%s#%s".formatted(target.getSimpleName(), executable.name()),
+                                user, getRequiredRoles(target, executable));
+    }
+
+    /**
      * Determines whether a specific method invocation on a target class by a given user should be ignored without
      * raising an exception, based on the user's authorization.
      * <p>
@@ -426,6 +435,19 @@ public class ValidationUtils {
     public static boolean ignoreSilently(Class<?> target, Executable method, @Nullable User user) {
         try {
             if (!assertAuthorized(target, method, user)) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    /**
+     * Determines whether a specific executable metadata view invocation should be ignored without raising an exception.
+     */
+    public static boolean ignoreSilently(Class<?> target, ExecutableView executable, @Nullable User user) {
+        try {
+            if (!assertAuthorized(target, executable, user)) {
                 return true;
             }
         } catch (Throwable ignored) {
@@ -492,7 +514,33 @@ public class ValidationUtils {
                         .filter(Objects::nonNull).findFirst().orElse(null));
     }
 
+    private static RequiredRole[] getRequiredRoles(Class<?> targetClass, ExecutableView executable) {
+        Optional<RequiredRole[]> metadata = getRequiredRolesFromMetadata(targetClass, executable);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return executable.executable()
+                .map(method -> getRequiredRoles(targetClass, method))
+                .orElseGet(() -> Optional.ofNullable(getRequiredRoles(
+                                JvmComponentIntrospector.getInstance().getTypeAnnotations(targetClass)))
+                        .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                .getPackageAndParentPackages(targetClass.getPackage()).stream()
+                                .map(p -> JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false))
+                                .map(ValidationUtils::getRequiredRoles)
+                                .filter(Objects::nonNull).findFirst().orElse(null)));
+    }
+
     private static Optional<RequiredRole[]> getRequiredRolesFromMetadata(Class<?> targetClass, Executable executable) {
+        return ComponentMetadataLookups.lookup(targetClass)
+                .map(lookup -> AuthorizationMetadata.effectiveRules(
+                                ComponentMetadataLookups.executableAnnotations(lookup, executable),
+                                lookup.typeAnnotations(targetClass.getName()),
+                                lookup.packageAnnotations(targetClass.getPackageName()))
+                        .map(ValidationUtils::requiredRoles)
+                        .orElseGet(() -> new RequiredRole[0]));
+    }
+
+    private static Optional<RequiredRole[]> getRequiredRolesFromMetadata(Class<?> targetClass, ExecutableView executable) {
         return ComponentMetadataLookups.lookup(targetClass)
                 .map(lookup -> AuthorizationMetadata.effectiveRules(
                                 ComponentMetadataLookups.executableAnnotations(lookup, executable),

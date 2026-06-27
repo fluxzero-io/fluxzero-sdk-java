@@ -164,7 +164,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
         return schedule -> {
             if (schedule.getMessageType() == MessageType.SCHEDULE) {
                 long deadline = millisFromIndex(schedule.getIndex());
-                Periodic periodic = ofNullable(invoker.getMethod()).flatMap(PeriodicMetadata::executable)
+                Periodic periodic = PeriodicMetadata.executable(invoker.getExecutableView())
                         .or(() -> PeriodicMetadata.type(schedule.getPayloadClass()))
                         .orElse(null);
                 if (periodic != null && PeriodicSchedulingDefaults.isDisabledCron(periodic)) {

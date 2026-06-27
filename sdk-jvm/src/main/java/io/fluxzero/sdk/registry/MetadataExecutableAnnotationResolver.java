@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.handling.ExecutableAnnotationResolver;
+import io.fluxzero.common.handling.ExecutableView;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -65,6 +66,41 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
             return List.of();
         }
         return JvmComponentIntrospector.getInstance().getMethodAnnotations(executable, annotationType);
+    }
+
+    @Override
+    public Optional<? extends Annotation> getAnnotation(
+            ExecutableView executable, Class<? extends Annotation> annotationType) {
+        return getAnnotations(executable, annotationType).stream().findFirst();
+    }
+
+    @Override
+    public List<? extends Annotation> getAnnotations(
+            ExecutableView executable, Class<? extends Annotation> annotationType) {
+        Objects.requireNonNull(executable, "executable");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Optional<Class<?>> targetClass = executable.targetClass();
+        List<AnnotationDescriptor> descriptors = targetClass
+                .flatMap(this::lookup)
+                .flatMap(metadata -> ComponentMetadataLookups.executable(metadata, executable))
+                .map(metadata -> MetadataAnnotationResolver.descriptors(metadata.annotations(), annotationType))
+                .orElseGet(List::of);
+        if (!descriptors.isEmpty()) {
+            Class<?> declaringClass = targetClass.orElse(Object.class);
+            return descriptors.stream()
+                    .map(descriptor -> MetadataAnnotationResolver.annotationView(
+                            annotationType, descriptor, declaringClass))
+                    .toList();
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return List.of();
+        }
+        Optional<Executable> reflectionExecutable = executable.executable();
+        if (reflectionExecutable.isPresent()) {
+            return JvmComponentIntrospector.getInstance().getMethodAnnotations(
+                    reflectionExecutable.get(), annotationType);
+        }
+        return executable.annotation(annotationType).stream().map(Annotation.class::cast).toList();
     }
 
     private Optional<ComponentMetadataLookup> lookup(Class<?> type) {

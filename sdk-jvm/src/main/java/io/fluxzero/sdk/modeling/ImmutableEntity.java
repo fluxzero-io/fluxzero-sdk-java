@@ -576,18 +576,19 @@ public class ImmutableEntity<T> implements Entity<T> {
                                                                   Set<Class<?>> visitedTypes) throws E {
         entityHelper.applyInvoker(message, entity, false, false)
                 .ifPresent(i -> {
-                    ModelMetadata.ApplyConfig apply = ModelMetadata.apply(i.getMethod()).orElseThrow();
+                    var executable = i.getExecutableView();
+                    ModelMetadata.ApplyConfig apply = ModelMetadata.apply(executable).orElseThrow();
                     if (!apply.disableCompatibilityCheck()) {
                         Object targetId = expectedTargetId(message, entity);
                         if (entity.isPresent()) {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to be empty",
-                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
+                                     message.getPayloadClass().getSimpleName(), executable.name(),
                                      entity.type().getSimpleName(), targetId);
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.already-exists",
                                               IllegalCommandException::new, () -> Entity.ALREADY_EXISTS_EXCEPTION);
                         } else {
                             log.warn("@Apply method {}#{} expected {} (id = '{}') to exist",
-                                     message.getPayloadClass().getSimpleName(), i.getMethod().getName(),
+                                     message.getPayloadClass().getSimpleName(), executable.name(),
                                      entity.type().getSimpleName(), targetId);
                             throw mapProperty("fluxzero.assert.apply-compatibility.exception.not-found",
                                               IllegalCommandException::new, () -> Entity.NOT_FOUND_EXCEPTION);

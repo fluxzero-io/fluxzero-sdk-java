@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ExecutableAnnotationResolver;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
@@ -31,7 +32,6 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Executable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -75,7 +75,8 @@ class ExpiredRequestDecorator implements HandlerDecorator {
                     return invoker;
                 }
                 if (publishMetrics) {
-                    publishIgnoreMessageMetric(message, invoker.get().getMethod(), invoker.get().getTargetClass());
+                    publishIgnoreMessageMetric(
+                            message, invoker.get().getExecutableView(), invoker.get().getTargetClass());
                 }
                 return Optional.empty();
             }
@@ -89,7 +90,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
 
     private boolean isExpiredForHandler(DeserializingMessage message, HandlerInvoker invoker) {
         if (!message.getMessageType().isRequest() || message.getIndex() == null
-            || !skipExpiredRequests(invoker.getMethod())) {
+            || !skipExpiredRequests(invoker.getExecutableView())) {
             return false;
         }
         Optional<Duration> timeout = requestTimeout(message);
@@ -100,7 +101,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
         return deadline.isBefore(Fluxzero.currentTime());
     }
 
-    private boolean skipExpiredRequests(Executable executable) {
+    private boolean skipExpiredRequests(ExecutableView executable) {
         return annotationResolver.getAnnotation(executable, handlerAnnotation)
                 .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
                                                                     HandleAnnotation.class))
@@ -124,7 +125,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
         return IndexUtils.timestampFromIndex(index).plus(timeout).plus(REQUEST_TIMEOUT_GRACE);
     }
 
-    private void publishIgnoreMessageMetric(DeserializingMessage message, Executable executable, Class<?> targetClass) {
+    private void publishIgnoreMessageMetric(DeserializingMessage message, ExecutableView executable, Class<?> targetClass) {
         try {
             String consumer = Tracker.current().map(Tracker::getName)
                     .orElseGet(() -> "local-" + message.getMessageType());
@@ -137,12 +138,14 @@ class ExpiredRequestDecorator implements HandlerDecorator {
         }
     }
 
-    private String formatType(DeserializingMessage message, Executable executable, Class<?> targetClass) {
+    private String formatType(DeserializingMessage message, ExecutableView executable, Class<?> targetClass) {
         if (message.getMessageType() == WEBREQUEST) {
             try {
-                var webPatterns = WebUtils.getWebPatterns(targetClass, null, executable);
-                String uriPattern = webPatterns.size() == 1
-                        ? webPatterns.getFirst().getUri() : WebRequest.getUrl(message.getMetadata());
+                String uriPattern = executable.executable()
+                        .map(method -> WebUtils.getWebPatterns(targetClass, null, method))
+                        .filter(webPatterns -> webPatterns.size() == 1)
+                        .map(webPatterns -> webPatterns.getFirst().getUri())
+                        .orElseGet(() -> WebRequest.getUrl(message.getMetadata()));
                 return "%s %s".formatted(WebRequest.getMethod(message.getMetadata()), uriPattern);
             } catch (Exception ignored) {}
         }

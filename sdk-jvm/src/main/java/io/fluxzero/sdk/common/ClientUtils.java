@@ -23,6 +23,8 @@ import io.fluxzero.common.MemoizingFunction;
 import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
@@ -32,6 +34,7 @@ import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
@@ -149,13 +152,20 @@ public class ClientUtils {
     }
 
     /**
+     * Returns whether the specified executable metadata view or its declaring class is marked with {@link TrackSelf}.
+     */
+    public static boolean isSelfTracking(Class<?> target, ExecutableView executable) {
+        return getTrackSelfAnnotation(target, executable).isPresent();
+    }
+
+    /**
      * Returns whether the specified class, one of its interfaces, or its package is marked with {@link TrackSelf}.
      *
      * @param target the handler class
      * @return {@code true} if marked for self-tracking, {@code false} otherwise
      */
     public static boolean isSelfTracking(Class<?> target) {
-        return getTrackSelfAnnotation(target, null).isPresent();
+        return getTrackSelfAnnotation(target, (Executable) null).isPresent();
     }
 
     /**
@@ -163,7 +173,15 @@ public class ClientUtils {
      * class, or ancestral package, if present.
      */
     public static Optional<LocalHandler> getLocalHandlerAnnotation(HandlerInvoker handlerInvoker) {
-        return getLocalHandlerAnnotation(handlerInvoker.getTargetClass(), handlerInvoker.getMethod());
+        return getLocalHandlerAnnotation((HandlerDescriptor) handlerInvoker);
+    }
+
+    /**
+     * Retrieves the {@link LocalHandler} annotation associated with a given handler descriptor, from its executable
+     * metadata, its declaring class, or ancestral package, if present.
+     */
+    public static Optional<LocalHandler> getLocalHandlerAnnotation(HandlerDescriptor handlerInvoker) {
+        return getLocalHandlerAnnotation(handlerInvoker.getTargetClass(), handlerInvoker.getExecutableView());
     }
 
     /**
@@ -178,6 +196,19 @@ public class ClientUtils {
         return localHandlerAnnotationCache.get(target).get(method);
     }
 
+    /**
+     * Retrieves the {@link LocalHandler} annotation associated with an executable metadata view, its declaring class,
+     * or ancestral package, if present.
+     */
+    public static Optional<LocalHandler> getLocalHandlerAnnotation(Class<?> target, ExecutableView executable) {
+        if (target == null) {
+            return Optional.empty();
+        }
+        return executable.executable()
+                .map(method -> getLocalHandlerAnnotation(target, method))
+                .orElseGet(() -> computeLocalHandlerAnnotation(target, executable));
+    }
+
     private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
                                                                         java.lang.reflect.Executable method) {
         Optional<LocalHandler> metadata = getLocalHandlerAnnotationFromMetadata(target, method);
@@ -185,6 +216,19 @@ public class ClientUtils {
             return metadata.filter(LocalHandler::value);
         }
         return JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
+                .or(() -> Optional.ofNullable(
+                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        target.getPackage(), LocalHandler.class))
+                .filter(LocalHandler::value);
+    }
+
+    private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target, ExecutableView executable) {
+        Optional<LocalHandler> metadata = getLocalHandlerAnnotationFromMetadata(target, executable);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.filter(LocalHandler::value);
+        }
+        return executable.annotation(LocalHandler.class)
                 .or(() -> Optional.ofNullable(
                         JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
                 .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
@@ -204,6 +248,18 @@ public class ClientUtils {
                         target.getPackage(), TrackSelf.class));
     }
 
+    private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, ExecutableView executable) {
+        Optional<TrackSelf> metadata = getTrackSelfAnnotationFromMetadata(target, executable);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return executable.annotation(TrackSelf.class)
+                .or(() -> Optional.ofNullable(
+                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        target.getPackage(), TrackSelf.class));
+    }
+
     private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, Executable method) {
         return ComponentMetadataLookups.lookup(target)
                 .flatMap(lookup -> {
@@ -216,6 +272,13 @@ public class ClientUtils {
                 });
     }
 
+    private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, ExecutableView executable) {
+        return ComponentMetadataLookups.lookup(target)
+                .flatMap(lookup -> localHandler(ComponentMetadataLookups.executableAnnotations(lookup, executable))
+                        .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
+                        .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName()))));
+    }
+
     private static Optional<TrackSelf> getTrackSelfAnnotationFromMetadata(Class<?> target, Executable method) {
         return ComponentMetadataLookups.lookup(target)
                 .flatMap(lookup -> {
@@ -226,6 +289,13 @@ public class ClientUtils {
                             .or(() -> trackSelf(lookup.typeAnnotations(target.getName())))
                             .or(() -> trackSelf(lookup.packageAnnotations(target.getPackageName())));
                 });
+    }
+
+    private static Optional<TrackSelf> getTrackSelfAnnotationFromMetadata(Class<?> target, ExecutableView executable) {
+        return ComponentMetadataLookups.lookup(target)
+                .flatMap(lookup -> trackSelf(ComponentMetadataLookups.executableAnnotations(lookup, executable))
+                        .or(() -> trackSelf(lookup.typeAnnotations(target.getName())))
+                        .or(() -> trackSelf(lookup.packageAnnotations(target.getPackageName()))));
     }
 
     private static Optional<LocalHandler> localHandler(List<AnnotationDescriptor> annotations) {
@@ -273,7 +343,7 @@ public class ClientUtils {
 
         private LocalHandlerAnnotationCache(Class<?> target) {
             this.target = target;
-            this.classAnnotation = computeLocalHandlerAnnotation(target, null);
+            this.classAnnotation = computeLocalHandlerAnnotation(target, (Executable) null);
         }
 
         Optional<LocalHandler> get(Executable method) {
@@ -291,10 +361,7 @@ public class ClientUtils {
      * {@link #isLocalSelfHandler} returns {@code true}.
      */
     public static boolean isLocalHandler(HandlerInvoker invoker, HasMessage message) {
-        if (invoker.getMethod() == null) {
-            return false;
-        }
-        return getLocalHandlerAnnotation(invoker.getTargetClass(), invoker.getMethod()).isPresent()
+        return getLocalHandlerAnnotation(invoker).isPresent()
                || isLocalSelfHandler(invoker, message);
     }
 
@@ -304,7 +371,7 @@ public class ClientUtils {
      */
     public static boolean isLocalSelfHandler(HandlerInvoker invoker, HasMessage message) {
         return isSelfHandler(invoker, message)
-               && !isSelfTracking(invoker.getTargetClass(), invoker.getMethod());
+               && !isSelfTracking(invoker.getTargetClass(), invoker.getExecutableView());
     }
 
     static boolean isSelfHandler(HandlerInvoker invoker, HasMessage message) {
@@ -525,6 +592,24 @@ public class ClientUtils {
                                 Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
                 .or(() -> Arrays.stream(executable.getParameters()).findFirst().map(Parameter::getType).map(
                         ClientUtils::determineSearchCollection))
+                .filter(s -> !s.isBlank()).orElse(null);
+    }
+
+    /**
+     * Extracts the topic associated with a given {@link HandleDocument} annotation or executable metadata view.
+     */
+    public static String getTopic(HandleDocument handleDocument, ExecutableView executable) {
+        return Optional.ofNullable(handleDocument)
+                .filter(h -> !h.disabled())
+                .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
+                        .or(() -> Optional.ofNullable(h.collection()).filter(s -> !s.isBlank()))
+                        .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty()
+                                : Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
+                .or(() -> executable.parameters().stream().findFirst()
+                        .map(parameter -> JvmComponentMetadataLookup.classForMetadataName(parameter.typeName())
+                                .map(ClientUtils::determineSearchCollection)
+                                .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                                        .getSimpleName(parameter.typeName()))))
                 .filter(s -> !s.isBlank()).orElse(null);
     }
 
