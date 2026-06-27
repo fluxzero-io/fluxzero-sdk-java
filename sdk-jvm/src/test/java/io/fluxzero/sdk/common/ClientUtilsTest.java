@@ -14,19 +14,25 @@
 
 package io.fluxzero.sdk.common;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleCustom;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -88,6 +94,34 @@ class ClientUtilsTest {
                         RegisteredGeneratedOnlyHandler.class,
                         RegisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class)));
                 assertTrue(ClientUtils.isSelfTracking(RegisteredGeneratedOnlyTrackSelf.class));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForHandlerTopics() {
+        GeneratedOnlyMetadataMode.run(() -> {
+            assertTrue(ClientUtils.getTopics(
+                    MessageType.DOCUMENT, List.of(UnregisteredGeneratedOnlyTopicHandler.class)).isEmpty());
+            assertTrue(ClientUtils.getTopics(
+                    MessageType.CUSTOM, List.of(UnregisteredGeneratedOnlyTopicHandler.class)).isEmpty());
+        });
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredMetadataForHandlerTopics() {
+        try {
+            TestFixture fixture = TestFixture.create();
+            fixture.getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyTopicHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                assertEquals(Set.of("documents"), ClientUtils.getTopics(
+                        MessageType.DOCUMENT, List.of(RegisteredGeneratedOnlyTopicHandler.class)));
+                assertEquals(Set.of("custom-topic"), ClientUtils.getTopics(
+                        MessageType.CUSTOM, List.of(RegisteredGeneratedOnlyTopicHandler.class)));
             });
         } finally {
             TestFixture.shutDownActiveFixtures();
@@ -168,5 +202,29 @@ class ClientUtilsTest {
 
     @TrackSelf
     private static class RegisteredGeneratedOnlyTrackSelf {
+    }
+
+    private static class UnregisteredGeneratedOnlyTopicHandler {
+        @HandleDocument("documents")
+        void handleDocument(Object document) {
+        }
+
+        @HandleCustom("custom-topic")
+        void handleCustom(Object payload) {
+        }
+    }
+
+    private static class RegisteredGeneratedOnlyTopicHandler {
+        @HandleDocument("documents")
+        void handleDocument(Object document) {
+        }
+
+        @HandleCustom("custom-topic")
+        void handleCustom(Object payload) {
+        }
+
+        @HandleCustom(value = "disabled-topic", disabled = true)
+        void handleDisabledCustom(Object payload) {
+        }
     }
 }

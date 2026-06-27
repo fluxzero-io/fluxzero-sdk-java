@@ -32,6 +32,7 @@ import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
@@ -472,17 +473,23 @@ public class ClientUtils {
      * @return a set of topic names
      */
     public static Set<String> getTopics(MessageType messageType, Collection<Class<?>> handlerClasses) {
+        var annotationResolver = MetadataExecutableAnnotationResolver.create();
         return switch (messageType) {
             case DOCUMENT -> handlerClasses.stream()
-                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAnnotatedMethods(handlerClass, HandleDocument.class).stream())
-                    .flatMap(m -> JvmComponentIntrospector.getInstance().<HandleDocument>getMethodAnnotation(m, HandleDocument.class)
-                            .map(a -> getTopic(a, m)).stream()).collect(Collectors.toSet());
+                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAllMethods(handlerClass).stream())
+                    .flatMap(m -> annotationResolver.getAnnotation(m, HandleDocument.class)
+                            .map(HandleDocument.class::cast)
+                            .map(a -> getTopic(a, m)).stream())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
             case CUSTOM -> handlerClasses.stream()
-                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAnnotatedMethods(handlerClass, HandleCustom.class).stream()).map(m -> {
-                        var handleDocument = JvmComponentIntrospector.getInstance().<HandleCustom>getMethodAnnotation(
-                                m, HandleCustom.class).filter(h -> !h.disabled());
-                        return handleDocument.map(ClientUtils::getTopic).orElse(null);
-                    }).filter(Objects::nonNull).collect(Collectors.toSet());
+                    .flatMap(handlerClass -> JvmComponentIntrospector.getInstance().getAllMethods(handlerClass).stream())
+                    .flatMap(m -> annotationResolver.getAnnotation(m, HandleCustom.class)
+                            .map(HandleCustom.class::cast)
+                            .filter(h -> !h.disabled())
+                            .map(ClientUtils::getTopic).stream())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
             default -> Collections.emptySet();
         };
     }

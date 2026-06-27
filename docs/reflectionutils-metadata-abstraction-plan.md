@@ -94,6 +94,7 @@ Work slices:
     expiry behavior.
   - [x] Route document handler update/delete decoration and entity-parameter handler-kind matching through the
     metadata-backed annotation resolver.
+  - [x] Route document/custom handler topic discovery through the metadata-backed annotation resolver.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
   - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
     invocation plans are available.
