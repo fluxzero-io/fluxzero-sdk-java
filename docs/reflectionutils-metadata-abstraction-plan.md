@@ -223,21 +223,56 @@ Evidence:
 
 Goal: make the JVM-first model boring to adopt before browser work resumes.
 
+Adoption decision:
+
+- Existing JVM customers keep depending on `io.fluxzero:sdk`. That compatibility artifact remains the customer-facing
+  Java SDK entry point and depends on the split API/JVM implementation artifacts internally.
+- `io.fluxzero:sdk-jvm` is the JVM runtime implementation artifact, not a required new mental model for ordinary
+  customer projects. Templates may use it explicitly only when the project wants to be clear about the runtime
+  implementation, but this is not required for backward compatibility.
+- `io.fluxzero:sdk-api` and `io.fluxzero:common-api` stay as cornerstone boundary artifacts because browser/local
+  source execution needs the handler annotations, registry descriptors, gateway contracts, and protocol types without
+  dragging in Jackson, Spring, filesystem, websocket, or JVM reflection/runtime dependencies.
+- `io.fluxzero:sdk-browser`, `io.fluxzero:sdk-browser-generator`, and `browser-conformance` stay as edge/tooling/test
+  modules. They must not become part of the default JVM adoption story.
+- Generated-only metadata mode remains opt-in/test-only until the full JVM verification set proves it can be made the
+  normal runtime path without changing Fluxzero semantics.
+
 Remaining work:
 
-- [ ] Decide the customer-facing artifact/module shape before adoption. The existing `fluxzero-sdk-java` identity
+- [x] Decide the customer-facing artifact/module shape before adoption. The existing `fluxzero-sdk-java` identity
   should remain the JVM cornerstone unless there is a concrete migration reason.
-- [ ] Fold, rename, or justify cornerstone modules introduced for the split. Edge/tooling/test modules may stay
+- [x] Fold, rename, or justify cornerstone modules introduced for the split. Edge/tooling/test modules may stay
   separate when the boundary is clearly useful.
-- [ ] Run generated-only thematic suites, then the full `sdk-jvm` suite.
-- [ ] Run downstream Java and Kotlin projects with generated registry lifecycle defaults.
-- [ ] Run the on-demand comparison benchmark with old/new paths and add/edit/delete source lifecycle scenarios.
-- [ ] Run full release-style verification after the JVM slices are complete.
+- [x] Run generated-only thematic suites, then the full `sdk-jvm` suite.
+- [x] Run downstream Java and Kotlin projects with generated registry lifecycle defaults.
+- [x] Run the on-demand comparison benchmark with old/new paths and add/edit/delete source lifecycle scenarios.
+- [x] Run full release-style verification after the JVM slices are complete.
 
 Done when:
 
-- [ ] JVM customer projects can adopt the generated-model/source workflow without learning different Fluxzero semantics
+- [x] JVM customer projects can adopt the generated-model/source workflow without learning different Fluxzero semantics
   or a surprising module story.
+
+Evidence:
+
+- Focused generated-only/on-demand/registry suite passed:
+  `./mvnw -pl sdk-jvm -am -Dtest=ApiDocExtractorTest,ClientUtilsTest,ComponentMetadataLookupTest,ComponentRegistryJsonTest,ConsumerConfigurationTest,ContentFilterInterceptorTest,DataProtectionInterceptorTest,DefaultAggregateRepositoryCommitPolicyTest,DefaultHandlerFactoryGeneratedOnlyMetadataTest,DefaultHandlerRepositoryGeneratedOnlyMetadataTest,DefaultValidatorTest,DocumentHandlerDecoratorTest,EntityParameterResolverTest,ExpiredRequestDecoratorTest,GeneratedInvocationPlanTest,HandlerAssociationsTest,MessageRoutingInterceptorTest,ModelMetadataTest,OpenApiRendererTest,PayloadFilterTest,ReflectionBoundaryTest,RegistryFilteringHandlerTest,RuntimeDecisionMatrixTest,SchedulingInterceptorTest,SearchTest,SocketSessionTest,SourceComponentScannerTest,StaticFileHandlerGeneratedOnlyMetadataTest,TriggerParameterResolverTest,UpcasterChainTest,ValidationUtilsTest,WebParamParameterResolverTest,WebUtilsTest,OnDemandExecutionTest,OnDemandSemanticParityTest,FluxzeroComponentRegistryTest,SourceClasspathRegistryParityTest -Dsurefire.failIfNoSpecifiedTests=false test`.
+- Full `sdk-jvm` suite passed:
+  `./mvnw -pl sdk-jvm -am test`.
+- Downstream Java and Kotlin suites passed:
+  `./mvnw -pl java-downstream-project -am test` and
+  `./mvnw -pl kotlin-downstream-project -am test`.
+- Manual benchmark sanity passed with a small scale:
+  `./mvnw -pl java-downstream-project -DskipTests test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=io.fluxzero.downstream.benchmark.OnDemandComparisonBenchmark -Dfluxzero.benchmark.handlerCounts=1 -Dfluxzero.benchmark.flowIterations=5 -Dfluxzero.benchmark.consumers=1`.
+  Reports were written under
+  `java-downstream-project/target/on-demand-comparison/report.md` and
+  `java-downstream-project/target/on-demand-comparison/report.json`.
+- Full release-style verification passed:
+  `./mvnw -B install`.
+- Verification also hardened two edge cases: annotation metadata now ignores null attribute values before consumers call
+  `firstValue`, and `ProxyServerTest` CORS checks now create their own proxy with the CORS property set before handler
+  construction.
 
 ## Parked Browser Backlog
 

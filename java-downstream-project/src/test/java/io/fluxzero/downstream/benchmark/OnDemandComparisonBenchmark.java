@@ -38,8 +38,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -205,11 +207,9 @@ public class OnDemandComparisonBenchmark {
         Path sourceRoot = onDemandSourceRoot(scale);
         Path classes = scale.onDemandApp().resolve("target/classes");
         try (URLClassLoader classLoader = appClassLoader(scale.onDemandApp());
-             OnDemandExecution execution = OnDemandExecution.builder()
-                     .sourceRoot(sourceRoot)
+             OnDemandExecution execution = onDemandBuilder(sourceRoot, classes)
                      .cacheRoot(scale.root().resolve("cache-no-hot"))
                      .cacheTtl(Duration.ofMinutes(10))
-                     .addClasspath(classes)
                      .parentClassLoader(classLoader)
                      .checkSourceChangesOnInvocation(false)
                      .startTracking(false)
@@ -241,11 +241,9 @@ public class OnDemandComparisonBenchmark {
         Path sourceRoot = onDemandSourceRoot(scale);
         Path classes = scale.onDemandApp().resolve("target/classes");
         try (URLClassLoader classLoader = appClassLoader(scale.onDemandApp());
-             OnDemandExecution execution = OnDemandExecution.builder()
-                     .sourceRoot(sourceRoot)
+             OnDemandExecution execution = onDemandBuilder(sourceRoot, classes)
                      .cacheRoot(scale.root().resolve("cache"))
                      .cacheTtl(Duration.ofMinutes(10))
-                     .addClasspath(classes)
                      .parentClassLoader(classLoader)
                      .startTracking(false)
                      .build()) {
@@ -283,11 +281,9 @@ public class OnDemandComparisonBenchmark {
         Path sourceRoot = onDemandSourceRoot(scale);
         Path classes = scale.onDemandApp().resolve("target/classes");
         try (URLClassLoader classLoader = appClassLoader(scale.onDemandApp());
-             OnDemandExecution execution = OnDemandExecution.builder()
-                     .sourceRoot(sourceRoot)
+             OnDemandExecution execution = onDemandBuilder(sourceRoot, classes)
                      .cacheRoot(scale.root().resolve("cache-prewarm"))
                      .cacheTtl(Duration.ofMinutes(10))
-                     .addClasspath(classes)
                      .parentClassLoader(classLoader)
                      .checkSourceChangesOnInvocation(false)
                      .startTracking(false)
@@ -339,8 +335,7 @@ public class OnDemandComparisonBenchmark {
     private static List<Measurement> measureSingleOnDemandRuntime(Path sourceRoot, Path sourceFile,
                                                                   BenchmarkConfig config) throws Exception {
         List<Measurement> measurements = new ArrayList<>();
-        try (OnDemandExecution execution = OnDemandExecution.builder()
-                .sourceRoot(sourceRoot)
+        try (OnDemandExecution execution = onDemandBuilder(sourceRoot)
                 .cacheRoot(sourceRoot.getParent().resolve("cache"))
                 .cacheTtl(Duration.ofMinutes(10))
                 .startTracking(false)
@@ -848,6 +843,58 @@ public class OnDemandComparisonBenchmark {
     private static URLClassLoader appClassLoader(Path appRoot) throws Exception {
         URL classes = appRoot.resolve("target/classes").toUri().toURL();
         return new URLClassLoader(new URL[]{classes}, OnDemandComparisonBenchmark.class.getClassLoader());
+    }
+
+    private static OnDemandExecution.Builder onDemandBuilder(Path sourceRoot, Path... appClasspath) {
+        OnDemandExecution.Builder builder = OnDemandExecution.builder().sourceRoot(sourceRoot);
+        for (Path entry : appClasspath) {
+            builder.addClasspath(entry);
+        }
+        benchmarkRuntimeClasspath().forEach(builder::addClasspath);
+        return builder;
+    }
+
+    private static List<Path> benchmarkRuntimeClasspath() {
+        Set<Path> result = new LinkedHashSet<>();
+        addSystemClasspath(result);
+        addClassLoaderClasspath(Thread.currentThread().getContextClassLoader(), result);
+        addClassLoaderClasspath(OnDemandComparisonBenchmark.class.getClassLoader(), result);
+        return List.copyOf(result);
+    }
+
+    private static void addSystemClasspath(Set<Path> result) {
+        String classpath = System.getProperty("java.class.path", "");
+        for (String entry : classpath.split(java.io.File.pathSeparator)) {
+            addClasspathEntry(result, entry);
+        }
+    }
+
+    private static void addClassLoaderClasspath(ClassLoader classLoader, Set<Path> result) {
+        ClassLoader current = classLoader;
+        while (current != null) {
+            if (current instanceof URLClassLoader urlClassLoader) {
+                for (URL url : urlClassLoader.getURLs()) {
+                    if ("file".equals(url.getProtocol())) {
+                        try {
+                            addClasspathEntry(result, Path.of(url.toURI()).toString());
+                        } catch (Exception ignored) {
+                            addClasspathEntry(result, url.getPath());
+                        }
+                    }
+                }
+            }
+            current = current.getParent();
+        }
+    }
+
+    private static void addClasspathEntry(Set<Path> result, String entry) {
+        if (entry == null || entry.isBlank()) {
+            return;
+        }
+        Path path = Path.of(entry).toAbsolutePath().normalize();
+        if (Files.exists(path)) {
+            result.add(path);
+        }
     }
 
     private static List<Object> instantiateHandlers(ClassLoader classLoader, BenchmarkConfig config, int handlerCount)

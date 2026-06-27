@@ -1821,9 +1821,17 @@ class ProxyServerTest {
     @ResourceLock("FLUXZERO_CORS_DOMAINS")
     class CorsTests {
         private final AtomicInteger optionsInvocations = new AtomicInteger();
+        private String previousCorsDomains;
+        private ProxyServer corsProxyServer;
+        private int corsProxyPort;
 
         @BeforeEach
         void setUpCors() {
+            previousCorsDomains = System.getProperty(ProxyRequestHandler.CORS_DOMAINS_PROPERTY);
+            System.setProperty(ProxyRequestHandler.CORS_DOMAINS_PROPERTY, "https://app.example.com");
+            corsProxyServer = ProxyServer.startHttpProxyOnly(
+                    0, new TestProxyRequestHandler(testFixture.getFluxzero().client(), proxyClock));
+            corsProxyPort = corsProxyServer.getPort();
             testFixture.registerHandlers(new Object() {
                 @HandleGet("/users")
                 String users() {
@@ -1836,12 +1844,14 @@ class ProxyServerTest {
                     return "runtime-options";
                 }
             });
-            System.setProperty("FLUXZERO_CORS_DOMAINS", "https://app.example.com");
         }
 
         @AfterEach
         void tearDown() {
-            System.clearProperty("FLUXZERO_CORS_DOMAINS");
+            if (corsProxyServer != null) {
+                corsProxyServer.cancel();
+            }
+            restoreProperty(ProxyRequestHandler.CORS_DOMAINS_PROPERTY, previousCorsDomains);
         }
 
         @Test
@@ -1936,7 +1946,7 @@ class ProxyServerTest {
         }
 
         private HttpRequest.Builder newRequest(String path) {
-            return newBuilder(URI.create(String.format("http://localhost:%s%s", proxyPort, path)));
+            return newBuilder(URI.create(String.format("http://localhost:%s%s", corsProxyPort, path)));
         }
 
     }

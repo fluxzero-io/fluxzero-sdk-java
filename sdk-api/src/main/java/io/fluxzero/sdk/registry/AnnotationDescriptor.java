@@ -49,7 +49,7 @@ public record AnnotationDescriptor(
     public AnnotationDescriptor {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(qualifiedName, "qualifiedName");
-        attributes = Map.copyOf(Objects.requireNonNull(attributes, "attributes"));
+        attributes = copyAttributes(attributes);
         nestedAnnotations = copyNestedAnnotations(nestedAnnotations);
         metaAnnotations = List.copyOf(Objects.requireNonNull(metaAnnotations, "metaAnnotations"));
     }
@@ -105,6 +105,16 @@ public record AnnotationDescriptor(
     private boolean matches(String annotationName, String qualifiedAnnotationName) {
         return Objects.equals(name, annotationName)
                || qualifiedAnnotationName != null && Objects.equals(qualifiedName, qualifiedAnnotationName);
+    }
+
+    private static Map<String, List<String>> copyAttributes(Map<String, List<String>> attributes) {
+        Objects.requireNonNull(attributes, "attributes");
+        return attributes.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        entry -> Objects.requireNonNull(entry.getKey(), "attribute key"),
+                        entry -> entry.getValue() == null ? List.of() : entry.getValue().stream()
+                                .filter(Objects::nonNull)
+                                .toList()));
     }
 
     private static Map<String, List<AnnotationDescriptor>> copyNestedAnnotations(
