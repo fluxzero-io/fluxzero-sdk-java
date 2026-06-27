@@ -133,7 +133,7 @@ Nearby follow-up, not required for this slice to count as done:
 
 ## Phase 2: Metadata Runtime Migration
 
-Status: [x] implemented.
+Status: [ ] in progress.
 
 ### Slice 3: Metadata Lookup Facade
 
