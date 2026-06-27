@@ -341,7 +341,10 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     @Override
     public void close() {
-        waitForResults(Duration.ofSeconds(2), callbacks.values());
+        List<CompletableFuture<?>> pendingCallbacks = List.copyOf(callbacks.values());
+        pendingCallbacks.forEach(callback ->
+                callback.completeExceptionally(new IllegalStateException("Gateway has closed")));
+        waitForResults(Duration.ofSeconds(2), pendingCallbacks);
         super.close();
     }
 }

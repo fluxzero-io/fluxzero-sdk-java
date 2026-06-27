@@ -17,7 +17,6 @@ package io.fluxzero.proxy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.fluxzero.sdk.Fluxzero;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
@@ -35,6 +34,7 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.RSAPublicKeySpec;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -54,6 +54,7 @@ import java.util.Map;
 @Slf4j
 public final class JwtVerifier {
     private final String jwksUrl;
+    private final Clock clock;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -61,6 +62,10 @@ public final class JwtVerifier {
     private volatile Map<String, PublicKey> keyCache = Map.of();
     private volatile Instant nextScheduledRefresh = Instant.EPOCH;
     private volatile Instant nextAllowedFetch = Instant.EPOCH;
+
+    public JwtVerifier(String jwksUrl) {
+        this(jwksUrl, Clock.systemUTC());
+    }
 
     /**
      * Verifies the provided JWT (JSON Web Token) for its signature, expiration, and not-before validity.
@@ -75,7 +80,7 @@ public final class JwtVerifier {
     public JwtClaims verify(String jwt) {
         JsonNode payload = verifySignature(jwt);
 
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         if (payload.has("exp") && payload.get("exp").asLong() < now) {
             throw new SecurityException("JWT expired");
         }
@@ -134,7 +139,7 @@ public final class JwtVerifier {
     }
 
     private void refreshIfNeeded(boolean force) throws Exception {
-        Instant now = Fluxzero.currentTime();
+        Instant now = clock.instant();
         if (!force && now.isBefore(nextScheduledRefresh)) {
             return;
         }
@@ -146,7 +151,7 @@ public final class JwtVerifier {
 
     @Synchronized
     private void doRefreshIfNeeded(boolean force) throws Exception {
-        Instant now = Fluxzero.currentTime();
+        Instant now = clock.instant();
         if (!force && now.isBefore(nextScheduledRefresh)) {
             return;
         }
@@ -156,7 +161,7 @@ public final class JwtVerifier {
         nextAllowedFetch = now.plusSeconds(60); // rate limit: don’t allow another fetch for 60s
         JsonNode jwks = fetchJwks();
         replaceCache(jwks);
-        nextScheduledRefresh = Fluxzero.currentTime().plus(keyRefreshFrequency);
+        nextScheduledRefresh = clock.instant().plus(keyRefreshFrequency);
     }
 
     private void replaceCache(JsonNode jwks) throws Exception {

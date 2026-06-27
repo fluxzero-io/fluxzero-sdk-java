@@ -16,6 +16,7 @@
 package io.fluxzero.proxy;
 
 import com.sun.net.httpserver.HttpServer;
+import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
@@ -73,7 +74,9 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -102,8 +105,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Slf4j
 class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
+    private final DelegatingClock proxyClock = new DelegatingClock();
     private final TestProxyRequestHandler proxyRequestHandler =
-            new TestProxyRequestHandler(testFixture.getFluxzero().client());
+            new TestProxyRequestHandler(testFixture.getFluxzero().client(), proxyClock);
     private final ProxyServer proxyServer = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
     private final int proxyPort = proxyServer.getPort();
 
@@ -1362,23 +1366,23 @@ class ProxyServerTest {
         @Test
         @ResourceLock(JWKS_URL_PROPERTY)
         void signedNamespaceHeaderIsRevalidatedForRepeatedValues() {
-            Instant expiresAt = Instant.now().plusSeconds(2);
+            Instant startsAt = Instant.parse("2026-06-27T12:00:00Z");
+            Instant expiresAt = startsAt.plusSeconds(2);
             var pair = TestJwtUtil.create("test", "expiring_kid", expiresAt);
             String jwt = pair.getKey();
             String jwksResponse = pair.getValue();
             withJwksServer(jwksResponse, url ->
-                    testFixture.registerHandlers(new NamespacedHandler())
+                    testFixture
+                            .registerHandlers(new NamespacedHandler())
                             .whenApplying(fc -> {
+                                proxyClock.setDelegate(Clock.fixed(startsAt, ZoneOffset.UTC));
                                 var accepted = httpClient.send(
                                         newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
                                         BodyHandlers.ofString());
                                 assertEquals(200, accepted.statusCode());
                                 assertEquals("Hello test", accepted.body());
 
-                                long waitMillis = Math.max(0L,
-                                                           expiresAt.plusSeconds(1).toEpochMilli()
-                                                           - Instant.now().toEpochMilli());
-                                Thread.sleep(waitMillis);
+                                proxyClock.setDelegate(Clock.fixed(expiresAt.plusSeconds(1), ZoneOffset.UTC));
 
                                 return httpClient.send(
                                         newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
@@ -1988,6 +1992,10 @@ class ProxyServerTest {
 
         TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client) {
             super(client);
+        }
+
+        TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client, Clock clock) {
+            super(client, clock);
         }
 
         void expectResponseFailure(CountDownLatch responseFailure) {

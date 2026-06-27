@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.web.WebRequest;
 
+import java.time.Clock;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -35,8 +36,16 @@ public class NamespaceSelector {
     public static final String JWKS_URL_PROPERTY = "FLUXZERO_PROXY_JWKS_URL";
     public static final String NAMESPACE_HEADER_MODE_PROPERTY = "FLUXZERO_PROXY_NAMESPACE_HEADER_MODE";
 
-    private final Supplier<JwtVerifier> jwtVerifier = memoize(
-            () -> ApplicationProperties.mapProperty(JWKS_URL_PROPERTY, JwtVerifier::new));
+    private final Supplier<JwtVerifier> jwtVerifier;
+
+    public NamespaceSelector() {
+        this(Clock.systemUTC());
+    }
+
+    NamespaceSelector(Clock clock) {
+        jwtVerifier = memoize(
+                () -> ApplicationProperties.mapProperty(JWKS_URL_PROPERTY, url -> new JwtVerifier(url, clock)));
+    }
 
     /**
      * Extracts and decodes the namespace value from the given web request. The namespace value is retrieved from the

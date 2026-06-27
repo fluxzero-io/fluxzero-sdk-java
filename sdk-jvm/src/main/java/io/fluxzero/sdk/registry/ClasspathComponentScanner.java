@@ -84,6 +84,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -129,6 +131,12 @@ public class ClasspathComponentScanner {
             HandleDelete.class, HandleHead.class, HandleOptions.class, HandleTrace.class, HandleSocketHandshake.class,
             HandleSocketOpen.class, HandleSocketMessage.class, HandleSocketPong.class, HandleSocketClose.class,
             HandleWeb.class);
+    private static final ClassValue<ConcurrentMap<List<String>, ComponentRegistry>> SCAN_CACHE = new ClassValue<>() {
+        @Override
+        protected ConcurrentMap<List<String>, ComponentRegistry> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     /**
      * Scans compiled component classes and returns an indexed component registry.
@@ -146,6 +154,14 @@ public class ClasspathComponentScanner {
                 .distinct()
                 .sorted(Comparator.comparing(Class::getName))
                 .toList();
+        if (types.isEmpty()) {
+            return ComponentRegistry.empty();
+        }
+        List<String> cacheKey = types.stream().map(ClasspathComponentScanner::typeName).toList();
+        return SCAN_CACHE.get(types.getFirst()).computeIfAbsent(cacheKey, ignored -> scanUncached(types));
+    }
+
+    private ComponentRegistry scanUncached(List<Class<?>> types) {
         types.forEach(this::loadPackageInfoChain);
         List<String> allTypeNames = types.stream().map(ClasspathComponentScanner::typeName).sorted().toList();
         List<PackageDescriptor> packageDescriptors = packages(types)

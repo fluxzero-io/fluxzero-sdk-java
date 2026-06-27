@@ -47,6 +47,7 @@ import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -157,6 +158,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
 
     public ProxyRequestHandler(Client client) {
         this(client, new NamespaceSelector());
+    }
+
+    ProxyRequestHandler(Client client, Clock clock) {
+        this(client, new NamespaceSelector(clock));
     }
 
     private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {

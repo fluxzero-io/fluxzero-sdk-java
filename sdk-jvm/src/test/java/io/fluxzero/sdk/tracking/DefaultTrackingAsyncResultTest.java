@@ -81,6 +81,24 @@ class DefaultTrackingAsyncResultTest {
     }
 
     @Test
+    void closeStopsAwaitingPendingAsyncResultsWithoutPublishingLateResponses() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<String> handlerResult = new CompletableFuture<>();
+
+        tracking.report(
+                handlerResult, descriptor(), message(serializer), ConsumerConfiguration.builder().name("web").build());
+
+        tracking.close();
+
+        assertFalse(handlerResult.isCancelled());
+        assertTrue(handlerResult.complete("late"));
+        verify(resultGateway, never()).respond(eq("late"), eq("benchmark-app"), eq(7));
+    }
+
+    @Test
     void asyncResultsCanBeAwaitedBeforeBatchCompletion() {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);

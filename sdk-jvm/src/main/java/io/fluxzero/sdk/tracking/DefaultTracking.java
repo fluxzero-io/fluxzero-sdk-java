@@ -51,7 +51,6 @@ import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -85,7 +84,6 @@ import java.util.stream.Stream;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.unwrapException;
 import static io.fluxzero.sdk.common.ClientUtils.getLocalHandlerAnnotation;
-import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC;
 import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.DEFAULT;
 import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
@@ -149,6 +147,7 @@ public class DefaultTracking implements Tracking {
     private final Collection<CompletableFuture<?>> outstandingRequests = new CopyOnWriteArrayList<>();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final AtomicReference<Registration> shutdownFunction = new AtomicReference<>(Registration.noOp());
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     /**
      * Starts tracking by assigning the given handlers to configured consumers and creating topic-specific or shared
@@ -897,6 +896,12 @@ public class DefaultTracking implements Tracking {
             outstandingRequests.add(resultFuture);
             s.whenComplete((r, e) -> {
                 try {
+                    if (closed.get()) {
+                        if (completion != null) {
+                            completion.completeExceptionally(new IllegalStateException("Tracking has closed"));
+                        }
+                        return;
+                    }
                     message.run(m -> reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
                             .toCompletableFuture().join());
                     if (completion != null) {
@@ -1000,8 +1005,10 @@ public class DefaultTracking implements Tracking {
     @Override
     @Synchronized
     public void close() {
-        shutdownFunction.get().merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests))
-                .merge(messageHandlerExecutor::shutdown)
-                .cancel();
+        if (closed.compareAndSet(false, true)) {
+            List<CompletableFuture<?>> pendingRequests = List.copyOf(outstandingRequests);
+            outstandingRequests.removeAll(pendingRequests);
+            shutdownFunction.get().merge(messageHandlerExecutor::shutdown).cancel();
+        }
     }
 }

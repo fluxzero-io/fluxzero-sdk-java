@@ -284,7 +284,7 @@ public class DefaultRequestHandler implements RequestHandler {
     @Override
     public void close() {
         waitForResults(Duration.ofSeconds(2),
-                       callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+                       callbacks.values().stream().map(ResponseCallback::processingChain).toList());
         completePendingRequests(new IllegalStateException("Request handler has closed"));
         if (registration != null) {
             registration.cancel();
@@ -327,6 +327,10 @@ public class DefaultRequestHandler implements RequestHandler {
 
         CompletableFuture<SerializedMessage> finalCallback() {
             return finalCallback;
+        }
+
+        synchronized CompletableFuture<Void> processingChain() {
+            return processingChain;
         }
 
         boolean completeExceptionally(Throwable error) {

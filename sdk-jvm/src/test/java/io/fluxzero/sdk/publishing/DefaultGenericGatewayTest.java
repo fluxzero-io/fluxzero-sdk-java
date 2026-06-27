@@ -26,11 +26,15 @@ import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -58,13 +62,33 @@ class DefaultGenericGatewayTest {
         assertDoesNotThrow(() -> scopedCompletion.get(1, TimeUnit.SECONDS));
     }
 
+    @Test
+    void closeCompletesPendingRequestCallbacks() {
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        CompletableFuture<SerializedMessage> pendingResponse = new CompletableFuture<>();
+        when(requestHandler.sendRequest(any(SerializedMessage.class), any(), any(Duration.class))).thenReturn(
+                pendingResponse);
+        DefaultGenericGateway gateway = gateway(mock(GatewayClient.class), requestHandler);
+
+        CompletableFuture<Message> result = gateway.sendForMessage(new Message("query"), Duration.ofSeconds(60));
+
+        gateway.close();
+
+        ExecutionException error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+        assertInstanceOf(IllegalStateException.class, error.getCause());
+    }
+
     private static DefaultGenericGateway gateway(GatewayClient gatewayClient) {
+        return gateway(gatewayClient, mock(RequestHandler.class));
+    }
+
+    private static DefaultGenericGateway gateway(GatewayClient gatewayClient, RequestHandler requestHandler) {
         Client client = mock(Client.class);
         when(client.namespace()).thenReturn(null);
         return new DefaultGenericGateway(
                 client,
                 gatewayClient,
-                mock(RequestHandler.class),
+                requestHandler,
                 new JacksonSerializer(),
                 DispatchInterceptor.noOp,
                 MessageType.COMMAND,
