@@ -576,7 +576,7 @@ public class ImmutableEntity<T> implements Entity<T> {
                                                                   Set<Class<?>> visitedTypes) throws E {
         entityHelper.applyInvoker(message, entity, false, false)
                 .ifPresent(i -> {
-                    Apply apply = JvmComponentIntrospector.getInstance().getAnnotation(i.getMethod(), Apply.class).orElseThrow();
+                    ModelMetadata.ApplyConfig apply = ModelMetadata.apply(i.getMethod()).orElseThrow();
                     if (!apply.disableCompatibilityCheck()) {
                         Object targetId = expectedTargetId(message, entity);
                         if (entity.isPresent()) {
@@ -688,7 +688,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(target.getClass(), Alias.class)) {
             Object v = ModelMetadata.propertyValue(location, target, false);
             if (v != null) {
-                JvmComponentIntrospector.getInstance().getAnnotationAs(location, Alias.class, Alias.class).ifPresent(alias -> {
+                ModelMetadata.alias(location).ifPresent(alias -> {
                     UnaryOperator<Object> aliasFunction = id -> "".equals(alias.prefix()) && "".equals(alias.postfix())
                             ? id : alias.prefix() + id + alias.postfix();
                     if (v instanceof Collection<?> collection) {

@@ -14,12 +14,18 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PropertyAccess;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -102,6 +108,36 @@ final class ModelMetadata {
         return PROPERTIES.collectionElementType(property);
     }
 
+    static Optional<MemberConfig> member(AccessibleObject property) {
+        return propertyMetadata(property, Member.class)
+                .map(annotation -> new MemberConfig(
+                        annotation.firstValue("idProperty").orElse(""),
+                        annotation.firstValue("wither").orElse("")))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(property, Member.class)
+                        .map(annotation -> new MemberConfig(annotation.idProperty(), annotation.wither())));
+    }
+
+    static Optional<AliasConfig> alias(AccessibleObject property) {
+        return propertyMetadata(property, Alias.class)
+                .map(annotation -> new AliasConfig(
+                        annotation.firstValue("prefix").orElse(""),
+                        annotation.firstValue("postfix").orElse("")))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(property, Alias.class)
+                        .map(annotation -> new AliasConfig(annotation.prefix(), annotation.postfix())));
+    }
+
+    static Optional<ApplyConfig> apply(Executable executable) {
+        if (executable == null) {
+            return Optional.empty();
+        }
+        return JvmComponentMetadataLookup.scanIfScannable(executable.getDeclaringClass())
+                .flatMap(lookup -> lookup.executable(executable))
+                .flatMap(descriptor -> annotation(descriptor, Apply.class))
+                .map(annotation -> new ApplyConfig(annotation.booleanValue("disableCompatibilityCheck", false)))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(executable, Apply.class)
+                        .map(annotation -> new ApplyConfig(annotation.disableCompatibilityCheck())));
+    }
+
     static boolean hasAnnotatedProperty(Class<?> ownerType, Class<? extends Annotation> annotationType) {
         if (ownerType == null) {
             return false;
@@ -117,5 +153,41 @@ final class ModelMetadata {
         return PROPERTIES.annotatedProperties(ownerType, annotationType).stream()
                 .filter(location -> PROPERTIES.propertyName(location).equals(propertyName))
                 .findFirst();
+    }
+
+    private static Optional<AnnotationDescriptor> propertyMetadata(
+            AccessibleObject property, Class<? extends Annotation> annotationType) {
+        return declaringClass(property).flatMap(ownerType -> JvmComponentMetadataLookup.scanIfScannable(ownerType)
+                .flatMap(lookup -> lookup.property(ownerType, PROPERTIES.propertyName(property))
+                        .flatMap(descriptor -> annotation(descriptor.annotations(), annotationType))));
+    }
+
+    private static Optional<AnnotationDescriptor> annotation(
+            ExecutableDescriptor descriptor, Class<? extends Annotation> annotationType) {
+        return annotation(descriptor.annotations(), annotationType);
+    }
+
+    private static Optional<AnnotationDescriptor> annotation(
+            List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType) {
+        return annotations.stream()
+                .filter(annotation -> annotation.qualifiedName().equals(annotationType.getName()))
+                .findFirst();
+    }
+
+    private static Optional<Class<?>> declaringClass(AccessibleObject property) {
+        return switch (property) {
+            case Field field -> Optional.of(field.getDeclaringClass());
+            case Method method -> Optional.of(method.getDeclaringClass());
+            default -> Optional.empty();
+        };
+    }
+
+    record MemberConfig(String idProperty, String wither) {
+    }
+
+    record AliasConfig(String prefix, String postfix) {
+    }
+
+    record ApplyConfig(boolean disableCompatibilityCheck) {
     }
 }

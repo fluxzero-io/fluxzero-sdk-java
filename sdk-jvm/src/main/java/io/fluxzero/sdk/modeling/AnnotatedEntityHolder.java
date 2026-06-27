@@ -170,7 +170,7 @@ public class AnnotatedEntityHolder {
         this.collectionHolder = Collection.class.isAssignableFrom(holderType);
         this.mapHolder = Map.class.isAssignableFrom(holderType);
         this.entityType = ModelMetadata.collectionElementType(location).orElse(holderType);
-        Member member = JvmComponentIntrospector.getInstance().getAnnotation(location, Member.class).orElseThrow();
+        ModelMetadata.MemberConfig member = ModelMetadata.member(location).orElseThrow();
         String pathToId = member.idProperty();
         this.idProvider = pathToId.isBlank() ?
                 AnnotatedEntityHolder::entityId :
@@ -191,7 +191,7 @@ public class AnnotatedEntityHolder {
     }
 
     private static BiFunction<Object, Object, Object> computeWither(
-            Class<?> ownerType, AccessibleObject location, Serializer serializer, Member member) {
+            Class<?> ownerType, AccessibleObject location, Serializer serializer, ModelMetadata.MemberConfig member) {
         String propertyName = ModelMetadata.propertyName(location);
         Class<?>[] witherParams = new Class<?>[]{ModelMetadata.propertyType(location)};
         Stream<Method> witherCandidates = JvmComponentIntrospector.getInstance().getAllMethods(ownerType).stream().filter(
@@ -458,7 +458,7 @@ public class AnnotatedEntityHolder {
             if (aliasValue == null) {
                 continue;
             }
-            JvmComponentIntrospector.getInstance().getAnnotationAs(aliasLocation, Alias.class, Alias.class).ifPresent(alias -> {
+            ModelMetadata.alias(aliasLocation).ifPresent(alias -> {
                 if (aliasValue instanceof Collection<?> collection) {
                     for (Object item : collection) {
                         if (item != null) {

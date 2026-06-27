@@ -202,8 +202,8 @@ Work:
     uses descriptor metadata before JVM access fallback.
   - [x] Modeling, data-protection, search, and indexing property reads/writes use the `PropertyAccess` backend seam for
     property paths and property handles.
-  - [ ] Annotation attribute projection for modeling annotations such as `@Member`, `@Alias`, and `@Apply` still uses
-    JVM annotation instances where attributes are needed.
+  - [x] Annotation attribute projection for modeling annotations such as `@Member`, `@Alias`, and `@Apply` uses
+    metadata config descriptors before JVM annotation fallback.
 - [ ] Invocation and mutable property access behind a platform backend seam.
   - [x] `PropertyAccess` covers annotated property discovery, property names, property path reads/writes,
     property-handle reads, raw property types, and collection element types.
