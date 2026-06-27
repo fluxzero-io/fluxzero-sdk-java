@@ -29,9 +29,11 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.PropertyAccess;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -211,9 +213,14 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private boolean shouldDropProtectedData(HandlerDescriptor invoker) {
-        return JvmComponentMetadataLookup.scanIfScannable(invoker.getMethod().getDeclaringClass())
-                .map(lookup -> lookup.hasExecutableAnnotation(invoker.getMethod(), DropProtectedData.class))
-                .orElseGet(() -> invoker.getMethod().isAnnotationPresent(DropProtectedData.class));
+        Optional<Boolean> metadata = ComponentMetadataLookups.lookup(invoker.getMethod().getDeclaringClass())
+                .map(lookup -> hasAnnotation(
+                        ComponentMetadataLookups.executableAnnotations(lookup, invoker.getMethod()),
+                        DropProtectedData.class));
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(false);
+        }
+        return invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
     }
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
@@ -243,16 +250,16 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             return Map.of();
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
-        JvmComponentMetadataLookup.scanIfScannable(value.getClass())
-                .map(lookup -> lookup.annotatedProperties(value.getClass(), ProtectData.class).stream()
+        Optional<Stream<Map.Entry<String, String>>> metadata = ComponentMetadataLookups.lookup(value.getClass())
+                .map(lookup -> lookup.properties(value.getClass().getName()).stream()
+                        .filter(property -> hasAnnotation(property, ProtectData.class))
                         .flatMap(property -> PROPERTIES
                                 .readProperty(property.name(), value).stream()
-                                .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))))
-                .orElseGet(() -> PROPERTIES.annotatedProperties(value.getClass(), ProtectData.class).stream()
-                        .flatMap(property -> Optional.ofNullable(PROPERTIES.propertyValue(property, value, true)).stream()
-                                .flatMap(propertyValue -> getProtectedFields(
-                                        PROPERTIES.propertyName(property),
-                                        propertyValue))))
+                                .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))));
+        metadata.orElseGet(() -> ComponentMetadataLookups.generatedOnlyMode() ? Stream.empty()
+                : PROPERTIES.annotatedProperties(value.getClass(), ProtectData.class).stream()
+                .flatMap(property -> Optional.ofNullable(PROPERTIES.propertyValue(property, value, true)).stream()
+                        .flatMap(propertyValue -> getProtectedFields(PROPERTIES.propertyName(property), propertyValue))))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
     }
@@ -275,15 +282,31 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private boolean isProtectedType(Class<?> type) {
-        return JvmComponentMetadataLookup.scanIfScannable(type)
-                .map(lookup -> lookup.hasTypeAnnotation(type, ProtectData.class))
-                .orElseGet(() -> JvmComponentIntrospector.getInstance().getTypeAnnotation(type, ProtectData.class)
-                                 != null);
+        Optional<Boolean> metadata = ComponentMetadataLookups.lookup(type)
+                .map(lookup -> hasAnnotation(lookup.typeAnnotations(type.getName()), ProtectData.class));
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(false);
+        }
+        return JvmComponentIntrospector.getInstance().getTypeAnnotation(type, ProtectData.class) != null;
     }
 
     private String storeProtectedValue(Object value) {
         String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
         keyValueStore.store(key, value, Guarantee.STORED);
         return key;
+    }
+
+    private static boolean hasAnnotation(PropertyDescriptor property, Class<?> annotationType) {
+        return hasAnnotation(property.annotations(), annotationType);
+    }
+
+    private static boolean hasAnnotation(Iterable<AnnotationDescriptor> annotations, Class<?> annotationType) {
+        for (AnnotationDescriptor annotation : annotations) {
+            if (annotation.qualifiedName().equals(annotationType.getName())
+                || annotation.name().equals(annotationType.getSimpleName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

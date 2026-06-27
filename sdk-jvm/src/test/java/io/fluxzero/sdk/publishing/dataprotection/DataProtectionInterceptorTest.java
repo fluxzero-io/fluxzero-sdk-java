@@ -16,6 +16,7 @@ package io.fluxzero.sdk.publishing.dataprotection;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
@@ -24,7 +25,11 @@ import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -38,12 +43,18 @@ import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class DataProtectionInterceptorTest {
     private final TestFixture testFixture = TestFixture.createAsync();
@@ -205,6 +216,34 @@ class DataProtectionInterceptorTest {
     }
 
     @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForProtectedFields() {
+        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(keyValueStore, new JacksonSerializer());
+        AtomicReference<Message> result = new AtomicReference<>();
+
+        GeneratedOnlyMetadataMode.run(() -> result.set(interceptor.interceptDispatch(
+                new Message(new UnregisteredGeneratedOnlyProtectedPayload("secret")), MessageType.EVENT, null)));
+
+        assertFalse(result.get().getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
+        verifyNoInteractions(keyValueStore);
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredProtectedFieldMetadata() {
+        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(keyValueStore, new JacksonSerializer());
+        AtomicReference<Message> result = new AtomicReference<>();
+
+        testFixture.getFluxzero().registerComponentRegistry(
+                JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyProtectedPayload.class).registry());
+        GeneratedOnlyMetadataMode.run(() -> result.set(interceptor.interceptDispatch(
+                new Message(new RegisteredGeneratedOnlyProtectedPayload("secret")), MessageType.EVENT, null)));
+
+        assertTrue(result.get().getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
+        verify(keyValueStore).store(anyString(), eq("secret"), eq(Guarantee.STORED));
+    }
+
+    @Test
     void protectedMessagesDoNotExposeReusableHandlerMethodBeforeDataIsRestored() {
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
                 new SomeHandler(), HandleEvent.class,
@@ -298,6 +337,12 @@ class DataProtectionInterceptorTest {
     }
 
     private record ProtectedSensitiveDetails(@ProtectData String socialSecurityNumber, String displayName) {
+    }
+
+    private record UnregisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {
+    }
+
+    private record RegisteredGeneratedOnlyProtectedPayload(@ProtectData String secret) {
     }
 
     @Getter

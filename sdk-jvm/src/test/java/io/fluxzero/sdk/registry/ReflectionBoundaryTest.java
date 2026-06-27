@@ -38,7 +38,6 @@ class ReflectionBoundaryTest {
             Map.entry("src/main/java/io/fluxzero/sdk/persisting/repository/DefaultAggregateRepository.java", 2L),
             Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DefaultIndexOperation.java", 1L),
             Map.entry("src/main/java/io/fluxzero/sdk/persisting/search/DocumentStore.java", 1L),
-            Map.entry("src/main/java/io/fluxzero/sdk/publishing/dataprotection/DataProtectionInterceptor.java", 3L),
             Map.entry("src/main/java/io/fluxzero/sdk/tracking/ConsumerConfiguration.java", 1L),
             Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/HandlerAssociations.java", 1L),
             Map.entry("src/main/java/io/fluxzero/sdk/tracking/handling/StatefulHandler.java", 3L),
