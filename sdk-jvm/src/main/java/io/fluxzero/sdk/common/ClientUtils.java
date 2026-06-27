@@ -29,8 +29,12 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
@@ -41,7 +45,9 @@ import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.time.Duration;
 import java.time.Instant;
@@ -178,40 +184,77 @@ public class ClientUtils {
 
     private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
                                                                         java.lang.reflect.Executable method) {
-        return getLocalHandlerAnnotationFromMetadata(target, method)
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
-                .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), LocalHandler.class)))
+        Optional<LocalHandler> metadata = getLocalHandlerAnnotationFromMetadata(target, method);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.filter(LocalHandler::value);
+        }
+        return JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
+                .or(() -> Optional.ofNullable(
+                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        target.getPackage(), LocalHandler.class))
                 .filter(LocalHandler::value);
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, Executable method) {
-        return getTrackSelfAnnotationFromMetadata(target, method)
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
-                .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), TrackSelf.class)));
+        Optional<TrackSelf> metadata = getTrackSelfAnnotationFromMetadata(target, method);
+        if (metadata.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata;
+        }
+        return JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
+                .or(() -> Optional.ofNullable(
+                        JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(
+                        target.getPackage(), TrackSelf.class));
     }
 
     private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, Executable method) {
-        return JvmComponentMetadataLookup.scanIfScannable(target)
+        return ComponentMetadataLookups.lookup(target)
                 .flatMap(lookup -> {
                     Optional<LocalHandler> methodAnnotation = method == null
-                            ? Optional.empty() : localHandler(lookup.executableAnnotations(method));
+                            ? Optional.empty() : localHandler(executableAnnotations(lookup, method));
                     return methodAnnotation
-                            .or(() -> localHandler(lookup.typeAnnotations(target)))
-                            .or(() -> localHandler(lookup.packageAnnotations(target.getPackage())));
+                            .or(() -> localHandler(lookup.typeAnnotations(target.getName())))
+                            .or(() -> localHandler(lookup.packageAnnotations(target.getPackageName())));
                 });
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotationFromMetadata(Class<?> target, Executable method) {
-        return JvmComponentMetadataLookup.scanIfScannable(target)
+        return ComponentMetadataLookups.lookup(target)
                 .flatMap(lookup -> {
                     Optional<TrackSelf> methodAnnotation = method == null
-                            ? Optional.empty() : trackSelf(lookup.executableAnnotations(method));
+                            ? Optional.empty() : trackSelf(executableAnnotations(lookup, method));
                     return methodAnnotation
-                            .or(() -> trackSelf(lookup.typeAnnotations(target)))
-                            .or(() -> trackSelf(lookup.packageAnnotations(target.getPackage())));
+                            .or(() -> trackSelf(lookup.typeAnnotations(target.getName())))
+                            .or(() -> trackSelf(lookup.packageAnnotations(target.getPackageName())));
                 });
+    }
+
+    private static List<AnnotationDescriptor> executableAnnotations(ComponentMetadataLookup lookup,
+                                                                    Executable executable) {
+        return executable(lookup, executable)
+                .map(ExecutableDescriptor::annotations)
+                .orElseGet(List::of);
+    }
+
+    private static Optional<ExecutableDescriptor> executable(ComponentMetadataLookup lookup, Executable executable) {
+        ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+        String name = executable.getName();
+        List<String> parameters = Arrays.stream(executable.getParameterTypes()).map(ClientUtils::typeName).toList();
+        Optional<ExecutableDescriptor> result = lookup.executable(
+                executable.getDeclaringClass().getName(), kind, name, parameters);
+        if (result.isPresent() || executable instanceof Method) {
+            return result;
+        }
+        return lookup.executables(executable.getDeclaringClass().getName()).stream()
+                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
+                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
+                        .equals(parameters))
+                .findFirst();
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 
     private static Optional<LocalHandler> localHandler(List<AnnotationDescriptor> annotations) {

@@ -49,10 +49,12 @@ Work slices:
     `new ClasspathComponentScanner().scan(...)` calls in runtime code as backlog debt.
   - [x] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
     resolver.
-  - [x] Current known debt: 22 direct runtime scan/fallback sites outside the central metadata lookup backends.
+  - [x] Current known debt: 20 direct runtime scan/fallback sites outside the central metadata lookup backends.
 - [ ] Slice C: Thematic generated-only JVM clusters.
   - [ ] Handler discovery, filtering, and invocation.
   - [ ] Consumer, local/tracked, gateway, and tracking configuration.
+    - [x] `ClientUtils` local handler and self-tracking metadata checks use the central resolver and respect
+      generated-only mode.
   - [ ] Modeling, aggregates, entities, repositories, and property access.
   - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
 - [ ] Slice D: Generated invocation parity.

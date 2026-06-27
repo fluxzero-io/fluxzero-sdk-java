@@ -15,11 +15,17 @@
 package io.fluxzero.sdk.common;
 
 import io.fluxzero.common.MemoizingSupplier;
+import io.fluxzero.common.TestUtils;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +60,39 @@ class ClientUtilsTest {
                                                                                          double.class)).isPresent());
         assertTrue(ClientUtils.isTrackingHandler(Handler.class, Handler.class.getDeclaredMethod("handleLocalOrExternal",
                                                                                                 double.class)));
+    }
+
+    @Test
+    @ResourceLock(Resources.SYSTEM_PROPERTIES)
+    void generatedOnlyModeDoesNotUseReflectionFallbackForLocalHandlerSemantics() throws Exception {
+        TestUtils.runWithSystemProperties(() -> {
+            assertFalse(ClientUtils.getLocalHandlerAnnotation(
+                    UnregisteredGeneratedOnlyHandler.class,
+                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class))
+                    .isPresent());
+            assertTrue(ClientUtils.isTrackingHandler(
+                    UnregisteredGeneratedOnlyHandler.class,
+                    UnregisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class)));
+            assertFalse(ClientUtils.isSelfTracking(UnregisteredGeneratedOnlyTrackSelf.class));
+        }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
+    }
+
+    @Test
+    @ResourceLock(Resources.SYSTEM_PROPERTIES)
+    void generatedOnlyModeUsesRegisteredMetadataForLocalHandlerSemantics() throws Exception {
+        TestFixture fixture = TestFixture.create();
+        fixture.getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                RegisteredGeneratedOnlyHandler.class, RegisteredGeneratedOnlyTrackSelf.class).registry());
+        TestUtils.runWithSystemProperties(() -> {
+            assertTrue(ClientUtils.getLocalHandlerAnnotation(
+                    RegisteredGeneratedOnlyHandler.class,
+                    RegisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class))
+                    .isPresent());
+            assertFalse(ClientUtils.isTrackingHandler(
+                    RegisteredGeneratedOnlyHandler.class,
+                    RegisteredGeneratedOnlyHandler.class.getDeclaredMethod("handleOnlyLocal", int.class)));
+            assertTrue(ClientUtils.isSelfTracking(RegisteredGeneratedOnlyTrackSelf.class));
+        }, ComponentMetadataLookups.METADATA_MODE_PROPERTY, ComponentMetadataLookups.GENERATED_ONLY_MODE);
     }
 
     @Nested
@@ -106,5 +145,29 @@ class ClientUtilsTest {
         double handleLocalOrExternal(double command) {
             return command;
         }
+    }
+
+    private static class UnregisteredGeneratedOnlyHandler {
+        @HandleCommand
+        @LocalHandler
+        int handleOnlyLocal(int command) {
+            return command;
+        }
+    }
+
+    @TrackSelf
+    private static class UnregisteredGeneratedOnlyTrackSelf {
+    }
+
+    private static class RegisteredGeneratedOnlyHandler {
+        @HandleCommand
+        @LocalHandler
+        int handleOnlyLocal(int command) {
+            return command;
+        }
+    }
+
+    @TrackSelf
+    private static class RegisteredGeneratedOnlyTrackSelf {
     }
 }
