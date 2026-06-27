@@ -64,6 +64,9 @@ Work slices:
     - [x] `DefaultHandlerFactory` uses metadata-backed type/package `@TrackSelf` resolution; generated-only mode no
       longer derives self-handling factory behavior through JVM annotation fallback.
   - [ ] Modeling, aggregates, entities, repositories, and property access.
+    - [x] `DefaultHandlerFactory` uses metadata-backed `@Stateful` resolution for handler discovery and stateful
+      handler creation; generated-only mode no longer derives stateful factory behavior through JVM annotation
+      fallback.
     - [x] `HandlerAssociations` and `StatefulHandler` use the central resolver for association, member,
       routing-key, and entity-id metadata; generated-only mode no longer derives those semantics through direct
       scanner fallback.

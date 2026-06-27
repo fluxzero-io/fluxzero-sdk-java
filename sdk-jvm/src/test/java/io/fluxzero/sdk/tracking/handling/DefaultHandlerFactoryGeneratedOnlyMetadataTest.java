@@ -18,8 +18,10 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.MethodInvocationValidator;
+import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
@@ -30,8 +32,10 @@ import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -179,6 +183,23 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeCreatesStatefulHandlerFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredStatefulHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = statefulFactory().createHandler(
+                        RegisteredStatefulHandler.class, (c, e) -> true, List.of()).orElseThrow();
+
+                assertEquals("StatefulHandler[%s]".formatted(RegisteredStatefulHandler.class), handler.toString());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static DefaultHandlerFactory factory() {
         return new DefaultHandlerFactory(
                 MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
@@ -191,6 +212,12 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
                 c -> null, repositoryProvider(), false, null);
     }
 
+    private static DefaultHandlerFactory statefulFactory() {
+        return new DefaultHandlerFactory(
+                MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                c -> emptyRepository(), null, false, null);
+    }
+
     private static RepositoryProvider repositoryProvider() {
         Map<Class<?>, Map<Object, Object>> repositories = new ConcurrentHashMap<>();
         return new RepositoryProvider() {
@@ -199,6 +226,30 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
             public <T> Map<Object, T> getRepository(Class<T> repositoryClass) {
                 return (Map<Object, T>) repositories.computeIfAbsent(
                         repositoryClass, key -> new ConcurrentHashMap<>());
+            }
+        };
+    }
+
+    private static HandlerRepository emptyRepository() {
+        return new HandlerRepository() {
+            @Override
+            public Collection<? extends Entry<?>> findByAssociation(Map<Object, String> associations) {
+                return List.of();
+            }
+
+            @Override
+            public Collection<? extends Entry<?>> getAll() {
+                return List.of();
+            }
+
+            @Override
+            public CompletableFuture<?> put(Object id, Object value) {
+                return CompletableFuture.completedFuture(null);
+            }
+
+            @Override
+            public CompletableFuture<?> delete(Object id) {
+                return CompletableFuture.completedFuture(null);
             }
         };
     }
@@ -247,6 +298,13 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         @HandleCommand
         String handle() {
             return "self";
+        }
+    }
+
+    @Stateful
+    private static class RegisteredStatefulHandler {
+        @HandleCommand
+        void handle(String command) {
         }
     }
 

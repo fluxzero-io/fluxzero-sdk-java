@@ -177,7 +177,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (hasHandlerMethods(targetClass, handlerConfiguration)) {
             return true;
         }
-        if (JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, Stateful.class) != null
+        if (ComponentMetadataLookups.typeAnnotation(targetClass, Stateful.class).isPresent()
             && hasMemberHandlerMethods(targetClass, handlerConfiguration, new HashSet<>())) {
             return true;
         }
@@ -205,7 +205,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
         if (JvmComponentIntrospector.getInstance().ifClass(target) instanceof Class<?> targetClass) {
             {
-                Stateful handler = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, Stateful.class);
+                Stateful handler = ComponentMetadataLookups.typeAnnotation(targetClass, Stateful.class)
+                        .orElse(null);
                 if (handler != null) {
                     var statefulConfig = config;
                     return new StatefulHandler(targetClass, createHandlerMatcher(targetClass, config),
