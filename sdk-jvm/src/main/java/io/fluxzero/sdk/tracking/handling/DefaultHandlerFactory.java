@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.handling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.DefaultHandler;
+import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerFilter;
@@ -27,6 +28,7 @@ import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -116,6 +118,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final MessageFilter<? super DeserializingMessage> messageFilter;
     private final Class<? extends Annotation> handlerAnnotation;
     private final MethodInvocationValidator<? super DeserializingMessage> methodInvocationValidator;
+    private final ExecutableAnnotationResolver executableAnnotationResolver;
     private final Function<Class<?>, HandlerRepository> handlerRepositorySupplier;
     private final RepositoryProvider repositoryProvider;
     private final boolean trackingMetricsEnabled;
@@ -142,6 +145,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         this.trackingMetricsEnabled = trackingMetricsEnabled;
         this.serializer = serializer;
         this.handlerAnnotation = getHandlerAnnotation(messageType);
+        this.executableAnnotationResolver = MetadataExecutableAnnotationResolver.create();
         this.messageFilter = computeMessageFilter();
     }
 
@@ -156,6 +160,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
                         .handlerFilter(handlerFilter).messageFilter(messageFilter)
                         .methodInvocationValidator(methodInvocationValidator)
+                        .executableAnnotationResolver(executableAnnotationResolver)
                         .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                         .build())
                 .filter(config -> isHandler(targetClass, config))

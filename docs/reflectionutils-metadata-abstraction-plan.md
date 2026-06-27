@@ -81,6 +81,11 @@ Work slices:
     `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.
   - [x] Add a guardrail that prevents direct `DefaultMemberInvoker` usage from reappearing in `sdk-jvm` runtime code
     outside the JVM backend.
+  - [x] Make `HandlerConfiguration` resolve handler annotations through an explicit executable annotation resolver.
+  - [x] Add a JVM metadata-backed executable annotation resolver that synthesizes annotation views from
+    `AnnotationDescriptor` and refuses reflection fallback in generated-only mode.
+  - [x] Prove generated-only handler discovery, disabled handlers, and passive handler metadata through registry
+    metadata.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
   - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
     invocation plans are available.

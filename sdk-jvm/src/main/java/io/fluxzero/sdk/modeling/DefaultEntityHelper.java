@@ -22,6 +22,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -111,6 +112,7 @@ public class DefaultEntityHelper implements EntityHelper {
         return HandlerConfiguration.<MessageWithEntity>builder().methodAnnotation(AssertLegal.class)
                 .invokeMultipleMethods(true)
                 .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
+                .executableAnnotationResolver(MetadataExecutableAnnotationResolver.create())
                 .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                 .messageFilter((message, executable, handlerAnnotation, targetClass) ->
                         JvmComponentIntrospector.getInstance().getAnnotation(executable, AssertLegal.class)
@@ -142,6 +144,7 @@ public class DefaultEntityHelper implements EntityHelper {
     protected static HandlerConfiguration<DeserializingMessageWithEntity> applyHandlerConfiguration(
             boolean checkCompatibility, EntityParameterResolver entityParameterResolver) {
         return HandlerConfiguration.<DeserializingMessageWithEntity>builder().methodAnnotation(Apply.class)
+                .executableAnnotationResolver(MetadataExecutableAnnotationResolver.create())
                 .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                 .messageFilter((hi, executable, handlerAnnotation, targetClass) -> {
                     if (executable instanceof Method m && targetClass.isAssignableFrom(hi.getPayloadClass())) {

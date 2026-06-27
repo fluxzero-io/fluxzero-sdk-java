@@ -15,7 +15,6 @@
 
 package io.fluxzero.common.handling;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.SneakyThrows;
@@ -28,8 +27,6 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Configuration object used to define how message handler methods are selected and filtered for a given message type.
@@ -101,6 +98,12 @@ public class HandlerConfiguration<M> {
     ExecutableInvocationBackend executableInvocationBackend = ExecutableInvocationBackend.reflection();
 
     /**
+     * Resolver used to read semantic handler annotations from an executable.
+     */
+    @Default
+    ExecutableAnnotationResolver executableAnnotationResolver = ExecutableAnnotationResolver.reflection();
+
+    /**
      * Determines whether the given method is eligible to handle messages according to this configuration.
      * <p>
      * This includes both:
@@ -151,6 +154,7 @@ public class HandlerConfiguration<M> {
      * @return an optional containing the annotation if present, or empty otherwise
      */
     public Optional<? extends Annotation> getAnnotation(Executable e) {
-        return ofNullable(methodAnnotation).flatMap(a -> ReflectionUtils.getMethodAnnotation(e, methodAnnotation));
+        return methodAnnotation == null ? Optional.empty()
+                : executableAnnotationResolver.getAnnotation(e, methodAnnotation);
     }
 }
