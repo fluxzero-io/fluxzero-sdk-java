@@ -22,7 +22,10 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.registry.AnnotationDescriptor;
 import io.fluxzero.sdk.registry.ComponentMetadataLookup;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
+import io.fluxzero.sdk.registry.PropertyDescriptor;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -787,7 +790,7 @@ public final class OpenApiRenderer {
                && method.getParameterCount() == 0
                && !Void.TYPE.equals(method.getReturnType())
                && !isHidden(method)
-               && (method.isAnnotationPresent(ApiDoc.class)
+               && (hasAnnotation(method, ApiDoc.class)
                    || annotation(method, "io.swagger.v3.oas.annotations.media.Schema") != null
                    || annotation(method, "io.swagger.v3.oas.annotations.media.ArraySchema") != null);
     }
@@ -893,17 +896,15 @@ public final class OpenApiRenderer {
         if (element == null) {
             return;
         }
-        ApiDoc apiDoc = element.getAnnotation(ApiDoc.class);
-        if (apiDoc == null) {
-            return;
-        }
-        if (!isBlank(apiDoc.description())
-            && apiDoc.description().trim().equals(schema.path("description").asText("").trim())) {
-            schema.remove("description");
-        }
-        if (apiDoc.deprecated() && schema.path("deprecated").asBoolean(false)) {
-            schema.remove("deprecated");
-        }
+        apiDoc(element).ifPresent(apiDoc -> {
+            if (!isBlank(apiDoc.description())
+                && apiDoc.description().trim().equals(schema.path("description").asText("").trim())) {
+                schema.remove("description");
+            }
+            if (apiDoc.deprecated() && schema.path("deprecated").asBoolean(false)) {
+                schema.remove("deprecated");
+            }
+        });
     }
 
     private static Optional<Type> implementationType(AnnotatedElement element) {
@@ -1058,6 +1059,16 @@ public final class OpenApiRenderer {
         if (element == null) {
             return builder.build();
         }
+        List<AnnotationDescriptor> metadataAnnotations = metadataAnnotations(element);
+        if (hasAnnotation(metadataAnnotations, "Hidden", "io.swagger.v3.oas.annotations.Hidden")
+            || ComponentMetadataLookups.hasAnnotation(metadataAnnotations, ApiDocExclude.class)) {
+            builder.hidden(true);
+        }
+        metadataAnnotations.forEach(builder::applyValidation);
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            apiDoc(element).ifPresent(builder::apply);
+            return builder.build();
+        }
         Annotation arraySchema = annotation(element, "io.swagger.v3.oas.annotations.media.ArraySchema");
         if (arraySchema != null && annotationValue(arraySchema, "arraySchema") instanceof Annotation schema) {
             builder.apply(schema);
@@ -1066,10 +1077,7 @@ public final class OpenApiRenderer {
         if (schema != null) {
             builder.apply(schema);
         }
-        ApiDoc apiDoc = element.getAnnotation(ApiDoc.class);
-        if (apiDoc != null) {
-            builder.apply(apiDoc);
-        }
+        apiDoc(element).ifPresent(builder::apply);
         builder.hidden(annotation(element, "io.swagger.v3.oas.annotations.Hidden") != null
                        || element.isAnnotationPresent(ApiDocExclude.class));
         for (Annotation annotation : element.getAnnotations()) {
@@ -1078,8 +1086,97 @@ public final class OpenApiRenderer {
         return builder.build();
     }
 
+    private static Optional<ApiDoc> apiDoc(AnnotatedElement element) {
+        Optional<Class<?>> declaringClass = metadataDeclaringClass(element);
+        if (declaringClass.isPresent()) {
+            Optional<ApiDoc> apiDoc = ComponentMetadataLookups.annotationAs(
+                    metadataAnnotations(element), ApiDoc.class, ApiDoc.class, declaringClass.get());
+            if (apiDoc.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+                return apiDoc;
+            }
+        }
+        return ComponentMetadataLookups.generatedOnlyMode() ? Optional.empty()
+                : Optional.ofNullable(element.getAnnotation(ApiDoc.class));
+    }
+
+    private static boolean hasAnnotation(AnnotatedElement element, Class<?> annotationType) {
+        List<AnnotationDescriptor> annotations = metadataAnnotations(element);
+        if (ComponentMetadataLookups.hasAnnotation(annotations, annotationType)) {
+            return true;
+        }
+        return !ComponentMetadataLookups.generatedOnlyMode() && element.isAnnotationPresent(
+                annotationType.asSubclass(Annotation.class));
+    }
+
+    private static List<AnnotationDescriptor> metadataAnnotations(AnnotatedElement element) {
+        return metadataDeclaringClass(element)
+                .flatMap(type -> ComponentMetadataLookups.lookup(type)
+                        .map(lookup -> metadataAnnotations(lookup, element)))
+                .orElseGet(List::of);
+    }
+
+    private static List<AnnotationDescriptor> metadataAnnotations(
+            ComponentMetadataLookup lookup, AnnotatedElement element) {
+        if (element instanceof Parameter parameter) {
+            return ComponentMetadataLookups.parameter(lookup, parameter)
+                    .map(ParameterDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof RecordComponent component) {
+            return lookup.property(component.getDeclaringRecord().getName(), component.getName())
+                    .map(PropertyDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof Field field) {
+            return lookup.property(field.getDeclaringClass().getName(), field.getName())
+                    .map(PropertyDescriptor::annotations)
+                    .orElseGet(List::of);
+        }
+        if (element instanceof Method method) {
+            List<AnnotationDescriptor> result = new ArrayList<>();
+            beanPropertyName(method).flatMap(name -> lookup.property(method.getDeclaringClass().getName(), name))
+                    .map(PropertyDescriptor::annotations)
+                    .ifPresent(result::addAll);
+            ComponentMetadataLookups.executable(lookup, method)
+                    .map(ExecutableDescriptor::annotations)
+                    .ifPresent(result::addAll);
+            return result;
+        }
+        if (element instanceof Class<?> type) {
+            return lookup.typeAnnotations(type.getName());
+        }
+        return List.of();
+    }
+
+    private static Optional<Class<?>> metadataDeclaringClass(AnnotatedElement element) {
+        if (element instanceof Parameter parameter) {
+            return Optional.of(parameter.getDeclaringExecutable().getDeclaringClass());
+        }
+        if (element instanceof RecordComponent component) {
+            return Optional.of(component.getDeclaringRecord());
+        }
+        if (element instanceof Field field) {
+            return Optional.of(field.getDeclaringClass());
+        }
+        if (element instanceof Method method) {
+            return Optional.of(method.getDeclaringClass());
+        }
+        if (element instanceof Class<?> type) {
+            return Optional.of(type);
+        }
+        return Optional.empty();
+    }
+
+    private static boolean hasAnnotation(
+            List<AnnotationDescriptor> annotations, String annotationName, String qualifiedAnnotationName) {
+        return annotations.stream().anyMatch(annotation -> annotation.isOrHas(annotationName, qualifiedAnnotationName));
+    }
+
     private static Annotation annotation(AnnotatedElement element, String annotationName) {
         if (element == null) {
+            return null;
+        }
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
             return null;
         }
         for (Annotation annotation : element.getAnnotations()) {
@@ -1103,6 +1200,22 @@ public final class OpenApiRenderer {
 
     private static String stringValue(Object value) {
         return value == null ? "" : String.valueOf(value);
+    }
+
+    private static Optional<Integer> intValue(AnnotationDescriptor annotation, String attribute) {
+        try {
+            return annotation.firstValue(attribute).map(Integer::parseInt);
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<Long> longValue(AnnotationDescriptor annotation, String attribute) {
+        try {
+            return annotation.firstValue(attribute).map(Long::parseLong);
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
     }
 
     private static Class<?> classValue(Object value) {
@@ -1600,6 +1713,53 @@ public final class OpenApiRenderer {
                     case "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements" -> uniqueItems = true;
                     default -> {
                     }
+                }
+            }
+
+            void applyValidation(AnnotationDescriptor annotation) {
+                if (annotation.isOrHas("NotNull", "jakarta.validation.constraints.NotNull")
+                    || annotation.isOrHas("NotBlank", "jakarta.validation.constraints.NotBlank")
+                    || annotation.isOrHas("NotEmpty", "jakarta.validation.constraints.NotEmpty")) {
+                    required(true);
+                } else if (annotation.isOrHas("Min", "jakarta.validation.constraints.Min")) {
+                    annotation.firstValue("value").ifPresent(this::minimum);
+                } else if (annotation.isOrHas("Max", "jakarta.validation.constraints.Max")) {
+                    annotation.firstValue("value").ifPresent(this::maximum);
+                } else if (annotation.isOrHas("DecimalMin", "jakarta.validation.constraints.DecimalMin")) {
+                    annotation.firstValue("value").ifPresent(this::minimum);
+                } else if (annotation.isOrHas("DecimalMax", "jakarta.validation.constraints.DecimalMax")) {
+                    annotation.firstValue("value").ifPresent(this::maximum);
+                } else if (annotation.isOrHas("Positive", "jakarta.validation.constraints.Positive")
+                           || annotation.isOrHas("PositiveOrZero",
+                                                 "jakarta.validation.constraints.PositiveOrZero")) {
+                    minimum("0");
+                } else if (annotation.isOrHas("Size", "jakarta.validation.constraints.Size")) {
+                    intValue(annotation, "min").filter(value -> value > 0).ifPresent(value -> minSize = value);
+                    intValue(annotation, "max").filter(value -> value < Integer.MAX_VALUE)
+                            .ifPresent(value -> maxSize = value);
+                } else if (annotation.isOrHas("Pattern", "jakarta.validation.constraints.Pattern")) {
+                    annotation.firstValue("regexp").ifPresent(this::pattern);
+                } else if (annotation.isOrHas("Email", "jakarta.validation.constraints.Email")) {
+                    format("email");
+                } else if (annotation.isOrHas("Range",
+                                              "io.fluxzero.sdk.tracking.handling.validation.constraints.Range")) {
+                    annotation.firstValue("min").ifPresent(this::minimum);
+                    longValue(annotation, "max").filter(value -> value != Long.MAX_VALUE)
+                            .ifPresent(value -> maximum(String.valueOf(value)));
+                } else if (annotation.isOrHas("Length",
+                                              "io.fluxzero.sdk.tracking.handling.validation.constraints.Length")) {
+                    intValue(annotation, "min").filter(value -> value > 0).ifPresent(value -> minSize = value);
+                    intValue(annotation, "max").filter(value -> value < Integer.MAX_VALUE)
+                            .ifPresent(value -> maxSize = value);
+                } else if (annotation.isOrHas("URL",
+                                              "io.fluxzero.sdk.tracking.handling.validation.constraints.URL")) {
+                    format("uri");
+                } else if (annotation.isOrHas("UUID",
+                                              "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID")) {
+                    format("uuid");
+                } else if (annotation.isOrHas("UniqueElements",
+                                              "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements")) {
+                    uniqueItems = true;
                 }
             }
 

@@ -158,6 +158,56 @@ class OpenApiRendererTest {
     }
 
     @Test
+    void generatedOnlyModeUsesRegistryMetadataForSchemaAnnotations() throws Exception {
+        Method method = SchemaMetadataHandler.class.getDeclaredMethod("schema", String.class);
+        ApiDocCatalog catalog = new ApiDocCatalog(List.of(new ApiDocEndpoint(
+                SchemaMetadataHandler.class,
+                method,
+                "",
+                "/schema/{id}",
+                HttpRequestMethod.GET,
+                false,
+                false,
+                new ApiDocDetails("", "", "", List.of(), false, List.of()),
+                List.of(new ApiDocParameter("id", WebParameterSource.PATH, String.class, method.getParameters()[0])),
+                List.of(),
+                method.getGenericReturnType(),
+                List.of())));
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            JsonNode document = OpenApiRenderer.render(catalog);
+            JsonNode id = document.path("paths").path("/schema/{id}").path("get").path("parameters").get(0);
+            JsonNode schema = document.path("components").path("schemas").path("SchemaMetadataDto");
+
+            assertFalse(id.has("description"));
+            assertFalse(schema.path("properties").path("label").has("description"));
+            assertTrue(schema.path("properties").has("hidden"));
+        });
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(SchemaMetadataHandler.class, SchemaMetadataDto.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                JsonNode document = OpenApiRenderer.render(catalog);
+                JsonNode id = document.path("paths").path("/schema/{id}").path("get").path("parameters").get(0);
+                JsonNode schema = document.path("components").path("schemas").path("SchemaMetadataDto");
+                JsonNode properties = schema.path("properties");
+
+                assertEquals("Metadata id", id.path("description").asText());
+                assertEquals("Metadata label", properties.path("label").path("description").asText());
+                assertTrue(contains(schema.path("required"), "label"));
+                assertEquals(2, properties.path("amount").path("minimum").asInt());
+                assertEquals(7, properties.path("amount").path("maximum").asInt());
+                assertTrue(properties.path("tags").path("uniqueItems").asBoolean());
+                assertFalse(properties.has("hidden"));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void rendersFormParametersAsMultipartRequestBody() {
         ApiDocCatalog catalog = ApiDocExtractor.extract(FormHandler.class);
 
@@ -336,6 +386,13 @@ class OpenApiRendererTest {
         }
     }
 
+    static class SchemaMetadataHandler {
+        @HandleGet("/schema/{id}")
+        SchemaMetadataDto schema(@ApiDoc(description = "Metadata id") @PathParam("id") String id) {
+            return null;
+        }
+    }
+
     record CreateReading(
             @ApiDoc(description = "Measured value") @jakarta.validation.constraints.PositiveOrZero
             java.math.BigDecimal value,
@@ -349,6 +406,13 @@ class OpenApiRendererTest {
     }
 
     record ConnectionDto(String id) {
+    }
+
+    record SchemaMetadataDto(
+            @ApiDoc(description = "Metadata label", required = true) String label,
+            @Range(min = 2, max = 7) int amount,
+            @UniqueElements List<String> tags,
+            @ApiDocExclude String hidden) {
     }
 
     static class AccessorDto {

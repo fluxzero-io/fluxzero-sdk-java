@@ -406,10 +406,16 @@ public final class ComponentMetadataLookups {
     private static int parameterIndex(Parameter parameter) {
         Parameter[] parameters = parameter.getDeclaringExecutable().getParameters();
         for (int i = 0; i < parameters.length; i++) {
-            if (parameters[i].equals(parameter)) {
+            if (parameters[i].equals(parameter) || sameParameter(parameters[i], parameter)) {
                 return i;
             }
         }
         return -1;
+    }
+
+    private static boolean sameParameter(Parameter candidate, Parameter parameter) {
+        return candidate.getDeclaringExecutable().equals(parameter.getDeclaringExecutable())
+               && candidate.getParameterizedType().equals(parameter.getParameterizedType())
+               && Objects.equals(candidate.getName(), parameter.getName());
     }
 }

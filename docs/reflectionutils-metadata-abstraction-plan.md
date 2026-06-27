@@ -99,6 +99,9 @@ Work slices:
       annotation fallback.
     - [x] OpenAPI document-level `@ApiDocInfo` rendering uses registry metadata; generated-only mode no longer derives
       document title/version/servers/security/components/extensions through JVM annotation fallback.
+    - [x] OpenAPI schema-level Fluxzero metadata for parameters, fields, record components, and documented accessors
+      uses registry metadata for `@ApiDoc`, `@ApiDocExclude`, and known validation constraints; generated-only mode no
+      longer derives those schema semantics through JVM annotation fallback.
     - [x] Caster method discovery and `@Upcast`/`@Downcast` cast parameters use executable registry metadata;
       generated-only mode no longer discovers caster annotations through JVM annotation fallback.
     - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
