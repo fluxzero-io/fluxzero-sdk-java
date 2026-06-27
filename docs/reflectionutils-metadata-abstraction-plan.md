@@ -66,21 +66,31 @@ Acceptance evidence:
 
 ### Slice 2: Runtime Decision Matrix
 
+Status: [x] implemented.
+
 Goal: every Fluxzero runtime decision that belongs to app semantics has an explicit source in the generated app model.
 
 Remaining work:
 
-- [ ] Add a runtime-decision matrix that maps each app-semantic decision to one of: consumed registry metadata,
+- [x] Add a runtime-decision matrix that maps each app-semantic decision to one of: consumed registry metadata,
   generated invocation plan, or allowed JVM-only backend implementation.
-- [ ] Cover runtime consumers rather than producers: handler matching, handler filters, parameter binding, validation,
+- [x] Cover runtime consumers rather than producers: handler matching, handler filters, parameter binding, validation,
   data protection, content filtering, routing, casting, scheduling, web/socket/document/custom routes, and registered
   types.
-- [ ] Add a lightweight maintenance guard for the matrix where practical, so new app-semantic runtime code must declare
+- [x] Add a lightweight maintenance guard for the matrix where practical, so new app-semantic runtime code must declare
   its metadata source.
 
 Done when:
 
-- [ ] There is no undocumented "Fluxzero magic" left outside the generated model or the allowed JVM-only backend list.
+- [x] There is no undocumented "Fluxzero magic" left outside the generated model or the allowed JVM-only backend list.
+
+Acceptance evidence:
+
+- [x] Runtime decisions are mapped in `docs/metadata-runtime-decision-matrix.md`.
+- [x] `RuntimeDecisionMatrixTest` requires coverage for all current app-semantic consumer areas and restricts source
+  values to `Registry metadata`, `Generated invocation plan`, `Allowed JVM backend`, or `Hybrid`.
+- [x] Guard command passed:
+  `./mvnw -pl sdk-jvm -am -Dtest=RuntimeDecisionMatrixTest,ReflectionBoundaryTest -Dsurefire.failIfNoSpecifiedTests=false test`.
 
 ### Slice 3: Generated Invocation Plan
 
