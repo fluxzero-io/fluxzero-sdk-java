@@ -15,7 +15,12 @@
 package io.fluxzero.sdk.scheduling;
 
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import org.junit.jupiter.api.Test;
@@ -23,7 +28,12 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Predicate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SchedulingInterceptorTest {
     private static final Instant START = Instant.parse("2024-01-01T12:10:00Z");
@@ -82,6 +92,72 @@ class SchedulingInterceptorTest {
                         && !wasCronScheduled(schedule.getMetadata()));
     }
 
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForPeriodicPayloads() throws Exception {
+        try {
+            TestFixture fixture = TestFixture.create().atFixedTime(START);
+
+            GeneratedOnlyMetadataMode.run(() -> assertThrows(IllegalArgumentException.class,
+                    () -> fixture.getFluxzero().messageScheduler()
+                            .schedulePeriodic(new UnregisteredGeneratedOnlyPeriodicSchedule())));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForPeriodicPayloads() throws Exception {
+        try {
+            TestFixture fixture = TestFixture.create().atFixedTime(START);
+            fixture.getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredGeneratedOnlyPeriodicSchedule.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> assertEquals(
+                    "registered-periodic",
+                    fixture.getFluxzero().messageScheduler()
+                            .schedulePeriodic(new RegisteredGeneratedOnlyPeriodicSchedule())));
+
+            assertTrue(fixture.getFluxzero().messageScheduler().getSchedule("registered-periodic").isPresent());
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForPeriodicHandlerMethods() throws Exception {
+        try {
+            TestFixture fixture = TestFixture.create().withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
+                    .atFixedTime(START);
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    new SchedulingInterceptor().wrap(handler(UnregisteredGeneratedOnlyPeriodicHandler.class)));
+
+            assertTrue(fixture.getFluxzero().messageScheduler()
+                               .getSchedule(UnregisteredGeneratedOnlyMethodSchedule.class.getName()).isEmpty());
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForPeriodicHandlerMethods() throws Exception {
+        try {
+            TestFixture fixture = TestFixture.create().withProperty(Periodic.USE_DEFAULT_INITIAL_DELAY_PROPERTY, true)
+                    .atFixedTime(START);
+            fixture.getFluxzero().registerComponentRegistry(JvmComponentMetadataLookup.scan(
+                    RegisteredGeneratedOnlyPeriodicHandler.class,
+                    RegisteredGeneratedOnlyMethodSchedule.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    new SchedulingInterceptor().wrap(handler(RegisteredGeneratedOnlyPeriodicHandler.class)));
+
+            assertTrue(fixture.getFluxzero().messageScheduler()
+                               .getSchedule(RegisteredGeneratedOnlyMethodSchedule.class.getName()).isPresent());
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static Periodic periodic(Class<?> type) {
         return type.getAnnotation(Periodic.class);
     }
@@ -106,6 +182,20 @@ class SchedulingInterceptorTest {
     private static boolean hasCronSchema(Metadata metadata, Periodic periodic) {
         return PeriodicSchedulingDefaults.cronSchema(periodic)
                 .equals(metadata.get(PeriodicSchedulingDefaults.CRON_SCHEMA_METADATA_KEY));
+    }
+
+    private static Handler<DeserializingMessage> handler(Class<?> targetClass) {
+        return new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.empty();
+            }
+        };
     }
 
     @Periodic(cron = "0 */4 * * *")
@@ -135,6 +225,38 @@ class SchedulingInterceptorTest {
         @Periodic(cron = "0 * * * *", autoStart = false)
         Duration handle(DynamicDelaySchedule schedule) {
             return Duration.ofHours(5);
+        }
+    }
+
+    @Periodic(delay = 1000, initialDelay = 0)
+    static class UnregisteredGeneratedOnlyPeriodicSchedule {
+    }
+
+    @Periodic(delay = 1000, initialDelay = 0, scheduleId = "registered-periodic")
+    static class RegisteredGeneratedOnlyPeriodicSchedule {
+    }
+
+    static class UnregisteredGeneratedOnlyMethodSchedule {
+        public UnregisteredGeneratedOnlyMethodSchedule() {
+        }
+    }
+
+    static class UnregisteredGeneratedOnlyPeriodicHandler {
+        @HandleSchedule
+        @Periodic(delay = 1000, initialDelay = 0)
+        void handle(UnregisteredGeneratedOnlyMethodSchedule schedule) {
+        }
+    }
+
+    static class RegisteredGeneratedOnlyMethodSchedule {
+        public RegisteredGeneratedOnlyMethodSchedule() {
+        }
+    }
+
+    static class RegisteredGeneratedOnlyPeriodicHandler {
+        @HandleSchedule
+        @Periodic(delay = 1000, initialDelay = 0)
+        void handle(RegisteredGeneratedOnlyMethodSchedule schedule) {
         }
     }
 }

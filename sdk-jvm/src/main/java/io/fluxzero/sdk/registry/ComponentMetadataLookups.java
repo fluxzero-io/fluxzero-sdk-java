@@ -17,6 +17,7 @@ package io.fluxzero.sdk.registry;
 import io.fluxzero.common.ThrowingRunnable;
 import io.fluxzero.sdk.Fluxzero;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -106,6 +107,19 @@ public final class ComponentMetadataLookups {
         return executable(lookup, executable)
                 .map(ExecutableDescriptor::annotations)
                 .orElseGet(List::of);
+    }
+
+    /**
+     * Projects type-level metadata annotations to a JVM annotation view.
+     */
+    public static <A extends Annotation> Optional<A> typeAnnotation(
+            ComponentMetadataLookup lookup, Class<?> type, Class<A> annotationType) {
+        Objects.requireNonNull(lookup, "lookup");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(annotationType, "annotationType");
+        return MetadataAnnotationResolver.annotation(lookup.typeAnnotations(type.getName()), annotationType, type)
+                .filter(annotationType::isInstance)
+                .map(annotationType::cast);
     }
 
     /**

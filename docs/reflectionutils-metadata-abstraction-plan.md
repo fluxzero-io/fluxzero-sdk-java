@@ -76,6 +76,9 @@ Work slices:
       `@DropProtectedData`; generated-only mode no longer protects or drops data through JVM annotation fallback.
     - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns
       through direct scanner fallback.
+    - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
+      methods and payload types; generated-only mode no longer derives scheduling semantics through JVM annotation
+      fallback.
 - [ ] Slice D: Generated invocation parity.
   - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
     `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.

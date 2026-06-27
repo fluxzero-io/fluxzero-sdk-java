@@ -17,7 +17,6 @@ package io.fluxzero.sdk.scheduling;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
@@ -103,10 +102,8 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      */
     default String schedulePeriodic(@NonNull Object value, Object scheduleId) {
         Class<?> payloadType = value instanceof Message m ? m.getPayloadClass() : value.getClass();
-        var periodic = JvmComponentIntrospector.getInstance().<Periodic>getTypeAnnotation(payloadType, Periodic.class);
-        if (periodic == null) {
-            throw new IllegalArgumentException(FluxzeroErrors.periodicScheduleAnnotationMissing(payloadType).format());
-        }
+        Periodic periodic = PeriodicMetadata.type(payloadType).orElseThrow(() ->
+                new IllegalArgumentException(FluxzeroErrors.periodicScheduleAnnotationMissing(payloadType).format()));
         String effectiveScheduleId = Optional.ofNullable(scheduleId).map(Object::toString)
                 .or(() -> Optional.of(periodic.scheduleId()).filter(s -> !s.isBlank()))
                 .orElseGet(() -> value instanceof HasMessage m ? m.getPayload().toString() : value.toString());

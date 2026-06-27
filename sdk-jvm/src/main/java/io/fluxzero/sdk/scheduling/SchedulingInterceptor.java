@@ -23,12 +23,11 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
@@ -47,7 +46,6 @@ import static java.time.Duration.between;
 import static java.time.Instant.ofEpochMilli;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Optional.ofNullable;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Intercepts scheduled messages to handle periodic scheduling logic.
@@ -81,12 +79,11 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
-        List<Method> methods = JvmComponentIntrospector.getInstance().getAnnotatedMethods(handler.getTargetClass(), HandleSchedule.class);
-        for (Method method : methods) {
-            Periodic periodic = method.getAnnotation(Periodic.class);
+        for (var method : PeriodicMetadata.scheduleMethods(handler.getTargetClass())) {
+            Periodic periodic = PeriodicMetadata.executable(method).orElse(null);
             if (method.getParameterCount() > 0) {
                 Class<?> type = method.getParameters()[0].getType();
-                periodic = periodic == null ? JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Periodic.class) : periodic;
+                periodic = periodic == null ? PeriodicMetadata.type(type).orElse(null) : periodic;
                 try {
                     initializePeriodicSchedule(type, periodic);
                 } catch (Exception e) {
@@ -167,8 +164,8 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
         return schedule -> {
             if (schedule.getMessageType() == MessageType.SCHEDULE) {
                 long deadline = millisFromIndex(schedule.getIndex());
-                Periodic periodic = ofNullable(invoker.getMethod()).map(method -> method.getAnnotation(Periodic.class))
-                        .or(() -> ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(schedule.getPayloadClass(), Periodic.class)))
+                Periodic periodic = ofNullable(invoker.getMethod()).flatMap(PeriodicMetadata::executable)
+                        .or(() -> PeriodicMetadata.type(schedule.getPayloadClass()))
                         .orElse(null);
                 if (periodic != null && PeriodicSchedulingDefaults.isDisabledCron(periodic)) {
                     log.warn("Periodic scheduling is disabled for {}. Ignoring schedule {}.",
