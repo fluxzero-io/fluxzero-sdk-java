@@ -14,12 +14,14 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableAnnotationResolver;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.metrics.IgnoreMessageEvent;
@@ -43,6 +45,7 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     private final boolean publishMetrics;
     private final Class<? extends Annotation> handlerAnnotation;
     private final JvmComponentIntrospector introspector;
+    private final ExecutableAnnotationResolver annotationResolver;
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation) {
         this(publishMetrics, handlerAnnotation, JvmComponentIntrospector.getInstance());
@@ -50,9 +53,16 @@ class ExpiredRequestDecorator implements HandlerDecorator {
 
     ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
                             JvmComponentIntrospector introspector) {
+        this(publishMetrics, handlerAnnotation, introspector, MetadataExecutableAnnotationResolver.create());
+    }
+
+    ExpiredRequestDecorator(boolean publishMetrics, Class<? extends Annotation> handlerAnnotation,
+                            JvmComponentIntrospector introspector,
+                            ExecutableAnnotationResolver annotationResolver) {
         this.publishMetrics = publishMetrics;
         this.handlerAnnotation = Objects.requireNonNull(handlerAnnotation, "handlerAnnotation");
         this.introspector = Objects.requireNonNull(introspector, "introspector");
+        this.annotationResolver = Objects.requireNonNull(annotationResolver, "annotationResolver");
     }
 
     @Override
@@ -91,7 +101,9 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     }
 
     private boolean skipExpiredRequests(Executable executable) {
-        return introspector.executableAnnotationAs(executable, handlerAnnotation, HandleAnnotation.class)
+        return annotationResolver.getAnnotation(executable, handlerAnnotation)
+                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
+                                                                    HandleAnnotation.class))
                 .map(HandleAnnotation::isSkipExpiredRequests).orElse(false);
     }
 

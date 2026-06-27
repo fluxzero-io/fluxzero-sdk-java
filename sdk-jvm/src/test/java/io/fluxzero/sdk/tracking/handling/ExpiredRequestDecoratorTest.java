@@ -19,9 +19,13 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.RequestHandler;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
@@ -32,8 +36,10 @@ import io.fluxzero.sdk.web.HttpRequestMethod;
 import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Executable;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,6 +59,32 @@ class ExpiredRequestDecoratorTest {
         Handler<DeserializingMessage> handler = handler(MessageType.COMMAND, new SkippingCommandHandler());
 
         assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
+    }
+
+    @Test
+    void decoratorDoesNotUseReflectionFallbackForSkipExpiredRequests() throws Exception {
+        Executable executable = SkippingCommandHandler.class.getDeclaredMethod("handle");
+        Handler<DeserializingMessage> handler = new ExpiredRequestDecorator(
+                true, HandleCommand.class, JvmComponentIntrospector.getInstance(), (e, a) -> Optional.empty())
+                .wrap(singleInvoker(SkippingCommandHandler.class, executable));
+
+        assertTrue(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForSkipExpiredRequests() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(SkippingCommandHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = handler(MessageType.COMMAND, new SkippingCommandHandler());
+
+                assertFalse(handler.getInvoker(expiredMessage(MessageType.COMMAND, true)).isPresent());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Test
@@ -173,6 +205,20 @@ class ExpiredRequestDecoratorTest {
             message.setIndex(IndexUtils.indexFromTimestamp(timestamp));
         }
         return new DeserializingMessage(message, ignored -> null, messageType, null, null);
+    }
+
+    private static Handler<DeserializingMessage> singleInvoker(Class<?> targetClass, Executable executable) {
+        return new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return targetClass;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return Optional.of(HandlerInvoker.noOp(targetClass, executable));
+            }
+        };
     }
 
     static class CommandHandler {

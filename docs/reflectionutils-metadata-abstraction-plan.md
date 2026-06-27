@@ -88,6 +88,8 @@ Work slices:
     metadata.
   - [x] Route payload `allowedClasses` filtering through the same metadata-backed annotation resolver and prove
     generated-only behavior with and without registry metadata.
+  - [x] Route `skipExpiredRequests` through the metadata-backed annotation resolver and prove generated-only request
+    expiry behavior.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
   - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
     invocation plans are available.

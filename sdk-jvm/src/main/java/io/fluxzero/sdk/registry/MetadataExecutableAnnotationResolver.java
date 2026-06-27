@@ -70,8 +70,7 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
         String simpleName = annotationType.getSimpleName();
         String qualifiedName = annotationType.getName();
         return annotations.stream()
-                .map(annotation -> annotation.find(simpleName, qualifiedName))
-                .flatMap(Optional::stream)
+                .filter(annotation -> annotation.isOrHas(simpleName, qualifiedName))
                 .findFirst();
     }
 
@@ -82,18 +81,21 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
             case "toString" -> descriptor.toString();
             case "hashCode" -> descriptor.hashCode();
             case "equals" -> proxy == (args == null ? null : args[0]);
-            default -> attributeValue(descriptor, method, declaringClass);
+            default -> attributeValue(descriptor, annotationType, method, declaringClass);
         };
         return annotationType.cast(Proxy.newProxyInstance(
                 annotationType.getClassLoader(), new Class<?>[]{annotationType}, handler));
     }
 
-    private static Object attributeValue(AnnotationDescriptor descriptor, Method method, Class<?> declaringClass) {
+    private static Object attributeValue(AnnotationDescriptor descriptor, Class<? extends Annotation> annotationType,
+                                         Method method, Class<?> declaringClass) {
         String attributeName = method.getName();
-        if (!descriptor.attributes().containsKey(attributeName)) {
+        AnnotationDescriptor source = descriptor.attributes().containsKey(attributeName) ? descriptor
+                : metaAnnotation(descriptor, annotationType).orElse(descriptor);
+        if (!source.attributes().containsKey(attributeName)) {
             return method.getDefaultValue();
         }
-        List<String> values = descriptor.values(attributeName);
+        List<String> values = source.values(attributeName);
         Class<?> returnType = method.getReturnType();
         if (!returnType.isArray()) {
             if (values.isEmpty()) {
@@ -107,6 +109,16 @@ public final class MetadataExecutableAnnotationResolver implements ExecutableAnn
             Array.set(result, i, value(values.get(i), componentType, declaringClass));
         }
         return result;
+    }
+
+    private static Optional<AnnotationDescriptor> metaAnnotation(
+            AnnotationDescriptor descriptor, Class<? extends Annotation> annotationType) {
+        String simpleName = annotationType.getSimpleName();
+        String qualifiedName = annotationType.getName();
+        return descriptor.metaAnnotations().stream()
+                .map(annotation -> annotation.find(simpleName, qualifiedName))
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
