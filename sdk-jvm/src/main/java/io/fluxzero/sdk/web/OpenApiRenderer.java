@@ -19,6 +19,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -70,7 +74,6 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.PUT;
 import static io.fluxzero.sdk.web.HttpRequestMethod.TRACE;
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Renders a generic {@link ApiDocCatalog} as an OpenAPI JSON document.
@@ -168,13 +171,33 @@ public final class OpenApiRenderer {
     private static DocumentInfo documentInfo(ApiDocCatalog catalog, OpenApiOptions options) {
         DocumentInfoBuilder builder = new DocumentInfoBuilder();
         for (ApiDocEndpoint endpoint : catalog.endpoints()) {
-            packages(endpoint.handlerType()).forEach(p -> builder.apply(p.getAnnotation(ApiDocInfo.class)));
-            builder.apply(endpoint.handlerType().getAnnotation(ApiDocInfo.class));
+            applyDocumentInfo(builder, endpoint.handlerType());
         }
         if (options != null) {
             builder.apply(options);
         }
         return builder.build();
+    }
+
+    private static void applyDocumentInfo(DocumentInfoBuilder builder, Class<?> handlerType) {
+        Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
+        if (lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            lookup.ifPresent(l -> {
+                l.packageMetadataChain(handlerType.getPackageName()).reversed().stream()
+                        .map(descriptor -> descriptor.annotations())
+                        .forEach(annotations -> applyDocumentInfo(builder, annotations, handlerType));
+                applyDocumentInfo(builder, l.typeAnnotations(handlerType.getName()), handlerType);
+            });
+            return;
+        }
+        packages(handlerType).forEach(p -> builder.apply(p.getAnnotation(ApiDocInfo.class)));
+        builder.apply(handlerType.getAnnotation(ApiDocInfo.class));
+    }
+
+    private static void applyDocumentInfo(
+            DocumentInfoBuilder builder, List<AnnotationDescriptor> annotations, Class<?> declaringClass) {
+        ComponentMetadataLookups.annotationAs(annotations, ApiDocInfo.class, ApiDocInfo.class, declaringClass)
+                .ifPresent(builder::apply);
     }
 
     private static List<Package> packages(Class<?> type) {

@@ -15,6 +15,9 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Range;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.URL;
@@ -22,6 +25,7 @@ import io.fluxzero.sdk.tracking.handling.validation.constraints.UUID;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -122,6 +126,35 @@ class OpenApiRendererTest {
         JsonNode operation = document.path("paths").path("/info").path("get");
         assertEquals("bearerAuth", operation.path("security").get(0).fieldNames().next());
         assertEquals("#/components/responses/error", operation.path("responses").path("400").path("$ref").asText());
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForDocumentInfo() throws Exception {
+        ApiDocCatalog catalog = manualCatalog(InfoHandler.class, "info");
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            JsonNode document = OpenApiRenderer.render(catalog);
+
+            assertEquals("Fluxzero API", document.path("info").path("title").asText());
+            assertFalse(document.path("components").path("securitySchemes").has("bearerAuth"));
+        });
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(InfoHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                JsonNode document = OpenApiRenderer.render(catalog);
+
+                assertEquals("Annotated API", document.path("info").path("title").asText());
+                assertEquals("v9", document.path("info").path("version").asText());
+                assertEquals("bearerAuth", document.path("security").get(0).fieldNames().next());
+                assertEquals("http", document.path("components").path("securitySchemes").path("bearerAuth")
+                        .path("type").asText());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     @Test
@@ -356,6 +389,23 @@ class OpenApiRendererTest {
     static class JsonValueId {
         @com.fasterxml.jackson.annotation.JsonValue
         String value;
+    }
+
+    private static ApiDocCatalog manualCatalog(Class<?> handlerType, String methodName) throws NoSuchMethodException {
+        Method method = handlerType.getDeclaredMethod(methodName);
+        return new ApiDocCatalog(List.of(new ApiDocEndpoint(
+                handlerType,
+                method,
+                "",
+                "/" + methodName,
+                HttpRequestMethod.GET,
+                false,
+                false,
+                new ApiDocDetails("", "", "", List.of(), false, List.of()),
+                List.of(),
+                List.of(),
+                method.getGenericReturnType(),
+                List.of())));
     }
 
     private static boolean contains(JsonNode array, String value) {
