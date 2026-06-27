@@ -294,7 +294,7 @@ Acceptance evidence:
 
 ## Phase 3: Hardening After This Plan
 
-Status: [ ] planned.
+Status: [x] implemented.
 
 Context: these are adoption and confidence steps after the metadata/runtime direction is proven.
 
@@ -315,7 +315,10 @@ Work:
   - [x] Parity assertions now fail per package/component, so future corpus failures point at the exact semantic drift.
   - [x] Fixed source scanning so lower `package-info.java` files inherit ancestor `@Consumer` and `@LocalHandler`
     semantics while still preserving lower package web-path metadata.
-- [ ] Rerun full `./mvnw -B install` after the current parity changes.
+- [x] Rerun full `./mvnw -B install` after the current parity changes.
+  - [x] First full install exposed a transient proxy upload assertion failure.
+  - [x] Full `ProxyServerTest` rerun passed before retrying the reactor.
+  - [x] Second full install passed across all modules.
 
 ## Recent Verification
 
@@ -341,7 +344,7 @@ Work:
   `-Pbrowser-conformance`, including Playwright/TeaVM E2E.
 - [x] Phase 3 registry lifecycle focused tests passed for `ComponentRegistryGeneratorTest` and `DownstreamProjectTest`.
 - [x] Phase 3 real-app registry corpus and focused registry cluster passed.
-- [ ] Full multi-module install has not been rerun after the current parity changes.
+- [x] Full multi-module install passed after the current Phase 3 parity changes.
 
 ## Reference: Boundary Shape
 
