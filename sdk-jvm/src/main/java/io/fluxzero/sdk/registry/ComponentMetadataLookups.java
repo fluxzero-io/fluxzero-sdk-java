@@ -29,6 +29,22 @@ import java.util.concurrent.ConcurrentMap;
  * Generated or registered component registries win. JVM classpath scanning is the compatibility fallback.
  */
 public final class ComponentMetadataLookups {
+    /**
+     * Runtime metadata mode property. The default is hybrid mode: generated/registered metadata wins, with JVM
+     * classpath scanning as compatibility fallback.
+     */
+    public static final String METADATA_MODE_PROPERTY = "fluxzero.metadata.mode";
+
+    /**
+     * Environment variable alias for {@link #METADATA_MODE_PROPERTY}.
+     */
+    public static final String METADATA_MODE_ENV = "FLUXZERO_METADATA_MODE";
+
+    /**
+     * Metadata mode that forbids classpath/reflection fallback in the central resolver.
+     */
+    public static final String GENERATED_ONLY_MODE = "generated-only";
+
     private static final ConcurrentMap<ClassLoader, ComponentRegistry> generatedRegistries = new ConcurrentHashMap<>();
 
     private ComponentMetadataLookups() {
@@ -83,8 +99,23 @@ public final class ComponentMetadataLookups {
     }
 
     private static Optional<ComponentMetadataLookup> jvmLookup(List<Class<?>> types) {
+        if (generatedOnlyMode()) {
+            return Optional.empty();
+        }
         return types.stream().allMatch(JvmComponentMetadataLookup::isScannable)
                 ? Optional.of(JvmComponentMetadataLookup.scan(types)) : Optional.empty();
+    }
+
+    /**
+     * Returns whether the central metadata resolver is configured to refuse JVM classpath/reflection fallback.
+     */
+    public static boolean generatedOnlyMode() {
+        String configured = System.getProperty(METADATA_MODE_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv(METADATA_MODE_ENV);
+        }
+        return GENERATED_ONLY_MODE.equalsIgnoreCase(configured)
+               || "generatedOnly".equalsIgnoreCase(configured);
     }
 
     private static boolean containsAll(ComponentRegistry registry, List<Class<?>> types) {

@@ -22,6 +22,56 @@ Overall status: [ ] in progress.
 Migration rule: move broad layers, not narrow vertical features. Fluxzero should not ask projects to run a
 half-reflection, half-blueprint semantic model.
 
+## Current Backlog: Generated Metadata Runtime Parity
+
+Status: [ ] open.
+
+Context: browser conformance is parked as a breadth exercise until the JVM runtime can prove the same generated app
+model. The browser should not need to prove that Fluxzero was reimplemented; it should only prove that another backend
+can execute the same generated metadata and generated invocation form.
+
+Acceptance criteria:
+
+- [ ] `ComponentRegistry` is complete enough for all Fluxzero runtime decisions.
+- [x] JVM runtime has a central generated-only metadata resolver mode.
+- [ ] In generated-only mode, reflection fallback is forbidden for app semantics.
+- [ ] Existing `sdk-jvm` tests run green in generated-only mode, first by thematic clusters and then broadly.
+- [ ] Browser generator uses the same metadata and generated invocation shape after the JVM proves the model.
+
+Work slices:
+
+- [x] Slice A: Generated-only metadata resolver mode.
+  - [x] Add an explicit runtime/property switch for generated-only metadata.
+  - [x] Make the central JVM metadata resolver refuse classpath/reflection fallback in that mode.
+  - [x] Add focused tests proving registry-backed lookup still works and reflection-backed fallback is absent.
+- [ ] Slice B: Direct JVM scanner-call inventory and guardrail.
+  - [ ] Treat direct `JvmComponentMetadataLookup.scan(...)`, `scanIfScannable(...)`, and
+    `new ClasspathComponentScanner().scan(...)` calls in runtime code as backlog debt.
+  - [ ] Add a focused guardrail that can be tightened as each thematic cluster moves through the central/generated
+    resolver.
+- [ ] Slice C: Thematic generated-only JVM clusters.
+  - [ ] Handler discovery, filtering, and invocation.
+  - [ ] Consumer, local/tracked, gateway, and tracking configuration.
+  - [ ] Modeling, aggregates, entities, repositories, and property access.
+  - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
+- [ ] Slice D: Generated invocation parity.
+  - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
+  - [ ] Keep unavoidable JVM-only reflection behind an explicit backend seam.
+- [ ] Slice E: Browser resumes only after JVM generated-only evidence.
+  - [ ] Browser generator consumes the same metadata/invocation contracts proven by JVM tests.
+  - [ ] Browser-conformance checks backend compatibility, not a copied Fluxzero implementation.
+
+Module shape checkpoint:
+
+- [ ] Preserve the current customer-facing Java SDK artifact/module shape before customer adoption. The existing SDK
+  should remain the JVM cornerstone; a thin compatibility artifact is not a satisfying long-term answer.
+- [ ] Re-evaluate whether `sdk-jvm` should remain a public cornerstone module or be folded back into the existing
+  SDK artifact before this branch becomes customer-facing.
+- [ ] Keep edge/tooling modules only where they buy clear isolation: `sdk-browser-generator` and
+  `browser-conformance` are acceptable as tooling/test edges; cornerstone modules need a higher bar.
+- [ ] Re-evaluate `common-api` and `sdk-api` after generated-only JVM parity. They are justified only if they remain
+  genuinely browser-safe/shared contracts rather than architecture-for-architecture's-sake.
+
 ## Phase 1: Foundation And Registry Parity
 
 Status: [x] implemented.
