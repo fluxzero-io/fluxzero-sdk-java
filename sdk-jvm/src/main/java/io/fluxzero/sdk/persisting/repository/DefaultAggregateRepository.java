@@ -20,7 +20,6 @@ import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -55,6 +54,11 @@ import io.fluxzero.sdk.persisting.eventsourcing.SnapshotTrigger;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.ExecutableKind;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -213,14 +217,47 @@ public class DefaultAggregateRepository implements AggregateRepository {
     }
 
     private static Optional<Class<?>> inferAggregateTypeFromApplyFactory(Class<?> eventType) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedMethods(eventType, Apply.class).stream()
+        return inferAggregateTypeFromApplyFactoryMetadata(eventType)
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedMethods(eventType, Apply.class).stream()
                 .filter(method -> method.getParameterCount() == 0)
                 .map(Method::getReturnType)
                 .filter(returnType -> !void.class.equals(returnType)
                                       && !Void.class.equals(returnType)
                                       && !Object.class.equals(returnType))
                 .findFirst()
-                .map(returnType -> (Class<?>) returnType);
+                .map(returnType -> (Class<?>) returnType));
+    }
+
+    private static Optional<Class<?>> inferAggregateTypeFromApplyFactoryMetadata(Class<?> eventType) {
+        return JvmComponentMetadataLookup.scanIfScannable(eventType)
+                .flatMap(lookup -> lookup.executables(eventType).stream()
+                        .filter(executable -> executable.kind() == ExecutableKind.METHOD)
+                        .filter(executable -> executable.parameters().isEmpty())
+                        .filter(executable -> hasAnnotation(executable, Apply.class))
+                        .map(ExecutableDescriptor::returnTypeName)
+                        .filter(returnType -> !void.class.getName().equals(returnType)
+                                              && !Void.class.getName().equals(returnType)
+                                              && !Object.class.getName().equals(returnType))
+                        .flatMap(returnType -> JvmComponentMetadataLookup.classForMetadataName(returnType).stream())
+                        .findFirst());
+    }
+
+    private static boolean hasAnnotation(
+            ExecutableDescriptor executable, Class<? extends java.lang.annotation.Annotation> annotationType) {
+        return executable.annotations().stream().anyMatch(annotation -> annotationMatches(annotation, annotationType));
+    }
+
+    private static boolean annotationMatches(
+            AnnotationDescriptor annotation, Class<? extends java.lang.annotation.Annotation> annotationType) {
+        return annotation.qualifiedName().equals(annotationType.getName())
+               || annotation.name().equals(annotationType.getSimpleName());
+    }
+
+    private static Optional<String> entityIdPropertyName(Class<?> type) {
+        return JvmComponentMetadataLookup.scanIfScannable(type)
+                .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
+                        .map(property -> JvmComponentIntrospector.getInstance().getName(property)));
     }
 
     @SuppressWarnings("unchecked")
@@ -340,8 +377,7 @@ public class DefaultAggregateRepository implements AggregateRepository {
             this.collection = Optional.of(annotation).map(Aggregate::collection)
                     .filter(s -> !s.isEmpty()).map(ApplicationProperties::substituteProperties)
                     .orElse(type.getSimpleName());
-            this.idProperty = JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
-                    .map(property -> JvmComponentIntrospector.getInstance().getName(property)).orElse(null);
+            this.idProperty = entityIdPropertyName(type).orElse(null);
             String timestampPath = Optional.of(annotation)
                     .map(Aggregate::timestampPath)
                     .filter(not(String::isBlank))

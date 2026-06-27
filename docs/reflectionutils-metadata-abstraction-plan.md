@@ -193,7 +193,10 @@ Work:
   - [x] Search/document indexing `@EntityId` property discovery uses descriptor metadata before JVM fallback.
   - [x] Stateful handler `@EntityId`, `@Member`, and `@RoutingKey` policy discovery uses descriptor metadata before
     JVM access fallback.
-  - [ ] Aggregate repository/entity-helper property traversal still uses the JVM backend directly.
+  - [x] Aggregate repository `@EntityId` property and `@Apply` factory-method discovery use descriptor metadata before
+    JVM fallback.
+  - [ ] Recursive entity-helper/entity traversal for `@Member`, `@Alias`, `@AssertLegal`, and routing-key properties
+    still uses the JVM backend directly.
 - [ ] Invocation and mutable property access behind a platform backend seam.
 
 Done when:
@@ -271,6 +274,9 @@ Work:
 - [x] Slice 4 property-policy tests for data protection, search, stateful members, and metadata lookup passed with
   `-Dmaven.compiler.proc=full`.
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after property-policy migration.
+- [x] Aggregate repository/modeling focused tests passed with `-Dmaven.compiler.proc=full` after aggregate metadata
+  discovery migration.
+- [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after aggregate metadata discovery migration.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape
