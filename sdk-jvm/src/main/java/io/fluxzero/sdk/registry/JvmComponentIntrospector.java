@@ -139,6 +139,19 @@ public final class JvmComponentIntrospector implements
     }
 
     /**
+     * Returns a readable property member by logical property name when present.
+     */
+    public Optional<AccessibleObject> getProperty(Class<?> type, String propertyName) {
+        if (type == null || propertyName == null || propertyName.isBlank()) {
+            return Optional.empty();
+        }
+        return propertyAccessor(type, "get" + capitalize(propertyName))
+                .or(() -> propertyAccessor(type, propertyName))
+                .map(method -> (AccessibleObject) method)
+                .or(() -> getTypeMetadata(type).field(propertyName).map(field -> (AccessibleObject) ensureAccessible(field)));
+    }
+
+    /**
      * Returns all properties annotated with the supplied annotation.
      */
     public List<? extends AccessibleObject> getAnnotatedProperties(
@@ -339,6 +352,17 @@ public final class JvmComponentIntrospector implements
      */
     public Optional<Class<?>> getCollectionElementType(AccessibleObject fieldOrMethod) {
         return ReflectionUtils.getCollectionElementType(fieldOrMethod);
+    }
+
+    private Optional<Method> propertyAccessor(Class<?> type, String methodName) {
+        return getTypeMetadata(type).methods(methodName).stream()
+                .filter(method -> method.getParameterCount() == 0)
+                .filter(method -> method.getReturnType() != void.class)
+                .findFirst();
+    }
+
+    private static String capitalize(String value) {
+        return value.isEmpty() ? value : Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     /**

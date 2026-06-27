@@ -20,7 +20,10 @@ import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelMetadataTest {
@@ -62,6 +65,52 @@ class ModelMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForPropertyMetadata() throws Exception {
+        var member = UnregisteredGeneratedOnlyAggregate.class.getDeclaredField("children");
+        var alias = UnregisteredGeneratedOnlyChild.class.getDeclaredField("alias");
+
+        GeneratedOnlyMetadataMode.run(() -> {
+            assertTrue(ModelMetadata.member(member).isEmpty());
+            assertTrue(ModelMetadata.alias(alias).isEmpty());
+            assertTrue(ModelMetadata.annotatedPropertyLocations(
+                    UnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
+            assertTrue(ModelMetadata.annotatedPropertyName(
+                    UnregisteredGeneratedOnlyAggregate.class, Member.class).isEmpty());
+            assertFalse(ModelMetadata.hasAnnotatedProperty(
+                    UnregisteredGeneratedOnlyAggregate.class, Member.class));
+        });
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegisteredPropertyMetadata() throws Exception {
+        var memberField = RegisteredGeneratedOnlyAggregate.class.getDeclaredField("children");
+        var aliasField = RegisteredGeneratedOnlyChild.class.getDeclaredField("alias");
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(
+                            RegisteredGeneratedOnlyAggregate.class, RegisteredGeneratedOnlyChild.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                var member = ModelMetadata.member(memberField).orElseThrow();
+                var alias = ModelMetadata.alias(aliasField).orElseThrow();
+
+                assertEquals("customId", member.idProperty());
+                assertEquals("withChildren", member.wither());
+                assertEquals("pre-", alias.prefix());
+                assertEquals("-post", alias.postfix());
+                assertEquals(List.of(memberField), ModelMetadata.annotatedPropertyLocations(
+                        RegisteredGeneratedOnlyAggregate.class, Member.class));
+                assertEquals("children", ModelMetadata.annotatedPropertyName(
+                        RegisteredGeneratedOnlyAggregate.class, Member.class).orElseThrow());
+                assertTrue(ModelMetadata.hasAnnotatedProperty(
+                        RegisteredGeneratedOnlyAggregate.class, Member.class));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static class MetadataAggregate {
         @Member(idProperty = "customId", wither = "withChildren")
         private MetadataChild children;
@@ -88,5 +137,25 @@ class ModelMetadataTest {
         @Apply(disableCompatibilityCheck = true)
         void apply() {
         }
+    }
+
+    private static class UnregisteredGeneratedOnlyAggregate {
+        @Member(idProperty = "customId", wither = "withChildren")
+        private UnregisteredGeneratedOnlyChild children;
+    }
+
+    private static class UnregisteredGeneratedOnlyChild {
+        @Alias(prefix = "pre-", postfix = "-post")
+        private String alias;
+    }
+
+    private static class RegisteredGeneratedOnlyAggregate {
+        @Member(idProperty = "customId", wither = "withChildren")
+        private RegisteredGeneratedOnlyChild children;
+    }
+
+    private static class RegisteredGeneratedOnlyChild {
+        @Alias(prefix = "pre-", postfix = "-post")
+        private String alias;
     }
 }

@@ -79,6 +79,8 @@ Work slices:
     - [x] `ClientUtils.getSearchParameters` uses metadata-backed `@Searchable` projection, including `@Aggregate`
       meta-annotation attributes; generated-only mode no longer derives search collection/timestamp policy through
       JVM annotation fallback.
+    - [x] `ModelMetadata` uses metadata-backed member, alias, and annotated-property discovery; generated-only mode no
+      longer derives model property semantics through JVM annotation fallback.
   - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
     - [x] Registry annotations preserve nested annotation-valued attributes across source scanning, classpath scanning,
       annotation processing, JSON round-tripping, and metadata annotation projection.

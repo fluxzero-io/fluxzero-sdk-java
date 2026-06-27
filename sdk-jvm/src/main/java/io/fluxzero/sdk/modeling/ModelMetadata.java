@@ -50,6 +50,9 @@ final class ModelMetadata {
                         .filter(property -> annotation(property.annotations(), annotationType).isPresent())
                         .forEach(property -> annotatedPropertyLocation(ownerType, property.name(), annotationType)
                                 .ifPresent(location -> result.putIfAbsent(property.name(), location))));
+        if (ComponentMetadataLookups.generatedOnlyMode()) {
+            return List.copyOf(result.values());
+        }
         PROPERTIES.annotatedProperties(ownerType, annotationType)
                 .forEach(location -> result.putIfAbsent(
                         PROPERTIES.propertyName(location), location));
@@ -66,7 +69,8 @@ final class ModelMetadata {
                         .filter(property -> annotation(property.annotations(), annotationType).isPresent())
                         .map(PropertyDescriptor::name)
                         .findFirst())
-                .or(() -> PROPERTIES.annotatedPropertyName(ownerType, annotationType));
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty() : PROPERTIES.annotatedPropertyName(ownerType, annotationType));
     }
 
     static Optional<Object> annotatedPropertyValue(
@@ -76,7 +80,8 @@ final class ModelMetadata {
         }
         return annotatedPropertyName(target.getClass(), annotationType)
                 .flatMap(propertyName -> PROPERTIES.readProperty(propertyName, target))
-                .or(() -> PROPERTIES.annotatedPropertyValue(target, annotationType));
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty() : PROPERTIES.annotatedPropertyValue(target, annotationType));
     }
 
     static Collection<Object> annotatedPropertyValues(
@@ -122,7 +127,8 @@ final class ModelMetadata {
                 .map(annotation -> new MemberConfig(
                         annotation.firstValue("idProperty").orElse(""),
                         annotation.firstValue("wither").orElse("")))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(property, Member.class)
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty() : JvmComponentIntrospector.getInstance().getAnnotation(property, Member.class)
                         .map(annotation -> new MemberConfig(annotation.idProperty(), annotation.wither())));
     }
 
@@ -131,7 +137,8 @@ final class ModelMetadata {
                 .map(annotation -> new AliasConfig(
                         annotation.firstValue("prefix").orElse(""),
                         annotation.firstValue("postfix").orElse("")))
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(property, Alias.class)
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty() : JvmComponentIntrospector.getInstance().getAnnotation(property, Alias.class)
                         .map(annotation -> new AliasConfig(annotation.prefix(), annotation.postfix())));
     }
 
@@ -152,14 +159,18 @@ final class ModelMetadata {
                        .map(lookup -> lookup.properties(ownerType.getName()).stream()
                                .anyMatch(property -> annotation(property.annotations(), annotationType).isPresent()))
                        .orElse(false)
-               || !PROPERTIES.annotatedProperties(ownerType, annotationType).isEmpty();
+               || (!ComponentMetadataLookups.generatedOnlyMode()
+                   && !PROPERTIES.annotatedProperties(ownerType, annotationType).isEmpty());
     }
 
     private static Optional<AccessibleObject> annotatedPropertyLocation(
             Class<?> ownerType, String propertyName, Class<? extends Annotation> annotationType) {
-        return PROPERTIES.annotatedProperties(ownerType, annotationType).stream()
-                .filter(location -> PROPERTIES.propertyName(location).equals(propertyName))
-                .findFirst();
+        return JvmComponentIntrospector.getInstance().getProperty(ownerType, propertyName)
+                .or(() -> ComponentMetadataLookups.generatedOnlyMode()
+                        ? Optional.empty()
+                        : PROPERTIES.annotatedProperties(ownerType, annotationType).stream()
+                        .filter(location -> PROPERTIES.propertyName(location).equals(propertyName))
+                        .findFirst());
     }
 
     private static Optional<AnnotationDescriptor> propertyMetadata(
