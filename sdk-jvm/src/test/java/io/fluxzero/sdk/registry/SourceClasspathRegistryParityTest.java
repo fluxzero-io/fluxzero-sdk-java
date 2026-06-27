@@ -14,19 +14,17 @@
 
 package io.fluxzero.sdk.registry;
 
-import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.registry.parity.ParityCommand;
 import io.fluxzero.sdk.registry.parity.ParityHandler;
+import io.fluxzero.sdk.registry.parity.ParityIdentityProvider;
+import io.fluxzero.sdk.registry.parity.ParityModel;
 import io.fluxzero.sdk.registry.parity.ParityResult;
+import io.fluxzero.sdk.registry.parity.ParitySelfQuery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumSet;
-import java.util.Set;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class SourceClasspathRegistryParityTest {
 
@@ -36,93 +34,10 @@ class SourceClasspathRegistryParityTest {
 
         ComponentRegistry source = new SourceComponentScanner().scan(sourceRoot).normalized();
         ComponentRegistry classpath = new ClasspathComponentScanner().scan(
-                ParityCommand.class, ParityHandler.class, ParityResult.class).normalized();
+                ParityCommand.class, ParityHandler.class, ParityIdentityProvider.class, ParityModel.class,
+                ParityResult.class, ParitySelfQuery.class).normalized();
 
-        assertPackageParity(source, classpath);
-        assertComponentParity(source, classpath);
-        assertRouteParity(source, classpath, MessageType.COMMAND);
-        assertRouteParity(source, classpath, MessageType.QUERY);
-        assertRouteParity(source, classpath, MessageType.WEBREQUEST);
-    }
-
-    private static void assertPackageParity(ComponentRegistry source, ComponentRegistry classpath) {
-        PackageDescriptor sourcePackage = source.packages().stream()
-                .filter(p -> p.packageName().equals("io.fluxzero.sdk.registry.parity"))
-                .findFirst().orElseThrow();
-        PackageDescriptor classpathPackage = classpath.packages().stream()
-                .filter(p -> p.packageName().equals("io.fluxzero.sdk.registry.parity"))
-                .findFirst().orElseThrow();
-
-        assertEquals(sourcePackage.consumerMetadata().orElseThrow().name(),
-                     classpathPackage.consumerMetadata().orElseThrow().name());
-        assertEquals(sourcePackage.capabilities(), classpathPackage.capabilities());
-        assertEquals(sourcePackage.registeredTypes().getFirst().root(), classpathPackage.registeredTypes().getFirst().root());
-        assertEquals(sourcePackage.registeredTypes().getFirst().contains(),
-                     classpathPackage.registeredTypes().getFirst().contains());
-        assertEquals(sourcePackage.registeredTypes().getFirst().candidateTypeNames(),
-                     classpathPackage.registeredTypes().getFirst().candidateTypeNames());
-    }
-
-    private static void assertComponentParity(ComponentRegistry source, ComponentRegistry classpath) {
-        ComponentDescriptor sourceComponent = source.findComponent(ParityHandler.class).orElseThrow();
-        ComponentDescriptor classpathComponent = classpath.findComponent(ParityHandler.class).orElseThrow();
-
-        assertEquals(sourceComponent.componentKind(), classpathComponent.componentKind());
-        assertEquals(sourceComponent.fullClassName(), classpathComponent.fullClassName());
-        assertEquals(sourceComponent.consumerMetadata().orElseThrow().name(),
-                     classpathComponent.consumerMetadata().orElseThrow().name());
-        assertEquals(withoutDiscoveryMode(sourceComponent.capabilities()),
-                     withoutDiscoveryMode(classpathComponent.capabilities()));
-        assertEquals(sourceComponent.messageTypes(), classpathComponent.messageTypes());
-        assertEquals(sourceComponent.registeredTypes().getFirst().root(),
-                     classpathComponent.registeredTypes().getFirst().root());
-        assertEquals(sourceComponent.registeredTypes().getFirst().contains(),
-                     classpathComponent.registeredTypes().getFirst().contains());
-        assertEquals(sourceComponent.registeredTypes().getFirst().candidateTypeNames(),
-                     classpathComponent.registeredTypes().getFirst().candidateTypeNames());
-    }
-
-    private static void assertRouteParity(ComponentRegistry source, ComponentRegistry classpath,
-                                          MessageType messageType) {
-        HandlerRoute sourceRoute = source.findComponent(ParityHandler.class).orElseThrow()
-                .route(messageType).orElseThrow();
-        HandlerRoute classpathRoute = classpath.findComponent(ParityHandler.class).orElseThrow()
-                .route(messageType).orElseThrow();
-
-        assertEquals(sourceRoute.messageType(), classpathRoute.messageType());
-        assertEquals(sourceRoute.disabled(), classpathRoute.disabled());
-        assertEquals(sourceRoute.passive(), classpathRoute.passive());
-        assertEquals(sourceRoute.skipExpiredRequests(), classpathRoute.skipExpiredRequests());
-        assertEquals(sourceRoute.local(), classpathRoute.local());
-        assertEquals(sourceRoute.tracked(), classpathRoute.tracked());
-        assertEquals(sourceRoute.payloadTypeNames(), classpathRoute.payloadTypeNames());
-        assertEquals(sourceRoute.allowedClassNames(), classpathRoute.allowedClassNames());
-        assertEquals(sourceRoute.annotationMetadata().orElseThrow().name(),
-                     classpathRoute.annotationMetadata().orElseThrow().name());
-        assertExecutableParity(sourceRoute, classpathRoute);
-        assertEquals(sourceRoute.webRoutes(), classpathRoute.webRoutes());
-    }
-
-    private static void assertExecutableParity(HandlerRoute sourceRoute, HandlerRoute classpathRoute) {
-        ExecutableDescriptor source = sourceRoute.executableMetadata().orElseThrow();
-        ExecutableDescriptor classpath = classpathRoute.executableMetadata().orElseThrow();
-
-        assertEquals(source.kind(), classpath.kind());
-        assertEquals(source.name(), classpath.name());
-        assertEquals(source.returnTypeName(), classpath.returnTypeName());
-        assertEquals(source.parameters().stream().map(ParameterDescriptor::typeName).toList(),
-                     classpath.parameters().stream().map(ParameterDescriptor::typeName).toList());
-        assertEquals(source.parameters().stream()
-                             .map(p -> p.annotations().stream().map(AnnotationDescriptor::name).toList()).toList(),
-                     classpath.parameters().stream()
-                             .map(p -> p.annotations().stream().map(AnnotationDescriptor::name).toList()).toList());
-    }
-
-    private static Set<ComponentCapability> withoutDiscoveryMode(Set<ComponentCapability> capabilities) {
-        EnumSet<ComponentCapability> result = EnumSet.copyOf(capabilities);
-        result.remove(ComponentCapability.SOURCE_COMPONENT);
-        result.remove(ComponentCapability.CLASSPATH_COMPONENT);
-        return result;
+        ComponentRegistryParityAssertions.assertSemanticParity(classpath, source);
     }
 
     private static void writeParitySources(Path sourceRoot) throws Exception {
@@ -144,6 +59,51 @@ class SourceClasspathRegistryParityTest {
                 package io.fluxzero.sdk.registry.parity;
 
                 public record ParityResult(String value) {
+                }
+                """);
+        Files.writeString(sourceRoot.resolve("ParityModel.java"), """
+                package io.fluxzero.sdk.registry.parity;
+
+                import io.fluxzero.sdk.modeling.EntityId;
+                import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
+                import io.fluxzero.sdk.tracking.handling.Association;
+
+                public class ParityModel {
+                    @EntityId
+                    private String id;
+
+                    @Association
+                    @ProtectData
+                    private String accountId;
+                }
+                """);
+        Files.writeString(sourceRoot.resolve("ParitySelfQuery.java"), """
+                package io.fluxzero.sdk.registry.parity;
+
+                import io.fluxzero.sdk.tracking.handling.HandleQuery;
+
+                public record ParitySelfQuery(String value) {
+                    @HandleQuery
+                    public String handle() {
+                        return value;
+                    }
+                }
+                """);
+        Files.writeString(sourceRoot.resolve("ParityIdentityProvider.java"), """
+                package io.fluxzero.sdk.registry.parity;
+
+                import io.fluxzero.sdk.common.IdentityProvider;
+
+                public class ParityIdentityProvider implements IdentityProvider {
+                    @Override
+                    public String nextFunctionalId() {
+                        return "parity-functional";
+                    }
+
+                    @Override
+                    public String idForName(String name) {
+                        return "parity-" + name;
+                    }
                 }
                 """);
         Files.writeString(sourceRoot.resolve("ParityHandler.java"), """

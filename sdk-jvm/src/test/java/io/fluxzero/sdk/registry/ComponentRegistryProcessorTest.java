@@ -24,6 +24,7 @@ import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,6 +105,33 @@ class ComponentRegistryProcessorTest {
     }
 
     @Test
+    void generatedProcessorRegistryHasClasspathSemanticParity(@TempDir Path tempDir) throws Exception {
+        Path sourceRoot = tempDir.resolve("src");
+        Path output = tempDir.resolve("classes");
+        writeProcessorFixture(sourceRoot);
+
+        compile(sourceRoot, output);
+
+        try (URLClassLoader classLoader = new URLClassLoader(
+                new java.net.URL[]{output.toUri().toURL()},
+                Thread.currentThread().getContextClassLoader())) {
+            ComponentRegistry generated = ComponentRegistryJson.load(classLoader).getFirst().normalized();
+            ComponentRegistry classpath = new ClasspathComponentScanner().scan(List.of(
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorCache"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorCommand"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorHandler"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorIdentityProvider"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorPropertySource"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorResult"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorSelfQuery"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorTaskScheduler")
+            )).normalized();
+
+            ComponentRegistryParityAssertions.assertSemanticParity(classpath, generated);
+        }
+    }
+
+    @Test
     void canBeDisabledWithCompilerOption(@TempDir Path tempDir) throws Exception {
         Path sourceRoot = tempDir.resolve("src");
         Path output = tempDir.resolve("classes");
@@ -128,6 +156,14 @@ class ComponentRegistryProcessorTest {
 
     private static boolean hasAnnotation(List<AnnotationDescriptor> annotations, String qualifiedName) {
         return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(qualifiedName));
+    }
+
+    private static Class<?> load(ClassLoader classLoader, String className) {
+        try {
+            return Class.forName(className, false, classLoader);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("Failed to load compiled fixture class: " + className, e);
+        }
     }
 
     private static void compile(Path sourceRoot, Path output, String... additionalOptions) throws Exception {

@@ -1,68 +1,247 @@
 # ReflectionUtils Metadata Abstraction Plan
 
-This note captures the remaining JVM reflection seams after the registry blueprint/property metadata slice.
+## Goal
 
-Goal: keep one functional Fluxzero core. JVM execution may use reflection as an implementation detail, while browser
-execution uses generated metadata and generated invocation. The core should consume an abstraction instead of calling
-`ReflectionUtils` directly.
+Keep one functional Fluxzero core.
 
-## Current Audit
+JVM execution may use reflection as an implementation detail. Browser execution should use generated metadata and
+generated invocation. The core should consume metadata-shaped abstractions instead of calling `ReflectionUtils` or a
+JVM-shaped introspector directly.
 
-The initial audit found 67 `sdk-jvm/src/main/java` files that referenced `ReflectionUtils`. The only known `sdk-api`
-reference was Javadoc on browser-safe annotation/API surface.
+The target architecture is:
 
-The interesting conclusion is that these files are probably the map of future runtime seams: where JVM can have a
-reflection-backed adapter and browser can have a registry/generated adapter.
+- build/source time produces a Fluxzero application model,
+- JVM runtime and browser runtime consume the same semantic model,
+- JVM and browser differ in metadata/invocation backends, not in Fluxzero behavior,
+- the only real black box left in an app is what handler code does as a side effect.
 
-## Phase 1 Progress
+Legend: `[x]` means implemented and verified for the current target scope. `[ ]` means still open.
 
-Implemented the first boundary slice:
+Overall status: [ ] in progress.
 
-- Added browser-safe `ComponentIntrospector`, `PropertyAccess`, and `ExecutableInvoker` contracts in `sdk-api`.
-- Added `JvmComponentIntrospector` in `sdk-jvm` as the reflection-backed implementation.
-- Migrated `PayloadFilter` and `ExpiredRequestDecorator` so handler metadata is read through the adapter instead of
-  calling `ReflectionUtils` directly.
-- Added focused tests for executable annotation descriptors, meta-annotation projection, property access, invocation,
-  type specificity, allowedClasses filtering, and expired request behavior.
+Migration rule: move broad layers, not narrow vertical features. Fluxzero should not ask projects to run a
+half-reflection, half-blueprint semantic model.
 
-Current `sdk-jvm/src/main/java` count after this slice was 66 files still referencing `ReflectionUtils`. Two runtime
-call sites moved behind one JVM adapter, so the count only dropped by one. That was intentional for this first slice:
-the seam became explicit before the full mechanical migration.
+## Phase 1: Foundation And Registry Parity
 
-## Phase 2 Progress
+Status: [x] implemented.
 
-Centralized the JVM reflection backend behind `JvmComponentIntrospector`.
+### Step 1: Browser-Safe Metadata Boundary
 
-- Removed direct references to the old `ReflectionUtils` class from `sdk-jvm/src/main/java`, except inside
+Status: [x] implemented.
+
+Context: the first step was making the JVM/browser seam explicit before trying to remove reflection-backed behavior.
+This proved that handler metadata, property access, and invocation can be described by SDK contracts instead of direct
+`ReflectionUtils` calls.
+
+Done:
+
+- [x] Added browser-safe `ComponentIntrospector`, `PropertyAccess`, and `ExecutableInvoker` contracts in `sdk-api`.
+- [x] Added `JvmComponentIntrospector` in `sdk-jvm` as the reflection-backed implementation.
+- [x] Migrated `PayloadFilter` and `ExpiredRequestDecorator` to read handler metadata through the adapter.
+- [x] Added focused tests for annotation descriptors, meta-annotation projection, property access, invocation, type
+  specificity, allowedClasses filtering, and expired request behavior.
+
+Outcome: the seam became explicit. The `sdk-jvm/src/main/java` `ReflectionUtils` count only dropped from 67 to 66 at
+this point, because the phase was about introducing the boundary before the full mechanical migration.
+
+### Step 2: Centralized JVM Reflection Backend
+
+Status: [x] implemented.
+
+Context: the JVM runtime can still use reflection internally, but the functional SDK core should no longer scatter raw
+reflection calls through many components. This makes the remaining JVM/browser difference visible as one backend seam.
+
+Done:
+
+- [x] Removed direct `ReflectionUtils` references from `sdk-jvm/src/main/java`, except inside
   `JvmComponentIntrospector`.
-- Removed the temporary `ReflectionAccess` backend alias again so there is only one JVM adapter seam.
-- Changed `JvmComponentIntrospector` to explicit delegation instead of subclassing `ReflectionUtils`, so the old
-  reflection API is not inherited by the Fluxzero adapter surface.
-- Added a guardrail test that fails when `sdk-jvm/src/main/java` reintroduces direct `ReflectionUtils` references outside
-  `JvmComponentIntrospector`, or any `ReflectionAccess` references.
-- Semantically migrated more runtime code to `JvmComponentIntrospector`:
-  - `HandleCustomFilter`
-  - `HandleDocumentFilter`
-  - `SegmentFilter`
-  - `TimestampParameterResolver`
-  - `WebPayloadParameterResolver`
-  - `ConsumerConfiguration`
-  - `DefaultTracking`
+- [x] Removed the temporary `ReflectionAccess` alias.
+- [x] Changed `JvmComponentIntrospector` to explicit delegation instead of subclassing `ReflectionUtils`.
+- [x] Added a guardrail test that fails on new direct `ReflectionUtils` usage outside the adapter.
+- [x] Semantically migrated more runtime code to `JvmComponentIntrospector`, including handler filters, timestamp and
+  web payload parameter resolution, consumer configuration, and tracking.
 
 Current backend counts:
 
-- `ReflectionAccess`: 0 references in `sdk-jvm/src/main/java`.
-- `ReflectionUtils`: only `JvmComponentIntrospector` references it in `sdk-jvm/src/main/java`.
-- `JvmComponentIntrospector`: 67 files in `sdk-jvm/src/main/java` now consume the centralized seam.
+- [x] `ReflectionAccess`: 0 references in `sdk-jvm/src/main/java`.
+- [x] `ReflectionUtils`: only `JvmComponentIntrospector` references it in `sdk-jvm/src/main/java`.
+- [x] `JvmComponentIntrospector`: 67 files in `sdk-jvm/src/main/java` consume the centralized seam.
 
-This does not mean every operation is generated-metadata-backed yet. It does mean the functional JVM runtime no longer
-sprays direct reflection-backend calls through its core. The next migration map is now inside
-`JvmComponentIntrospector`: replace inherited reflection-style operations with metadata/generated implementations per
-feature area.
+Outcome: the functional JVM runtime no longer sprays direct reflection-backend calls through its core.
 
-## Proposed Boundary
+### Slice 1: Build-Time Registry Artifact Is The App Model
 
-Introduce a small metadata/introspection boundary before moving more logic to browser:
+Status: [x] implemented for the current registry producers.
+
+Context: the registry artifact should be the Fluxzero application model, not a side effect of on-demand execution or
+browser generation. This is the source of truth that can later drive JVM runtime behavior, browser generation,
+dashboard rendering, and agent-readable blueprints.
+
+Goal: generate and load `ComponentRegistry` metadata at build/source time without requiring runtime source scans.
+
+Done:
+
+- [x] Annotation processor writes `META-INF/fluxzero/component-registry.json` from javac's source model.
+- [x] Source generator writes the same registry JSON shape from `src/main/fluxzero` and `src/test/fluxzero` without
+  javac, classloading, or annotation processors.
+- [x] Runtime can load generated registry resources from the classpath/classloader.
+- [x] Missing `src/.../fluxzero` roots are not startup/runtime failures.
+- [x] Markdown blueprint output remains explicit and opt-in.
+
+Acceptance evidence:
+
+- [x] Generated JSON round-trips through `ComponentRegistryJson`.
+- [x] Generated registry resources are loadable from a classpath/classloader.
+- [x] Build-time metadata exists without runtime source scanning.
+
+Nearby follow-up, not required for this slice to count as done:
+
+- [ ] Wire the registry artifact into standard CLI/template defaults.
+
+### Slice 2: Broad Source/ClassPath Parity Harness
+
+Status: [x] implemented as a broad semantic parity harness.
+
+Context: this is the "did we lose magic?" layer. Before runtime behavior moves to metadata, source/build metadata must
+match the current JVM classpath/reflection view for Fluxzero semantics.
+
+Goal: compare the semantics discovered from source/build metadata against the current JVM classpath scanner.
+
+Done:
+
+- [x] Source scanner and classpath scanner have semantic parity coverage.
+- [x] Annotation processor output and classpath scanner have semantic parity coverage.
+- [x] Shared assertions cover packages, components, handler routes, properties, executables, consumers, registered types,
+  web routes, local/tracked semantics, payload type names, `allowedClasses`, and capabilities.
+- [x] Source-only and classpath-only discovery-mode capabilities are kept out of semantic equality.
+- [x] Build-time parameter names are treated as richer metadata, not reflection parity; parity compares parameter types
+  and annotations.
+- [x] Non-Fluxzero platform annotations such as `java.lang.FunctionalInterface` are ignored when they do not affect
+  Fluxzero semantics.
+
+Acceptance evidence:
+
+- [x] Source scanner and classpath scanner produce equivalent semantic registries for the curated fixture.
+- [x] Annotation processor output and classpath scanner produce equivalent semantic registries for the same curated
+  fixture wherever javac can observe the same information.
+- [x] Parity failures point at exact package/component/route/property/executable fields.
+
+Nearby follow-up, not required for this slice to count as done:
+
+- [ ] Add a larger real-app parity corpus beyond the curated registry fixtures.
+
+## Phase 2: Metadata Runtime Migration
+
+Status: [ ] in progress.
+
+### Slice 3: Metadata Lookup Facade
+
+Status: [ ] planned.
+
+Context: the runtime currently consumes `JvmComponentIntrospector` directly. That is better than direct
+`ReflectionUtils`, but still too JVM-shaped. The next layer should let the core ask metadata-shaped questions that can
+be answered by either reflection-backed JVM metadata or generated registry metadata.
+
+Goal: introduce the complete runtime-facing metadata lookup surface for handlers, packages, types, methods,
+constructors, parameters, properties, annotations, policies, and routes.
+
+Work:
+
+- [ ] Define the runtime-facing lookup interfaces.
+- [ ] Add the reflection-backed JVM implementation behind the facade.
+- [ ] Add the registry-backed/generated implementation skeleton.
+- [ ] Keep the surface broad enough for the whole app model before migrating one subsystem deeply.
+
+Done when:
+
+- [ ] Runtime code can depend on metadata-shaped interfaces without knowing whether metadata came from reflection or
+  generated registry descriptors.
+
+### Slice 4: JVM Runtime Consumes Metadata Lookup
+
+Status: [ ] planned.
+
+Context: after the facade exists, the existing JVM runtime should move horizontally from direct introspector calls to
+metadata lookup calls. Reflection may still answer behind the facade at first; the important change is that Fluxzero
+semantics become metadata-driven.
+
+Goal: replace direct calls to `JvmComponentIntrospector` across runtime semantics with the metadata lookup facade.
+
+Work:
+
+- [ ] Handler/package/type/method annotation reads.
+- [ ] Route, consumer, local/tracked, and web metadata reads.
+- [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
+- [ ] Invocation and mutable property access behind a platform backend seam.
+
+Done when:
+
+- [ ] JVM tests prove existing server-side behavior is unchanged while the core asks metadata-shaped questions.
+
+### Slice 5: Generated Registry Backend
+
+Status: [ ] planned.
+
+Context: once the JVM runtime consumes the metadata lookup facade, a generated-registry backend can prove the same
+functional core no longer requires reflection for application semantics. This is the bridge from "metadata exists" to
+"metadata actually runs the app".
+
+Goal: add a registry/generated metadata backend for the lookup facade and run the JVM test suite against it where
+possible.
+
+Work:
+
+- [ ] Implement lookup answers from `ComponentRegistry`, descriptors, generated property metadata, and generated
+  executable metadata.
+- [ ] Run relevant JVM tests against the registry-backed metadata backend.
+- [ ] Make browser execution consume the same backend shape.
+
+Done when:
+
+- [ ] Reflection-backed and registry-backed JVM runs agree for the covered semantics.
+
+### Slice 6: Browser Runtime Parity
+
+Status: [ ] planned.
+
+Context: browser execution should be a backend problem, not a copied Fluxzero implementation. The browser can have
+generated invokers, generated codecs, browser stores, and browser-safe IO, but the Fluxzero rules should be shared with
+the JVM core.
+
+Goal: make browser execution consume the same metadata-shaped core as JVM execution.
+
+Work:
+
+- [ ] Generated invokers and codecs.
+- [ ] Browser stores, scheduler, and browser-safe IO.
+- [ ] Shared Fluxzero semantics with backend-only divergence.
+
+Done when:
+
+- [ ] Browser conformance proves app-level SDK behavior using the shared metadata-driven core.
+
+## Phase 3: Hardening After This Plan
+
+Status: [ ] planned.
+
+Context: these are adoption and confidence steps after the metadata/runtime direction is proven.
+
+Work:
+
+- [ ] Wire the registry artifact into standard CLI/template defaults.
+- [ ] Add a larger real-app parity corpus beyond the curated registry fixtures.
+- [ ] Rerun full `./mvnw -B install` after the current parity changes.
+
+## Recent Verification
+
+- [x] Focused `sdk-jvm` registry/reflection tests passed.
+- [x] Full `sdk-jvm` test suite passed.
+- [ ] Full multi-module install has not been rerun after the current parity changes.
+
+## Reference: Boundary Shape
+
+The proposed boundary is intentionally small and runtime-facing:
 
 - `ComponentIntrospector`: reads type, package, method, constructor, parameter, field, record-component, and type-use
   metadata.
@@ -76,7 +255,7 @@ JVM implementation: wraps current `ReflectionUtils` and existing classpath scann
 Browser implementation: consumes `ComponentRegistry`, `PropertyDescriptor`, `ExecutableDescriptor`,
 `AnnotationDescriptor`, generated codecs, and generated invokers.
 
-## Category Map
+## Reference: Category Map
 
 ### Handler discovery, filtering, and invocation
 
@@ -168,16 +347,6 @@ Browser implementation: consumes `ComponentRegistry`, `PropertyDescriptor`, `Exe
 - `sdk-jvm/src/main/java/io/fluxzero/sdk/configuration/spring/FluxzeroSpringConfig.java`
 - `sdk-jvm/src/main/java/io/fluxzero/sdk/configuration/spring/SpringBeanParameterResolver.java`
 - `sdk-jvm/src/main/java/io/fluxzero/sdk/registry/ClasspathComponentScanner.java`
-
-## Migration Order
-
-1. Create the abstraction in `sdk-api` or a small shared module without browser-forbidden dependencies.
-2. Implement a JVM adapter that delegates to existing `ReflectionUtils` behavior.
-3. Implement a registry/generated adapter that reads `ComponentRegistry` descriptors.
-4. Move low-risk metadata consumers first: handler filters, web matching, scheduling, consumer config, API docs.
-5. Move property-sensitive policies next: validation metadata, content filtering, data protection, search indexing.
-6. Move modeling/entity graph logic after property metadata parity is proven.
-7. Keep raw method invocation and mutable property writes behind the adapter until generated invokers/codecs exist.
 
 ## Guardrail
 
