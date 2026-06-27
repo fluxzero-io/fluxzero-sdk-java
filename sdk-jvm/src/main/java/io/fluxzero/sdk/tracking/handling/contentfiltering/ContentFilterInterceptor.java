@@ -16,15 +16,19 @@
 package io.fluxzero.sdk.tracking.handling.contentfiltering;
 
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AllArgsConstructor;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -52,10 +56,12 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
 
     private static final class FilterContentMetadata {
         private final Class<?> targetClass;
+        private final JvmComponentMetadataLookup lookup;
         private final ConcurrentHashMap<Executable, Optional<FilterContent>> filterContent = new ConcurrentHashMap<>();
 
         private FilterContentMetadata(Class<?> targetClass) {
             this.targetClass = targetClass;
+            this.lookup = JvmComponentMetadataLookup.scan(targetClass);
         }
 
         private Optional<FilterContent> filterContent(Executable executable) {
@@ -63,11 +69,31 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
             if (cached != null) {
                 return cached;
             }
-            Optional<FilterContent> computed = JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
-                    .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, FilterContent.class)))
-                    .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(targetClass.getPackage(), FilterContent.class));
+            Optional<FilterContent> computed = filterContent(lookup.executableAnnotations(executable))
+                    .or(() -> filterContent(lookup.typeAnnotations(targetClass)))
+                    .or(() -> filterContent(lookup.packageAnnotations(targetClass.getPackage())))
+                    .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(executable, FilterContent.class)
+                            .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance()
+                                    .getTypeAnnotation(targetClass, FilterContent.class)))
+                            .or(() -> JvmComponentIntrospector.getInstance()
+                                    .getPackageAnnotation(targetClass.getPackage(), FilterContent.class)));
             Optional<FilterContent> existing = filterContent.putIfAbsent(executable, computed);
             return existing != null ? existing : computed;
+        }
+
+        private static Optional<FilterContent> filterContent(List<AnnotationDescriptor> annotations) {
+            return annotations.stream()
+                    .filter(annotation -> annotation.qualifiedName().equals(FilterContent.class.getName())
+                                          || annotation.name().equals(FilterContent.class.getSimpleName()))
+                    .findFirst()
+                    .map(ignored -> new FilterContentMetadataProjection());
+        }
+    }
+
+    private record FilterContentMetadataProjection() implements FilterContent {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return FilterContent.class;
         }
     }
 }

@@ -24,11 +24,13 @@ import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
@@ -54,6 +56,7 @@ import java.time.temporal.TemporalUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceConfigurationError;
@@ -175,16 +178,76 @@ public class ClientUtils {
 
     private static Optional<LocalHandler> computeLocalHandlerAnnotation(Class<?> target,
                                                                         java.lang.reflect.Executable method) {
-        return JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
+        return getLocalHandlerAnnotationFromMetadata(target, method)
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(method, LocalHandler.class)
                 .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, LocalHandler.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), LocalHandler.class))
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), LocalHandler.class)))
                 .filter(LocalHandler::value);
     }
 
     private static Optional<TrackSelf> getTrackSelfAnnotation(Class<?> target, Executable method) {
-        return JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
+        return getTrackSelfAnnotationFromMetadata(target, method)
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotation(method, TrackSelf.class)
                 .or(() -> Optional.ofNullable(JvmComponentIntrospector.getInstance().getTypeAnnotation(target, TrackSelf.class)))
-                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), TrackSelf.class));
+                .or(() -> JvmComponentIntrospector.getInstance().getPackageAnnotation(target.getPackage(), TrackSelf.class)));
+    }
+
+    private static Optional<LocalHandler> getLocalHandlerAnnotationFromMetadata(Class<?> target, Executable method) {
+        return JvmComponentMetadataLookup.scanIfScannable(target)
+                .flatMap(lookup -> {
+                    Optional<LocalHandler> methodAnnotation = method == null
+                            ? Optional.empty() : localHandler(lookup.executableAnnotations(method));
+                    return methodAnnotation
+                            .or(() -> localHandler(lookup.typeAnnotations(target)))
+                            .or(() -> localHandler(lookup.packageAnnotations(target.getPackage())));
+                });
+    }
+
+    private static Optional<TrackSelf> getTrackSelfAnnotationFromMetadata(Class<?> target, Executable method) {
+        return JvmComponentMetadataLookup.scanIfScannable(target)
+                .flatMap(lookup -> {
+                    Optional<TrackSelf> methodAnnotation = method == null
+                            ? Optional.empty() : trackSelf(lookup.executableAnnotations(method));
+                    return methodAnnotation
+                            .or(() -> trackSelf(lookup.typeAnnotations(target)))
+                            .or(() -> trackSelf(lookup.packageAnnotations(target.getPackage())));
+                });
+    }
+
+    private static Optional<LocalHandler> localHandler(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .filter(annotation -> annotation.qualifiedName().equals(LocalHandler.class.getName())
+                                      || annotation.name().equals(LocalHandler.class.getSimpleName()))
+                .findFirst()
+                .map(annotation -> new LocalHandlerMetadata(
+                        annotation.booleanValue("value", true),
+                        annotation.booleanValue("logMessage", false),
+                        annotation.booleanValue("logMetrics", false),
+                        annotation.booleanValue("allowExternalMessages", false)));
+    }
+
+    private static Optional<TrackSelf> trackSelf(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .filter(annotation -> annotation.qualifiedName().equals(TrackSelf.class.getName())
+                                      || annotation.name().equals(TrackSelf.class.getSimpleName()))
+                .findFirst()
+                .map(ignored -> new TrackSelfMetadata());
+    }
+
+    private record LocalHandlerMetadata(
+            boolean value, boolean logMessage, boolean logMetrics, boolean allowExternalMessages)
+            implements LocalHandler {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return LocalHandler.class;
+        }
+    }
+
+    private record TrackSelfMetadata() implements TrackSelf {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return TrackSelf.class;
+        }
     }
 
     private static class LocalHandlerAnnotationCache {

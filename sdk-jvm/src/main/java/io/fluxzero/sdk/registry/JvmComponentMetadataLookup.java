@@ -16,6 +16,9 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -41,6 +44,59 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
      */
     public static JvmComponentMetadataLookup scan(Class<?>... componentTypes) {
         return scan(Arrays.asList(componentTypes));
+    }
+
+    /**
+     * Returns whether the supplied JVM class can be represented as component metadata.
+     */
+    public static boolean isScannable(Class<?> type) {
+        Objects.requireNonNull(type, "type");
+        return !type.isArray()
+               && !type.isPrimitive()
+               && !type.isSynthetic()
+               && !type.getPackageName().startsWith("java.");
+    }
+
+    /**
+     * Creates a JVM lookup facade when all supplied classes can be represented as component metadata.
+     */
+    public static Optional<JvmComponentMetadataLookup> scanIfScannable(Class<?>... componentTypes) {
+        Objects.requireNonNull(componentTypes, "componentTypes");
+        return Arrays.stream(componentTypes).allMatch(JvmComponentMetadataLookup::isScannable)
+                ? Optional.of(scan(componentTypes)) : Optional.empty();
+    }
+
+    /**
+     * Resolves a source/registry type name to a JVM class, including canonical nested class names.
+     */
+    public static Optional<Class<?>> classForMetadataName(String className) {
+        Objects.requireNonNull(className, "className");
+        Class<?> result = JvmComponentIntrospector.getInstance().classForName(className, null);
+        if (result != null) {
+            return Optional.of(result);
+        }
+        String[] segments = className.split("\\.");
+        for (int typeStart = segments.length - 1; typeStart >= 0; typeStart--) {
+            String packageName = String.join(".", Arrays.copyOfRange(segments, 0, typeStart));
+            String binaryName = String.join("$", Arrays.copyOfRange(segments, typeStart, segments.length));
+            String candidate = packageName.isEmpty() ? binaryName : packageName + "." + binaryName;
+            if (candidate.equals(className)) {
+                continue;
+            }
+            result = JvmComponentIntrospector.getInstance().classForName(candidate, null);
+            if (result != null) {
+                return Optional.of(result);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Resolves a source/registry type name to a JVM class, returning the supplied default when it cannot be resolved.
+     */
+    public static Class<?> classForMetadataName(String className, Class<?> defaultValue) {
+        Objects.requireNonNull(className, "className");
+        return classForMetadataName(className).orElse(defaultValue);
     }
 
     /**
@@ -79,6 +135,14 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
     }
 
     /**
+     * Returns package annotations for the supplied JVM package and known ancestor packages.
+     */
+    public List<AnnotationDescriptor> packageAnnotations(Package p) {
+        Objects.requireNonNull(p, "p");
+        return packageAnnotations(p.getName());
+    }
+
+    /**
      * Returns properties for the supplied JVM class.
      */
     public List<PropertyDescriptor> properties(Class<?> type) {
@@ -97,6 +161,35 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
      */
     public List<ExecutableDescriptor> executables(Class<?> type) {
         return executables(typeName(type));
+    }
+
+    /**
+     * Finds executable metadata matching the supplied JVM executable.
+     */
+    public Optional<ExecutableDescriptor> executable(Executable executable) {
+        Objects.requireNonNull(executable, "executable");
+        ExecutableKind kind = executable instanceof Constructor<?> ? ExecutableKind.CONSTRUCTOR : ExecutableKind.METHOD;
+        String name = executable.getName();
+        List<String> parameters = Arrays.stream(executable.getParameterTypes())
+                .map(JvmComponentMetadataLookup::metadataTypeName)
+                .toList();
+        Optional<ExecutableDescriptor> result = executable(
+                typeName(executable.getDeclaringClass()), kind, name, parameters);
+        if (result.isPresent() || executable instanceof Method) {
+            return result;
+        }
+        return executables(executable.getDeclaringClass()).stream()
+                .filter(descriptor -> descriptor.kind() == ExecutableKind.CONSTRUCTOR)
+                .filter(descriptor -> descriptor.parameters().stream().map(ParameterDescriptor::typeName).toList()
+                        .equals(parameters))
+                .findFirst();
+    }
+
+    /**
+     * Returns executable annotations for the supplied JVM executable.
+     */
+    public List<AnnotationDescriptor> executableAnnotations(Executable executable) {
+        return executable(executable).map(ExecutableDescriptor::annotations).orElseGet(List::of);
     }
 
     /**
@@ -130,5 +223,10 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
     private static String typeName(Class<?> type) {
         Objects.requireNonNull(type, "type");
         return type.getName();
+    }
+
+    private static String metadataTypeName(Class<?> type) {
+        Objects.requireNonNull(type, "type");
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 }

@@ -21,7 +21,11 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ConsumerDescriptor;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.PackageDescriptor;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder;
 import lombok.Builder.Default;
@@ -33,9 +37,11 @@ import lombok.Value;
 import lombok.experimental.Accessors;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -459,61 +465,130 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * Includes both class-level and package-level {@code @Consumer} annotations.
      */
     public static Stream<ConsumerConfiguration> configurations(Collection<Class<?>> handlerClasses) {
-        return Stream.concat(handlerClasses.stream().flatMap(ConsumerConfiguration::classConfigurations),
-                             handlerClasses.stream().map(Class::getPackage).distinct().flatMap(
-                                             p -> INTROSPECTOR.packageAndParentPackages(p).stream()).distinct()
-                                     .sorted(Comparator.comparing(Package::getName).reversed()).flatMap(
-                                             ConsumerConfiguration::packageConfigurations));
+        List<Class<?>> types = handlerClasses.stream().distinct().toList();
+        List<Class<?>> scannableTypes = types.stream().filter(JvmComponentMetadataLookup::isScannable).toList();
+        JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(scannableTypes);
+        Stream<ConsumerConfiguration> classConfigurations =
+                scannableTypes.stream().flatMap(type -> classConfigurations(lookup, type));
+        return Stream.concat(classConfigurations, packageMetadata(scannableTypes, lookup)
+                .flatMap(ConsumerConfiguration::packageConfigurations));
     }
 
-    private static Stream<ConsumerConfiguration> classConfigurations(Class<?> type) {
-        return INTROSPECTOR.typeAnnotation(type, Consumer.class)
+    private static Stream<PackageDescriptor> packageMetadata(
+            Collection<Class<?>> handlerClasses, JvmComponentMetadataLookup lookup) {
+        return handlerClasses.stream()
+                .map(Class::getPackageName)
+                .distinct()
+                .flatMap(packageName -> lookup.packageMetadataChain(packageName).stream())
+                .collect(Collectors.toMap(
+                        PackageDescriptor::packageName, Function.identity(), (a, b) -> a, LinkedHashMap::new))
+                .values().stream()
+                .sorted(Comparator.comparing(PackageDescriptor::packageName).reversed());
+    }
+
+    private static Stream<ConsumerConfiguration> classConfigurations(JvmComponentMetadataLookup lookup, Class<?> type) {
+        return consumerDescriptor(lookup.typeAnnotations(type))
                 .map(c -> getConfiguration(c, h -> INTROSPECTOR.typeOf(h).equals(type))).stream();
     }
 
-    private static Stream<ConsumerConfiguration> packageConfigurations(Package p) {
-        return INTROSPECTOR.packageAnnotation(p, Consumer.class)
+    private static Stream<ConsumerConfiguration> packageConfigurations(PackageDescriptor descriptor) {
+        return descriptor.consumerMetadata()
                 .map(c -> getConfiguration(
                         c, h -> {
                             Class<?> type = INTROSPECTOR.typeOf(h);
-                            return type.getPackage().equals(p)
-                                   || type.getPackage().getName().startsWith(p.getName() + ".");
+                            String packageName = type.getPackageName();
+                            return packageName.equals(descriptor.packageName())
+                                   || packageName.startsWith(descriptor.packageName() + ".");
                         })).stream();
     }
 
-    private static ConsumerConfiguration getConfiguration(Consumer consumer, Predicate<Object> handlerFilter) {
+    private static Optional<ConsumerDescriptor> consumerDescriptor(List<AnnotationDescriptor> annotations) {
+        return annotations.stream()
+                .filter(annotation -> annotation.qualifiedName().equals(Consumer.class.getName())
+                                      || annotation.name().equals(Consumer.class.getSimpleName()))
+                .findFirst()
+                .map(annotation -> new ConsumerDescriptor(
+                        annotation.firstValue("name").or(() -> annotation.firstValue("value")).orElse(""),
+                        annotation.attributes(), annotation));
+    }
+
+    private static ConsumerConfiguration getConfiguration(ConsumerDescriptor consumer, Predicate<Object> handlerFilter) {
         return ConsumerConfiguration.builder()
                 .name(consumer.name())
                 .handlerFilter(handlerFilter)
-                .errorHandler(errorHandler(consumer.errorHandler()))
-                .flowRegulator(flowRegulator(consumer.flowRegulator()))
-                .threads(consumer.threads())
-                .maxFetchSize(consumer.maxFetchSize())
-                .maxFetchBytes(consumer.maxFetchBytes())
-                .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
-                .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
-                        type -> INTROSPECTOR.<BatchInterceptor>instantiate(type)).collect(Collectors.toList()))
-                .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(
-                        type -> INTROSPECTOR.<HandlerInterceptor>instantiate(type)).collect(Collectors.toList()))
-                .dispatchInterceptors(Arrays.stream(consumer.dispatchInterceptors()).map(
-                        type -> INTROSPECTOR.<DispatchInterceptor>instantiate(type)).collect(Collectors.toList()))
-                .filterMessageTarget(consumer.filterMessageTarget())
-                .ignoreSegment(consumer.ignoreSegment())
-                .clientControlledIndex(consumer.clientControlledIndex())
-                .storePositionManually(consumer.storePositionManually())
-                .awaitAsyncResults(consumer.awaitAsyncResults())
-                .awaitSendAndForgetFutures(consumer.awaitSendAndForgetFutures())
-                .handlingMode(consumer.handlingMode())
-                .singleTracker(consumer.singleTracker())
-                .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())
-                .maxIndexExclusive(consumer.maxIndexExclusive() < 0 ? null : consumer.maxIndexExclusive())
-                .exclusiveBeforeMinIndex(consumer.exclusiveBeforeMinIndex())
-                .exclusiveAfterMaxIndex(consumer.exclusiveAfterMaxIndex())
-                .exclusive(consumer.exclusive())
-                .passive(consumer.passive())
-                .typeFilter(consumer.typeFilter().isBlank() ? null : consumer.typeFilter())
-                .namespace(consumer.namespace().isBlank() ? null : consumer.namespace())
+                .errorHandler(errorHandler(classAttribute(consumer, "errorHandler", Object.class)))
+                .flowRegulator(flowRegulator(classAttribute(consumer, "flowRegulator", Object.class)))
+                .threads(intAttribute(consumer, "threads", 1))
+                .maxFetchSize(intAttribute(consumer, "maxFetchSize", 1024))
+                .maxFetchBytes(longAttribute(consumer, "maxFetchBytes", -1L))
+                .maxWaitDuration(Duration.of(
+                        longAttribute(consumer, "maxWaitDuration", 60L),
+                        enumAttribute(consumer, "durationUnit", ChronoUnit.class, ChronoUnit.SECONDS)))
+                .batchInterceptors(instantiateAll(consumer, "batchInterceptors"))
+                .handlerInterceptors(instantiateAll(consumer, "handlerInterceptors"))
+                .dispatchInterceptors(instantiateAll(consumer, "dispatchInterceptors"))
+                .filterMessageTarget(booleanAttribute(consumer, "filterMessageTarget", false))
+                .ignoreSegment(booleanAttribute(consumer, "ignoreSegment", false))
+                .clientControlledIndex(booleanAttribute(consumer, "clientControlledIndex", false))
+                .storePositionManually(booleanAttribute(consumer, "storePositionManually", false))
+                .awaitAsyncResults(booleanAttribute(consumer, "awaitAsyncResults", false))
+                .awaitSendAndForgetFutures(booleanAttribute(consumer, "awaitSendAndForgetFutures", true))
+                .handlingMode(enumAttribute(
+                        consumer, "handlingMode", ConsumerHandlingMode.class, ConsumerHandlingMode.DEFAULT))
+                .singleTracker(booleanAttribute(consumer, "singleTracker", false))
+                .minIndex(optionalIndex(longAttribute(consumer, "minIndex", -1L)))
+                .maxIndexExclusive(optionalIndex(longAttribute(consumer, "maxIndexExclusive", -1L)))
+                .exclusiveBeforeMinIndex(booleanAttribute(consumer, "exclusiveBeforeMinIndex", true))
+                .exclusiveAfterMaxIndex(booleanAttribute(consumer, "exclusiveAfterMaxIndex", true))
+                .exclusive(booleanAttribute(consumer, "exclusive", true))
+                .passive(booleanAttribute(consumer, "passive", false))
+                .typeFilter(blankToNull(stringAttribute(consumer, "typeFilter", "")))
+                .namespace(blankToNull(stringAttribute(consumer, "namespace", "")))
                 .build().ordered();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> instantiateAll(ConsumerDescriptor consumer, String attribute) {
+        return consumer.annotation().values(attribute).stream()
+                .map(className -> (T) INTROSPECTOR.instantiate(
+                        JvmComponentMetadataLookup.classForMetadataName(className)
+                                .orElseGet(() -> INTROSPECTOR.classForName(className))))
+                .collect(Collectors.toList());
+    }
+
+    private static String stringAttribute(ConsumerDescriptor consumer, String attribute, String defaultValue) {
+        return consumer.annotation().firstValue(attribute).orElse(defaultValue);
+    }
+
+    private static Class<?> classAttribute(
+            ConsumerDescriptor consumer, String attribute, Class<?> defaultValue) {
+        String className = stringAttribute(consumer, attribute, defaultValue.getName());
+        return JvmComponentMetadataLookup.classForMetadataName(className, defaultValue);
+    }
+
+    private static int intAttribute(ConsumerDescriptor consumer, String attribute, int defaultValue) {
+        return Integer.parseInt(stringAttribute(consumer, attribute, String.valueOf(defaultValue)));
+    }
+
+    private static long longAttribute(ConsumerDescriptor consumer, String attribute, long defaultValue) {
+        return Long.parseLong(stringAttribute(consumer, attribute, String.valueOf(defaultValue)));
+    }
+
+    private static boolean booleanAttribute(ConsumerDescriptor consumer, String attribute, boolean defaultValue) {
+        return Boolean.parseBoolean(stringAttribute(consumer, attribute, String.valueOf(defaultValue)));
+    }
+
+    private static <T extends Enum<T>> T enumAttribute(
+            ConsumerDescriptor consumer, String attribute, Class<T> type, T defaultValue) {
+        return Enum.valueOf(type, stringAttribute(consumer, attribute, defaultValue.name()));
+    }
+
+    private static Long optionalIndex(long index) {
+        return index < 0 ? null : index;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static ErrorHandler errorHandler(Class<?> type) {

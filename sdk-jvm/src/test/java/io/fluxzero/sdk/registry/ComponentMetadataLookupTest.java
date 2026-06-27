@@ -29,6 +29,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ComponentMetadataLookupTest {
@@ -74,6 +75,12 @@ class ComponentMetadataLookupTest {
                 .getFirst().consumerMetadata().orElseThrow().name());
     }
 
+    @Test
+    void resolvesDeepNestedCanonicalNamesToJvmClasses() {
+        assertSame(Deeply.Nested.Component.class, JvmComponentMetadataLookup.classForMetadataName(
+                Deeply.Nested.Component.class.getCanonicalName()).orElseThrow());
+    }
+
     @Consumer(name = "lookup")
     @LocalHandler
     static class LookupHandler {
@@ -102,6 +109,13 @@ class ComponentMetadataLookupTest {
         @Override
         public String idForName(String name) {
             return name;
+        }
+    }
+
+    static class Deeply {
+        static class Nested {
+            static class Component {
+            }
         }
     }
 

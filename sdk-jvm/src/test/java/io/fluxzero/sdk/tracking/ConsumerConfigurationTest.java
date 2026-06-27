@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -85,6 +86,14 @@ public class ConsumerConfigurationTest {
                 List.of(SendAndForgetOptOutConsumer.class)).findFirst().orElseThrow();
 
         assertFalse(config.awaitSendAndForgetFutures());
+    }
+
+    @Test
+    void consumerAnnotationCanConfigureFlowRegulator() {
+        ConsumerConfiguration config = ConsumerConfiguration.configurations(
+                List.of(FlowRegulatedConsumer.class)).findFirst().orElseThrow();
+
+        assertEquals(Optional.of(java.time.Duration.ofMillis(5)), config.getFlowRegulator().pauseDuration());
     }
 
     @Test
@@ -523,6 +532,17 @@ public class ConsumerConfigurationTest {
 
     @Consumer(name = "async-handling", handlingMode = ConsumerHandlingMode.ASYNC)
     static class AsyncHandlingConsumer {
+    }
+
+    @Consumer(name = "flow-regulated", flowRegulator = PositiveFlowRegulator.class)
+    static class FlowRegulatedConsumer {
+    }
+
+    public static class PositiveFlowRegulator implements FlowRegulator {
+        @Override
+        public Optional<java.time.Duration> pauseDuration() {
+            return Optional.of(java.time.Duration.ofMillis(5));
+        }
     }
 
     @Order(10)

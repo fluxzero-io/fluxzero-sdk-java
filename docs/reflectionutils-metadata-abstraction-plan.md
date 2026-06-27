@@ -160,7 +160,7 @@ Done when:
 
 ### Slice 4: JVM Runtime Consumes Metadata Lookup
 
-Status: [ ] planned.
+Status: [ ] in progress.
 
 Context: after the facade exists, the existing JVM runtime should move horizontally from direct introspector calls to
 metadata lookup calls. Reflection may still answer behind the facade at first; the important change is that Fluxzero
@@ -171,13 +171,34 @@ Goal: replace direct calls to `JvmComponentIntrospector` across runtime semantic
 Work:
 
 - [ ] Handler/package/type/method annotation reads.
+  - [x] Payload type/package authorization reads use `ComponentMetadataLookup`.
+  - [x] Handler method/type/package authorization reads use `ComponentMetadataLookup` before JVM fallback.
+  - [x] `@ValidateWith` type metadata reads use `ComponentMetadataLookup` before JVM fallback.
+  - [x] Local/self-tracking reads use metadata descriptors projected to the existing annotation-shaped API.
+  - [x] Content-filter handler method/type/package marker reads use metadata descriptors before JVM fallback.
+  - [ ] Custom/meta-annotation relationships are still completed by JVM fallback until meta-annotation metadata is
+    explicitly modeled.
 - [ ] Route, consumer, local/tracked, and web metadata reads.
+  - [x] `@Consumer` package/type metadata drives `ConsumerConfiguration` creation.
+  - [x] Class-literal metadata resolving handles deep nested source names such as `Outer.Inner.Component`.
+  - [x] Handler association and routing-key metadata reads use executable/property/parameter descriptors before JVM
+    fallback.
+  - [x] Local/tracked decisions use descriptor metadata through `ClientUtils`.
+  - [ ] Web route runtime consumption remains on the existing JVM path until source/classpath/processor producers all
+    preserve full package/type/method `@Path` stacking, blank path defaults, and absolute URL reset semantics.
 - [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
+  - [x] Association property selection reads descriptor property metadata before JVM fallback.
+  - [x] Content-filter policy marker reads descriptor metadata before JVM fallback.
+  - [ ] Data-protection, search, and deeper modeling property policies still use the JVM backend directly.
 - [ ] Invocation and mutable property access behind a platform backend seam.
 
 Done when:
 
 - [ ] JVM tests prove existing server-side behavior is unchanged while the core asks metadata-shaped questions.
+  - [x] Focused auth, validation, consumer, association, stateful, local-handler, web, and content-filter tests are
+    green for the migrated clusters.
+  - [x] Full `sdk-jvm` suite is green after the current migrated clusters.
+  - [ ] Remaining Slice 4 clusters are migrated and covered without relying on direct runtime reflection calls.
 
 ### Slice 5: Generated Registry Backend
 
@@ -238,6 +259,11 @@ Work:
 - [x] Focused `sdk-jvm` registry/reflection tests passed.
 - [x] Slice 3 focused metadata lookup and registry/reflection tests passed with `-Dmaven.compiler.proc=full`.
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after Slice 3.
+- [x] Slice 4 focused auth/validation/stateful/consumer/local/content-filter/web safety tests passed with
+  `-Dmaven.compiler.proc=full`.
+- [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after the current Slice 4 checkpoint.
+- [x] Attempted web route runtime metadata consumption was reverted after tests exposed missing producer parity for
+  stacked `@Path` semantics; existing web behavior is preserved.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape
