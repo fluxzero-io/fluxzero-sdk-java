@@ -23,5 +23,7 @@
  * as {@code src/main/fluxzero}. Fluxzero applications load generated
  * {@value io.fluxzero.sdk.registry.ComponentRegistryJson#DEFAULT_RESOURCE} resources automatically at startup, and
  * on-demand execution can consume those artifacts instead of scanning sources at runtime.
+ * {@link io.fluxzero.sdk.registry.ComponentMetadataLookup} is the runtime-facing facade for consuming the model without
+ * coupling Fluxzero semantics to a specific metadata backend.
  */
 package io.fluxzero.sdk.registry;

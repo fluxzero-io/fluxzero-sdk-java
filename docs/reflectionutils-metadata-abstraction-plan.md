@@ -137,7 +137,7 @@ Status: [ ] in progress.
 
 ### Slice 3: Metadata Lookup Facade
 
-Status: [ ] planned.
+Status: [x] implemented.
 
 Context: the runtime currently consumes `JvmComponentIntrospector` directly. That is better than direct
 `ReflectionUtils`, but still too JVM-shaped. The next layer should let the core ask metadata-shaped questions that can
@@ -148,14 +148,14 @@ constructors, parameters, properties, annotations, policies, and routes.
 
 Work:
 
-- [ ] Define the runtime-facing lookup interfaces.
-- [ ] Add the reflection-backed JVM implementation behind the facade.
-- [ ] Add the registry-backed/generated implementation skeleton.
-- [ ] Keep the surface broad enough for the whole app model before migrating one subsystem deeply.
+- [x] Define the runtime-facing lookup interfaces.
+- [x] Add the reflection-backed JVM implementation behind the facade.
+- [x] Add the registry-backed/generated implementation skeleton.
+- [x] Keep the surface broad enough for the whole app model before migrating one subsystem deeply.
 
 Done when:
 
-- [ ] Runtime code can depend on metadata-shaped interfaces without knowing whether metadata came from reflection or
+- [x] Runtime code can depend on metadata-shaped interfaces without knowing whether metadata came from reflection or
   generated registry descriptors.
 
 ### Slice 4: JVM Runtime Consumes Metadata Lookup
@@ -236,7 +236,8 @@ Work:
 ## Recent Verification
 
 - [x] Focused `sdk-jvm` registry/reflection tests passed.
-- [x] Full `sdk-jvm` test suite passed.
+- [x] Slice 3 focused metadata lookup and registry/reflection tests passed with `-Dmaven.compiler.proc=full`.
+- [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after Slice 3.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape
