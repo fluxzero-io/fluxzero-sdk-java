@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
@@ -55,11 +56,32 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     }
 
     @Override
+    public boolean matches(ParameterView p, Annotation methodAnnotation, HasMessage value) {
+        return p.type()
+                .map(type -> {
+                    if (value instanceof ChunkedDeserializingMessage && InputStream.class.isAssignableFrom(type)) {
+                        return true;
+                    }
+                    return type.isAssignableFrom(value.getPayloadClass());
+                })
+                .orElseGet(() -> typeName(value.getPayloadClass()).equals(p.typeName()));
+    }
+
+    @Override
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         if (InputStream.class.isAssignableFrom(p.getType())) {
             return m -> m.getPayloadAs(p.getParameterizedType());
         }
         return HasMessage::getPayload;
+    }
+
+    @Override
+    public Function<HasMessage, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        return p.parameter().map(parameter -> resolve(parameter, methodAnnotation))
+                .orElseGet(() -> p.type()
+                        .filter(InputStream.class::isAssignableFrom)
+                        .<Function<HasMessage, Object>>map(type -> m -> m.getPayloadAs(type))
+                        .orElse(HasMessage::getPayload));
     }
 
     @Override
@@ -82,6 +104,25 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
     }
 
     @Override
+    public Function<HasMessage, Object> resolveIfPossible(
+            ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
+        if (!matches(parameter, methodAnnotation, value)) {
+            return null;
+        }
+        if (parameter.type().filter(InputStream.class::isAssignableFrom).isPresent()) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        if (value instanceof ChunkedDeserializingMessage) {
+            return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+        }
+        Object payload = getPayloadIfAvailable(value);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || isNullable(parameter) ? ignored -> payload : null;
+        }
+        return test(value, parameter) ? resolve(parameter, methodAnnotation) : null;
+    }
+
+    @Override
     public boolean test(HasMessage message, Parameter parameter) {
         if (message instanceof ChunkedDeserializingMessage) {
             return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
@@ -93,9 +134,31 @@ public class PayloadParameterResolver implements PreparedParameterResolver<HasMe
         return message.getPayloadClass() != Void.class || JvmComponentIntrospector.getInstance().isNullable(parameter);
     }
 
+    @Override
+    public boolean test(HasMessage message, ParameterView parameter) {
+        if (message instanceof ChunkedDeserializingMessage) {
+            return message.getPayloadClass() != Void.class || isNullable(parameter);
+        }
+        Object payload = getPayloadIfAvailable(message);
+        if (payload != UNRESOLVED_PAYLOAD) {
+            return payload != null || isNullable(parameter);
+        }
+        return message.getPayloadClass() != Void.class || isNullable(parameter);
+    }
+
     private Object getPayloadIfAvailable(HasMessage message) {
         return message instanceof DeserializingMessage deserializingMessage && !deserializingMessage.isDeserialized()
                 ? UNRESOLVED_PAYLOAD : message.getPayload();
+    }
+
+    private boolean isNullable(ParameterView parameter) {
+        return parameter.parameter()
+                .map(JvmComponentIntrospector.getInstance()::isNullable)
+                .orElse(false);
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 
     /**

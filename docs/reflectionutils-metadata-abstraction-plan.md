@@ -114,6 +114,8 @@ Remaining work:
     `PreparedParameterResolver`, `HandlerFilter`, `MessageFilter`, and `MethodInvocationValidator`.
   - [x] Make `HandlerInspector` use executable/parameter views internally for message filtering, parameter resolving,
     specificity, and validation calls.
+  - [x] Move `InputParameterResolver`, `MessageParameterResolver`, `PayloadParameterResolver`, `PayloadFilter`,
+    `TriggerParameterResolver`, and `WebParamParameterResolver` onto view overrides with JVM fallback.
   - [ ] Add a generated matcher that can be built from registry invocation plans without enumerating JVM executables.
   - [ ] Move built-in SDK resolvers/filters/decorators to override the view APIs where they still inspect
     `Executable`/`Parameter` directly.
@@ -136,6 +138,8 @@ Current evidence:
   a generated invoker before falling back to JVM member invocation.
 - [x] `HandlerInspector` now routes the common handling hot path through `ExecutableView`/`ParameterView` while
   preserving existing `Executable`/`Parameter` extension points through default bridges.
+- [x] Core payload, message, trigger, and web parameter matching now have view-first overrides with legacy JVM
+  fallbacks.
 - [x] `GeneratedInvocationPlanTest` proves generated-only handler invocation can use registry metadata plus a generated
   invoker without calling the JVM method body.
 - [x] Common handling tests prove view-based parameter resolvers can run without the legacy `Parameter` methods.

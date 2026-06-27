@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Parameter;
@@ -31,7 +32,23 @@ public class InputParameterResolver implements ParameterResolver<Object> {
     }
 
     @Override
+    public Function<Object, Object> resolve(ParameterView parameter, Annotation methodAnnotation) {
+        return i -> i;
+    }
+
+    @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return value != null && parameter.getType().isAssignableFrom(value.getClass());
+    }
+
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, Object value) {
+        return value != null && parameter.type()
+                .map(type -> type.isAssignableFrom(value.getClass()))
+                .orElseGet(() -> typeName(value.getClass()).equals(parameter.typeName()));
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 }

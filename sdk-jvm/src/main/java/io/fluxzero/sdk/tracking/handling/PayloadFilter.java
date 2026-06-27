@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.ExecutableAnnotationResolver;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
@@ -89,7 +90,31 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
     }
 
     @Override
+    public MessageFilter<? super HasMessage> prepare(ExecutableView executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        HandleAnnotation annotation = lookupHandleAnnotation(executable, handlerAnnotation);
+        if (annotation == null || annotation.getAllowedClasses().isEmpty()) {
+            return ALLOW_ALL;
+        }
+        Class<?>[] allowedClasses = annotation.getAllowedClasses().toArray(Class[]::new);
+        Class<?> leastSpecificAllowedClass = Arrays.stream(allowedClasses)
+                .max(introspector.typeSpecificityComparator()).orElse(null);
+        return new PreparedPayloadFilter(allowedClasses, leastSpecificAllowedClass);
+    }
+
+    @Override
     public boolean test(HasMessage message, Executable executable, Class<? extends Annotation> handlerAnnotation,
+                        Class<?> targetClass) {
+        HandleAnnotation annotation = lookupHandleAnnotation(executable, handlerAnnotation);
+        if (annotation == null || annotation.getAllowedClasses().isEmpty()) {
+            return true;
+        }
+        return allowed(annotation.getAllowedClasses().toArray(Class[]::new), message.getPayloadClass());
+    }
+
+    @Override
+    public boolean test(HasMessage message, ExecutableView executable, Class<? extends Annotation> handlerAnnotation,
                         Class<?> targetClass) {
         HandleAnnotation annotation = lookupHandleAnnotation(executable, handlerAnnotation);
         if (annotation == null || annotation.getAllowedClasses().isEmpty()) {
@@ -106,9 +131,29 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
                         .max(introspector.typeSpecificityComparator()));
     }
 
+    @Override
+    public Optional<Class<?>> getLeastSpecificAllowedClass(ExecutableView executable,
+                                                           Class<? extends Annotation> handlerAnnotation) {
+        return Optional.ofNullable(lookupHandleAnnotation(executable, handlerAnnotation))
+                .flatMap(a -> a.getAllowedClasses().stream()
+                        .max(introspector.typeSpecificityComparator()));
+    }
+
     private HandleAnnotation lookupHandleAnnotation(Executable executable,
                                                     Class<? extends Annotation> handlerAnnotation) {
         return annotationResolver.getAnnotation(executable, handlerAnnotation)
+                .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
+                                                                    HandleAnnotation.class))
+                .orElse(null);
+    }
+
+    private HandleAnnotation lookupHandleAnnotation(ExecutableView executable,
+                                                    Class<? extends Annotation> handlerAnnotation) {
+        Optional<Executable> method = executable.executable();
+        if (method.isPresent()) {
+            return lookupHandleAnnotation(method.orElseThrow(), handlerAnnotation);
+        }
+        return executable.annotation(handlerAnnotation)
                 .flatMap(annotation -> introspector.getAnnotationAs(annotation, handlerAnnotation,
                                                                     HandleAnnotation.class))
                 .orElse(null);
@@ -124,7 +169,19 @@ public class PayloadFilter implements MessageFilter<HasMessage> {
         }
 
         @Override
+        public boolean test(HasMessage message, ExecutableView executable,
+                            Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+            return allowedClasses.length == 0 || allowed(allowedClasses, message.getPayloadClass());
+        }
+
+        @Override
         public Optional<Class<?>> getLeastSpecificAllowedClass(Executable executable,
+                                                               Class<? extends Annotation> handlerAnnotation) {
+            return Optional.ofNullable(leastSpecificAllowedClass);
+        }
+
+        @Override
+        public Optional<Class<?>> getLeastSpecificAllowedClass(ExecutableView executable,
                                                                Class<? extends Annotation> handlerAnnotation) {
             return Optional.ofNullable(leastSpecificAllowedClass);
         }

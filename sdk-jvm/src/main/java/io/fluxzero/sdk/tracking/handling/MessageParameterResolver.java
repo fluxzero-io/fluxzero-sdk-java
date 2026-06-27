@@ -16,7 +16,9 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -52,13 +54,29 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
     }
 
     @Override
+    public Function<Object, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        return p.type().map(this::resolve).orElseGet(() -> resolve(p.typeName()));
+    }
+
+    @Override
     public Function<Object, Object> prepare(Parameter parameter, Annotation methodAnnotation) {
         return resolve(parameter.getType());
     }
 
     @Override
+    public Function<Object, Object> prepare(ParameterView parameter, Annotation methodAnnotation) {
+        return resolve(parameter, methodAnnotation);
+    }
+
+    @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object value) {
         return resolve(parameter.getType());
+    }
+
+    @Override
+    public Function<Object, Object> resolveIfPossible(ParameterView parameter, Annotation methodAnnotation,
+                                                      Object value) {
+        return resolve(parameter, methodAnnotation);
     }
 
     private Function<Object, Object> resolve(Class<?> parameterType) {
@@ -74,6 +92,19 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
         return null;
     }
 
+    private Function<Object, Object> resolve(String parameterTypeName) {
+        if (typeName(DeserializingMessage.class).equals(parameterTypeName)) {
+            return DESERIALIZING_MESSAGE_RESOLVER;
+        }
+        if (typeName(SerializedMessage.class).equals(parameterTypeName)) {
+            return SERIALIZED_MESSAGE_RESOLVER;
+        }
+        if (typeName(HasMessage.class).equals(parameterTypeName)) {
+            return HAS_MESSAGE_RESOLVER;
+        }
+        return null;
+    }
+
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return DeserializingMessage.class.isAssignableFrom(parameter.getType())
@@ -82,18 +113,39 @@ public class MessageParameterResolver implements PreparedParameterResolver<Objec
     }
 
     @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, Object value) {
+        return parameter.type()
+                .map(type -> matches(type))
+                .orElseGet(() -> resolve(parameter.typeName()) != null);
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
-            if (DeserializingMessage.class.isAssignableFrom(parameter.getType())) {
-                return true;
-            }
-            if (HasMessage.class.isAssignableFrom(parameter.getType())) {
-                return true;
-            }
-            if (SerializedMessage.class.isAssignableFrom(parameter.getType())) {
+            if (matches(parameter.getType())) {
                 return true;
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView executable, Class<?> targetClass) {
+        for (ParameterView parameter : executable.parameters()) {
+            if (parameter.type().map(this::matches).orElseGet(() -> resolve(parameter.typeName()) != null)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matches(Class<?> parameterType) {
+        return DeserializingMessage.class.isAssignableFrom(parameterType)
+               || HasMessage.class.isAssignableFrom(parameterType)
+               || SerializedMessage.class.isAssignableFrom(parameterType);
+    }
+
+    private static String typeName(Class<?> type) {
+        return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
     }
 }

@@ -17,8 +17,10 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -99,6 +101,16 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     }
 
     @Override
+    public boolean test(HasMessage message, ExecutableView executable,
+                        Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
+        Optional<Executable> method = executable.executable();
+        if (method.isPresent()) {
+            return test(message, method.orElseThrow(), handlerAnnotation, targetClass);
+        }
+        return triggerFilter(executable.annotation(Trigger.class).orElse(null)).test(message);
+    }
+
+    @Override
     public MessageFilter<? super HasMessage> prepare(Executable executable,
                                                      Class<? extends Annotation> handlerAnnotation,
                                                      Class<?> targetClass) {
@@ -108,6 +120,34 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         }
         Predicate<HasMessage> filter = triggerFilter(trigger);
         return (message, e, a, t) -> filter.test(message);
+    }
+
+    @Override
+    public MessageFilter<? super HasMessage> prepare(ExecutableView executable,
+                                                     Class<? extends Annotation> handlerAnnotation,
+                                                     Class<?> targetClass) {
+        Optional<Executable> method = executable.executable();
+        if (method.isPresent()) {
+            return prepare(method.orElseThrow(), handlerAnnotation, targetClass);
+        }
+        Trigger trigger = executable.annotation(Trigger.class).orElse(null);
+        if (trigger == null) {
+            return MessageFilter.allowAll();
+        }
+        Predicate<HasMessage> filter = triggerFilter(trigger);
+        return new MessageFilter<>() {
+            @Override
+            public boolean test(HasMessage message, Executable method,
+                                Class<? extends Annotation> annotation, Class<?> type) {
+                return filter.test(message);
+            }
+
+            @Override
+            public boolean test(HasMessage message, ExecutableView method,
+                                Class<? extends Annotation> annotation, Class<?> type) {
+                return filter.test(message);
+            }
+        };
     }
 
     /**
@@ -123,6 +163,15 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, HasMessage value) {
         return JvmComponentIntrospector.getInstance().has(Trigger.class, parameter);
+    }
+
+    @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
+        Optional<Parameter> reflectionParameter = parameter.parameter();
+        if (reflectionParameter.isPresent()) {
+            return matches(reflectionParameter.orElseThrow(), methodAnnotation, value);
+        }
+        return parameter.annotation(Trigger.class).isPresent();
     }
 
     /**
@@ -143,6 +192,22 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
         }
         var parameterType = HasMessage.class.isAssignableFrom(parameter.getType())
                 ? Object.class : parameter.getType();
+        return getTriggerClass(message, correlationDataProvider).filter(parameterType::isAssignableFrom).isPresent();
+    }
+
+    @Override
+    public boolean test(HasMessage message, ParameterView parameter) {
+        Optional<Parameter> reflectionParameter = parameter.parameter();
+        if (reflectionParameter.isPresent()) {
+            return test(message, reflectionParameter.orElseThrow());
+        }
+        Trigger trigger = parameter.annotation(Trigger.class).orElse(null);
+        if (!filterMessage(message, trigger, correlationDataProvider)) {
+            return false;
+        }
+        Class<?> parameterType = parameter.type()
+                .filter(type -> !HasMessage.class.isAssignableFrom(type))
+                .orElse(Object.class);
         return getTriggerClass(message, correlationDataProvider).filter(parameterType::isAssignableFrom).isPresent();
     }
 
@@ -199,6 +264,24 @@ public class TriggerParameterResolver implements ParameterResolver<HasMessage>, 
     public Function<HasMessage, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> getTriggerMessage(m).<Object>map(triggerMessage -> {
                     var parameterType = p.getType();
+                    if (DeserializingMessage.class.isAssignableFrom(parameterType)) {
+                        return triggerMessage;
+                    }
+                    if (HasMessage.class.isAssignableFrom(parameterType)) {
+                        return triggerMessage.toMessage();
+                    }
+                    return triggerMessage.getPayload();
+                }).orElse(null);
+    }
+
+    @Override
+    public Function<HasMessage, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        Optional<Parameter> reflectionParameter = p.parameter();
+        if (reflectionParameter.isPresent()) {
+            return resolve(reflectionParameter.orElseThrow(), methodAnnotation);
+        }
+        return m -> getTriggerMessage(m).<Object>map(triggerMessage -> {
+                    Class<?> parameterType = p.type().orElse(Object.class);
                     if (DeserializingMessage.class.isAssignableFrom(parameterType)) {
                         return triggerMessage;
                     }

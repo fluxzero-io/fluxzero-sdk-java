@@ -16,7 +16,9 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -100,6 +102,25 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
         };
     }
 
+    @Override
+    public Function<HasMessage, Object> resolve(ParameterView p, Annotation methodAnnotation) {
+        Optional<Parameter> reflectionParameter = p.parameter();
+        if (reflectionParameter.isPresent()) {
+            return resolve(reflectionParameter.orElseThrow(), methodAnnotation);
+        }
+        return m -> {
+            WebRequestContext context = getWebRequestContext((DeserializingMessage) m);
+            return metadataField(p)
+                    .map(f -> {
+                        String value = f.getValue();
+                        String name = isBlank(value) ? p.name() : value;
+                        return context.getParameter(name, f.getType());
+                    })
+                    .flatMap(parameterValue -> p.type().map(parameterValue::as))
+                    .orElse(null);
+        };
+    }
+
     /**
      * Determines if this resolver is applicable to a given method parameter.
      *
@@ -122,8 +143,32 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
     }
 
     @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, HasMessage value) {
+        Optional<Parameter> reflectionParameter = parameter.parameter();
+        if (reflectionParameter.isPresent()) {
+            return matches(reflectionParameter.orElseThrow(), methodAnnotation, value);
+        }
+        return value instanceof DeserializingMessage m && m.getMessageType() == MessageType.WEBREQUEST
+               && hasWebParam(parameter);
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
+            if (hasWebParam(parameter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        Optional<Executable> reflectionMethod = method.executable();
+        if (reflectionMethod.isPresent()) {
+            return mayApply(reflectionMethod.orElseThrow(), targetClass);
+        }
+        for (ParameterView parameter : method.parameters()) {
             if (hasWebParam(parameter)) {
                 return true;
             }
@@ -139,6 +184,12 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
                         parameter.getDeclaringExecutable().getDeclaringClass()));
     }
 
+    private static Optional<ParamField> metadataField(ParameterView parameter) {
+        return parameter.parameter().flatMap(WebParamParameterResolver::metadataField)
+                .or(() -> parameter.annotation(WebParam.class)
+                        .map(annotation -> new ParamField(annotation.value(), annotation.type())));
+    }
+
     private static boolean hasWebParam(Parameter parameter) {
         Optional<Boolean> metadataResult = ComponentMetadataLookups.lookup(
                         parameter.getDeclaringExecutable().getDeclaringClass())
@@ -148,6 +199,11 @@ public class WebParamParameterResolver implements ParameterResolver<HasMessage> 
         }
         return !ComponentMetadataLookups.generatedOnlyMode()
                && JvmComponentIntrospector.getInstance().isAnnotationPresent(parameter, WebParam.class);
+    }
+
+    private static boolean hasWebParam(ParameterView parameter) {
+        return parameter.parameter().map(WebParamParameterResolver::hasWebParam)
+                .orElseGet(() -> parameter.annotation(WebParam.class).isPresent());
     }
 
     @Value
