@@ -170,7 +170,7 @@ public class DefaultEntityHelper implements EntityHelper {
         if (payload == null || entityId == null || !hasSelfReferentialMember(entity.type())) {
             return false;
         }
-        Object routingKey = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
+        Object routingKey = ModelMetadata.annotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class)
                 .orElse(null);
         if (routingKey != null) {
             if (entityId.equals(routingKey) || entity.aliases().stream().anyMatch(routingKey::equals)) {
@@ -321,7 +321,8 @@ public class DefaultEntityHelper implements EntityHelper {
             return;
         }
         MessageWithEntity message = new MessageWithEntity(value, entity, afterHandler);
-        Collection<Object> additionalProperties = new HashSet<>(JvmComponentIntrospector.getInstance().getAnnotatedPropertyValues(target, AssertLegal.class));
+        Collection<Object> additionalProperties = new HashSet<>(
+                ModelMetadata.annotatedPropertyValues(target, AssertLegal.class));
         assertLegalMatchers.apply(targetType).getInvoker(target, message)
                 .ifPresent(s -> {
                     Object additionalObject = s.invoke((first, second) -> Stream.concat(

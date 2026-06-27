@@ -195,8 +195,10 @@ Work:
     JVM access fallback.
   - [x] Aggregate repository `@EntityId` property and `@Apply` factory-method discovery use descriptor metadata before
     JVM fallback.
-  - [ ] Recursive entity-helper/entity traversal for `@Member`, `@Alias`, `@AssertLegal`, and routing-key properties
-    still uses the JVM backend directly.
+  - [x] Recursive entity-helper/entity traversal for `@Member`, `@Alias`, `@AssertLegal`, and routing-key properties
+    uses descriptor metadata before JVM access fallback.
+  - [ ] Annotation attribute projection for modeling annotations such as `@Member`, `@Alias`, and `@Apply` still uses
+    JVM annotation instances where attributes are needed.
 - [ ] Invocation and mutable property access behind a platform backend seam.
 
 Done when:
@@ -205,6 +207,7 @@ Done when:
   - [x] Focused auth, validation, consumer, association, stateful, local-handler, web, and content-filter tests are
     green for the migrated clusters.
   - [x] Full `sdk-jvm` suite is green after the current migrated clusters.
+  - [x] Focused aggregate/modeling tests are green after recursive entity traversal migration.
   - [ ] Remaining Slice 4 clusters are migrated and covered without relying on direct runtime reflection calls.
 
 ### Slice 5: Generated Registry Backend

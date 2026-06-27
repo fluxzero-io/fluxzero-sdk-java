@@ -176,18 +176,21 @@ public class AnnotatedEntityHolder {
         Member member = JvmComponentIntrospector.getInstance().getAnnotation(location, Member.class).orElseThrow();
         String pathToId = member.idProperty();
         this.idProvider = pathToId.isBlank() ?
-                v -> (v == null ? Optional.<MemberInvoker>empty()
-                                : JvmComponentIntrospector.getInstance().getAnnotatedPropertyInvoker(v.getClass(), EntityId.class)).map(
-                                p -> new Id(p.invoke(v), p.getMember().getName()))
-                        .orElseGet(() -> {
-                            if (JvmComponentIntrospector.getInstance().ifClass(v) instanceof Class<?> c) {
-                                return new Id(null, JvmComponentIntrospector.getInstance().getAnnotatedProperty(c, EntityId.class)
-                                        .map(property -> JvmComponentIntrospector.getInstance().getName(property)).orElse(null));
-                            }
-                            return new Id(null, null);
-                        }) :
+                AnnotatedEntityHolder::entityId :
                 v -> new Id(JvmComponentIntrospector.getInstance().readProperty(pathToId, v).orElse(null), pathToId);
         this.wither = computeWither(ownerType, location, serializer, member);
+    }
+
+    private static Id entityId(Object value) {
+        if (value == null) {
+            return new Id(null, null);
+        }
+        if (JvmComponentIntrospector.getInstance().ifClass(value) instanceof Class<?> type) {
+            return new Id(null, ModelMetadata.annotatedPropertyName(type, EntityId.class).orElse(null));
+        }
+        Optional<String> propertyName = ModelMetadata.annotatedPropertyName(value.getClass(), EntityId.class);
+        return new Id(propertyName.flatMap(name -> JvmComponentIntrospector.getInstance().readProperty(name, value))
+                              .orElse(null), propertyName.orElse(null));
     }
 
     private static BiFunction<Object, Object, Object> computeWither(
@@ -455,7 +458,7 @@ public class AnnotatedEntityHolder {
         if (id.value() != null) {
             addRouteValue(results, id.value().toString());
         }
-        for (AccessibleObject aliasLocation : JvmComponentIntrospector.getInstance().getAnnotatedProperties(member.getClass(), Alias.class)) {
+        for (AccessibleObject aliasLocation : ModelMetadata.annotatedPropertyLocations(member.getClass(), Alias.class)) {
             Object aliasValue = JvmComponentIntrospector.getInstance().getValue(aliasLocation, member, false);
             if (aliasValue == null) {
                 continue;

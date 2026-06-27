@@ -66,7 +66,7 @@ public interface Entity<T> {
     ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
         @Override
         protected Boolean computeValue(Class<?> entityType) {
-            for (var location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(entityType, Member.class)) {
+            for (var location : ModelMetadata.annotatedPropertyLocations(entityType, Member.class)) {
                 Class<?> childType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
                         .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
                 if (Objects.equals(entityType, childType)) {
@@ -866,7 +866,7 @@ public interface Entity<T> {
             Object routeValue = parent != null && parent.idProperty() != null
                     ? JvmComponentIntrospector.getInstance().readProperty(parent.idProperty(), payload).orElse(null) : null;
             if (routeValue == null) {
-                routeValue = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, RoutingKey.class).orElse(null);
+                routeValue = ModelMetadata.annotatedPropertyValue(payload, RoutingKey.class).orElse(null);
             }
             if (routeValue == null || parent == null || !hasSelfReferentialMember(parent.type())) {
                 return true;
@@ -877,7 +877,7 @@ public interface Entity<T> {
             return matchesRoute(parent, routeValue);
         }
         if (JvmComponentIntrospector.getInstance().readProperty(idProperty, payload)
-                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
+                .or(() -> ModelMetadata.annotatedPropertyValue(payload, RoutingKey.class)).map(id::equals).orElse(false)) {
             return true;
         }
         if (isPresent() && shouldSearchDescendants(payload, idProperty)) {

@@ -253,11 +253,11 @@ public class ImmutableEntity<T> implements Entity<T> {
             || !Entity.selfReferentialMemberCache.get(type())) {
             return null;
         }
-        Object updatedId = JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(updatedValue, EntityId.class).orElse(null);
+        Object updatedId = ModelMetadata.annotatedPropertyValue(updatedValue, EntityId.class).orElse(null);
         if (updatedId == null || Objects.equals(updatedId, id())) {
             return null;
         }
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(type(), Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type(), Member.class)) {
             AnnotatedEntityHolder entityHolder = getEntityHolder(type(), location, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = entityHolder.getEmptyEntity();
             if (!Objects.equals(type(), emptyChild.type())) {
@@ -277,7 +277,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (explicitTarget != ExplicitTarget.UNKNOWN) {
             return explicitTarget == ExplicitTarget.CURRENT;
         }
-        if (JvmComponentIntrospector.getInstance().getAnnotatedProperties(type(), Member.class).isEmpty()) {
+        if (!ModelMetadata.hasAnnotatedProperty(type(), Member.class)) {
             return true;
         }
         Object routingKey = getRoutingKey(payload);
@@ -346,8 +346,8 @@ public class ImmutableEntity<T> implements Entity<T> {
         }
         return routingKeyOverlapsCurrentIdCache.computeIfAbsent(new RoutingKeyOverlapCacheKey(entityType,
                                                                                               payload.getClass()),
-                                                                ignored -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyName(
-                                                                                payload,
+                                                                ignored -> ModelMetadata.annotatedPropertyName(
+                                                                                payload.getClass(),
                                                                                 io.fluxzero.sdk.publishing.routing.RoutingKey.class)
                                                                         .map(idProperty()::equals)
                                                                         .orElseGet(() -> JvmComponentIntrospector.getInstance().hasProperty(
@@ -399,7 +399,7 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private Entity<?> resolveDirectTarget(String routeValue) {
         Class<?> type = type();
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(type, Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type, Member.class)) {
             Entity<?> entity = getEntityHolder(type, location, entityHelper, serializer).getEntityByRoute(this, routeValue);
             if (entity != null) {
                 return entity;
@@ -409,7 +409,8 @@ public class ImmutableEntity<T> implements Entity<T> {
     }
 
     private Object getRoutingKey(Object payload) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class).orElse(null);
+        return ModelMetadata.annotatedPropertyValue(
+                payload, io.fluxzero.sdk.publishing.routing.RoutingKey.class).orElse(null);
     }
 
     private List<String> routeCandidates(Object payload) {
@@ -485,7 +486,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         }
         Set<String> properties = new LinkedHashSet<>();
         boolean certain = true;
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(ownerType, Member.class)) {
             AnnotatedEntityHolder holder = getEntityHolder(ownerType, location, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = holder.getEmptyEntity();
             Class<?> childType = emptyChild.type();
@@ -608,7 +609,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (!visitedTypes.add(entity.type())) {
             return;
         }
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(entity.type(), Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entity.type(), Member.class)) {
             ImmutableEntity<?> child = getEntityHolder(entity.type(), location, entityHelper, serializer)
                     .getEmptyEntity().toBuilder().parent(entity).build();
             assertApplyCompatibility(message, child, visitedTypes);
@@ -617,7 +618,7 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     private <E extends Exception> void assertApplyCompatibilityOnSelfReferentialChildren(
             DeserializingMessage message, Entity<?> entity, Set<Class<?>> visitedTypes) throws E {
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(entity.type(), Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entity.type(), Member.class)) {
             AnnotatedEntityHolder childHolder = getEntityHolder(entity.type(), location, entityHelper, serializer);
             ImmutableEntity<?> emptyChild = childHolder.getEmptyEntity().toBuilder().parent(entity).build();
             assertApplyCompatibility(message, emptyChild, new HashSet<>(visitedTypes));
@@ -640,7 +641,7 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (explicitTarget(payload) != ExplicitTarget.OTHER || entityType == null) {
             return false;
         }
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(entityType, Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(entityType, Member.class)) {
             AnnotatedEntityHolder childHolder = getEntityHolder(entityType, location, entityHelper, serializer);
             if (Objects.equals(entityType, childHolder.getEmptyEntity().type())) {
                 return true;
@@ -673,7 +674,7 @@ public class ImmutableEntity<T> implements Entity<T> {
     protected Collection<? extends ImmutableEntity<?>> computeEntities() {
         Class<?> type = type();
         List<ImmutableEntity<?>> result = new ArrayList<>();
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(type, Member.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(type, Member.class)) {
             result.addAll(getEntityHolder(type, location, entityHelper, serializer).getEntities(this));
         }
         return result;
@@ -685,7 +686,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             return emptyList();
         }
         List<Object> results = new ArrayList<>();
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(target.getClass(), Alias.class)) {
+        for (AccessibleObject location : ModelMetadata.annotatedPropertyLocations(target.getClass(), Alias.class)) {
             Object v = JvmComponentIntrospector.getInstance().getValue(location, target, false);
             if (v != null) {
                 JvmComponentIntrospector.getInstance().getAnnotationAs(location, Alias.class, Alias.class).ifPresent(alias -> {
