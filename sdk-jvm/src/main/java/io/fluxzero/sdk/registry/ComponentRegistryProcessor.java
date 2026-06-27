@@ -183,10 +183,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
             collectPackage(type);
         }
         for (Element enclosed : element.getEnclosedElements()) {
-            if (enclosed instanceof TypeElement nested && componentKind(nested).isPresent()) {
-                types.putIfAbsent(binaryName(nested), nested);
-                collectPackage(nested);
-            }
+            collect(enclosed);
         }
     }
 
@@ -300,7 +297,7 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 routes.add(new HandlerRoute(
                         spec.messageType(), annotation, executable, disabled, passive, skipExpiredRequests,
                         local, tracked, payloadTypes, allowedClasses,
-                        spec.web() ? webRoutes(annotation, spec, packageName, className(type), annotations, executable)
+                        spec.web() ? webRoutes(annotation, spec, packageName, type, executable)
                                 : List.of()));
             }
         }
@@ -361,12 +358,11 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,
                                                String packageName,
-                                               String className,
-                                               List<AnnotationDescriptor> typeAnnotations,
+                                               TypeElement type,
                                                ExecutableDescriptor executable) {
         List<String> packagePaths = packagePaths(packageName);
-        Optional<String> typePath = WebRoutePaths.pathValue(typeAnnotations, simplePackageName(packageName));
-        Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), className);
+        Optional<String> typePath = typePath(type, packageName);
+        Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), type.getSimpleName().toString());
         List<String> handlerPaths = annotation.values("value");
         List<String> methods = annotation.qualifiedName().equals("io.fluxzero.sdk.web.HandleWeb")
                 && !annotation.values("method").isEmpty() ? annotation.values("method") : spec.webMethods();
@@ -374,6 +370,18 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
         List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
+    }
+
+    private Optional<String> typePath(TypeElement type, String packageName) {
+        for (Element current = type; current instanceof TypeElement currentType;
+             current = currentType.getEnclosingElement()) {
+            Optional<String> result = WebRoutePaths.pathValue(
+                    annotationDescriptors(currentType.getAnnotationMirrors()), simplePackageName(packageName));
+            if (result.isPresent()) {
+                return result;
+            }
+        }
+        return Optional.empty();
     }
 
     private boolean isSelfHandler(HandlerSpec spec, TypeElement type, ExecutableElement executable) {

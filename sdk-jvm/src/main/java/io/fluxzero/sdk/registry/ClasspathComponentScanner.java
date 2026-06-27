@@ -276,9 +276,7 @@ public class ClasspathComponentScanner {
     private List<WebRouteDescriptor> webRoutes(Annotation annotation, HandlerSpec spec, Class<?> type,
                                                Executable executable) {
         List<String> packagePaths = packagePaths(type);
-        Optional<String> typePath = WebRoutePaths.pathValue(
-                annotationDescriptors(JvmComponentIntrospector.getInstance().getTypeAnnotations(type)),
-                simplePackageName(type.getPackage()));
+        Optional<String> typePath = typePath(type);
         Optional<String> methodPath = WebRoutePaths.pathValue(
                 annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)),
                 JvmComponentIntrospector.getInstance().getSimpleName(executable.getDeclaringClass()));
@@ -289,6 +287,12 @@ public class ClasspathComponentScanner {
         boolean autoOptions = booleanAttribute(annotation, "autoOptions", spec.defaultAutoOptions());
         List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
+    }
+
+    private Optional<String> typePath(Class<?> type) {
+        return JvmComponentIntrospector.getInstance().getAnnotation(type, Path.class)
+                .map(Path::value)
+                .map(path -> path.isBlank() ? simplePackageName(type.getPackage()) : path);
     }
 
     private List<String> packagePaths(Class<?> type) {

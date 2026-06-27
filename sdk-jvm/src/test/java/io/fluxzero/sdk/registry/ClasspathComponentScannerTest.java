@@ -37,8 +37,11 @@ import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.HandleResult;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
+import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HandleWebResponse;
+import io.fluxzero.sdk.web.Path;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -119,6 +122,23 @@ class ClasspathComponentScannerTest {
 
         assertEquals(List.of("/compiled/web-root/child/type/method/items"), webRoute(component, "stacked").paths());
         assertEquals(List.of("/reset/items"), webRoute(component, "reset").paths());
+    }
+
+    @Test
+    void webRoutesInheritNearestEnclosingTypePath() {
+        ComponentRegistry registry = new ClasspathComponentScanner().scan(
+                NestedWebPathHandler.Inherited.class,
+                NestedWebPathHandler.OwnPath.class,
+                NestedWebPathHandler.SocketEndpoint.class);
+
+        assertEquals(List.of("/outer/items"), webRoute(
+                registry.findComponent(NestedWebPathHandler.Inherited.class.getName()).orElseThrow(), "get").paths());
+        assertEquals(List.of("/inner/items"), webRoute(
+                registry.findComponent(NestedWebPathHandler.OwnPath.class.getName()).orElseThrow(), "get").paths());
+        WebRouteDescriptor socketRoute = webRoute(
+                registry.findComponent(NestedWebPathHandler.SocketEndpoint.class.getName()).orElseThrow(), "open");
+        assertEquals(List.of("/outer"), socketRoute.paths());
+        assertEquals(List.of("WS_OPEN"), socketRoute.methods());
     }
 
     @Test
@@ -269,6 +289,31 @@ class ClasspathComponentScannerTest {
 
         @HandleCustom("custom-topic")
         void custom(String payload) {
+        }
+    }
+
+    @Path("/outer")
+    private static class NestedWebPathHandler {
+        private static class Inherited {
+            @HandleGet("items")
+            String get() {
+                return "inherited";
+            }
+        }
+
+        @Path("inner")
+        private static class OwnPath {
+            @HandleGet("items")
+            String get() {
+                return "own";
+            }
+        }
+
+        private static class SocketEndpoint {
+            @HandleSocketOpen
+            String open() {
+                return "open";
+            }
         }
     }
 

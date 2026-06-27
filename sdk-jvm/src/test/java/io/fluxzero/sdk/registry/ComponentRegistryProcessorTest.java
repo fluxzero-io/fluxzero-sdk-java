@@ -85,6 +85,23 @@ class ComponentRegistryProcessorTest {
                      webRoute(webPathComponent, "stacked").paths());
         assertEquals(List.of("/reset/items"), webRoute(webPathComponent, "reset").paths());
 
+        ComponentDescriptor nestedInherited = registry.components().stream()
+                .filter(descriptor -> descriptor.fullClassName()
+                        .equals("io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$Inherited"))
+                .findFirst().orElseThrow();
+        ComponentDescriptor nestedOwnPath = registry.components().stream()
+                .filter(descriptor -> descriptor.fullClassName()
+                        .equals("io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$OwnPath"))
+                .findFirst().orElseThrow();
+        ComponentDescriptor nestedSocket = registry.components().stream()
+                .filter(descriptor -> descriptor.fullClassName()
+                        .equals("io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$SocketEndpoint"))
+                .findFirst().orElseThrow();
+        assertEquals(List.of("/processor/web-root/child/outer/items"), webRoute(nestedInherited, "get").paths());
+        assertEquals(List.of("/inner/items"), webRoute(nestedOwnPath, "get").paths());
+        assertEquals(List.of("/processor/web-root/child/outer"), webRoute(nestedSocket, "open").paths());
+        assertEquals(List.of("WS_OPEN"), webRoute(nestedSocket, "open").methods());
+
         ComponentDescriptor self = registry.findComponent(
                 "io.fluxzero.sdk.registry.processorfixture.ProcessorSelfQuery").orElseThrow();
         HandlerRoute selfQuery = route(self, MessageType.QUERY);
@@ -131,6 +148,10 @@ class ComponentRegistryProcessorTest {
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorResult"),
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorSelfQuery"),
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorTaskScheduler"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$Inherited"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$OwnPath"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorNestedWebPathHandler$SocketEndpoint"),
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorWebPathHandler")
             )).normalized();
 
@@ -368,6 +389,38 @@ class ComponentRegistryProcessorTest {
                     @HandleGet("items")
                     public String reset() {
                         return "reset";
+                    }
+                }
+                """);
+        Files.writeString(childWebPackageDir.resolve("ProcessorNestedWebPathHandler.java"), """
+                package io.fluxzero.sdk.registry.processorfixture.web.child;
+
+                import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.HandleSocketOpen;
+                import io.fluxzero.sdk.web.Path;
+
+                @Path("outer")
+                public class ProcessorNestedWebPathHandler {
+                    public static class Inherited {
+                        @HandleGet("items")
+                        public String get() {
+                            return "inherited";
+                        }
+                    }
+
+                    @Path("/inner")
+                    public static class OwnPath {
+                        @HandleGet("items")
+                        public String get() {
+                            return "own";
+                        }
+                    }
+
+                    public static class SocketEndpoint {
+                        @HandleSocketOpen
+                        public String open() {
+                            return "open";
+                        }
                     }
                 }
                 """);

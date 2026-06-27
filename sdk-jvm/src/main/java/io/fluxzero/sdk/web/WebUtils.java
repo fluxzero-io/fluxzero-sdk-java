@@ -169,10 +169,6 @@ public class WebUtils {
             var routes = lookup.routes(targetClass, MessageType.WEBREQUEST).stream()
                     .filter(route -> route.executableMetadata().filter(executable.get()::equals).isPresent())
                     .toList();
-            if (routes.stream().flatMap(route -> route.webRoutes().stream())
-                    .flatMap(route -> route.methods().stream()).anyMatch(WebUtils::isWebsocketMethod)) {
-                return Optional.empty();
-            }
             List<WebPattern> result = routes.stream().flatMap(route -> route.webRoutes().stream())
                     .flatMap(WebUtils::toWebPatterns)
                     .toList();
@@ -182,12 +178,13 @@ public class WebUtils {
 
     private static Stream<WebPattern> toWebPatterns(WebRouteDescriptor route) {
         return route.paths().stream()
+                .map(WebUtils::substitutePathProperties)
                 .flatMap(path -> route.methods().stream()
                         .map(method -> new WebPattern(path, method, route.autoHead(), route.autoOptions())));
     }
 
-    private static boolean isWebsocketMethod(String method) {
-        return method != null && method.startsWith("WS_");
+    private static String substitutePathProperties(String path) {
+        return path == null || path.isBlank() ? path : ApplicationProperties.substituteProperties(path);
     }
 
     private static boolean hasDynamicHandlerPath(@Nullable Object handler) {

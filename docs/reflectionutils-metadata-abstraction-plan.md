@@ -187,8 +187,8 @@ Work:
   - [x] Source/classpath/processor producers preserve full package/type/method `@Path` stacking, blank path defaults,
     handler annotation values, and absolute `@Path` reset semantics.
   - [x] HTTP web route runtime consumption uses registry `HandlerRoute.webRoutes()` before JVM fallback.
-  - [ ] WebSocket endpoint route consumption still uses JVM fallback until socket endpoint path semantics are fully
-    modeled in metadata.
+  - [x] WebSocket endpoint route consumption uses registry `HandlerRoute.webRoutes()` before JVM fallback, including
+    enclosing type `@Path` semantics for classpath and annotation-processor metadata.
 - [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
   - [x] Association property selection reads descriptor property metadata before JVM fallback.
   - [x] Content-filter policy marker reads descriptor metadata before JVM fallback.
