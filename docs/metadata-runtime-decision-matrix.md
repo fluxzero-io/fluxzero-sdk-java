@@ -45,4 +45,4 @@ Allowed source values:
 | schedule.periodic | Periodic schedule metadata and handler schedule registration | Registry metadata | Registry metadata | `SchedulingInterceptor` and `MessageScheduler` metadata lookup |
 | schedule.payload-instantiation | Constructing schedule payloads for JVM periodic handlers | Allowed JVM backend | Generated invocation plan | JVM constructor backend until Slice 3 |
 | extension.builder-components | Builder-facing user components such as interceptors, decorators, mappers, validators, serializers, providers, caches, schedulers, and property sources | Registry metadata | Registry metadata | Component capabilities and builder registry merge |
-| source.lifecycle | Add/edit/delete source components under `src/.../fluxzero` | Registry metadata | Registry metadata | Slice 5 refresh/diff/register lifecycle |
+| source.lifecycle | Add/edit/delete source components under `src/.../fluxzero` | Registry metadata | Registry metadata | `OnDemandExecution.refresh()` diff/register lifecycle |

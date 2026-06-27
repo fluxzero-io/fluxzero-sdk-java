@@ -193,20 +193,31 @@ Evidence:
 
 Goal: `src/.../fluxzero` behaves like a live local development source root, not only an index captured at registration.
 
-Remaining work:
+Status: [x] implemented for this slice.
 
-- [ ] Refresh or watch source roots so newly added and deleted Java files update the indexed registry without
+- [x] Refresh or watch source roots so newly added and deleted Java files update the indexed registry without
   restarting the app.
-- [ ] Diff refreshed registries and safely register or unregister lazy routes at runtime.
-- [ ] Update the active component registry visible to runtime metadata lookup after a refresh.
-- [ ] Invalidate compile-cache entries and close classloaders for removed or replaced source units.
-- [ ] Add tests for added handlers, removed handlers, added payload/model components, removed payload/model components,
-  and source-defined infrastructure changes where runtime replacement is supported.
+- [x] Diff refreshed registries and safely register or unregister lazy routes at runtime.
+- [x] Update the active component registry visible to runtime metadata lookup after a refresh.
+- [x] Invalidate compile-cache entries and close classloaders for removed or replaced source units.
+- [x] Add tests for added handlers, removed handlers, added payload/model components, and removed payload/model
+  components. Source-defined infrastructure remains startup material in this slice.
 
 Done when:
 
-- [ ] A local JVM app can add, edit, and delete on-demand handlers and payload/model components, then see the route/type
+- [x] A local JVM app can add, edit, and delete on-demand handlers and payload/model components, then see the route/type
   changes without restarting.
+
+Evidence:
+
+- Added explicit `OnDemandExecution.refresh()` for deterministic local/IDE/tooling refreshes without a background
+  watcher.
+- Refresh re-scans source roots when source scanning is enabled, diffs message-handler groups, cancels/re-registers
+  changed groups, updates the active `ComponentRegistry`, and closes units for removed or descriptor-changed source
+  components.
+- Source type resolution now treats every scanned source component as loadable, not only handlers or route payloads.
+- `OnDemandExecutionTest` covers added handlers, deleted handlers, added source payload components, deleted source
+  payload components, and existing edit/hot-recompile behavior.
 
 ### Slice 6: JVM Adoption Shape And Final Verification
 

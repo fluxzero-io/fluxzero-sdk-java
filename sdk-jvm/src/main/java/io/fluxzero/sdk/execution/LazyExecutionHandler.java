@@ -84,6 +84,10 @@ class LazyExecutionHandler implements Handler<DeserializingMessage>, AutoCloseab
         return unit;
     }
 
+    HandlerRoute route() {
+        return route;
+    }
+
     @Override
     public void close() {
         unit.close();

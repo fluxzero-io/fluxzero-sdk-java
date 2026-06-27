@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -128,6 +129,13 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
     private final List<LazyExecutionHandler> activeHandlers = new CopyOnWriteArrayList<>();
     private final Map<String, LazyExecutionUnit> activeUnits = new ConcurrentHashMap<>();
     private final Set<String> resolvableSourceTypes = ConcurrentHashMap.newKeySet();
+    private final Object registrationLock = new Object();
+
+    private Fluxzero registeredFluxzero;
+    private OnDemandCompiler registeredCompiler;
+    private RuntimeRegistration runtimeRegistration = RuntimeRegistration.empty();
+    private Registration typeResolverRegistration = Registration.noOp();
+    private Registration shutdownRegistration = Registration.noOp();
 
     private OnDemandExecution(Builder builder) {
         this.sourceRoot = builder.sourceRoot == null ? ComponentRegistryGenerator.DEFAULT_SOURCE_ROOT : builder.sourceRoot;
@@ -155,34 +163,49 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
     @Override
     public Registration registerWith(@NonNull Fluxzero fluxzero) {
         ComponentRegistry registry = componentRegistry();
-        if (registry.isEmpty()) {
-            return Registration.noOp();
-        }
-
         OnDemandCompiler compiler = new OnDemandCompiler(
                 release, sourceRoot, cacheRoot, extraClasspath, extraSourcepath, parentClassLoader);
-        List<LazyExecutionUnit> registeredUnits = new ArrayList<>();
-        Map<MessageType, List<LazyExecutionHandler>> handlers =
-                handlersByMessageType(fluxzero, registry, compiler, registeredUnits);
-        List<LazyExecutionHandler> registeredHandlers = handlers.values().stream().flatMap(List::stream).toList();
-        activeHandlers.addAll(registeredHandlers);
-        Set<String> registeredResolvableTypes = resolvableSourceTypes(registry);
-        resolvableSourceTypes.addAll(registeredResolvableTypes);
-        Registration typeResolverRegistration = fluxzero.serializer().registerTypeResolver(this::loadType);
+        synchronized (registrationLock) {
+            if (registeredFluxzero != null) {
+                throw new OnDemandExecutionException("OnDemandExecution is already registered");
+            }
+            registeredFluxzero = fluxzero;
+            registeredCompiler = compiler;
+            typeResolverRegistration = fluxzero.serializer().registerTypeResolver(this::loadType);
+            runtimeRegistration = installRegistry(fluxzero, registry, compiler, RuntimeRegistration.empty());
+            shutdownRegistration = fluxzero.beforeShutdown(this::close);
+            AtomicBoolean cancelled = new AtomicBoolean();
+            return () -> {
+                if (cancelled.compareAndSet(false, true)) {
+                    close();
+                }
+            };
+        }
+    }
 
-        Registration registration = handlers.entrySet().stream()
-                .flatMap(e -> registrations(fluxzero, e.getKey(), e.getValue()))
-                .reduce(Registration::merge).orElse(Registration.noOp());
-        Registration registryRegistration = fluxzero.registerComponentRegistry(registry);
-        Registration cleanup = fluxzero.beforeShutdown(() -> {
-            close(registeredHandlers, List.copyOf(activeUnits.values()));
-            resolvableSourceTypes.removeAll(registeredResolvableTypes);
-        });
-        return typeResolverRegistration.merge(registration).merge(registryRegistration).merge(cleanup)
-                .merge(() -> {
-                    close(registeredHandlers, List.copyOf(activeUnits.values()));
-                    resolvableSourceTypes.removeAll(registeredResolvableTypes);
-                });
+    /**
+     * Re-scans the configured source root and updates lazy registrations without restarting Fluxzero.
+     * <p>
+     * Existing source edits inside an already indexed unit are still handled on first matching invocation. This method
+     * is for lifecycle changes that alter the indexed application model: newly added files, deleted files, changed
+     * handler annotations, and added or removed source payload/model components.
+     *
+     * @return {@code true} when the active registry changed and registrations were updated
+     */
+    public boolean refresh() {
+        synchronized (registrationLock) {
+            if (registeredFluxzero == null || registeredCompiler == null) {
+                throw new OnDemandExecutionException("OnDemandExecution must be registered before it can refresh");
+            }
+            ComponentRegistry refreshed = refreshableComponentRegistry();
+            if (Objects.equals(runtimeRegistration.registry(), refreshed)) {
+                return false;
+            }
+            closeChangedUnits(runtimeRegistration.registry(), refreshed);
+            runtimeRegistration = installRegistry(
+                    registeredFluxzero, refreshed, registeredCompiler, runtimeRegistration);
+            return true;
+        }
     }
 
     /**
@@ -291,6 +314,77 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
                         .formatted(sourceRoot, ComponentRegistryJson.DEFAULT_RESOURCE));
     }
 
+    private ComponentRegistry refreshableComponentRegistry() {
+        if (registry != null) {
+            return registry;
+        }
+        if (scanSourceWhenRegistryMissing) {
+            return new SourceComponentScanner().scan(sourceRoot);
+        }
+        return componentRegistry();
+    }
+
+    private RuntimeRegistration installRegistry(Fluxzero fluxzero, ComponentRegistry registry,
+                                                OnDemandCompiler compiler, RuntimeRegistration previous) {
+        Map<MessageType, List<LazyExecutionHandler>> handlers =
+                handlersByMessageType(fluxzero, registry, compiler, new ArrayList<>());
+        Map<MessageType, RegisteredHandlerGroup> groups = new EnumMap<>(MessageType.class);
+        Set<MessageType> messageTypes = EnumSet.noneOf(MessageType.class);
+        messageTypes.addAll(previous.groups().keySet());
+        messageTypes.addAll(handlers.keySet());
+        for (MessageType messageType : messageTypes) {
+            List<LazyExecutionHandler> nextHandlers = handlers.getOrDefault(messageType, List.of());
+            String nextFingerprint = fingerprint(nextHandlers);
+            RegisteredHandlerGroup current = previous.groups().get(messageType);
+            if (current != null && current.fingerprint().equals(nextFingerprint)) {
+                groups.put(messageType, current);
+                continue;
+            }
+            if (current != null) {
+                current.cancelAndClose();
+                activeHandlers.removeAll(current.handlers());
+            }
+            if (!nextHandlers.isEmpty()) {
+                Registration registration = registrations(fluxzero, messageType, nextHandlers)
+                        .reduce(Registration::merge).orElse(Registration.noOp());
+                RegisteredHandlerGroup group = new RegisteredHandlerGroup(nextFingerprint, nextHandlers, registration);
+                groups.put(messageType, group);
+                activeHandlers.addAll(nextHandlers);
+            }
+        }
+        previous.registryRegistration().cancel();
+        resolvableSourceTypes.removeAll(previous.resolvableTypes());
+        Set<String> nextResolvableTypes = resolvableSourceTypes(registry);
+        resolvableSourceTypes.addAll(nextResolvableTypes);
+        Registration registryRegistration = registry.isEmpty()
+                ? Registration.noOp() : fluxzero.registerComponentRegistry(registry);
+        return new RuntimeRegistration(registry, registryRegistration, Map.copyOf(groups), nextResolvableTypes);
+    }
+
+    private void closeChangedUnits(ComponentRegistry previous, ComponentRegistry next) {
+        Map<String, ComponentDescriptor> nextComponents = componentsByName(next);
+        componentsByName(previous).forEach((name, component) -> {
+            if (!Objects.equals(component, nextComponents.get(name))) {
+                Optional.ofNullable(activeUnits.remove(name)).ifPresent(LazyExecutionUnit::close);
+            }
+        });
+    }
+
+    private static Map<String, ComponentDescriptor> componentsByName(ComponentRegistry registry) {
+        return registry.components().stream().collect(java.util.stream.Collectors.toMap(
+                ComponentDescriptor::fullClassName, Function.identity(), (first, ignored) -> first));
+    }
+
+    private static String fingerprint(List<LazyExecutionHandler> handlers) {
+        if (handlers.isEmpty()) {
+            return "";
+        }
+        return handlers.stream()
+                .map(handler -> handler.unit().component() + "\n" + handler.route())
+                .sorted()
+                .collect(java.util.stream.Collectors.joining("\n---\n"));
+    }
+
     private boolean matchesSourceRoot(ComponentRegistry candidate) {
         if (candidate.sourceRoot() == null) {
             return false;
@@ -363,7 +457,6 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
     private static Set<String> resolvableSourceTypes(ComponentRegistry registry) {
         Set<String> result = new java.util.LinkedHashSet<>();
         registry.components().stream()
-                .filter(component -> !component.handlerRoutes().isEmpty())
                 .map(ComponentDescriptor::fullClassName)
                 .forEach(result::add);
         registry.handlerRoutes().forEach(route -> {
@@ -490,7 +583,18 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
 
     @Override
     public void close() {
-        close(List.copyOf(activeHandlers), List.copyOf(activeUnits.values()));
+        synchronized (registrationLock) {
+            shutdownRegistration.cancel();
+            shutdownRegistration = Registration.noOp();
+            typeResolverRegistration.cancel();
+            typeResolverRegistration = Registration.noOp();
+            runtimeRegistration.close();
+            runtimeRegistration = RuntimeRegistration.empty();
+            registeredFluxzero = null;
+            registeredCompiler = null;
+            resolvableSourceTypes.clear();
+            close(List.copyOf(activeHandlers), List.copyOf(activeUnits.values()));
+        }
     }
 
     private void close(List<LazyExecutionHandler> handlers, List<LazyExecutionUnit> units) {
@@ -501,6 +605,32 @@ public class OnDemandExecution implements ExecutionMode, AutoCloseable {
         unitsToClose.forEach(LazyExecutionUnit::close);
         activeHandlers.removeAll(handlers);
         activeUnits.entrySet().removeIf(entry -> unitsToClose.contains(entry.getValue()));
+    }
+
+    private record RuntimeRegistration(
+            ComponentRegistry registry,
+            Registration registryRegistration,
+            Map<MessageType, RegisteredHandlerGroup> groups,
+            Set<String> resolvableTypes) {
+
+        static RuntimeRegistration empty() {
+            return new RuntimeRegistration(
+                    ComponentRegistry.empty(), Registration.noOp(), Map.of(), Set.of());
+        }
+
+        void close() {
+            groups.values().forEach(RegisteredHandlerGroup::cancelAndClose);
+            registryRegistration.cancel();
+        }
+    }
+
+    private record RegisteredHandlerGroup(
+            String fingerprint, List<LazyExecutionHandler> handlers, Registration registration) {
+
+        void cancelAndClose() {
+            registration.cancel();
+            handlers.forEach(LazyExecutionHandler::close);
+        }
     }
 
     public static class Builder {

@@ -1196,7 +1196,7 @@ public class OnDemandExecutionTest {
                 return List.of();
             });
 
-            assertTrue(execution.loadType("io.fluxzero.sdk.execution.generated.CommandFormatter").isEmpty());
+            assertTrue(execution.loadType("io.fluxzero.sdk.execution.generated.CommandFormatter").isPresent());
             fixture.whenCommand(new ExecutionCommand("one")).expectResult("helper-v1:one");
             Files.writeString(helper, source("CommandFormatter", """
                     public class CommandFormatter {
@@ -1338,6 +1338,104 @@ public class OnDemandExecutionTest {
                 return List.of();
             }).resultTimeout(Duration.ofMillis(100))
                     .whenCommand(new ExecutionCommand("one")).expectExceptionalResult(TimeoutException.class);
+        }
+    }
+
+    @Test
+    void refreshRegistersNewSourceHandlerWithoutRestart(@TempDir Path tempDir) throws Exception {
+        try (OnDemandExecution execution = OnDemandExecution.builder()
+                .sourceRoot(tempDir)
+                .cacheRoot(tempDir.resolve("cache"))
+                .startTracking(false)
+                .build()) {
+            TestFixture fixture = TestFixture.create(fc -> {
+                execution.registerWith(fc);
+                return List.of();
+            }).resultTimeout(Duration.ofMillis(100));
+
+            fixture.whenCommand(new ExecutionCommand("before"))
+                    .expectExceptionalResult(TimeoutException.class);
+
+            writeHandlerSource(tempDir, "CommandLogic", commandHandlerSource("added", "@LocalHandler"));
+
+            assertTrue(execution.refresh());
+            assertEquals(1, fixture.getFluxzero().componentRegistry().handlerRoutes().count());
+            fixture.whenCommand(new ExecutionCommand("after")).expectResult("added:after");
+        }
+    }
+
+    @Test
+    void refreshUnregistersDeletedSourceHandlerWithoutRestart(@TempDir Path tempDir) throws Exception {
+        Path source = writeHandlerSource(tempDir, "CommandLogic", commandHandlerSource("deleted", "@LocalHandler"));
+
+        try (OnDemandExecution execution = OnDemandExecution.builder()
+                .sourceRoot(tempDir)
+                .cacheRoot(tempDir.resolve("cache"))
+                .startTracking(false)
+                .build()) {
+            TestFixture fixture = TestFixture.create(fc -> {
+                execution.registerWith(fc);
+                return List.of();
+            }).resultTimeout(Duration.ofMillis(100));
+
+            fixture.whenCommand(new ExecutionCommand("before")).expectResult("deleted:before");
+            Files.delete(source);
+
+            assertTrue(execution.refresh());
+            assertEquals(0, fixture.getFluxzero().componentRegistry().handlerRoutes().count());
+            fixture.whenCommand(new ExecutionCommand("after"))
+                    .expectExceptionalResult(TimeoutException.class);
+        }
+    }
+
+    @Test
+    void refreshAddsSourcePayloadComponentToTypeResolver(@TempDir Path tempDir) throws Exception {
+        try (OnDemandExecution execution = OnDemandExecution.builder()
+                .sourceRoot(tempDir)
+                .cacheRoot(tempDir.resolve("cache"))
+                .startTracking(false)
+                .build()) {
+            TestFixture.create(fc -> {
+                execution.registerWith(fc);
+                return List.of();
+            });
+
+            assertTrue(execution.loadType("io.fluxzero.sdk.execution.generated.LaterPayload").isEmpty());
+
+            writeHandlerSource(tempDir, "LaterPayload", """
+                    public record LaterPayload(String value) {
+                    }
+                    """);
+
+            assertTrue(execution.refresh());
+            Class<?> payloadType = execution.loadType("io.fluxzero.sdk.execution.generated.LaterPayload")
+                    .orElseThrow();
+            assertEquals("io.fluxzero.sdk.execution.generated.LaterPayload", payloadType.getName());
+        }
+    }
+
+    @Test
+    void refreshRemovesDeletedSourcePayloadComponentFromTypeResolver(@TempDir Path tempDir) throws Exception {
+        Path source = writeHandlerSource(tempDir, "TemporaryPayload", """
+                public record TemporaryPayload(String value) {
+                }
+                """);
+
+        try (OnDemandExecution execution = OnDemandExecution.builder()
+                .sourceRoot(tempDir)
+                .cacheRoot(tempDir.resolve("cache"))
+                .startTracking(false)
+                .build()) {
+            TestFixture.create(fc -> {
+                execution.registerWith(fc);
+                return List.of();
+            });
+
+            assertTrue(execution.loadType("io.fluxzero.sdk.execution.generated.TemporaryPayload").isPresent());
+            Files.delete(source);
+
+            assertTrue(execution.refresh());
+            assertTrue(execution.loadType("io.fluxzero.sdk.execution.generated.TemporaryPayload").isEmpty());
         }
     }
 
