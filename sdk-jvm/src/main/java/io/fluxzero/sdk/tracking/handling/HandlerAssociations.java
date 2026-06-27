@@ -15,7 +15,9 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.common.reflection.ParameterRegistry;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -111,12 +113,46 @@ public class HandlerAssociations {
     }
 
     /**
+     * Returns the association definitions contributed by a handler executable metadata view.
+     */
+    public List<MethodAssociationProperty> getMethodAssociationProperties(ExecutableView executable) {
+        return executable.executable().map(this::getMethodAssociationProperties)
+                .orElseGet(() -> computeMethodAssociationProperties(executable));
+    }
+
+    /**
      * Computes the association values contributed by the given message for the supplied matching handler methods.
      * <p>
      * The returned map is keyed by association value and contains the target path within the handler instance that
      * should be matched for that value.
      */
     public Map<Object, String> associations(DeserializingMessage message, Stream<Executable> matchingMethods) {
+        return ofNullable(message.getPayload()).stream()
+                .flatMap(payload -> {
+                    Stream<Map.Entry<Object, String>> methodAssociations = matchingMethods
+                            .flatMap(e -> getMethodAssociationProperties(e).stream()
+                                    .flatMap(entry -> entry.getValue(message, payload)
+                                            .map(v -> Map.entry(v, entry.associationValue.getPath())).stream()));
+                    Stream<Map.Entry<Object, String>> propertyAssociations = getAssociationProperties().entrySet()
+                            .stream()
+                            .filter(entry -> includedPayload(payload, entry.getValue()))
+                            .flatMap(entry -> JvmComponentIntrospector.getInstance().readProperty(entry.getKey(), payload)
+                                    .or(() -> entry.getValue().isExcludeMetadata() ? empty()
+                                            : ofNullable(message.getMetadata().get(entry.getKey())))
+                                    .map(this::normalizeAssociationValue)
+                                    .map(v -> Map.entry(v, entry.getValue().getPath()))
+                                    .stream());
+                    return Stream.concat(methodAssociations, propertyAssociations);
+                })
+                .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a.isBlank() ? b : a));
+    }
+
+    /**
+     * Computes association values from executable metadata views without requiring callers to enumerate JVM
+     * executables.
+     */
+    public Map<Object, String> associationsFromViews(
+            DeserializingMessage message, Stream<? extends ExecutableView> matchingMethods) {
         return ofNullable(message.getPayload()).stream()
                 .flatMap(payload -> {
                     Stream<Map.Entry<Object, String>> methodAssociations = matchingMethods
@@ -178,11 +214,44 @@ public class HandlerAssociations {
                              parameterAssociations).toList();
     }
 
+    protected List<MethodAssociationProperty> computeMethodAssociationProperties(ExecutableView executable) {
+        if (executable.executable().isPresent()) {
+            return computeMethodAssociationProperties(executable.executable().orElseThrow());
+        }
+        Stream<MethodAssociationProperty> parameterAssociations = executable.parameters().stream()
+                .flatMap(parameter -> parameter.annotation(Association.class)
+                        .map(AssociationValue::valueOf)
+                        .stream()
+                        .flatMap(associationValue -> propertyNames(parameter, associationValue)
+                                .map(propertyName -> MethodAssociationProperty.forParameterProperty(
+                                        propertyName, associationValue,
+                                        message -> resolveParameterValue(executable, parameter, null, message)))));
+        return Stream.concat(executableAssociationProperties(executable), parameterAssociations).toList();
+    }
+
     public boolean alwaysAssociate(Executable executable) {
         return metadata.alwaysAssociate(executable);
     }
 
+    public boolean alwaysAssociate(ExecutableView executable) {
+        return executable.executable().map(this::alwaysAssociate)
+                .orElseGet(() -> executable.annotation(Association.class)
+                        .map(AssociationValue::valueOf)
+                        .map(AssociationValue::isAlways)
+                        .orElse(false));
+    }
+
     protected Object resolveParameterValue(Executable executable, Parameter parameter, Annotation methodAnnotation,
+                                           DeserializingMessage message) {
+        return applicableParameterResolvers(executable).stream()
+                .filter(r -> r.matches(parameter, methodAnnotation, message))
+                .filter(r -> r.test(message, parameter))
+                .findFirst()
+                .map(r -> r.resolve(parameter, methodAnnotation).apply(message))
+                .orElse(null);
+    }
+
+    protected Object resolveParameterValue(ExecutableView executable, ParameterView parameter, Annotation methodAnnotation,
                                            DeserializingMessage message) {
         return applicableParameterResolvers(executable).stream()
                 .filter(r -> r.matches(parameter, methodAnnotation, message))
@@ -196,12 +265,54 @@ public class HandlerAssociations {
         return parameterResolvers.stream().filter(r -> mayApply(r, executable)).toList();
     }
 
+    protected List<ParameterResolver<? super DeserializingMessage>> applicableParameterResolvers(ExecutableView executable) {
+        return parameterResolvers.stream().filter(r -> mayApply(r, executable)).toList();
+    }
+
     protected boolean mayApply(ParameterResolver<? super DeserializingMessage> resolver, Executable executable) {
         try {
             return resolver.mayApply(executable, targetClass);
         } catch (RuntimeException ignored) {
             return false;
         }
+    }
+
+    protected boolean mayApply(ParameterResolver<? super DeserializingMessage> resolver, ExecutableView executable) {
+        try {
+            return resolver.mayApply(executable, targetClass);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private Stream<MethodAssociationProperty> executableAssociationProperties(ExecutableView executable) {
+        return executable.annotation(Association.class)
+                .map(AssociationValue::valueOf)
+                .map(associationValue -> {
+                    List<String> aliases = associationValue.getValue();
+                    if (aliases != null && !aliases.isEmpty()) {
+                        return aliases.stream()
+                                .map(name -> MethodAssociationProperty.forProperty(name, associationValue))
+                                .toList();
+                    }
+                    return executable.annotation(RoutingKey.class)
+                            .map(RoutingKey::value)
+                            .filter(value -> !value.isBlank())
+                            .map(value -> List.of(MethodAssociationProperty.forProperty(value, associationValue)))
+                            .orElseGet(() -> List.of(
+                                    MethodAssociationProperty.forComputedRoutingKey(associationValue)));
+                })
+                .stream()
+                .flatMap(Collection::stream);
+    }
+
+    private Stream<String> propertyNames(ParameterView parameter, AssociationValue associationValue) {
+        List<String> aliases = associationValue.getValue();
+        if (aliases != null && !aliases.isEmpty()) {
+            return aliases.stream();
+        }
+        return parameter.name() == null || parameter.name().isBlank() || parameter.name().matches("arg\\d+")
+               ? Stream.empty() : Stream.of(parameter.name());
     }
 
     @Value

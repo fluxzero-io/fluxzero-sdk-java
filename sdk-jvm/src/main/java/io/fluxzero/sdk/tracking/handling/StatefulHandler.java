@@ -19,6 +19,8 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -37,6 +39,7 @@ import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -154,19 +157,21 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     @Override
     public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
         DeserializingMessage searchMessage = new StatefulHandlerSearchMessage(message);
-        var matchingMethods = handlerMatcher.matchingMethods(searchMessage).toList();
+        var matchingExecutables = handlerMatcher.matchingExecutableViews(searchMessage).toList();
         var memberCandidates = statefulMembers.stream()
                 .map(member -> member.candidate(searchMessage, message))
                 .filter(StatefulMemberCandidate::isRelevant)
                 .toList();
-        if (matchingMethods.isEmpty() && memberCandidates.isEmpty()) {
+        if (matchingExecutables.isEmpty() && memberCandidates.isEmpty()) {
             return Optional.empty();
         }
-        var alwaysMatch = matchingMethods.stream().anyMatch(handlerAssociations::alwaysAssociate);
-        var alwaysInvoke = alwaysMatch && matchingMethods.stream()
-                .allMatch(method -> JvmComponentIntrospector.getInstance().isStatic(method));
+        var alwaysMatch = matchingExecutables.stream().anyMatch(handlerAssociations::alwaysAssociate);
+        var alwaysInvoke = alwaysMatch && matchingExecutables.stream()
+                .allMatch(method -> method.executable()
+                        .map(JvmComponentIntrospector.getInstance()::isStatic).orElse(false));
         var memberAlwaysMatch = memberCandidates.stream().anyMatch(StatefulMemberCandidate::alwaysAssociate);
-        Map<Object, String> associations = handlerAssociations.associations(message, matchingMethods.stream());
+        Map<Object, String> associations = handlerAssociations.associationsFromViews(
+                message, matchingExecutables.stream());
         Map<Object, String> repositoryAssociations = new LinkedHashMap<>(associations);
         memberCandidates.forEach(candidate -> mergeAssociations(repositoryAssociations,
                                                                 candidate.repositoryAssociations()));
@@ -688,12 +693,12 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     }
 
     protected record StatefulMemberCandidate(StatefulMember member,
-                                             List<Executable> matchingMethods,
+                                             List<ExecutableView> matchingExecutables,
                                              Map<Object, String> associations,
                                              Map<Object, String> repositoryAssociations,
                                              boolean alwaysAssociate) {
         boolean isRelevant() {
-            return alwaysAssociate || !matchingMethods.isEmpty() || !associations.isEmpty();
+            return alwaysAssociate || !matchingExecutables.isEmpty() || !associations.isEmpty();
         }
     }
 
@@ -725,13 +730,14 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         StatefulMemberCandidate candidate(DeserializingMessage searchMessage, DeserializingMessage message) {
-            List<Executable> matchingMethods = matcher.matchingMethods(searchMessage).toList();
-            Map<Object, String> targetAssociations = associations.associations(message, matchingMethods.stream());
+            List<ExecutableView> matchingExecutables = matcher.matchingExecutableViews(searchMessage).toList();
+            Map<Object, String> targetAssociations = associations.associationsFromViews(
+                    message, matchingExecutables.stream());
             Map<Object, String> repositoryAssociations = new LinkedHashMap<>();
             targetAssociations.forEach((value, targetPath) ->
                                                repositoryAssociations.put(value, repositoryPath(targetPath)));
-            boolean alwaysAssociate = matchingMethods.stream().anyMatch(associations::alwaysAssociate);
-            return new StatefulMemberCandidate(this, matchingMethods, targetAssociations, repositoryAssociations,
+            boolean alwaysAssociate = matchingExecutables.stream().anyMatch(associations::alwaysAssociate);
+            return new StatefulMemberCandidate(this, matchingExecutables, targetAssociations, repositoryAssociations,
                                                alwaysAssociate);
         }
 
@@ -948,8 +954,37 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         @Override
+        public Function<DeserializingMessage, Object> resolve(
+                ParameterView parameter, java.lang.annotation.Annotation methodAnnotation) {
+            return parameter.parameter().<Function<DeserializingMessage, Object>>map(p -> resolve(p, methodAnnotation))
+                    .orElseGet(() -> message -> {
+                        if (message instanceof StatefulMemberMessage memberMessage) {
+                            Entity<?> entity = findEntity(parameter, memberMessage.getEntity());
+                            if (entity != null) {
+                                return isEntityParameter(parameter) ? entity : entity.get();
+                            }
+                        }
+                        return null;
+                    });
+        }
+
+        @Override
         public boolean matches(Parameter parameter, java.lang.annotation.Annotation methodAnnotation,
                                DeserializingMessage value) {
+            if (value instanceof StatefulMemberMessage memberMessage) {
+                return findEntity(parameter, memberMessage.getEntity()) != null;
+            }
+            Class<?> parameterType = entityParameterType(parameter);
+            return contextTypes.stream().anyMatch(type -> parameterType.isAssignableFrom(type)
+                                                          || type.isAssignableFrom(parameterType));
+        }
+
+        @Override
+        public boolean matches(ParameterView parameter, java.lang.annotation.Annotation methodAnnotation,
+                               DeserializingMessage value) {
+            if (parameter.parameter().isPresent()) {
+                return matches(parameter.parameter().orElseThrow(), methodAnnotation, value);
+            }
             if (value instanceof StatefulMemberMessage memberMessage) {
                 return findEntity(parameter, memberMessage.getEntity()) != null;
             }
@@ -968,7 +1003,32 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return false;
         }
 
+        @Override
+        public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+            if (method.executable().isPresent()) {
+                return mayApply(method.executable().orElseThrow(), targetClass);
+            }
+            for (ParameterView parameter : method.parameters()) {
+                if (matches(parameter, null, null)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private Entity<?> findEntity(Parameter parameter, Entity<?> entity) {
+            for (Entity<?> candidate = entity; candidate != null; candidate = candidate.parent()) {
+                if (matchesEntity(parameter, candidate)) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+
+        private Entity<?> findEntity(ParameterView parameter, Entity<?> entity) {
+            if (parameter.parameter().isPresent()) {
+                return findEntity(parameter.parameter().orElseThrow(), entity);
+            }
             for (Entity<?> candidate = entity; candidate != null; candidate = candidate.parent()) {
                 if (matchesEntity(parameter, candidate)) {
                     return candidate;
@@ -984,6 +1044,18 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                 return false;
             }
             if (entity.get() != null && !Entity.class.isAssignableFrom(parameter.getType())) {
+                return parameterType.isAssignableFrom(entity.get().getClass());
+            }
+            return parameterType.isAssignableFrom(entityType) || entityType.isAssignableFrom(parameterType);
+        }
+
+        private boolean matchesEntity(ParameterView parameter, Entity<?> entity) {
+            Class<?> entityType = entity.type();
+            Class<?> parameterType = entityParameterType(parameter);
+            if (entityType == null) {
+                return false;
+            }
+            if (entity.get() != null && !isEntityParameter(parameter)) {
                 return parameterType.isAssignableFrom(entity.get().getClass());
             }
             return parameterType.isAssignableFrom(entityType) || entityType.isAssignableFrom(parameterType);
@@ -1014,6 +1086,22 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                 return Object.class;
             }
             return parameter.getType();
+        }
+
+        private Class<?> entityParameterType(ParameterView parameter) {
+            return parameter.parameter().map(this::entityParameterType)
+                    .orElseGet(() -> isEntityParameter(parameter) ? Object.class : parameterType(parameter)
+                            .orElse(Object.class));
+        }
+
+        private boolean isEntityParameter(ParameterView parameter) {
+            return parameterType(parameter).map(Entity.class::equals)
+                    .orElse(Entity.class.getName().equals(parameter.typeName())
+                            || Entity.class.getSimpleName().equals(parameter.typeName()));
+        }
+
+        private Optional<Class<?>> parameterType(ParameterView parameter) {
+            return parameter.type().or(() -> JvmComponentMetadataLookup.classForMetadataName(parameter.typeName()));
         }
     }
 }

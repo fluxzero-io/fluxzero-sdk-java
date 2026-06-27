@@ -145,7 +145,8 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
         if (!targetMatcher.canHandle(message)) {
             return Optional.empty();
         }
-        var messageAssociations = associations.associations(message, targetMatcher.matchingMethods(message));
+        var messageAssociations = associations.associationsFromViews(
+                message, targetMatcher.matchingExecutableViews(message));
         var wrapperInvokers = repository.values().stream()
                 .filter(wrapper -> messageAssociations.isEmpty()
                                    || associations.matchesTarget(wrapper.unwrap(), messageAssociations))

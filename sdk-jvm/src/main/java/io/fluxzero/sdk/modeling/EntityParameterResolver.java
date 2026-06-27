@@ -16,15 +16,26 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.handling.ExecutableAnnotationResolver;
+import io.fluxzero.common.handling.ExecutableView;
 import io.fluxzero.common.handling.PreparedParameterResolver;
+import io.fluxzero.common.handling.ParameterView;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleCustom;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
+import io.fluxzero.sdk.tracking.handling.HandleError;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleMetrics;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.HandleResult;
+import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -34,6 +45,7 @@ import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -95,6 +107,36 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                 .orElse(true);
     }
 
+    @Override
+    public boolean mayApply(ExecutableView method, Class<?> targetClass) {
+        return method.executable().map(executable -> mayApply(executable, targetClass))
+                .orElseGet(() -> method.annotation(HandleEvent.class).isPresent()
+                              || method.annotation(HandleNotification.class).isPresent()
+                              || noEntityInjectionHandlerAnnotation(method).isEmpty());
+    }
+
+    private Optional<? extends Annotation> noEntityInjectionHandlerAnnotation(ExecutableView method) {
+        return firstPresent(
+                method.annotation(HandleCommand.class),
+                method.annotation(HandleQuery.class),
+                method.annotation(HandleError.class),
+                method.annotation(HandleMetrics.class),
+                method.annotation(HandleResult.class),
+                method.annotation(HandleCustom.class),
+                method.annotation(HandleDocument.class),
+                method.annotation(HandleSchedule.class));
+    }
+
+    @SafeVarargs
+    private static Optional<? extends Annotation> firstPresent(Optional<? extends Annotation>... candidates) {
+        for (Optional<? extends Annotation> candidate : candidates) {
+            if (candidate.isPresent()) {
+                return candidate;
+            }
+        }
+        return Optional.empty();
+    }
+
     private static boolean supportsMessageEntityInjection(Annotation methodAnnotation) {
         if (methodAnnotation == null || methodAnnotation.annotationType().getAnnotation(HandleMessage.class) == null) {
             return true;
@@ -115,6 +157,12 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return m -> resolve(parameter, getMatchingEntity(m, parameter)).get();
     }
 
+    @Override
+    public Function<Object, Object> resolve(ParameterView parameter, Annotation methodAnnotation) {
+        return parameter.parameter().<Function<Object, Object>>map(p -> resolve(p, methodAnnotation))
+                .orElseGet(() -> m -> resolve(parameter, getMatchingEntity(m, parameter)).get());
+    }
+
     /**
      * Determines whether the parameter can be resolved from the given input. The match succeeds if a suitable entity or
      * value can be found in the message or entity context.
@@ -133,7 +181,38 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     @Override
+    public boolean matches(ParameterView parameter, Annotation methodAnnotation, Object input) {
+        if (parameter.parameter().isPresent()) {
+            return matches(parameter.parameter().orElseThrow(), methodAnnotation, input);
+        }
+        if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
+            return canMatchFromMessageMetadata(parameter, message);
+        }
+        return matches(parameter, getMatchingEntity(input, parameter));
+    }
+
+    @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object input) {
+        if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
+            if (canMatchFromMessageMetadata(parameter, message)) {
+                return ignored -> null;
+            }
+            return null;
+        }
+        Entity<?> entity = getMatchingEntity(input, parameter);
+        if (!matches(parameter, entity)) {
+            return null;
+        }
+        Supplier<?> supplier = resolve(parameter, entity);
+        return ignored -> supplier.get();
+    }
+
+    @Override
+    public Function<Object, Object> resolveIfPossible(ParameterView parameter, Annotation methodAnnotation,
+                                                      Object input) {
+        if (parameter.parameter().isPresent()) {
+            return resolveIfPossible(parameter.parameter().orElseThrow(), methodAnnotation, input);
+        }
         if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
             if (canMatchFromMessageMetadata(parameter, message)) {
                 return ignored -> null;
@@ -187,6 +266,35 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return null;
     }
 
+    protected Entity<?> getMatchingEntity(Object input, ParameterView parameter) {
+        if (parameter.parameter().isPresent()) {
+            return getMatchingEntity(input, parameter.parameter().orElseThrow());
+        }
+        if (input instanceof HasEntity) {
+            return ((HasEntity) input).getEntity();
+        } else if (input instanceof HasMessage message) {
+            var type = Entity.getAggregateType(message);
+            String aggregateId = Entity.getAggregateId(message);
+            if (aggregateId != null) {
+                if (!isCompatibleAggregateParameter(parameter, type)) {
+                    return null;
+                }
+                Entity<?> entity = loadAggregate(input, aggregateId, type);
+                return entity != null && isAssignable(parameter, entity)
+                       && (entity.isPresent() || entity.sequenceNumber() > -1L) ? entity : null;
+            }
+            if (type != null && (isEntityParameter(parameter) || parameterType(parameter)
+                    .map(parameterType -> parameterType.isAssignableFrom(type)).orElse(false))) {
+                return message.computeRoutingKey()
+                        .map(possibleEntityId -> loadEntity(input, possibleEntityId))
+                        .filter(e -> isAssignable(parameter, e))
+                        .filter(e -> e.isPresent() || e.sequenceNumber() > -1L)
+                        .orElse(null);
+            }
+        }
+        return null;
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     Entity<?> loadAggregate(String aggregateId, Class<?> aggregateType) {
         return Fluxzero.loadAggregate(aggregateId, (Class) aggregateType);
@@ -223,6 +331,19 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                && message.computeRoutingKey().isPresent();
     }
 
+    private boolean canMatchFromMessageMetadata(ParameterView parameter, HasMessage message) {
+        Class<?> aggregateType = Entity.getAggregateType(message);
+        String aggregateId = Entity.getAggregateId(message);
+        if (aggregateId != null) {
+            return isCompatibleAggregateParameter(parameter, aggregateType);
+        }
+        return aggregateType != null && (isEntityParameter(parameter)
+                                         || parameterType(parameter)
+                                                 .map(parameterType -> parameterType.isAssignableFrom(aggregateType))
+                                                 .orElse(false))
+               && message.computeRoutingKey().isPresent();
+    }
+
     private boolean isCompatibleAggregateParameter(Parameter parameter, Class<?> aggregateType) {
         if (aggregateType == null) {
             return false;
@@ -231,11 +352,28 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return parameterType.isAssignableFrom(aggregateType);
     }
 
+    private boolean isCompatibleAggregateParameter(ParameterView parameter, Class<?> aggregateType) {
+        if (aggregateType == null) {
+            return false;
+        }
+        return getEntityParameterType(parameter).isAssignableFrom(aggregateType);
+    }
+
     /**
      * Returns {@code true} if the entity or any of its parents match the expected parameter type, respecting nullable
      * flags on parameters.
      */
     protected boolean matches(Parameter parameter, Entity<?> entity) {
+        if (entity == null) {
+            return false;
+        }
+        if (isAssignable(parameter, entity)) {
+            return true;
+        }
+        return matches(parameter, entity.parent());
+    }
+
+    protected boolean matches(ParameterView parameter, Entity<?> entity) {
         if (entity == null) {
             return false;
         }
@@ -259,11 +397,31 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return resolve(parameter, entity.parent());
     }
 
+    protected Supplier<?> resolve(ParameterView parameter, Entity<?> entity) {
+        if (entity == null) {
+            return () -> null;
+        }
+        if (isAssignable(parameter, entity)) {
+            return isEntityParameter(parameter) ? () -> entity : entity::get;
+        }
+        return resolve(parameter, entity.parent());
+    }
+
     private boolean isAssignable(Parameter parameter, Entity<?> entity) {
         Class<?> eType = entity.type();
         Class<?> pType = getEntityParameterType(parameter);
         return entity.get() == null
                 ? (!checkCompatibility || JvmComponentIntrospector.getInstance().isNullable(parameter) || Entity.class.isAssignableFrom(parameter.getType()))
+                  && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
+                : pType.isAssignableFrom(eType);
+    }
+
+    private boolean isAssignable(ParameterView parameter, Entity<?> entity) {
+        Class<?> eType = entity.type();
+        Class<?> pType = getEntityParameterType(parameter);
+        return entity.get() == null
+                ? (!checkCompatibility || parameter.parameter().map(JvmComponentIntrospector.getInstance()::isNullable)
+                        .orElse(false) || isEntityParameter(parameter))
                   && (pType.isAssignableFrom(eType) || eType.isAssignableFrom(pType))
                 : pType.isAssignableFrom(eType);
     }
@@ -298,6 +456,22 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             return Object.class;
         }
         return parameter.getType();
+    }
+
+    private Class<?> getEntityParameterType(ParameterView parameter) {
+        return parameter.parameter().map(this::getEntityParameterType)
+                .orElseGet(() -> isEntityParameter(parameter) ? Object.class : parameterType(parameter)
+                        .orElse(Object.class));
+    }
+
+    private boolean isEntityParameter(ParameterView parameter) {
+        return parameterType(parameter).map(Entity.class::equals)
+                .orElse(Entity.class.getName().equals(parameter.typeName())
+                        || Entity.class.getSimpleName().equals(parameter.typeName()));
+    }
+
+    private Optional<Class<?>> parameterType(ParameterView parameter) {
+        return parameter.type().or(() -> JvmComponentMetadataLookup.classForMetadataName(parameter.typeName()));
     }
 
     /**

@@ -15,12 +15,23 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.handling.ExecutableView;
+import io.fluxzero.common.handling.ParameterView;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -81,6 +92,23 @@ class HandlerAssociationsTest {
         });
     }
 
+    @Test
+    void associationsFromMetadataViewsResolveParameterAssociations() throws NoSuchMethodException {
+        Method method = SampleHandler.class.getDeclaredMethod("parameterAssociation", SampleCommand.class);
+        Annotation association = method.getParameters()[0].getAnnotation(Association.class);
+        ParameterView parameter = new MetadataParameterView(
+                0, "command", SampleCommand.class.getName(), Optional.of(SampleCommand.class),
+                Map.of(Association.class, association));
+        ExecutableView executable = new MetadataExecutableView(List.of(parameter), Map.of());
+        HandlerAssociations associations = new HandlerAssociations(
+                SampleHandler.class, List.of(new PayloadParameterResolver()), e -> null);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new SampleCommand("order-1")), MessageType.COMMAND, null);
+
+        assertEquals(Map.of("order-1", "targetId"),
+                     associations.associationsFromViews(message, Stream.of(executable)));
+    }
+
     static class SampleHandler {
         @Association({"someId", "aliasId"})
         private String someId;
@@ -125,5 +153,63 @@ class HandlerAssociationsTest {
     }
 
     record SampleCommand(String orderId) {
+    }
+
+    private record MetadataExecutableView(
+            List<? extends ParameterView> parameters,
+            Map<Class<? extends Annotation>, Annotation> annotations) implements ExecutableView {
+
+        @Override
+        public Kind kind() {
+            return Kind.METHOD;
+        }
+
+        @Override
+        public String targetTypeName() {
+            return SampleHandler.class.getName();
+        }
+
+        @Override
+        public String name() {
+            return "handle";
+        }
+
+        @Override
+        public String returnTypeName() {
+            return "void";
+        }
+
+        @Override
+        public Optional<Class<?>> targetClass() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Executable> executable() {
+            return Optional.empty();
+        }
+
+        @Override
+        public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
+            return Optional.ofNullable(annotations.get(annotationType)).map(annotationType::cast);
+        }
+    }
+
+    private record MetadataParameterView(
+            int index,
+            String name,
+            String typeName,
+            Optional<Class<?>> type,
+            Map<Class<? extends Annotation>, Annotation> annotations) implements ParameterView {
+
+        @Override
+        public Optional<Parameter> parameter() {
+            return Optional.empty();
+        }
+
+        @Override
+        public <A extends Annotation> Optional<A> annotation(Class<A> annotationType) {
+            return Optional.ofNullable(annotations.get(annotationType)).map(annotationType::cast);
+        }
     }
 }
