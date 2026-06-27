@@ -275,20 +275,49 @@ public class ClasspathComponentScanner {
 
     private List<WebRouteDescriptor> webRoutes(Annotation annotation, HandlerSpec spec, Class<?> type,
                                                Executable executable) {
-        String packagePath = pathValue(packageAnnotations(type.getPackage())).orElse("");
-        String typePath = pathValue(annotationDescriptors(JvmComponentIntrospector.getInstance().getTypeAnnotations(type))).orElse("");
-        String methodPath = pathValue(annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable))).orElse("");
+        List<String> packagePaths = packagePaths(type);
+        Optional<String> typePath = WebRoutePaths.pathValue(
+                annotationDescriptors(JvmComponentIntrospector.getInstance().getTypeAnnotations(type)),
+                simplePackageName(type.getPackage()));
+        Optional<String> methodPath = WebRoutePaths.pathValue(
+                annotationDescriptors(JvmComponentIntrospector.getInstance().getAnnotations(executable)),
+                JvmComponentIntrospector.getInstance().getSimpleName(executable.getDeclaringClass()));
         List<String> handlerPaths = stringArrayAttribute(annotation, "value");
-        if (handlerPaths.isEmpty()) {
-            handlerPaths = methodPath.isBlank() ? List.of("") : List.of(methodPath);
-        }
         List<String> methods = annotation.annotationType().equals(HandleWeb.class)
                 ? stringArrayAttribute(annotation, "method") : spec.webMethods();
         boolean autoHead = booleanAttribute(annotation, "autoHead", spec.defaultAutoHead());
         boolean autoOptions = booleanAttribute(annotation, "autoOptions", spec.defaultAutoOptions());
-        String basePath = combinePath(packagePath, typePath);
-        List<String> paths = handlerPaths.stream().map(path -> combinePath(basePath, path)).distinct().toList();
+        List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
+    }
+
+    private List<String> packagePaths(Class<?> type) {
+        if (type == null || type.getPackageName().isBlank()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String current = type.getPackageName(); current != null; current = parentPackage(current)) {
+            Package p = packageMetadata(current, type);
+            if (p == null) {
+                continue;
+            }
+            WebRoutePaths.pathValue(directPackageAnnotations(p), simplePackageName(p))
+                    .ifPresent(path -> result.add(0, path));
+        }
+        return List.copyOf(result);
+    }
+
+    private Package packageMetadata(String packageName, Class<?> type) {
+        ClassLoader classLoader = classLoader(type);
+        try {
+            return Class.forName(packageName + ".package-info", false, classLoader).getPackage();
+        } catch (ClassNotFoundException ignored) {
+            return classLoader.getDefinedPackage(packageName);
+        }
+    }
+
+    private String simplePackageName(Package p) {
+        return p == null ? "" : JvmComponentIntrospector.getInstance().getSimpleName(p);
     }
 
     private static boolean isSelfHandler(HandlerSpec spec, Class<?> type, Executable executable) {
@@ -446,13 +475,6 @@ public class ClasspathComponentScanner {
                 });
     }
 
-    private static Optional<String> pathValue(List<AnnotationDescriptor> annotations) {
-        return annotations.stream()
-                .filter(annotation -> annotation.name().equals("Path"))
-                .findFirst()
-                .flatMap(annotation -> annotation.firstValue("value"));
-    }
-
     private static List<AnnotationDescriptor> directPackageAnnotations(Package p) {
         return annotationDescriptors(JvmComponentIntrospector.getInstance().getPackageAnnotations(p, false));
     }
@@ -586,19 +608,6 @@ public class ClasspathComponentScanner {
     private static String parentPackage(String packageName) {
         int lastDot = packageName == null ? -1 : packageName.lastIndexOf('.');
         return lastDot < 0 ? null : packageName.substring(0, lastDot);
-    }
-
-    private static String combinePath(String prefix, String path) {
-        if (path == null || path.isBlank()) {
-            return prefix == null ? "" : prefix;
-        }
-        if (path.startsWith("/")) {
-            return path;
-        }
-        if (prefix == null || prefix.isBlank()) {
-            return path;
-        }
-        return prefix.endsWith("/") ? prefix + path : prefix + "/" + path;
     }
 
     private static ComponentKind componentKind(Class<?> type) {

@@ -79,6 +79,12 @@ class ComponentRegistryProcessorTest {
         assertFalse(webRoute.autoHead());
         assertFalse(webRoute.autoOptions());
 
+        ComponentDescriptor webPathComponent = registry.findComponent(
+                "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorWebPathHandler").orElseThrow();
+        assertEquals(List.of("/processor/web-root/child/type/method/items"),
+                     webRoute(webPathComponent, "stacked").paths());
+        assertEquals(List.of("/reset/items"), webRoute(webPathComponent, "reset").paths());
+
         ComponentDescriptor self = registry.findComponent(
                 "io.fluxzero.sdk.registry.processorfixture.ProcessorSelfQuery").orElseThrow();
         HandlerRoute selfQuery = route(self, MessageType.QUERY);
@@ -124,7 +130,8 @@ class ComponentRegistryProcessorTest {
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorPropertySource"),
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorResult"),
                     load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorSelfQuery"),
-                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorTaskScheduler")
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.ProcessorTaskScheduler"),
+                    load(classLoader, "io.fluxzero.sdk.registry.processorfixture.web.child.ProcessorWebPathHandler")
             )).normalized();
 
             ComponentRegistryParityAssertions.assertSemanticParity(classpath, generated);
@@ -146,6 +153,14 @@ class ComponentRegistryProcessorTest {
         return component.handlerRoutes().stream()
                 .filter(route -> route.messageType() == messageType)
                 .findFirst().orElseThrow();
+    }
+
+    private static WebRouteDescriptor webRoute(ComponentDescriptor component, String executableName) {
+        return component.handlerRoutes().stream()
+                .filter(route -> route.messageType() == MessageType.WEBREQUEST)
+                .filter(route -> route.executableMetadata().orElseThrow().name().equals(executableName))
+                .findFirst().orElseThrow()
+                .webRoutes().getFirst();
     }
 
     private static PropertyDescriptor property(ComponentDescriptor component, String name) {
@@ -321,6 +336,38 @@ class ComponentRegistryProcessorTest {
                     @HandleQuery
                     public String handle() {
                         return value;
+                    }
+                }
+                """);
+        Path webPackageDir = packageDir.resolve("web");
+        Path childWebPackageDir = webPackageDir.resolve("child");
+        Files.createDirectories(childWebPackageDir);
+        Files.writeString(webPackageDir.resolve("package-info.java"), """
+                @io.fluxzero.sdk.web.Path("web-root")
+                package io.fluxzero.sdk.registry.processorfixture.web;
+                """);
+        Files.writeString(childWebPackageDir.resolve("package-info.java"), """
+                @io.fluxzero.sdk.web.Path("")
+                package io.fluxzero.sdk.registry.processorfixture.web.child;
+                """);
+        Files.writeString(childWebPackageDir.resolve("ProcessorWebPathHandler.java"), """
+                package io.fluxzero.sdk.registry.processorfixture.web.child;
+
+                import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.Path;
+
+                @Path("type")
+                public class ProcessorWebPathHandler {
+                    @Path("method")
+                    @HandleGet("items")
+                    public String stacked() {
+                        return "stacked";
+                    }
+
+                    @Path("/reset")
+                    @HandleGet("items")
+                    public String reset() {
+                        return "reset";
                     }
                 }
                 """);

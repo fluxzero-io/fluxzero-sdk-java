@@ -79,7 +79,6 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     private static final String CONSUMER = "io.fluxzero.sdk.tracking.Consumer";
     private static final String TRACK_SELF = "io.fluxzero.sdk.tracking.TrackSelf";
     private static final String LOCAL_HANDLER = "io.fluxzero.sdk.tracking.handling.LocalHandler";
-    private static final String PATH = "io.fluxzero.sdk.web.Path";
     private static final Map<String, ComponentCapability> INFRASTRUCTURE_CAPABILITIES = Map.ofEntries(
             entry("io.fluxzero.sdk.publishing.DispatchInterceptor", ComponentCapability.DISPATCH_INTERCEPTOR),
             entry("io.fluxzero.sdk.tracking.handling.HandlerDecorator", ComponentCapability.HANDLER_DECORATOR),
@@ -301,7 +300,8 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 routes.add(new HandlerRoute(
                         spec.messageType(), annotation, executable, disabled, passive, skipExpiredRequests,
                         local, tracked, payloadTypes, allowedClasses,
-                        spec.web() ? webRoutes(annotation, spec, packageMetadata, annotations, executable) : List.of()));
+                        spec.web() ? webRoutes(annotation, spec, packageName, className(type), annotations, executable)
+                                : List.of()));
             }
         }
         List<String> superTypeNames = superTypeNames(type);
@@ -360,22 +360,19 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     }
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,
-                                               PackageMetadata packageMetadata,
+                                               String packageName,
+                                               String className,
                                                List<AnnotationDescriptor> typeAnnotations,
                                                ExecutableDescriptor executable) {
-        String packagePath = packageMetadata.path();
-        String typePath = pathValue(typeAnnotations).orElse("");
-        String methodPath = pathValue(executable.annotations()).orElse("");
+        List<String> packagePaths = packagePaths(packageName);
+        Optional<String> typePath = WebRoutePaths.pathValue(typeAnnotations, simplePackageName(packageName));
+        Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), className);
         List<String> handlerPaths = annotation.values("value");
-        if (handlerPaths.isEmpty()) {
-            handlerPaths = methodPath.isBlank() ? List.of("") : List.of(methodPath);
-        }
         List<String> methods = annotation.qualifiedName().equals("io.fluxzero.sdk.web.HandleWeb")
                 && !annotation.values("method").isEmpty() ? annotation.values("method") : spec.webMethods();
         boolean autoHead = annotation.booleanValue("autoHead", spec.defaultAutoHead());
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
-        String basePath = combinePath(packagePath, typePath);
-        List<String> paths = handlerPaths.stream().map(path -> combinePath(basePath, path)).distinct().toList();
+        List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
     }
 
@@ -416,11 +413,31 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 return new PackageMetadata(
                         localHandlerConfig(annotations).orElse(null),
                         consumerDescriptor(annotations).orElse(null),
-                        pathValue(annotations).orElse(""),
                         hasTrackSelf(annotations));
             }
         }
         return PackageMetadata.empty();
+    }
+
+    private List<String> packagePaths(String packageName) {
+        List<String> result = new ArrayList<>();
+        for (String current = packageName; current != null; current = parentPackage(current)) {
+            PackageElement packageElement = packages.get(current);
+            if (packageElement == null) {
+                packageElement = processingEnv.getElementUtils().getPackageElement(current);
+            }
+            if (packageElement == null) {
+                continue;
+            }
+            WebRoutePaths.pathValue(annotationDescriptors(packageElement.getAnnotationMirrors()), simplePackageName(current))
+                    .ifPresent(path -> result.add(0, path));
+        }
+        return List.copyOf(result);
+    }
+
+    private static String simplePackageName(String packageName) {
+        int lastDot = packageName == null ? -1 : packageName.lastIndexOf('.');
+        return lastDot < 0 ? Objects.requireNonNullElse(packageName, "") : packageName.substring(lastDot + 1);
     }
 
     private List<AnnotationDescriptor> annotationDescriptors(Collection<? extends AnnotationMirror> annotations) {
@@ -535,13 +552,6 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(TRACK_SELF));
     }
 
-    private Optional<String> pathValue(List<AnnotationDescriptor> annotations) {
-        return annotations.stream()
-                .filter(annotation -> annotation.qualifiedName().equals(PATH))
-                .reduce((first, second) -> second)
-                .flatMap(annotation -> annotation.firstValue("value"));
-    }
-
     private Set<ComponentCapability> componentCapabilities(TypeElement type, Set<HandlerRoute> routes,
                                                            List<RegisteredTypeDescriptor> registeredTypes,
                                                            ConsumerDescriptor consumer,
@@ -644,19 +654,6 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
         return lastDot < 0 ? null : packageName.substring(0, lastDot);
     }
 
-    private static String combinePath(String prefix, String path) {
-        if (path == null || path.isBlank()) {
-            return prefix == null ? "" : prefix;
-        }
-        if (path.startsWith("/")) {
-            return path;
-        }
-        if (prefix == null || prefix.isBlank()) {
-            return path;
-        }
-        return prefix.endsWith("/") ? prefix + path : prefix + "/" + path;
-    }
-
     private record HandlerSpec(MessageType messageType, boolean defaultPassive, boolean defaultSkipExpiredRequests,
                                boolean web, List<String> webMethods, boolean defaultAutoHead,
                                boolean defaultAutoOptions) {
@@ -665,10 +662,9 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
     private record LocalHandlerConfig(boolean enabled, boolean allowExternalMessages) {
     }
 
-    private record PackageMetadata(LocalHandlerConfig localHandler, ConsumerDescriptor consumer, String path,
-                                   boolean trackSelf) {
+    private record PackageMetadata(LocalHandlerConfig localHandler, ConsumerDescriptor consumer, boolean trackSelf) {
         private static PackageMetadata empty() {
-            return new PackageMetadata(null, null, "", false);
+            return new PackageMetadata(null, null, false);
         }
     }
 }

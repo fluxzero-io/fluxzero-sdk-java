@@ -28,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -271,10 +272,9 @@ public class SourceComponentScanner {
             if ("package-info.java".equals(source.sourceFile().getFileName().toString())) {
                 LocalHandlerConfig localHandler = localHandlerConfig(source.packageAnnotations()).orElse(null);
                 ConsumerDescriptor consumer = consumerDescriptor(source.packageAnnotations()).orElse(null);
-                String path = pathValue(source.packageAnnotations()).orElse("");
                 result.put(source.packageName(), new PackageInfo(
                         source.packageName(), source.sourceFile(), source.packageAnnotations(),
-                        localHandler, consumer, path));
+                        localHandler, consumer));
             }
         }
         return result;
@@ -338,7 +338,7 @@ public class SourceComponentScanner {
                 routes.add(new HandlerRoute(
                         spec.messageType(), annotation, executable, disabled, passive, skipExpiredRequests,
                         local, tracked, payloadTypes, allowedClasses,
-                        spec.web() ? webRoutes(annotation, spec, packageInfo, type, executable) : List.of()));
+                        spec.web() ? webRoutes(annotation, spec, packageInfos, type, executable) : List.of()));
             }
         }
         Set<ComponentCapability> capabilities = componentCapabilities(routes, registeredTypes, consumer, type.superTypeNames());
@@ -379,21 +379,17 @@ public class SourceComponentScanner {
     }
 
     private List<WebRouteDescriptor> webRoutes(AnnotationDescriptor annotation, HandlerSpec spec,
-                                               PackageInfo packageInfo, TypeInfo type,
+                                               Map<String, PackageInfo> packageInfos, TypeInfo type,
                                                ExecutableDescriptor executable) {
-        String packagePath = packageInfo == null ? "" : packageInfo.path();
-        String typePath = pathValue(type.annotations()).orElse("");
-        String methodPath = pathValue(executable.annotations()).orElse("");
+        List<String> packagePaths = packagePaths(type.packageName(), packageInfos);
+        Optional<String> typePath = WebRoutePaths.pathValue(type.annotations(), simplePackageName(type.packageName()));
+        Optional<String> methodPath = WebRoutePaths.pathValue(executable.annotations(), type.className());
         List<String> handlerPaths = annotation.values("value");
-        if (handlerPaths.isEmpty()) {
-            handlerPaths = methodPath.isBlank() ? List.of("") : List.of(methodPath);
-        }
         List<String> methods = annotation.name().equals("HandleWeb") && !annotation.values("method").isEmpty()
                 ? annotation.values("method") : spec.webMethods();
         boolean autoHead = annotation.booleanValue("autoHead", spec.defaultAutoHead());
         boolean autoOptions = annotation.booleanValue("autoOptions", spec.defaultAutoOptions());
-        String basePath = combinePath(packagePath, typePath);
-        List<String> paths = handlerPaths.stream().map(path -> combinePath(basePath, path)).distinct().toList();
+        List<String> paths = WebRoutePaths.paths(packagePaths, typePath, methodPath, handlerPaths);
         return List.of(new WebRouteDescriptor(paths, methods, autoHead, autoOptions));
     }
 
@@ -501,11 +497,22 @@ public class SourceComponentScanner {
                 });
     }
 
-    private static Optional<String> pathValue(List<AnnotationDescriptor> annotations) {
-        return annotations.stream()
-                .filter(annotation -> annotation.name().equals("Path"))
-                .reduce((first, second) -> second)
-                .flatMap(annotation -> annotation.firstValue("value"));
+    private static List<String> packagePaths(String packageName, Map<String, PackageInfo> packageInfos) {
+        List<String> result = new ArrayList<>();
+        for (String current = packageName; current != null; current = parentPackage(current)) {
+            PackageInfo packageInfo = packageInfos.get(current);
+            if (packageInfo == null) {
+                continue;
+            }
+            WebRoutePaths.pathValue(packageInfo.annotations(), simplePackageName(current))
+                    .ifPresent(path -> result.add(0, path));
+        }
+        return List.copyOf(result);
+    }
+
+    private static String simplePackageName(String packageName) {
+        int lastDot = packageName == null ? -1 : packageName.lastIndexOf('.');
+        return lastDot < 0 ? Objects.requireNonNullElse(packageName, "") : packageName.substring(lastDot + 1);
     }
 
     private static PackageInfo packageInfo(String packageName, Map<String, PackageInfo> packageInfos) {
@@ -523,19 +530,6 @@ public class SourceComponentScanner {
         return lastDot < 0 ? null : packageName.substring(0, lastDot);
     }
 
-    private static String combinePath(String prefix, String path) {
-        if (path == null || path.isBlank()) {
-            return prefix == null ? "" : prefix;
-        }
-        if (path.startsWith("/")) {
-            return path;
-        }
-        if (prefix == null || prefix.isBlank()) {
-            return path;
-        }
-        return prefix.endsWith("/") ? prefix + path : prefix + "/" + path;
-    }
-
     private record HandlerSpec(MessageType messageType, boolean defaultPassive, boolean defaultSkipExpiredRequests,
                                boolean web, List<String> webMethods, boolean defaultAutoHead,
                                boolean defaultAutoOptions) {
@@ -545,7 +539,7 @@ public class SourceComponentScanner {
     }
 
     private record PackageInfo(String packageName, Path sourceFile, List<AnnotationDescriptor> annotations,
-                               LocalHandlerConfig localHandler, ConsumerDescriptor consumer, String path) {
+                               LocalHandlerConfig localHandler, ConsumerDescriptor consumer) {
     }
 
     private record ParsedSource(Path sourceFile, String packageName, Map<String, String> imports,

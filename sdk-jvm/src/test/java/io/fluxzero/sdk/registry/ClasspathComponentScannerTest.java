@@ -24,6 +24,7 @@ import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.publishing.dataprotection.ProtectData;
 import io.fluxzero.sdk.registry.compiled.CompiledPackageHandler;
 import io.fluxzero.sdk.registry.compiled.child.CompiledChildHandler;
+import io.fluxzero.sdk.registry.compiled.web.child.CompiledWebPathHandler;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -112,6 +113,15 @@ class ClasspathComponentScannerTest {
     }
 
     @Test
+    void webRoutesPreservePathHierarchyAndAbsoluteResets() {
+        ComponentDescriptor component = new ClasspathComponentScanner().scan(CompiledWebPathHandler.class)
+                .findComponent(CompiledWebPathHandler.class.getName()).orElseThrow();
+
+        assertEquals(List.of("/compiled/web-root/child/type/method/items"), webRoute(component, "stacked").paths());
+        assertEquals(List.of("/reset/items"), webRoute(component, "reset").paths());
+    }
+
+    @Test
     void indexesCompiledPayloadSelfHandlersAsLocalComponentRoutes() {
         ComponentRegistry registry = new ClasspathComponentScanner().scan(
                 CompiledSelfQuery.class, CompiledTrackedSelfCommand.class);
@@ -175,6 +185,14 @@ class ClasspathComponentScannerTest {
         return component.handlerRoutes().stream()
                 .filter(route -> route.messageType() == messageType)
                 .findFirst().orElseThrow();
+    }
+
+    private static WebRouteDescriptor webRoute(ComponentDescriptor component, String executableName) {
+        return component.handlerRoutes().stream()
+                .filter(route -> route.messageType() == MessageType.WEBREQUEST)
+                .filter(route -> route.executableMetadata().orElseThrow().name().equals(executableName))
+                .findFirst().orElseThrow()
+                .webRoutes().getFirst();
     }
 
     private static PropertyDescriptor property(ComponentDescriptor component, String name) {

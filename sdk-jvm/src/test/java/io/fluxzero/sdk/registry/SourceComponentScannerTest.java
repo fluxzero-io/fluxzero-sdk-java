@@ -164,6 +164,48 @@ class SourceComponentScannerTest {
     }
 
     @Test
+    void webRoutesPreservePathHierarchyAndAbsoluteResets(@TempDir Path tempDir) throws Exception {
+        Path parentPackage = tempDir.resolve("io/fluxzero/sdk/registry/webpaths");
+        Path childPackage = parentPackage.resolve("child");
+        Files.createDirectories(childPackage);
+        Files.writeString(parentPackage.resolve("package-info.java"), """
+                @io.fluxzero.sdk.web.Path("web-root")
+                package io.fluxzero.sdk.registry.webpaths;
+                """);
+        Files.writeString(childPackage.resolve("package-info.java"), """
+                @io.fluxzero.sdk.web.Path("")
+                package io.fluxzero.sdk.registry.webpaths.child;
+                """);
+        Files.writeString(childPackage.resolve("SourceWebPathHandler.java"), """
+                package io.fluxzero.sdk.registry.webpaths.child;
+
+                import io.fluxzero.sdk.web.HandleGet;
+                import io.fluxzero.sdk.web.Path;
+
+                @Path("type")
+                public class SourceWebPathHandler {
+                    @Path("method")
+                    @HandleGet("items")
+                    public String stacked() {
+                        return "stacked";
+                    }
+
+                    @Path("/reset")
+                    @HandleGet("items")
+                    public String reset() {
+                        return "reset";
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.webpaths.child.SourceWebPathHandler").orElseThrow();
+
+        assertEquals(List.of("/web-root/child/type/method/items"), webRoute(component, "stacked").paths());
+        assertEquals(List.of("/reset/items"), webRoute(component, "reset").paths());
+    }
+
+    @Test
     void indexesAllConcreteHandlerRouteTypes(@TempDir Path tempDir) throws Exception {
         writeSource(tempDir, "AllRoutesLogic", """
                 package io.fluxzero.sdk.registry.generated;
@@ -459,6 +501,14 @@ class SourceComponentScannerTest {
         return component.handlerRoutes().stream()
                 .filter(route -> route.messageType() == messageType)
                 .findFirst().orElseThrow();
+    }
+
+    private static WebRouteDescriptor webRoute(ComponentDescriptor component, String executableName) {
+        return component.handlerRoutes().stream()
+                .filter(route -> route.messageType() == MessageType.WEBREQUEST)
+                .filter(route -> route.executableMetadata().orElseThrow().name().equals(executableName))
+                .findFirst().orElseThrow()
+                .webRoutes().getFirst();
     }
 
     private static boolean hasAnnotation(List<AnnotationDescriptor> annotations, String qualifiedName) {
