@@ -28,6 +28,7 @@ import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HttpRequestMethod;
+import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -186,6 +187,26 @@ class ComponentMetadataLookupTest {
     }
 
     @Test
+    void typeAnnotationProjectsNestedAnnotationAttributesFromMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredSocketEndpoint.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                SocketEndpoint socketEndpoint = ComponentMetadataLookups.typeAnnotation(
+                        RegisteredSocketEndpoint.class, SocketEndpoint.class).orElseThrow();
+
+                assertFalse(socketEndpoint.aliveCheck().value());
+                assertEquals(7, socketEndpoint.aliveCheck().pingDelay());
+                assertEquals(3, socketEndpoint.aliveCheck().pingTimeout());
+                assertEquals(TimeUnit.MILLISECONDS, socketEndpoint.aliveCheck().timeUnit());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
     void metadataLookupMatchesMetaAnnotationsWithoutJvmFallback() throws Exception {
         JvmComponentMetadataLookup lookup = JvmComponentMetadataLookup.scan(MetaLookupHandler.class, LookupCommand.class);
         Method command = MetaLookupHandler.class.getDeclaredMethod("command", LookupCommand.class);
@@ -271,6 +292,11 @@ class ComponentMetadataLookupTest {
 
     @Timeout(value = 15, timeUnit = TimeUnit.SECONDS)
     static class RegisteredTimeoutRequest {
+    }
+
+    @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(
+            value = false, timeUnit = TimeUnit.MILLISECONDS, pingDelay = 7, pingTimeout = 3))
+    static class RegisteredSocketEndpoint {
     }
 
     private static String packageStrippedName(Class<?> type) {

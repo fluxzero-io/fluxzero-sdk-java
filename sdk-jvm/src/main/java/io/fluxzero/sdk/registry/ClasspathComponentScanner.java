@@ -545,9 +545,17 @@ public class ClasspathComponentScanner {
     private static AnnotationDescriptor annotationDescriptor(
             Annotation annotation, Set<Class<? extends Annotation>> visited) {
         Map<String, List<String>> attributes = new LinkedHashMap<>();
+        Map<String, List<AnnotationDescriptor>> nestedAnnotations = new LinkedHashMap<>();
         Arrays.stream(annotation.annotationType().getDeclaredMethods())
                 .sorted(Comparator.comparing(Method::getName))
-                .forEach(method -> attributes.put(method.getName(), values(invoke(method, annotation))));
+                .forEach(method -> {
+                    Object value = invoke(method, annotation);
+                    attributes.put(method.getName(), values(value));
+                    List<AnnotationDescriptor> nested = nestedAnnotations(value);
+                    if (!nested.isEmpty()) {
+                        nestedAnnotations.put(method.getName(), nested);
+                    }
+                });
         visited.add(annotation.annotationType());
         List<AnnotationDescriptor> metaAnnotations = Arrays.stream(annotation.annotationType().getAnnotations())
                 .filter(metaAnnotation -> includeMetaAnnotation(metaAnnotation, visited))
@@ -555,6 +563,7 @@ public class ClasspathComponentScanner {
                 .toList();
         return new AnnotationDescriptor(
                 annotation.annotationType().getSimpleName(), annotation.annotationType().getName(), attributes,
+                nestedAnnotations,
                 metaAnnotations);
     }
 
@@ -599,6 +608,24 @@ public class ClasspathComponentScanner {
             return "@" + annotation.annotationType().getName();
         }
         return String.valueOf(value);
+    }
+
+    private static List<AnnotationDescriptor> nestedAnnotations(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            List<AnnotationDescriptor> result = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                result.addAll(nestedAnnotations(Array.get(value, i)));
+            }
+            return result;
+        }
+        if (value instanceof Annotation annotation) {
+            return List.of(annotationDescriptor(annotation));
+        }
+        return List.of();
     }
 
     private static boolean booleanAttribute(Annotation annotation, String name, boolean defaultValue) {

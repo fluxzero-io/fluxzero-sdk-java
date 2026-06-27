@@ -346,7 +346,8 @@ public class SourceComponentScanner {
                 .map(metaAnnotation -> enrichAnnotation(metaAnnotation, metaAnnotations, new LinkedHashSet<>(visiting)))
                 .toList();
         return new AnnotationDescriptor(
-                annotation.name(), annotation.qualifiedName(), annotation.attributes(), meta);
+                annotation.name(), annotation.qualifiedName(), annotation.attributes(),
+                annotation.nestedAnnotations(), meta);
     }
 
     private Map<String, PackageInfo> packageInfos(List<ParsedSource> sources) {
@@ -807,10 +808,15 @@ public class SourceComponentScanner {
 
         private String annotationsBefore(int offset) {
             int start = offset;
+            int searchFrom = start;
             while (true) {
-                int at = source.lastIndexOf('@', start - 1);
+                int at = source.lastIndexOf('@', searchFrom - 1);
                 if (at < 0) {
                     break;
+                }
+                if (insideAnnotationValue(at)) {
+                    searchFrom = at;
+                    continue;
                 }
                 int annotationEnd = annotationEnd(at);
                 String between = stripModifiers(source.substring(annotationEnd, start));
@@ -818,8 +824,23 @@ public class SourceComponentScanner {
                     break;
                 }
                 start = at;
+                searchFrom = at;
             }
             return source.substring(start, offset);
+        }
+
+        private boolean insideAnnotationValue(int at) {
+            for (int previous = source.lastIndexOf('@', at - 1); previous >= 0;
+                 previous = source.lastIndexOf('@', previous - 1)) {
+                int end = annotationEnd(previous);
+                if (end > at) {
+                    return true;
+                }
+                if (!source.substring(end, at).isBlank()) {
+                    return false;
+                }
+            }
+            return false;
         }
 
         private int annotationEnd(int at) {
@@ -1030,7 +1051,7 @@ public class SourceComponentScanner {
                 String rawName = text.substring(nameStart, nameEnd);
                 String simpleName = simpleName(rawName);
                 String qualifiedName = resolveAnnotationName(rawName);
-                Map<String, List<String>> attributes = Map.of();
+                AnnotationAttributes attributes = AnnotationAttributes.empty();
                 int next = skipWhitespace(text, nameEnd);
                 if (next < text.length() && text.charAt(next) == '(') {
                     int end = matching(text, next, '(', ')');
@@ -1043,31 +1064,39 @@ public class SourceComponentScanner {
                 } else {
                     i = nameEnd;
                 }
-                result.add(new AnnotationDescriptor(simpleName, qualifiedName, attributes));
+                result.add(new AnnotationDescriptor(
+                        simpleName, qualifiedName, attributes.values(), attributes.nestedAnnotations(), List.of()));
             }
             return result;
         }
 
-        private Map<String, List<String>> parseAttributes(String attributes) {
+        private AnnotationAttributes parseAttributes(String attributes) {
             if (attributes == null || attributes.isBlank()) {
-                return Map.of();
+                return AnnotationAttributes.empty();
             }
-            Map<String, List<String>> result = new LinkedHashMap<>();
+            Map<String, List<String>> values = new LinkedHashMap<>();
+            Map<String, List<AnnotationDescriptor>> nestedAnnotations = new LinkedHashMap<>();
             List<String> parts = splitTopLevel(attributes, ',');
             boolean singleValue = parts.size() == 1 && topLevelIndexOf(parts.getFirst(), '=') < 0;
             if (singleValue) {
-                result.put("value", parseValues(parts.getFirst()));
-                return result;
+                values.put("value", parseValues(parts.getFirst()));
+                List<AnnotationDescriptor> nested = parseNestedAnnotations(parts.getFirst());
+                if (!nested.isEmpty()) {
+                    nestedAnnotations.put("value", nested);
+                }
+                return new AnnotationAttributes(values, nestedAnnotations);
             }
             for (String part : parts) {
                 int equals = topLevelIndexOf(part, '=');
-                if (equals < 0) {
-                    result.put("value", parseValues(part));
-                } else {
-                    result.put(part.substring(0, equals).trim(), parseValues(part.substring(equals + 1)));
+                String name = equals < 0 ? "value" : part.substring(0, equals).trim();
+                String value = equals < 0 ? part : part.substring(equals + 1);
+                values.put(name, parseValues(value));
+                List<AnnotationDescriptor> nested = parseNestedAnnotations(value);
+                if (!nested.isEmpty()) {
+                    nestedAnnotations.put(name, nested);
                 }
             }
-            return result;
+            return new AnnotationAttributes(values, nestedAnnotations);
         }
 
         private List<String> parseValues(String value) {
@@ -1079,6 +1108,39 @@ public class SourceComponentScanner {
                         .toList();
             }
             return List.of(normalizeValue(value));
+        }
+
+        private List<AnnotationDescriptor> parseNestedAnnotations(String value) {
+            value = value.trim();
+            if (value.startsWith("{") && value.endsWith("}")) {
+                return splitTopLevel(value.substring(1, value.length() - 1), ',').stream()
+                        .flatMap(part -> parseNestedAnnotations(part).stream())
+                        .toList();
+            }
+            if (!value.startsWith("@")) {
+                return List.of();
+            }
+            int nameStart = 1;
+            int nameEnd = nameStart;
+            while (nameEnd < value.length()
+                   && (Character.isJavaIdentifierPart(value.charAt(nameEnd)) || value.charAt(nameEnd) == '.')) {
+                nameEnd++;
+            }
+            if (nameEnd == nameStart) {
+                return List.of();
+            }
+            String rawName = value.substring(nameStart, nameEnd);
+            AnnotationAttributes attributes = AnnotationAttributes.empty();
+            int next = skipWhitespace(value, nameEnd);
+            if (next < value.length() && value.charAt(next) == '(') {
+                int end = matching(value, next, '(', ')');
+                if (end > next) {
+                    attributes = parseAttributes(value.substring(next + 1, end));
+                }
+            }
+            return List.of(new AnnotationDescriptor(
+                    simpleName(rawName), resolveAnnotationName(rawName),
+                    attributes.values(), attributes.nestedAnnotations(), List.of()));
         }
 
         private String normalizeValue(String value) {
@@ -1123,6 +1185,14 @@ public class SourceComponentScanner {
                 return type;
             }
             return packageName.isBlank() ? type : packageName + "." + type;
+        }
+
+        private record AnnotationAttributes(
+                Map<String, List<String>> values,
+                Map<String, List<AnnotationDescriptor>> nestedAnnotations) {
+            private static AnnotationAttributes empty() {
+                return new AnnotationAttributes(Map.of(), Map.of());
+            }
         }
 
         private String resolveGenericType(String type) {

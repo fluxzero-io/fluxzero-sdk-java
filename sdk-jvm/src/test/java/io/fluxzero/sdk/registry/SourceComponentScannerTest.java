@@ -206,6 +206,39 @@ class SourceComponentScannerTest {
     }
 
     @Test
+    void indexesNestedAnnotationAttributesFromSource(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "SourceSocketEndpoint", """
+                package io.fluxzero.sdk.registry.generated;
+
+                import io.fluxzero.sdk.web.HandleSocketOpen;
+                import io.fluxzero.sdk.web.SocketEndpoint;
+                import io.fluxzero.sdk.web.SocketEndpoint.AliveCheck;
+                import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+                @SocketEndpoint(aliveCheck = @AliveCheck(value = false, timeUnit = MILLISECONDS,
+                                                         pingDelay = 7, pingTimeout = 3))
+                public class SourceSocketEndpoint {
+                    @HandleSocketOpen
+                    public void open() {
+                    }
+                }
+                """);
+
+        ComponentDescriptor component = new SourceComponentScanner().scan(tempDir)
+                .findComponent("io.fluxzero.sdk.registry.generated.SourceSocketEndpoint").orElseThrow();
+        AnnotationDescriptor socketEndpoint = component.annotations().stream()
+                .filter(annotation -> annotation.qualifiedName().equals("io.fluxzero.sdk.web.SocketEndpoint"))
+                .findFirst().orElseThrow();
+        AnnotationDescriptor aliveCheck = socketEndpoint.nestedAnnotations("aliveCheck").getFirst();
+
+        assertEquals("io.fluxzero.sdk.web.SocketEndpoint.AliveCheck", aliveCheck.qualifiedName());
+        assertEquals(List.of("false"), aliveCheck.values("value"));
+        assertEquals(List.of("MILLISECONDS"), aliveCheck.values("timeUnit"));
+        assertEquals(List.of("7"), aliveCheck.values("pingDelay"));
+        assertEquals(List.of("3"), aliveCheck.values("pingTimeout"));
+    }
+
+    @Test
     void indexesAllConcreteHandlerRouteTypes(@TempDir Path tempDir) throws Exception {
         writeSource(tempDir, "AllRoutesLogic", """
                 package io.fluxzero.sdk.registry.generated;

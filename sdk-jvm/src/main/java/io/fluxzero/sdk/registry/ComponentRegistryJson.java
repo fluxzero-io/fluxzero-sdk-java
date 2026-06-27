@@ -196,6 +196,10 @@ public final class ComponentRegistryJson {
     private static AnnotationDto toDto(AnnotationDescriptor descriptor) {
         return new AnnotationDto(
                 descriptor.name(), descriptor.qualifiedName(), descriptor.attributes(),
+                descriptor.nestedAnnotations().entrySet().stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> entry.getValue().stream().map(ComponentRegistryJson::toDto).toList())),
                 descriptor.metaAnnotations().stream().map(ComponentRegistryJson::toDto).toList());
     }
 
@@ -276,6 +280,7 @@ public final class ComponentRegistryJson {
     private static AnnotationDescriptor fromDto(AnnotationDto dto) {
         return new AnnotationDescriptor(
                 dto.name(), dto.qualifiedName(), dto.attributes() == null ? Map.of() : dto.attributes(),
+                nestedAnnotations(dto.nestedAnnotations()),
                 list(dto.metaAnnotations()).stream().map(ComponentRegistryJson::fromDto).toList());
     }
 
@@ -338,6 +343,17 @@ public final class ComponentRegistryJson {
         return Collections.unmodifiableSet(result);
     }
 
+    private static Map<String, List<AnnotationDescriptor>> nestedAnnotations(
+            Map<String, List<AnnotationDto>> nestedAnnotations) {
+        if (nestedAnnotations == null || nestedAnnotations.isEmpty()) {
+            return Map.of();
+        }
+        return nestedAnnotations.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> list(entry.getValue()).stream().map(ComponentRegistryJson::fromDto).toList()));
+    }
+
     private record RegistryDto(String sourceRoot, List<PackageDto> packages, List<ComponentDto> components) {
     }
 
@@ -362,6 +378,7 @@ public final class ComponentRegistryJson {
 
     private record AnnotationDto(
             String name, String qualifiedName, Map<String, List<String>> attributes,
+            Map<String, List<AnnotationDto>> nestedAnnotations,
             List<AnnotationDto> metaAnnotations) {
     }
 

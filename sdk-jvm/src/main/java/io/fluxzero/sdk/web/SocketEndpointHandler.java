@@ -23,6 +23,7 @@ import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.tracking.handling.HandlerAssociations;
 import io.fluxzero.sdk.tracking.handling.MutableHandler;
 import io.fluxzero.sdk.tracking.handling.RepositoryProvider;
@@ -48,7 +49,6 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Stream.concat;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * A specialized {@link Handler} that manages lifecycle events and message dispatching for WebSocket endpoints annotated
@@ -86,7 +86,8 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
     HandlerAssociations associations;
 
     @Getter(lazy = true)
-    SocketEndpoint socketEndpoint = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, SocketEndpoint.class);
+    SocketEndpoint socketEndpoint = ComponentMetadataLookups.typeAnnotation(targetClass, SocketEndpoint.class)
+            .orElse(null);
 
     public SocketEndpointHandler(Class<?> targetClass,
                                  HandlerMatcher<Object, DeserializingMessage> targetMatcher,

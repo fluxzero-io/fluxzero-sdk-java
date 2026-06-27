@@ -40,6 +40,7 @@ class ComponentRegistryJsonTest {
         String json = ComponentRegistryJson.toJson(registry);
         assertTrue(json.contains("\"componentKind\""));
         assertTrue(json.contains("\"properties\""));
+        assertTrue(json.contains("\"nestedAnnotations\""));
         assertFalse(json.contains("@class"));
     }
 
@@ -68,10 +69,14 @@ class ComponentRegistryJsonTest {
         AnnotationDescriptor roleAnnotation = new AnnotationDescriptor(
                 "RequiresAnyRole", "io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole",
                 Map.of("value", List.of("admin")));
+        AnnotationDescriptor nestedAnnotation = new AnnotationDescriptor(
+                "Nested", "io.fluxzero.sdk.registry.json.Nested",
+                Map.of("enabled", List.of("true")));
         AnnotationDescriptor handlerAnnotation = new AnnotationDescriptor(
                 "HandleCommand", "io.fluxzero.sdk.tracking.handling.HandleCommand",
                 Map.of("allowedClasses", List.of("io.fluxzero.sdk.registry.json.JsonCommand"),
                        "passive", List.of("true")),
+                Map.of("nested", List.of(nestedAnnotation)),
                 List.of(roleAnnotation));
         ExecutableDescriptor executable = new ExecutableDescriptor(
                 ExecutableKind.METHOD, "handle", "io.fluxzero.sdk.registry.json.JsonResult",

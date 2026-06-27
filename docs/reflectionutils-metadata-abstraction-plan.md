@@ -68,6 +68,8 @@ Work slices:
     - [x] Aggregate repository, index operations, and document store entity-id/apply-factory metadata use the central
       resolver; generated-only mode no longer derives those semantics through direct scanner fallback.
   - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
+    - [x] Registry annotations preserve nested annotation-valued attributes across source scanning, classpath scanning,
+      annotation processing, JSON round-tripping, and metadata annotation projection.
     - [x] `ContentFilterInterceptor` uses the central metadata resolver and generated-only mode no longer applies
       `@FilterContent` through JVM annotation fallback.
     - [x] `ValidationUtils` uses the central metadata resolver for `@ValidateWith` and auth rules; generated-only
@@ -81,6 +83,9 @@ Work slices:
       fallback.
     - [x] `DefaultGenericGateway` and `SocketSession` use metadata-backed `@Timeout` resolution for request payload
       types; generated-only mode no longer derives timeout semantics through JVM annotation fallback.
+    - [x] `DefaultHandlerFactory` and `SocketEndpointHandler` use metadata-backed `@SocketEndpoint` resolution,
+      including nested `aliveCheck` configuration; generated-only mode no longer discovers socket endpoint semantics
+      through JVM annotation fallback.
 - [ ] Slice D: Generated invocation parity.
   - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
     `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.

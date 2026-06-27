@@ -42,9 +42,11 @@ import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.HandleWeb;
 import io.fluxzero.sdk.web.HandleWebResponse;
 import io.fluxzero.sdk.web.Path;
+import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,6 +144,22 @@ class ClasspathComponentScannerTest {
     }
 
     @Test
+    void indexesNestedAnnotationAttributesFromClasspath() {
+        ComponentDescriptor component = new ClasspathComponentScanner().scan(CompiledSocketEndpoint.class)
+                .findComponent(CompiledSocketEndpoint.class).orElseThrow();
+        AnnotationDescriptor socketEndpoint = component.annotations().stream()
+                .filter(annotation -> annotation.qualifiedName().equals(SocketEndpoint.class.getName()))
+                .findFirst().orElseThrow();
+        AnnotationDescriptor aliveCheck = socketEndpoint.nestedAnnotations("aliveCheck").getFirst();
+
+        assertEquals(SocketEndpoint.AliveCheck.class.getName(), aliveCheck.qualifiedName());
+        assertEquals(List.of("false"), aliveCheck.values("value"));
+        assertEquals(List.of("MILLISECONDS"), aliveCheck.values("timeUnit"));
+        assertEquals(List.of("7"), aliveCheck.values("pingDelay"));
+        assertEquals(List.of("3"), aliveCheck.values("pingTimeout"));
+    }
+
+    @Test
     void indexesCompiledPayloadSelfHandlersAsLocalComponentRoutes() {
         ComponentRegistry registry = new ClasspathComponentScanner().scan(
                 CompiledSelfQuery.class, CompiledTrackedSelfCommand.class);
@@ -199,6 +217,14 @@ class ClasspathComponentScannerTest {
                            .capabilities().contains(ComponentCapability.TASK_SCHEDULER));
         assertTrue(registry.findComponent(CompiledPropertySource.class.getName()).orElseThrow()
                            .capabilities().contains(ComponentCapability.PROPERTY_SOURCE));
+    }
+
+    @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(
+            value = false, timeUnit = TimeUnit.MILLISECONDS, pingDelay = 7, pingTimeout = 3))
+    static class CompiledSocketEndpoint {
+        @HandleSocketOpen
+        void open() {
+        }
     }
 
     private static HandlerRoute route(ComponentDescriptor component, MessageType messageType) {

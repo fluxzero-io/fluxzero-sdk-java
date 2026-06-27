@@ -84,9 +84,23 @@ final class MetadataAnnotationResolver {
             if (values.isEmpty()) {
                 return method.getDefaultValue();
             }
+            if (returnType.isAnnotation()) {
+                return nestedAnnotationValue(source, attributeName, returnType.asSubclass(Annotation.class),
+                                             values.getFirst(), declaringClass)
+                        .orElseGet(() -> (Annotation) method.getDefaultValue());
+            }
             return value(values.getFirst(), returnType, declaringClass);
         }
         Class<?> componentType = returnType.getComponentType();
+        if (componentType.isAnnotation()) {
+            List<AnnotationDescriptor> nestedAnnotations = source.nestedAnnotations(attributeName);
+            Object result = Array.newInstance(componentType, nestedAnnotations.size());
+            for (int i = 0; i < nestedAnnotations.size(); i++) {
+                Array.set(result, i, annotationView(
+                        componentType.asSubclass(Annotation.class), nestedAnnotations.get(i), declaringClass));
+            }
+            return result;
+        }
         Object result = Array.newInstance(componentType, values.size());
         for (int i = 0; i < values.size(); i++) {
             Array.set(result, i, value(values.get(i), componentType, declaringClass));
@@ -102,6 +116,32 @@ final class MetadataAnnotationResolver {
                 .map(annotation -> annotation.find(simpleName, qualifiedName))
                 .flatMap(Optional::stream)
                 .findFirst();
+    }
+
+    private static Optional<Annotation> nestedAnnotationValue(
+            AnnotationDescriptor descriptor, String attributeName, Class<? extends Annotation> annotationType,
+            String value, Class<?> declaringClass) {
+        return descriptor.nestedAnnotations(attributeName).stream()
+                .findFirst()
+                .or(() -> annotationReference(value))
+                .map(nested -> annotationView(annotationType, nested, declaringClass));
+    }
+
+    private static Optional<AnnotationDescriptor> annotationReference(String value) {
+        if (value == null || !value.startsWith("@")) {
+            return Optional.empty();
+        }
+        String qualifiedName = value.substring(1);
+        int attributesStart = qualifiedName.indexOf('(');
+        if (attributesStart >= 0) {
+            qualifiedName = qualifiedName.substring(0, attributesStart);
+        }
+        if (qualifiedName.isBlank()) {
+            return Optional.empty();
+        }
+        int simpleNameStart = Math.max(qualifiedName.lastIndexOf('.'), qualifiedName.lastIndexOf('$')) + 1;
+        return Optional.of(new AnnotationDescriptor(
+                qualifiedName.substring(simpleNameStart), qualifiedName, java.util.Map.of()));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

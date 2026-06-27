@@ -502,15 +502,23 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
                 ? type.getQualifiedName().toString() : annotation.getAnnotationType().toString();
         String simpleName = annotationElement.getSimpleName().toString();
         Map<String, List<String>> attributes = new LinkedHashMap<>();
+        Map<String, List<AnnotationDescriptor>> nestedAnnotations = new LinkedHashMap<>();
         processingEnv.getElementUtils().getElementValuesWithDefaults(annotation).entrySet().stream()
                 .sorted(Comparator.comparing(entry -> entry.getKey().getSimpleName().toString()))
-                .forEach(entry -> attributes.put(entry.getKey().getSimpleName().toString(), values(entry.getValue())));
+                .forEach(entry -> {
+                    String name = entry.getKey().getSimpleName().toString();
+                    attributes.put(name, values(entry.getValue()));
+                    List<AnnotationDescriptor> nested = nestedAnnotations(entry.getValue());
+                    if (!nested.isEmpty()) {
+                        nestedAnnotations.put(name, nested);
+                    }
+                });
         visited.add(qualifiedName);
         List<AnnotationDescriptor> metaAnnotations = annotationElement.getAnnotationMirrors().stream()
                 .filter(metaAnnotation -> includeMetaAnnotation(metaAnnotation, visited))
                 .map(metaAnnotation -> annotationDescriptor(metaAnnotation, new LinkedHashSet<>(visited)))
                 .toList();
-        return new AnnotationDescriptor(simpleName, qualifiedName, attributes, metaAnnotations);
+        return new AnnotationDescriptor(simpleName, qualifiedName, attributes, nestedAnnotations, metaAnnotations);
     }
 
     private static boolean includeMetaAnnotation(AnnotationMirror annotation, Set<String> visited) {
@@ -554,6 +562,26 @@ public class ComponentRegistryProcessor extends AbstractProcessor {
             return "@" + name;
         }
         return String.valueOf(value);
+    }
+
+    private List<AnnotationDescriptor> nestedAnnotations(AnnotationValue value) {
+        Object raw = value.getValue();
+        if (raw == null) {
+            return List.of();
+        }
+        if (raw instanceof List<?> list) {
+            List<AnnotationDescriptor> result = new ArrayList<>(list.size());
+            for (Object item : list) {
+                if (item instanceof AnnotationValue annotationValue) {
+                    result.addAll(nestedAnnotations(annotationValue));
+                }
+            }
+            return result;
+        }
+        if (raw instanceof AnnotationMirror annotation) {
+            return List.of(annotationDescriptor(annotation));
+        }
+        return List.of();
     }
 
     private List<RegisteredTypeDescriptor> registeredTypes(

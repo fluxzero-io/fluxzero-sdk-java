@@ -27,13 +27,14 @@ import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
-import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.web.ApiReferenceEndpoint;
 import io.fluxzero.sdk.web.DefaultWebRequestContext;
@@ -218,7 +219,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
             }
 
             {
-                SocketEndpoint handler = JvmComponentIntrospector.getInstance().getTypeAnnotation(targetClass, SocketEndpoint.class);
+                SocketEndpoint handler = ComponentMetadataLookups.typeAnnotation(targetClass, SocketEndpoint.class)
+                        .orElse(null);
                 if (handler != null) {
                     var socketConfig = config;
                     return new SocketEndpointHandler(

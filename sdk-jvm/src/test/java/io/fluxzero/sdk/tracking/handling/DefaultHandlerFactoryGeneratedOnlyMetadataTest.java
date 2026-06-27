@@ -24,10 +24,15 @@ import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
 import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.web.HandleSocketOpen;
+import io.fluxzero.sdk.web.SocketEndpoint;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -129,10 +134,52 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         }
     }
 
+    @Test
+    void generatedOnlyModeDoesNotDiscoverSocketEndpointWithoutRegistryMetadata() {
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(webFactory().createHandler(
+                        UnregisteredSocketEndpoint.class, (c, e) -> true, List.of()).isEmpty()));
+    }
+
+    @Test
+    void generatedOnlyModeCreatesSocketEndpointFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(RegisteredSocketEndpoint.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                Handler<DeserializingMessage> handler = webFactory().createHandler(
+                        RegisteredSocketEndpoint.class, (c, e) -> true, List.of()).orElseThrow();
+
+                assertEquals("SocketEndpointHandler[%s]".formatted(RegisteredSocketEndpoint.class), handler.toString());
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
     private static DefaultHandlerFactory factory() {
         return new DefaultHandlerFactory(
                 MessageType.COMMAND, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
                 c -> null, null, false, null);
+    }
+
+    private static DefaultHandlerFactory webFactory() {
+        return new DefaultHandlerFactory(
+                MessageType.WEBREQUEST, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                c -> null, repositoryProvider(), false, null);
+    }
+
+    private static RepositoryProvider repositoryProvider() {
+        Map<Class<?>, Map<Object, Object>> repositories = new ConcurrentHashMap<>();
+        return new RepositoryProvider() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> Map<Object, T> getRepository(Class<T> repositoryClass) {
+                return (Map<Object, T>) repositories.computeIfAbsent(
+                        repositoryClass, key -> new ConcurrentHashMap<>());
+            }
+        };
     }
 
     private static DeserializingMessage command() {
@@ -171,6 +218,21 @@ class DefaultHandlerFactoryGeneratedOnlyMetadataTest {
         @HandleCommand(allowedClasses = AllowedGeneratedOnlyCommand.class)
         String handle() {
             return "allowed";
+        }
+    }
+
+    @SocketEndpoint
+    private static class UnregisteredSocketEndpoint {
+        @HandleSocketOpen
+        void open() {
+        }
+    }
+
+    @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(
+            timeUnit = TimeUnit.MILLISECONDS, pingDelay = 7, pingTimeout = 3))
+    private static class RegisteredSocketEndpoint {
+        @HandleSocketOpen
+        void open() {
         }
     }
 

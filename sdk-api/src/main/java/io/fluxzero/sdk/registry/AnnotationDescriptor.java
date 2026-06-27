@@ -26,22 +26,31 @@ import java.util.Optional;
  * @param name simple annotation name
  * @param qualifiedName fully qualified annotation name when it can be resolved from source imports
  * @param attributes annotation attributes, with unnamed values stored under {@code value}
+ * @param nestedAnnotations annotation-valued attributes, keyed by attribute name
  * @param metaAnnotations annotations present on this annotation type
  */
 public record AnnotationDescriptor(
         String name,
         String qualifiedName,
         Map<String, List<String>> attributes,
+        Map<String, List<AnnotationDescriptor>> nestedAnnotations,
         List<AnnotationDescriptor> metaAnnotations) {
 
     public AnnotationDescriptor(String name, String qualifiedName, Map<String, List<String>> attributes) {
-        this(name, qualifiedName, attributes, List.of());
+        this(name, qualifiedName, attributes, Map.of(), List.of());
+    }
+
+    public AnnotationDescriptor(
+            String name, String qualifiedName, Map<String, List<String>> attributes,
+            List<AnnotationDescriptor> metaAnnotations) {
+        this(name, qualifiedName, attributes, Map.of(), metaAnnotations);
     }
 
     public AnnotationDescriptor {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         attributes = Map.copyOf(Objects.requireNonNull(attributes, "attributes"));
+        nestedAnnotations = copyNestedAnnotations(nestedAnnotations);
         metaAnnotations = List.copyOf(Objects.requireNonNull(metaAnnotations, "metaAnnotations"));
     }
 
@@ -57,6 +66,13 @@ public record AnnotationDescriptor(
      */
     public Optional<String> firstValue(String attribute) {
         return values(attribute).stream().findFirst();
+    }
+
+    /**
+     * Returns annotation-valued attributes.
+     */
+    public List<AnnotationDescriptor> nestedAnnotations(String attribute) {
+        return nestedAnnotations.getOrDefault(attribute, List.of());
     }
 
     /**
@@ -89,5 +105,13 @@ public record AnnotationDescriptor(
     private boolean matches(String annotationName, String qualifiedAnnotationName) {
         return Objects.equals(name, annotationName)
                || qualifiedAnnotationName != null && Objects.equals(qualifiedName, qualifiedAnnotationName);
+    }
+
+    private static Map<String, List<AnnotationDescriptor>> copyNestedAnnotations(
+            Map<String, List<AnnotationDescriptor>> nestedAnnotations) {
+        Objects.requireNonNull(nestedAnnotations, "nestedAnnotations");
+        return nestedAnnotations.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey, entry -> List.copyOf(entry.getValue())));
     }
 }
