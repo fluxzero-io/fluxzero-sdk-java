@@ -74,6 +74,8 @@ Work slices:
       resolver; generated-only mode no longer derives those semantics through direct scanner fallback.
     - [x] `DefaultHandlerRepository` uses metadata-backed `@Stateful` commit/timestamp policy; generated-only mode no
       longer derives repository behavior through JVM annotation fallback.
+    - [x] `DefaultEntityHelper` uses metadata-backed `@Aggregate` root policy; generated-only mode no longer derives
+      aggregate commit/search/event policy through JVM annotation fallback.
   - [ ] Serialization, casting, data protection, content filtering, auth, validation, web, sockets, scheduling, stores.
     - [x] Registry annotations preserve nested annotation-valued attributes across source scanning, classpath scanning,
       annotation processing, JSON round-tripping, and metadata annotation projection.

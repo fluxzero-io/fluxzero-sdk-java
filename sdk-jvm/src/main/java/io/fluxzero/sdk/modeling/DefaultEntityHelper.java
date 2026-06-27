@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.registry.MetadataExecutableAnnotationResolver;
 import io.fluxzero.sdk.common.HasMessage;
@@ -79,8 +80,8 @@ public class DefaultEntityHelper implements EntityHelper {
      * Returns the cached or default @Aggregate annotation for a given type.
      */
     public static Aggregate getRootAnnotation(Class<?> type) {
-        return Object.class.equals(type) ? unknownAggregateAnnotation : Optional.<Aggregate>ofNullable(
-                JvmComponentIntrospector.getInstance().getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation);
+        return Object.class.equals(type) ? unknownAggregateAnnotation
+                : ComponentMetadataLookups.typeAnnotation(type, Aggregate.class).orElse(defaultAggregateAnnotation);
     }
 
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;

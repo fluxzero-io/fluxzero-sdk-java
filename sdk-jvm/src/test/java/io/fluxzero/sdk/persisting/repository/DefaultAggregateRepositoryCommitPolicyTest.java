@@ -19,6 +19,8 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +70,25 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     void newerDefaultsVersionUsesAsyncAfterHandlerAwaitAfterBatch() {
         expectResolved(AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, DefaultAggregate.class,
                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "2026.06.09");
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseAggregatePolicyWithoutRegistryMetadata() {
+        GeneratedOnlyMetadataMode.run(() ->
+                assertEquals(AggregateCommitPolicy.SYNC_AFTER_BATCH, resolve(ExplicitAggregate.class)));
+    }
+
+    @Test
+    void generatedOnlyModeUsesAggregatePolicyFromRegistryMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(ExplicitAggregate.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() ->
+                    assertEquals(AggregateCommitPolicy.ASYNC_AFTER_HANDLER, resolve(ExplicitAggregate.class)));
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
     }
 
     private static AggregateCommitPolicy resolve(Class<?> type) {
