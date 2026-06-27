@@ -15,10 +15,14 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.registry.ExecutableDescriptor;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.registry.WebRouteDescriptor;
 import jakarta.annotation.Nullable;
 import lombok.NonNull;
 
@@ -142,10 +146,56 @@ public class WebUtils {
      * @return a list of {@link WebPattern} instances associated with the method
      */
     public static List<WebPattern> getWebPatterns(Class<?> targetClass, @Nullable Object handler, Executable method) {
+        Optional<List<WebPattern>> metadataPatterns = getMetadataWebPatterns(targetClass, handler, method);
+        if (metadataPatterns.isPresent()) {
+            return metadataPatterns.get();
+        }
         String root = getHandlerPath(targetClass, handler, method);
         return JvmComponentIntrospector.getInstance().getMethodAnnotations(method, HandleWeb.class)
                 .stream().flatMap(a -> JvmComponentIntrospector.getInstance().getAnnotationAs(a, HandleWeb.class, WebParameters.class)
                         .stream().flatMap(webParameters -> webParameters.getWebPatterns(root))).toList();
+    }
+
+    private static Optional<List<WebPattern>> getMetadataWebPatterns(
+            Class<?> targetClass, @Nullable Object handler, Executable method) {
+        if (hasDynamicHandlerPath(handler)) {
+            return Optional.empty();
+        }
+        return JvmComponentMetadataLookup.scanIfScannable(targetClass).flatMap(lookup -> {
+            Optional<ExecutableDescriptor> executable = lookup.executable(method);
+            if (executable.isEmpty()) {
+                return Optional.empty();
+            }
+            var routes = lookup.routes(targetClass, MessageType.WEBREQUEST).stream()
+                    .filter(route -> route.executableMetadata().filter(executable.get()::equals).isPresent())
+                    .toList();
+            if (routes.stream().flatMap(route -> route.webRoutes().stream())
+                    .flatMap(route -> route.methods().stream()).anyMatch(WebUtils::isWebsocketMethod)) {
+                return Optional.empty();
+            }
+            List<WebPattern> result = routes.stream().flatMap(route -> route.webRoutes().stream())
+                    .flatMap(WebUtils::toWebPatterns)
+                    .toList();
+            return result.isEmpty() ? Optional.empty() : Optional.of(result);
+        });
+    }
+
+    private static Stream<WebPattern> toWebPatterns(WebRouteDescriptor route) {
+        return route.paths().stream()
+                .flatMap(path -> route.methods().stream()
+                        .map(method -> new WebPattern(path, method, route.autoHead(), route.autoOptions())));
+    }
+
+    private static boolean isWebsocketMethod(String method) {
+        return method != null && method.startsWith("WS_");
+    }
+
+    private static boolean hasDynamicHandlerPath(@Nullable Object handler) {
+        return handler != null && JvmComponentIntrospector.getInstance().getAnnotatedProperty(handler, Path.class)
+                .stream()
+                .anyMatch(p -> JvmComponentIntrospector.getInstance().getAnnotation(p, Path.class).map(Path::value)
+                        .filter(String::isBlank).isPresent()
+                               && JvmComponentIntrospector.getInstance().getAnnotation(p, HandleWeb.class).isEmpty());
     }
 
     /**

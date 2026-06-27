@@ -186,8 +186,9 @@ Work:
   - [x] Local/tracked decisions use descriptor metadata through `ClientUtils`.
   - [x] Source/classpath/processor producers preserve full package/type/method `@Path` stacking, blank path defaults,
     handler annotation values, and absolute `@Path` reset semantics.
-  - [ ] Web route runtime consumption remains on the existing JVM path; producer parity is now ready for the runtime
-    migration.
+  - [x] HTTP web route runtime consumption uses registry `HandlerRoute.webRoutes()` before JVM fallback.
+  - [ ] WebSocket endpoint route consumption still uses JVM fallback until socket endpoint path semantics are fully
+    modeled in metadata.
 - [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
   - [x] Association property selection reads descriptor property metadata before JVM fallback.
   - [x] Content-filter policy marker reads descriptor metadata before JVM fallback.
