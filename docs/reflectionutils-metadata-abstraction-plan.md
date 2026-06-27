@@ -77,7 +77,13 @@ Work slices:
     - [x] Web route pattern metadata uses the central resolver; generated-only mode no longer derives web patterns
       through direct scanner fallback.
 - [ ] Slice D: Generated invocation parity.
+  - [x] Route JVM handler, entity apply, assertion, authorization helper, and caster invocation through the explicit
+    `ExecutableInvocationBackend`/`JvmComponentIntrospector` seam instead of scattered direct member invokers.
+  - [x] Add a guardrail that prevents direct `DefaultMemberInvoker` usage from reappearing in `sdk-jvm` runtime code
+    outside the JVM backend.
   - [ ] Make JVM capable of using generated invocation metadata for app semantics where possible.
+  - [ ] Replace handler discovery/matching reflection with registry-shaped executable metadata where generated
+    invocation plans are available.
   - [ ] Keep unavoidable JVM-only reflection behind an explicit backend seam.
 - [ ] Slice E: Browser resumes only after JVM generated-only evidence.
   - [ ] Browser generator consumes the same metadata/invocation contracts proven by JVM tests.

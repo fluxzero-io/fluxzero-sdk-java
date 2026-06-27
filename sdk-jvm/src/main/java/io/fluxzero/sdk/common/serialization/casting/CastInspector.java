@@ -17,7 +17,6 @@ package io.fluxzero.sdk.common.serialization.casting;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
-import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 
@@ -147,7 +146,7 @@ public class CastInspector {
                             "Parameter in caster method '%s' is of unexpected type. Expected Data<%s> or %s.",
                             method, dataType.getName(), dataType.getName()));
                 }).toList();
-        var invoker = DefaultMemberInvoker.asInvoker(method);
+        var invoker = JvmComponentIntrospector.getInstance().prepareInvocation(method);
         try {
             return s -> {
                 Object[] args = new Object[parameterFunctions.size()];
@@ -158,10 +157,10 @@ public class CastInspector {
                     }
                     args[i] = arg;
                 }
-                return invoker.invoke(target, args);
+                return invoker.invoke(target, args.length, i -> args[i]);
             };
         } catch (Throwable e) {
-            throw new DeserializationException("Exception while casting using method: " + invoker.getMember(), e);
+            throw new DeserializationException("Exception while casting using method: " + method, e);
         }
     }
 

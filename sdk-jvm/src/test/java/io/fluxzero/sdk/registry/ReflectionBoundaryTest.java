@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ReflectionBoundaryTest {
     private static final Pattern DIRECT_REFLECTION_UTILS = Pattern.compile("\\bReflectionUtils\\b");
     private static final Pattern DIRECT_REFLECTION_ACCESS = Pattern.compile("\\bReflectionAccess\\b");
+    private static final Pattern DIRECT_DEFAULT_MEMBER_INVOKER = Pattern.compile("\\bDefaultMemberInvoker\\b");
     private static final Pattern DIRECT_METADATA_SCAN = Pattern.compile(
             "\\bJvmComponentMetadataLookup\\s*\\.\\s*(scan|scanIfScannable)\\s*\\("
             + "|new\\s+ClasspathComponentScanner\\s*\\(\\s*\\)\\s*\\.\\s*scan\\s*\\(");
@@ -78,7 +79,8 @@ class ReflectionBoundaryTest {
         try {
             String source = Files.readString(path);
             return DIRECT_REFLECTION_UTILS.matcher(source).find()
-                   || DIRECT_REFLECTION_ACCESS.matcher(source).find();
+                   || DIRECT_REFLECTION_ACCESS.matcher(source).find()
+                   || DIRECT_DEFAULT_MEMBER_INVOKER.matcher(source).find();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to inspect " + path, e);
         }

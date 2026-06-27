@@ -15,7 +15,6 @@
 
 package io.fluxzero.sdk.tracking.handling.validation;
 
-import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.registry.ComponentMetadataLookups;
 import io.fluxzero.sdk.registry.JvmComponentIntrospector;
@@ -541,7 +540,7 @@ public class ValidationUtils {
 
             for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
-                    Object[] result = (Object[]) DefaultMemberInvoker.asInvoker(method).invoke(annotation);
+                    Object[] result = (Object[]) JvmComponentIntrospector.getInstance().invoke(method, annotation);
                     return Arrays.stream(result).map(Object::toString)
                             .map(r -> new RequiredRole(r, throwIfUnauthorized, true, false))
                             .toArray(RequiredRole[]::new);
@@ -565,7 +564,7 @@ public class ValidationUtils {
 
             for (Method method : JvmComponentIntrospector.getInstance().getAllMethods(annotation.annotationType())) {
                 if (method.getName().equalsIgnoreCase("value")) {
-                    Object[] result = (Object[]) DefaultMemberInvoker.asInvoker(method).invoke(annotation);
+                    Object[] result = (Object[]) JvmComponentIntrospector.getInstance().invoke(method, annotation);
                     return Arrays.stream(result).map(Object::toString).map(s -> "!" + s)
                             .map(r -> new RequiredRole(r, throwIfUnauthorized, true, false))
                             .toArray(RequiredRole[]::new);
@@ -578,8 +577,7 @@ public class ValidationUtils {
 
     static Optional<Boolean> throwIfUnauthorized(Annotation holder) {
         return JvmComponentIntrospector.getInstance().getMethod(holder.annotationType(), "throwIfUnauthorized")
-                .map(DefaultMemberInvoker::asInvoker)
-                .map(m -> (boolean) m.invoke(holder));
+                .map(method -> (boolean) JvmComponentIntrospector.getInstance().invoke(method, holder));
     }
 
     protected record RequiredRole(@Nullable String value, boolean throwIfUnauthorized, boolean requiresUser,

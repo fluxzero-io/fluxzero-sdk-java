@@ -111,6 +111,7 @@ public class DefaultEntityHelper implements EntityHelper {
         return HandlerConfiguration.<MessageWithEntity>builder().methodAnnotation(AssertLegal.class)
                 .invokeMultipleMethods(true)
                 .samePriorityMethodComparator(DefaultEntityHelper::compareAssertLegalMethods)
+                .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                 .messageFilter((message, executable, handlerAnnotation, targetClass) ->
                         JvmComponentIntrospector.getInstance().getAnnotation(executable, AssertLegal.class)
                                 .map(assertLegal -> assertLegal.afterHandler() == message.isAfterHandler())
@@ -141,6 +142,7 @@ public class DefaultEntityHelper implements EntityHelper {
     protected static HandlerConfiguration<DeserializingMessageWithEntity> applyHandlerConfiguration(
             boolean checkCompatibility, EntityParameterResolver entityParameterResolver) {
         return HandlerConfiguration.<DeserializingMessageWithEntity>builder().methodAnnotation(Apply.class)
+                .executableInvocationBackend(JvmComponentIntrospector.getInstance().executableInvocationBackend())
                 .messageFilter((hi, executable, handlerAnnotation, targetClass) -> {
                     if (executable instanceof Method m && targetClass.isAssignableFrom(hi.getPayloadClass())) {
                         var entity = hi.getEntity();

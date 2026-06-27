@@ -14,8 +14,10 @@
 
 package io.fluxzero.sdk.registry;
 
-import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.handling.ExecutableInvocation;
+import io.fluxzero.common.handling.ExecutableInvocationBackend;
 import io.fluxzero.common.reflection.MemberInvoker;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata;
 
 import java.lang.annotation.Annotation;
@@ -25,6 +27,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
@@ -53,6 +56,7 @@ public final class JvmComponentIntrospector implements
         ExecutableInvoker<Executable> {
 
     private static final JvmComponentIntrospector INSTANCE = new JvmComponentIntrospector();
+    private final ExecutableInvocationBackend executableInvocationBackend = this::prepareInvocation;
 
     private JvmComponentIntrospector() {
     }
@@ -156,6 +160,22 @@ public final class JvmComponentIntrospector implements
     public Optional<MemberInvoker> getAnnotatedPropertyInvoker(
             Class<?> target, Class<? extends Annotation> annotation) {
         return ReflectionUtils.getAnnotatedPropertyInvoker(target, annotation);
+    }
+
+    /**
+     * Returns the JVM executable invocation backend used by SDK runtime handler configuration.
+     */
+    public ExecutableInvocationBackend executableInvocationBackend() {
+        return executableInvocationBackend;
+    }
+
+    /**
+     * Prepares an optimized JVM invocation handle for a method or constructor.
+     */
+    public ExecutableInvocation prepareInvocation(Executable executable) {
+        MemberInvoker invoker = getTypeMetadata(executable.getDeclaringClass())
+                .invoker((Member) executable, true);
+        return invoker::invoke;
     }
 
     /**
@@ -754,16 +774,11 @@ public final class JvmComponentIntrospector implements
 
     @Override
     public Object invoke(Executable executable, Object target, List<?> arguments) {
-        try {
-            Object[] args = arguments == null ? new Object[0] : arguments.toArray();
-            return switch (executable) {
-                case Method method -> ReflectionUtils.ensureAccessible(method).invoke(target, args);
-                case Constructor<?> constructor -> ReflectionUtils.ensureAccessible(constructor).newInstance(args);
-                default -> throw new ComponentRegistryException("Unsupported executable: " + executable);
-            };
-        } catch (ReflectiveOperationException e) {
-            throw new ComponentRegistryException("Failed to invoke executable: " + executable, e);
+        if (!(executable instanceof Method) && !(executable instanceof Constructor<?>)) {
+            throw new ComponentRegistryException("Unsupported executable: " + executable);
         }
+        Object[] args = arguments == null ? new Object[0] : arguments.toArray();
+        return prepareInvocation(executable).invoke(target, args.length, i -> args[i]);
     }
 
     /**
