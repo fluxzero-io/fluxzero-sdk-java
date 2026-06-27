@@ -189,7 +189,11 @@ Work:
 - [ ] Property metadata reads for modeling, validation, content filtering, data protection, and search.
   - [x] Association property selection reads descriptor property metadata before JVM fallback.
   - [x] Content-filter policy marker reads descriptor metadata before JVM fallback.
-  - [ ] Data-protection, search, and deeper modeling property policies still use the JVM backend directly.
+  - [x] Data-protection property and method policy markers use descriptor metadata before JVM fallback.
+  - [x] Search/document indexing `@EntityId` property discovery uses descriptor metadata before JVM fallback.
+  - [x] Stateful handler `@EntityId`, `@Member`, and `@RoutingKey` policy discovery uses descriptor metadata before
+    JVM access fallback.
+  - [ ] Aggregate repository/entity-helper property traversal still uses the JVM backend directly.
 - [ ] Invocation and mutable property access behind a platform backend seam.
 
 Done when:
@@ -264,6 +268,9 @@ Work:
 - [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after the current Slice 4 checkpoint.
 - [x] Attempted web route runtime metadata consumption was reverted after tests exposed missing producer parity for
   stacked `@Path` semantics; existing web behavior is preserved.
+- [x] Slice 4 property-policy tests for data protection, search, stateful members, and metadata lookup passed with
+  `-Dmaven.compiler.proc=full`.
+- [x] Full `sdk-jvm` test suite passed with `-Dmaven.compiler.proc=full` after property-policy migration.
 - [ ] Full multi-module install has not been rerun after the current parity changes.
 
 ## Reference: Boundary Shape

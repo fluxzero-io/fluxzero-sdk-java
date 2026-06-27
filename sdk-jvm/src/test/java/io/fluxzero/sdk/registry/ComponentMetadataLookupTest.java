@@ -70,6 +70,8 @@ class ComponentMetadataLookupTest {
 
         assertEquals(packageStrippedName(LookupCommand.class),
                      registry.component(LookupCommand.class.getName()).orElseThrow().className());
+        assertEquals("id", jvm.annotatedPropertyName(LookupCommand.class, EntityId.class).orElseThrow());
+        assertTrue(jvm.hasTypeAnnotation(LookupHandler.class, LocalHandler.class));
         ComponentMetadataLookup packageLookup = JvmComponentMetadataLookup.scan(CompiledPackageHandler.class);
         assertEquals("compiled-package", packageLookup.packageMetadataChain(CompiledPackageHandler.class.getPackageName())
                 .getFirst().consumerMetadata().orElseThrow().name());

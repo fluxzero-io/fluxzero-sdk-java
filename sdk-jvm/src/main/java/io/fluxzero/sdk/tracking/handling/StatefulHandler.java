@@ -19,7 +19,6 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Entry;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -36,6 +35,8 @@ import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ImmutableEntity;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.publishing.routing.RoutingKey;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -178,8 +179,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
                         if (alreadyFiltered(i)) {
                             return true;
                         }
-                        String routingKey = JvmComponentIntrospector.getInstance().getAnnotatedProperty(targetClass, EntityId.class)
-                                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property))
+                        String routingKey = entityIdPropertyName(targetClass)
                                 .flatMap(propertyName -> message.getRoutingKey(propertyName, false))
                                 .orElseGet(message::getMessageId);
                         return canTrackerHandle(message, routingKey);
@@ -239,7 +239,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
             return List.of();
         }
         List<StatefulMember> result = new ArrayList<>();
-        for (AccessibleObject location : JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class)) {
+        for (AccessibleObject location : memberLocations(ownerType)) {
             Class<?> memberType = JvmComponentIntrospector.getInstance().getCollectionElementType(location)
                     .orElse(JvmComponentIntrospector.getInstance().getPropertyType(location));
             if (Object.class.equals(memberType)) {
@@ -273,8 +273,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private ImmutableEntity<?> rootEntity(Entry<?> entry) {
         Object value = entry.getValue();
-        String idProperty = JvmComponentIntrospector.getInstance().getAnnotatedProperty(value.getClass(), EntityId.class)
-                .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)).orElse(null);
+        String idProperty = entityIdPropertyName(value.getClass()).orElse(null);
         return ImmutableEntity.builder()
                 .id(computeId(value, entry, null))
                 .type((Class) value.getClass())
@@ -286,13 +285,58 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
     }
 
     private Object computeId(Object handler, Entry<?> currentEntry, DeserializingMessage message) {
-        return JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(handler, EntityId.class)
+        return entityIdValue(handler)
                 .or(() -> ofNullable(currentEntry).map(Entry::getId))
                 .orElseGet(() -> message == null ? null : message.getMessageId());
     }
 
     protected boolean alreadyFiltered(HandlerInvoker i) {
-        return JvmComponentIntrospector.getInstance().getMethodAnnotation(i.getMethod(), RoutingKey.class).isPresent();
+        Executable executable = i.getMethod();
+        return JvmComponentMetadataLookup.scanIfScannable(executable.getDeclaringClass())
+                       .map(lookup -> lookup.hasExecutableAnnotation(executable, RoutingKey.class))
+                       .filter(Boolean::booleanValue)
+                       .orElse(false)
+               || JvmComponentIntrospector.getInstance().getMethodAnnotation(executable, RoutingKey.class).isPresent();
+    }
+
+    private static List<AccessibleObject> memberLocations(Class<?> ownerType) {
+        List<AccessibleObject> metadataLocations = JvmComponentMetadataLookup.scanIfScannable(ownerType)
+                .map(lookup -> lookup.annotatedProperties(ownerType, Member.class).stream()
+                        .flatMap(property -> annotatedPropertyLocation(
+                                ownerType, property.name(), Member.class).stream())
+                        .toList())
+                .orElseGet(List::of);
+        if (!metadataLocations.isEmpty()) {
+            return metadataLocations;
+        }
+        return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, Member.class).stream()
+                .map(AccessibleObject.class::cast)
+                .toList();
+    }
+
+    private static Optional<AccessibleObject> annotatedPropertyLocation(
+            Class<?> ownerType, String propertyName, Class<? extends java.lang.annotation.Annotation> annotationType) {
+        return JvmComponentIntrospector.getInstance().getAnnotatedProperties(ownerType, annotationType).stream()
+                .filter(location -> JvmComponentIntrospector.getInstance().getPropertyName(location)
+                        .equals(propertyName))
+                .map(AccessibleObject.class::cast)
+                .findFirst();
+    }
+
+    private static Optional<String> entityIdPropertyName(Class<?> type) {
+        return JvmComponentMetadataLookup.scanIfScannable(type)
+                .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedProperty(type, EntityId.class)
+                        .map(property -> JvmComponentIntrospector.getInstance().getPropertyName(property)));
+    }
+
+    private static Optional<Object> entityIdValue(Object value) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        return entityIdPropertyName(value.getClass())
+                .flatMap(propertyName -> JvmComponentIntrospector.getInstance().readProperty(propertyName, value))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class));
     }
 
     protected Boolean canTrackerHandle(DeserializingMessage message, String routingKey) {
@@ -859,7 +903,7 @@ public class StatefulHandler implements Handler<DeserializingMessage> {
         }
 
         private Object computeMemberId(Entity<?> target, Object value) {
-            return JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class).orElse(target.id());
+            return entityIdValue(value).orElse(target.id());
         }
     }
 

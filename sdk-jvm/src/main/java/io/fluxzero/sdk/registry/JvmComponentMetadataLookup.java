@@ -16,6 +16,7 @@ package io.fluxzero.sdk.registry;
 
 import io.fluxzero.common.MessageType;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -135,6 +136,13 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
     }
 
     /**
+     * Returns whether the supplied JVM class has the supplied annotation in component metadata.
+     */
+    public boolean hasTypeAnnotation(Class<?> type, Class<? extends Annotation> annotationType) {
+        return hasAnnotation(typeAnnotations(type), annotationType);
+    }
+
+    /**
      * Returns package annotations for the supplied JVM package and known ancestor packages.
      */
     public List<AnnotationDescriptor> packageAnnotations(Package p) {
@@ -154,6 +162,32 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
      */
     public Optional<PropertyDescriptor> property(Class<?> type, String propertyName) {
         return property(typeName(type), propertyName);
+    }
+
+    /**
+     * Returns properties that carry the supplied annotation in component metadata.
+     */
+    public List<PropertyDescriptor> annotatedProperties(
+            Class<?> type, Class<? extends Annotation> annotationType) {
+        return properties(type).stream()
+                .filter(property -> hasAnnotation(property.annotations(), annotationType))
+                .toList();
+    }
+
+    /**
+     * Finds the first property that carries the supplied annotation in component metadata.
+     */
+    public Optional<PropertyDescriptor> annotatedProperty(
+            Class<?> type, Class<? extends Annotation> annotationType) {
+        return annotatedProperties(type, annotationType).stream().findFirst();
+    }
+
+    /**
+     * Finds the first property name carrying the supplied annotation in component metadata.
+     */
+    public Optional<String> annotatedPropertyName(
+            Class<?> type, Class<? extends Annotation> annotationType) {
+        return annotatedProperty(type, annotationType).map(PropertyDescriptor::name);
     }
 
     /**
@@ -193,6 +227,14 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
     }
 
     /**
+     * Returns whether the supplied JVM executable has the supplied annotation in component metadata.
+     */
+    public boolean hasExecutableAnnotation(
+            Executable executable, Class<? extends Annotation> annotationType) {
+        return hasAnnotation(executableAnnotations(executable), annotationType);
+    }
+
+    /**
      * Returns handler routes for the supplied JVM class.
      */
     public List<HandlerRoute> handlerRoutes(Class<?> type) {
@@ -228,5 +270,11 @@ public final class JvmComponentMetadataLookup implements ComponentMetadataLookup
     private static String metadataTypeName(Class<?> type) {
         Objects.requireNonNull(type, "type");
         return type.getCanonicalName() == null ? type.getName() : type.getCanonicalName();
+    }
+
+    private static boolean hasAnnotation(
+            List<AnnotationDescriptor> annotations, Class<? extends Annotation> annotationType) {
+        return annotations.stream().anyMatch(annotation -> annotation.qualifiedName().equals(annotationType.getName())
+                                                           || annotation.name().equals(annotationType.getSimpleName()));
     }
 }

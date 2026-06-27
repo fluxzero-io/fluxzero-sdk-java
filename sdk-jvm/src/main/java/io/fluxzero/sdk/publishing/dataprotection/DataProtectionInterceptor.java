@@ -29,11 +29,12 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.AccessibleObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -42,7 +43,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * A {@link DispatchInterceptor} and {@link HandlerInterceptor} that supports secure transmission of sensitive data
@@ -198,7 +198,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
         Object payload = m.getPayload();
         Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
-        boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
+        boolean dropProtectedData = shouldDropProtectedData(invoker);
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(payloadTree, fieldName, key,
@@ -207,6 +207,12 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
         protectedFields.forEach((fieldName, key) -> restoreProtectedField(payload, fieldName, key, dropProtectedData));
         return m;
+    }
+
+    private boolean shouldDropProtectedData(HandlerDescriptor invoker) {
+        return JvmComponentMetadataLookup.scanIfScannable(invoker.getMethod().getDeclaringClass())
+                .map(lookup -> lookup.hasExecutableAnnotation(invoker.getMethod(), DropProtectedData.class))
+                .orElseGet(() -> invoker.getMethod().isAnnotationPresent(DropProtectedData.class));
     }
 
     private void restoreProtectedField(Object payload, String fieldName, String key, boolean dropProtectedData) {
@@ -236,29 +242,44 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             return Map.of();
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
-        JvmComponentIntrospector.getInstance().getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
-                .flatMap(property -> ofNullable(JvmComponentIntrospector.getInstance().getValue(property, value)).stream()
-                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue)))
+        JvmComponentMetadataLookup.scanIfScannable(value.getClass())
+                .map(lookup -> lookup.annotatedProperties(value.getClass(), ProtectData.class).stream()
+                        .flatMap(property -> JvmComponentIntrospector.getInstance()
+                                .readProperty(property.name(), value).stream()
+                                .flatMap(propertyValue -> getProtectedFields(property.name(), propertyValue))))
+                .orElseGet(() -> JvmComponentIntrospector.getInstance()
+                        .getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
+                        .flatMap(property -> ofNullable(JvmComponentIntrospector.getInstance()
+                                        .getValue(property, value)).stream()
+                                .flatMap(propertyValue -> getProtectedFields(
+                                        JvmComponentIntrospector.getInstance().getPropertyName(property),
+                                        propertyValue))))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
     }
 
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
-    private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue) {
+    private Stream<Map.Entry<String, String>> getProtectedFields(String name, Object propertyValue) {
         if (propertyValue == null) {
             return Stream.empty();
         }
-        String name = JvmComponentIntrospector.getInstance().getPropertyName(holder);
         if (JvmComponentIntrospector.getInstance().isLeafValue(propertyValue)
             || propertyValue instanceof JsonNode
             || propertyValue instanceof Data<?>
             || propertyValue instanceof Iterable<?>
             || propertyValue instanceof Map<?, ?>
-            || JvmComponentIntrospector.getInstance().getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
+            || isProtectedType(propertyValue.getClass())) {
             return Stream.of(Map.entry(name, storeProtectedValue(propertyValue)));
         }
         return getProtectedFields(propertyValue).entrySet().stream()
                 .map(e -> Map.entry("%s/%s".formatted(name, e.getKey()), e.getValue()));
+    }
+
+    private boolean isProtectedType(Class<?> type) {
+        return JvmComponentMetadataLookup.scanIfScannable(type)
+                .map(lookup -> lookup.hasTypeAnnotation(type, ProtectData.class))
+                .orElseGet(() -> JvmComponentIntrospector.getInstance().getTypeAnnotation(type, ProtectData.class)
+                                 != null);
     }
 
     private String storeProtectedValue(Object value) {

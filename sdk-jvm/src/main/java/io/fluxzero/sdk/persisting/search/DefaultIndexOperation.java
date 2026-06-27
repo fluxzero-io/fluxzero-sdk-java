@@ -25,6 +25,7 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,6 +34,7 @@ import lombok.experimental.Accessors;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -73,9 +75,15 @@ public class DefaultIndexOperation implements IndexOperation {
         Class<?> objectType = object instanceof Entity<?> e ? e.type() : object.getClass();
         var searchParams = ofNullable(getSearchParameters(objectType)).orElse(defaultSearchParameters);
         String collection = ofNullable(searchParams.getCollection()).orElseGet(objectType::getSimpleName);
-        String idPath = object instanceof Entity<?> e ? e.idProperty() : JvmComponentIntrospector.getInstance().getAnnotatedPropertyName(object, EntityId.class).orElse(null);
+        String idPath = object instanceof Entity<?> e ? e.idProperty() : entityIdPropertyName(objectType).orElse(null);
         return prepare(documentStore, object, collection, idPath,
                        searchParams.getTimestampPath(), searchParams.getEndPath());
+    }
+
+    private static Optional<String> entityIdPropertyName(Class<?> type) {
+        return JvmComponentMetadataLookup.scanIfScannable(type)
+                .flatMap(lookup -> lookup.annotatedPropertyName(type, EntityId.class))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyName(type, EntityId.class));
     }
 
     /**

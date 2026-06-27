@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -167,7 +168,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * Indexes a collection of objects into a named collection, using {@link Guarantee#STORED}.
      */
     default CompletableFuture<Void> index(Collection<?> objects, Object collection) {
-        return index(objects, collection, v -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
+        return index(objects, collection, v -> entityIdValue(v).map(Object::toString)
                 .orElseGet(() -> currentIdentityProvider().nextTechnicalId()));
     }
 
@@ -276,7 +277,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      */
     default <T> CompletableFuture<Void> indexIfNotExists(Collection<? extends T> objects, Object collection) {
         return indexIfNotExists(objects, collection,
-                                v -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(v, EntityId.class).map(Object::toString)
+                                v -> entityIdValue(v).map(Object::toString)
                                         .orElseGet(() -> currentIdentityProvider().nextTechnicalId()));
     }
 
@@ -449,5 +450,15 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * Retrieves the serializer used for document operations within the document store.
      */
     DocumentSerializer getSerializer();
+
+    private static Optional<Object> entityIdValue(Object value) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        return JvmComponentMetadataLookup.scanIfScannable(value.getClass())
+                .flatMap(lookup -> lookup.annotatedPropertyName(value.getClass(), EntityId.class))
+                .flatMap(propertyName -> JvmComponentIntrospector.getInstance().readProperty(propertyName, value))
+                .or(() -> JvmComponentIntrospector.getInstance().getAnnotatedPropertyValue(value, EntityId.class));
+    }
 
 }
