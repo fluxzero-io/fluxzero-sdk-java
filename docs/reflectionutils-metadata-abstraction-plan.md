@@ -94,6 +94,9 @@ Work slices:
       through direct scanner fallback.
     - [x] Dynamic web `@Path` roots and web parameter binding use metadata-backed property/parameter annotations;
       generated-only mode no longer derives those web semantics through JVM annotation fallback.
+    - [x] API-doc endpoint discovery, documentation/exclusion/response metadata, web parameter docs, and automatic
+      `@ApiDocInfo` endpoints use registry metadata; generated-only mode no longer derives API-doc semantics from JVM
+      annotation fallback.
     - [x] `SchedulingInterceptor` and `MessageScheduler` use metadata-backed `@Periodic` resolution for handler
       methods and payload types; generated-only mode no longer derives scheduling semantics through JVM annotation
       fallback.

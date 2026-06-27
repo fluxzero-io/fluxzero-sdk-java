@@ -14,16 +14,19 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
 
 import java.lang.reflect.AnnotatedElement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 
 /**
  * Automatic endpoint that serves an HTML API reference page for an {@link ApiDocInfo} scope.
@@ -60,15 +63,36 @@ public final class ApiReferenceEndpoint {
 
     public static List<ApiReferenceEndpoint> forHandler(Class<?> handlerType) {
         List<ApiReferenceEndpoint> endpoints = new ArrayList<>();
+        Optional<ComponentMetadataLookup> lookup = ComponentMetadataLookups.lookup(handlerType);
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
         for (Package currentPackage : JvmComponentIntrospector.getInstance().getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
             path = appendPath(path, pathValues.apply(currentPackage).toList());
-            addIfEnabled(endpoints, currentPackage.getAnnotation(ApiDocInfo.class), path);
+            addIfEnabled(endpoints, apiDocInfo(lookup, handlerType, currentPackage), path);
         }
         path = appendPath(path, pathValues.apply(handlerType).toList());
-        addIfEnabled(endpoints, handlerType.getAnnotation(ApiDocInfo.class), path);
+        addIfEnabled(endpoints, apiDocInfo(lookup, handlerType), path);
         return endpoints;
+    }
+
+    private static ApiDocInfo apiDocInfo(
+            Optional<ComponentMetadataLookup> lookup, Class<?> handlerType, Package sourcePackage) {
+        Optional<ApiDocInfo> metadata = lookup.flatMap(l -> l.packageMetadata(sourcePackage.getName())
+                .flatMap(descriptor -> ComponentMetadataLookups.annotationAs(
+                        descriptor.annotations(), ApiDocInfo.class, ApiDocInfo.class, handlerType)));
+        if (metadata.isPresent() || lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return sourcePackage.getAnnotation(ApiDocInfo.class);
+    }
+
+    private static ApiDocInfo apiDocInfo(Optional<ComponentMetadataLookup> lookup, Class<?> handlerType) {
+        Optional<ApiDocInfo> metadata = lookup.flatMap(l -> ComponentMetadataLookups.typeAnnotation(
+                l, handlerType, ApiDocInfo.class));
+        if (metadata.isPresent() || lookup.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.orElse(null);
+        }
+        return handlerType.getAnnotation(ApiDocInfo.class);
     }
 
     private static void addIfEnabled(List<ApiReferenceEndpoint> endpoints, ApiDocInfo info, String basePath) {

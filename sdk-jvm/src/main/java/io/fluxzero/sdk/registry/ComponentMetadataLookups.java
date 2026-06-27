@@ -170,6 +170,21 @@ public final class ComponentMetadataLookups {
     }
 
     /**
+     * Projects all matching metadata annotations to JVM annotation views.
+     */
+    public static <A extends Annotation> List<A> annotations(
+            List<AnnotationDescriptor> annotations, Class<A> annotationType, Class<?> declaringClass) {
+        Objects.requireNonNull(annotations, "annotations");
+        Objects.requireNonNull(annotationType, "annotationType");
+        Objects.requireNonNull(declaringClass, "declaringClass");
+        return MetadataAnnotationResolver.descriptors(annotations, annotationType).stream()
+                .map(descriptor -> MetadataAnnotationResolver.annotationView(annotationType, descriptor, declaringClass))
+                .filter(annotationType::isInstance)
+                .map(annotationType::cast)
+                .toList();
+    }
+
+    /**
      * Projects package-level metadata annotations to a JVM annotation view, nearest package first.
      */
     public static <A extends Annotation> Optional<A> packageAnnotation(

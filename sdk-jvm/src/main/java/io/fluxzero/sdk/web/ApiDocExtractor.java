@@ -17,9 +17,13 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.reflection.ParameterRegistry;
-import io.fluxzero.sdk.registry.JvmComponentIntrospector;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.registry.AnnotationDescriptor;
+import io.fluxzero.sdk.registry.ComponentMetadataLookup;
+import io.fluxzero.sdk.registry.ComponentMetadataLookups;
+import io.fluxzero.sdk.registry.JvmComponentIntrospector;
+import io.fluxzero.sdk.registry.ParameterDescriptor;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import java.lang.annotation.Annotation;
@@ -76,16 +80,17 @@ public final class ApiDocExtractor {
      * Extracts API documentation metadata from a handler class and optional handler instance.
      */
     public static ApiDocCatalog extract(Class<?> handlerType, Object handler) {
+        MetadataContext metadata = MetadataContext.of(handlerType);
         List<ApiDocEndpoint> endpoints = new ArrayList<>();
         for (Executable executable : handlerExecutables(handlerType).toList()) {
-            if (!JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(executable, HandleWeb.class)
-                || isExcluded(handlerType, executable)
-                || !isDocumented(handlerType, executable)) {
+            if (!isHandleWeb(metadata, executable)
+                || isExcluded(handlerType, executable, metadata)
+                || !isDocumented(handlerType, executable, metadata)) {
                 continue;
             }
             for (WebPattern pattern : getWebPatterns(handlerType, handler, executable)) {
                 for (WebRouteMatcher.RouteVariant variant : WebRouteMatcher.RouteVariants.expand(pattern.getPath())) {
-                    endpoints.add(endpoint(handlerType, executable, pattern, variant.path()));
+                    endpoints.add(endpoint(handlerType, executable, pattern, variant.path(), metadata));
                 }
             }
         }
@@ -96,9 +101,18 @@ public final class ApiDocExtractor {
         return concat(JvmComponentIntrospector.getInstance().getAllMethods(handlerType).stream(), stream(handlerType.getDeclaredConstructors()));
     }
 
+    private static boolean isHandleWeb(MetadataContext metadata, Executable executable) {
+        Optional<Boolean> metadataResult = metadata.lookup()
+                .map(lookup -> ComponentMetadataLookups.hasExecutableAnnotation(lookup, executable, HandleWeb.class));
+        if (metadataResult.isPresent() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataResult.orElse(false);
+        }
+        return JvmComponentIntrospector.getInstance().isMethodAnnotationPresent(executable, HandleWeb.class);
+    }
+
     private static ApiDocEndpoint endpoint(Class<?> handlerType, Executable executable, WebPattern pattern,
-                                           String path) {
-        List<ApiDocParameter> parameters = parameters(executable, path);
+                                           String path, MetadataContext metadata) {
+        List<ApiDocParameter> parameters = parameters(executable, path, metadata);
         return new ApiDocEndpoint(
                 handlerType,
                 executable,
@@ -107,22 +121,22 @@ public final class ApiDocExtractor {
                 pattern.getMethod(),
                 pattern.isAutoHead(),
                 pattern.isAutoOptions(),
-                documentation(handlerType, executable),
+                documentation(handlerType, executable, metadata),
                 parameters,
-                requestBodies(executable),
+                requestBodies(executable, metadata),
                 responseType(executable),
-                responses(handlerType, executable));
+                responses(handlerType, executable, metadata));
     }
 
-    private static List<ApiDocParameter> parameters(Executable executable, String path) {
+    private static List<ApiDocParameter> parameters(Executable executable, String path, MetadataContext metadata) {
         List<ApiDocParameter> parameters = new ArrayList<>();
         Set<String> pathParameterNames = extractPathParameterNames(path);
         for (String pathParameter : pathParameterNames) {
             parameters.add(new ApiDocParameter(pathParameter, WebParameterSource.PATH, String.class, null));
         }
         for (Parameter parameter : executable.getParameters()) {
-            webParam(parameter).ifPresent(param -> {
-                String name = parameterName(parameter, param.annotationValue());
+            webParam(parameter, metadata).ifPresent(param -> {
+                String name = parameterName(parameter, param.annotationValue(), metadata);
                 if (param.source() != WebParameterSource.PATH || pathParameterNames.contains(name)) {
                     addOrReplace(parameters,
                                  new ApiDocParameter(name, param.source(), parameter.getParameterizedType(),
@@ -133,10 +147,10 @@ public final class ApiDocExtractor {
         return parameters;
     }
 
-    private static List<ApiDocRequestBody> requestBodies(Executable executable) {
+    private static List<ApiDocRequestBody> requestBodies(Executable executable, MetadataContext metadata) {
         List<ApiDocRequestBody> requestBodies = new ArrayList<>();
         for (Parameter parameter : executable.getParameters()) {
-            if (webParam(parameter).isEmpty() && !isFrameworkParameter(parameter.getType())) {
+            if (webParam(parameter, metadata).isEmpty() && !isFrameworkParameter(parameter.getType())) {
                 requestBodies.add(new ApiDocRequestBody(parameter.getParameterizedType(), parameter));
             }
         }
@@ -158,20 +172,50 @@ public final class ApiDocExtractor {
         return executable instanceof Method method ? method.getGenericReturnType() : Void.TYPE;
     }
 
-    private static ApiDocDetails documentation(Class<?> handlerType, Executable executable) {
+    private static ApiDocDetails documentation(Class<?> handlerType, Executable executable, MetadataContext metadata) {
         DocumentationBuilder builder = new DocumentationBuilder();
+        if (metadata.available() || ComponentMetadataLookups.generatedOnlyMode()) {
+            metadata.packageAnnotations().forEach(annotations -> apply(builder, annotations, handlerType));
+            apply(builder, metadata.typeAnnotations(), handlerType);
+            apply(builder, metadata.executableAnnotations(executable), handlerType);
+            return builder.build();
+        }
         packages(handlerType).forEach(p -> builder.apply(p.getAnnotation(ApiDoc.class)));
         builder.apply(handlerType.getAnnotation(ApiDoc.class));
         builder.apply(executable.getAnnotation(ApiDoc.class));
         return builder.build();
     }
 
-    private static List<ApiDocResponseDescriptor> responses(Class<?> handlerType, Executable executable) {
+    private static void apply(DocumentationBuilder builder, List<AnnotationDescriptor> annotations,
+                              Class<?> declaringClass) {
+        ComponentMetadataLookups.annotationAs(annotations, ApiDoc.class, ApiDoc.class, declaringClass)
+                .ifPresent(builder::apply);
+    }
+
+    private static List<ApiDocResponseDescriptor> responses(
+            Class<?> handlerType, Executable executable, MetadataContext metadata) {
         Map<Integer, ApiDocResponseDescriptor> responses = new LinkedHashMap<>();
+        if (metadata.available() || ComponentMetadataLookups.generatedOnlyMode()) {
+            metadata.packageAnnotations().forEach(annotations -> addResponses(responses, annotations, handlerType));
+            addResponses(responses, metadata.typeAnnotations(), handlerType);
+            addResponses(responses, metadata.executableAnnotations(executable), handlerType);
+            return new ArrayList<>(responses.values());
+        }
         packages(handlerType).forEach(p -> addResponses(responses, p.getAnnotationsByType(ApiDocResponse.class)));
         addResponses(responses, handlerType.getAnnotationsByType(ApiDocResponse.class));
         addResponses(responses, executable.getAnnotationsByType(ApiDocResponse.class));
         return new ArrayList<>(responses.values());
+    }
+
+    private static void addResponses(
+            Map<Integer, ApiDocResponseDescriptor> target, List<AnnotationDescriptor> annotations,
+            Class<?> declaringClass) {
+        addResponses(target, ComponentMetadataLookups.annotations(annotations, ApiDocResponse.class, declaringClass)
+                .toArray(ApiDocResponse[]::new));
+        for (ApiDocResponses responses : ComponentMetadataLookups.annotations(
+                annotations, ApiDocResponses.class, declaringClass)) {
+            addResponses(target, responses.value());
+        }
     }
 
     private static void addResponses(Map<Integer, ApiDocResponseDescriptor> target, ApiDocResponse[] responses) {
@@ -182,13 +226,27 @@ public final class ApiDocExtractor {
         }
     }
 
-    private static boolean isExcluded(Class<?> handlerType, Executable executable) {
+    private static boolean isExcluded(Class<?> handlerType, Executable executable, MetadataContext metadata) {
+        if (metadata.available() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.packageAnnotations().stream()
+                           .anyMatch(annotations -> ComponentMetadataLookups.hasAnnotation(
+                                   annotations, ApiDocExclude.class))
+                   || ComponentMetadataLookups.hasAnnotation(metadata.typeAnnotations(), ApiDocExclude.class)
+                   || ComponentMetadataLookups.hasAnnotation(
+                           metadata.executableAnnotations(executable), ApiDocExclude.class);
+        }
         return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDocExclude.class))
                || handlerType.isAnnotationPresent(ApiDocExclude.class)
                || executable.isAnnotationPresent(ApiDocExclude.class);
     }
 
-    private static boolean isDocumented(Class<?> handlerType, Executable executable) {
+    private static boolean isDocumented(Class<?> handlerType, Executable executable, MetadataContext metadata) {
+        if (metadata.available() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadata.packageAnnotations().stream()
+                           .anyMatch(annotations -> ComponentMetadataLookups.hasAnnotation(annotations, ApiDoc.class))
+                   || ComponentMetadataLookups.hasAnnotation(metadata.typeAnnotations(), ApiDoc.class)
+                   || ComponentMetadataLookups.hasAnnotation(metadata.executableAnnotations(executable), ApiDoc.class);
+        }
         return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDoc.class))
                || handlerType.isAnnotationPresent(ApiDoc.class)
                || executable.isAnnotationPresent(ApiDoc.class);
@@ -235,9 +293,15 @@ public final class ApiDocExtractor {
         throw new IllegalArgumentException("Route path parameter closing delimiter '}' is missing in: " + path);
     }
 
-    private static String parameterName(Parameter parameter, String annotationValue) {
+    private static String parameterName(Parameter parameter, String annotationValue, MetadataContext metadata) {
         if (!isBlank(annotationValue)) {
             return annotationValue;
+        }
+        Optional<String> metadataName = metadata.parameter(parameter)
+                .map(ParameterDescriptor::name)
+                .filter(name -> !isBlank(name));
+        if (metadataName.isPresent()) {
+            return metadataName.get();
         }
         if (parameter.isNamePresent()) {
             return parameter.getName();
@@ -250,7 +314,15 @@ public final class ApiDocExtractor {
         }
     }
 
-    private static Optional<WebParamInfo> webParam(Parameter parameter) {
+    private static Optional<WebParamInfo> webParam(Parameter parameter, MetadataContext metadata) {
+        Optional<WebParamInfo> metadataParam = metadata.parameter(parameter)
+                .flatMap(descriptor -> ComponentMetadataLookups.annotationAs(
+                        descriptor.annotations(), WebParam.class, WebParamProjection.class,
+                        parameter.getDeclaringExecutable().getDeclaringClass()))
+                .map(webParam -> new WebParamInfo(webParam.type(), webParam.value()));
+        if (metadataParam.isPresent() || metadata.available() || ComponentMetadataLookups.generatedOnlyMode()) {
+            return metadataParam;
+        }
         return Arrays.stream(parameter.getAnnotations())
                 .map(ApiDocExtractor::webParam)
                 .filter(Optional::isPresent)
@@ -289,6 +361,39 @@ public final class ApiDocExtractor {
     }
 
     private record WebParamInfo(WebParameterSource source, String annotationValue) {
+    }
+
+    private record WebParamProjection(String value, WebParameterSource type) {
+    }
+
+    private record MetadataContext(Class<?> handlerType, Optional<ComponentMetadataLookup> lookup) {
+        static MetadataContext of(Class<?> handlerType) {
+            return new MetadataContext(handlerType, ComponentMetadataLookups.lookup(handlerType));
+        }
+
+        boolean available() {
+            return lookup.isPresent();
+        }
+
+        List<List<AnnotationDescriptor>> packageAnnotations() {
+            return lookup.map(l -> l.packageMetadataChain(handlerType.getPackageName()).reversed().stream()
+                            .map(descriptor -> descriptor.annotations())
+                            .toList())
+                    .orElseGet(List::of);
+        }
+
+        List<AnnotationDescriptor> typeAnnotations() {
+            return lookup.map(l -> l.typeAnnotations(handlerType.getName())).orElseGet(List::of);
+        }
+
+        List<AnnotationDescriptor> executableAnnotations(Executable executable) {
+            return lookup.map(l -> ComponentMetadataLookups.executableAnnotations(l, executable))
+                    .orElseGet(List::of);
+        }
+
+        Optional<ParameterDescriptor> parameter(Parameter parameter) {
+            return lookup.flatMap(l -> ComponentMetadataLookups.parameter(l, parameter));
+        }
     }
 
     private static class DocumentationBuilder {

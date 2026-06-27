@@ -15,14 +15,19 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.tracking.handling.authentication.User;
+import io.fluxzero.sdk.registry.GeneratedOnlyMetadataMode;
+import io.fluxzero.sdk.registry.JvmComponentMetadataLookup;
+import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.apidoc.excluded.ExcludedApiDocHandler;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.List;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApiDocExtractorTest {
@@ -86,6 +91,70 @@ class ApiDocExtractorTest {
     @Test
     void onlyIncludesHandlersOptedInWithApiDoc() {
         assertTrue(ApiDocExtractor.extract(UndocumentedHandler.class).endpoints().isEmpty());
+    }
+
+    @Test
+    void generatedOnlyModeDoesNotUseReflectionFallbackForApiDocMetadata() {
+        GeneratedOnlyMetadataMode.run(() ->
+                assertTrue(ApiDocExtractor.extract(GeneratedOnlyDocHandler.class).endpoints().isEmpty()));
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForApiDocMetadata() {
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(GeneratedOnlyDocHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                ApiDocCatalog catalog = ApiDocExtractor.extract(GeneratedOnlyDocHandler.class);
+
+                assertEquals(1, catalog.endpoints().size());
+                ApiDocEndpoint endpoint = catalog.endpoints().getFirst();
+                assertEquals("/generated/items/{id}", endpoint.path());
+                assertEquals("Find generated item", endpoint.documentation().summary());
+                assertEquals("Generated docs", endpoint.documentation().description());
+                assertEquals(List.of(401, 404), endpoint.responses().stream()
+                        .map(ApiDocResponseDescriptor::status).toList());
+                assertParameter(endpoint, "id", WebParameterSource.PATH, String.class);
+                assertParameter(endpoint, "view", WebParameterSource.QUERY, String.class);
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    @Test
+    void generatedOnlyModeUsesRegistryMetadataForAutomaticApiDocEndpoints() throws Exception {
+        GeneratedOnlyMetadataMode.run(() -> {
+            assertTrue(OpenApiDocumentEndpoint.forHandler(GeneratedOnlyInfoHandler.class,
+                                                          new GeneratedOnlyInfoHandler()).isEmpty());
+            assertTrue(ApiReferenceEndpoint.forHandler(GeneratedOnlyInfoHandler.class).isEmpty());
+        });
+
+        try {
+            TestFixture.create().getFluxzero().registerComponentRegistry(
+                    JvmComponentMetadataLookup.scan(GeneratedOnlyInfoHandler.class).registry());
+
+            GeneratedOnlyMetadataMode.run(() -> {
+                List<OpenApiDocumentEndpoint> documentEndpoints = OpenApiDocumentEndpoint.forHandler(
+                        GeneratedOnlyInfoHandler.class, new GeneratedOnlyInfoHandler());
+                List<ApiReferenceEndpoint> referenceEndpoints = ApiReferenceEndpoint.forHandler(
+                        GeneratedOnlyInfoHandler.class);
+
+                assertFalse(documentEndpoints.isEmpty());
+                assertFalse(referenceEndpoints.isEmpty());
+                assertEquals("/api/spec.json", endpointPath(documentEndpoints.getFirst()));
+                assertEquals("/api/reference", endpointPath(referenceEndpoints.getFirst()));
+            });
+        } finally {
+            TestFixture.shutDownActiveFixtures();
+        }
+    }
+
+    private static String endpointPath(Object endpoint) throws ReflectiveOperationException {
+        Field field = endpoint.getClass().getDeclaredField("path");
+        field.setAccessible(true);
+        return (String) field.get(endpoint);
     }
 
     private static void assertParameter(ApiDocEndpoint endpoint, String name, WebParameterSource source, Type type) {
@@ -159,6 +228,33 @@ class ApiDocExtractorTest {
         @HandleGet("/internal")
         String internal() {
             return "internal";
+        }
+    }
+
+    @Path("/generated")
+    @ApiDoc(description = "Generated docs")
+    @ApiDocResponse(status = 401, description = "Unauthorized")
+    static class GeneratedOnlyDocHandler {
+        @ApiDoc(summary = "Find generated item")
+        @ApiDocResponse(status = 404, description = "Not found", type = NotFound.class)
+        @HandleGet("/items/{id}")
+        ReadingResponse find(@PathParam("id") String id, @QueryParam("view") String view) {
+            return null;
+        }
+    }
+
+    @Path("/api")
+    @ApiDocInfo(
+            title = "Generated API",
+            serveOpenApi = true,
+            openApiPath = "spec.json",
+            serveApiReference = true,
+            apiReferencePath = "reference")
+    static class GeneratedOnlyInfoHandler {
+        @ApiDoc
+        @HandleGet("/items")
+        String list() {
+            return "ok";
         }
     }
 
